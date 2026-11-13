@@ -6,7 +6,7 @@ import org.umamo.runtime.model.RuntimeTarget
 
 /*
  * The RuntimeTarget ↔ format-version mapping: which Cmo3TargetVersion / MocVersion each runtime
- * target reads from and persists as. It lives here rather than on the enum so :runtime stays free
+ * target reads from and persists as.  It lives here rather than on the enum so :runtime stays free
  * of :format - the target's capability matrix (supports / restrictedFeatures) is runtime policy,
  * while the version encodings are a format concern owned by the conversion layer.
  */

@@ -35,6 +35,15 @@ public class BlankLineAroundControlFlowRule :
 	Rule(
 		ruleId = RuleId("$UMAMO_RULE_SET_ID:blank-line-around-control-flow"),
 		about = About(maintainer = "Umamo"),
+		// A one-line `if` only becomes a block once it is braced, so the bracing rule goes first and a
+		// single format pass leaves the new block with its blank lines.
+		visitorModifiers =
+			setOf(
+				VisitorModifier.RunAfterRule(
+					RuleId(STATEMENT_IF_BRACES_RULE_ID),
+					VisitorModifier.RunAfterRule.Mode.REGARDLESS_WHETHER_RUN_AFTER_RULE_IS_LOADED_OR_DISABLED,
+				),
+			),
 	),
 	RuleAutocorrectApproveHandler {
 	/**

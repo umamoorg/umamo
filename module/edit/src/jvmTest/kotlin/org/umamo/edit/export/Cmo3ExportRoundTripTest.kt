@@ -58,6 +58,7 @@ import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.diffPuppetModels
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
@@ -253,7 +254,7 @@ class Cmo3ExportRoundTripTest {
 			run {
 				val cmo3 = Cmo3.read(file.readBytes())
 				Cmo3Import.fromModelSource(cmo3.root as CModelSource).deformers
-					.firstOrNull { it is org.umamo.runtime.model.Deformer.Rotation }
+					.firstOrNull { it is Deformer.Rotation }
 			}
 
 		if (rotation == null) {

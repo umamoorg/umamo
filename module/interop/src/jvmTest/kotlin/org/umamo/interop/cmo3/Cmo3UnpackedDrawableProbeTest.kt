@@ -17,6 +17,7 @@ import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CAffine
 import java.io.File
+import java.util.Collections
 import java.util.IdentityHashMap
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -206,7 +207,7 @@ class Cmo3UnpackedDrawableProbeTest {
 				}
 
 				if (modelImageGuid != null && texture != null) {
-					texturesByModelImage.getOrPut(modelImageGuid) { java.util.Collections.newSetFromMap(IdentityHashMap()) }.add(texture)
+					texturesByModelImage.getOrPut(modelImageGuid) { Collections.newSetFromMap(IdentityHashMap()) }.add(texture)
 					drawablesByModelImage[modelImageGuid] = (drawablesByModelImage[modelImageGuid] ?: 0) + 1
 				}
 			}

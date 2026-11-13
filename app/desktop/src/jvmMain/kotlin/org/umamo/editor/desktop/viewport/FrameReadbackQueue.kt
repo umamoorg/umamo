@@ -45,7 +45,7 @@ internal class FrameReadbackQueue(private val device: RenderDevice) {
 
 	/**
 	 * Collects every read-back whose fence signaled and publishes it to its area's slot, clearing the slot's
-	 * in-flight flag. A read-back whose slot was unregistered while in flight is discarded (the slot is gone).
+	 * in-flight flag.  A read-back whose slot was unregistered while in flight is discarded (the slot is gone).
 	 *
 	 * @param Map<String, AreaSlot> areas The registered areas, by id.
 	 */

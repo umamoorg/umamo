@@ -28,16 +28,16 @@ import org.umamo.runtime.model.withDerivedRenderRoot
 /*
  * Parameter document edits: create a new axis, rename one (its display name), and delete one everywhere.
  * Create and rename mirror the group edits (ParameterGroupEdits.kt) - pure PuppetModel.withX plus thin
- * EditorSession wrappers through mutate. Delete is the heavier one: besides the flat parameters list, the
+ * EditorSession wrappers through mutate.  Delete is the heavier one: besides the flat parameters list, the
  * panel tree, and any link, it must scrub the parameter out of every object's keyform grid, since each
- * grid axis references a parameter by id (KeyformAxis.parameterId). Dropping an axis collapses that grid
+ * grid axis references a parameter by id (KeyformAxis.parameterId).  Dropping an axis collapses that grid
  * one dimension, keeping the slice at the parameter's default value (the neutral pose) and discarding the
- * off-axis motion. The live pose entry is dropped in the session wrapper (pose lives on EditorSession).
+ * off-axis motion.  The live pose entry is dropped in the session wrapper (pose lives on EditorSession).
  */
 
 /**
  * A fresh CParameterSource-style idstr ("Param", then "Param2", "Param3", ...) that collides with no
- * existing parameter id. Deterministic from the model alone so the same edit replays identically under
+ * existing parameter id.  Deterministic from the model alone so the same edit replays identically under
  * undo / redo - no clock, no random.
  *
  * // CMO3: CParameterSource id idstr - editor-minted sequential parameter identifiers.
@@ -90,8 +90,8 @@ fun PuppetModel.withParameterCreated(
 }
 
 /**
- * A copy of this model with parameter [id] renamed to [newName] (trimmed). The id is format-level and
- * never changes - only the display name. A blank name is a no-op (returns this same instance), so an empty
+ * A copy of this model with parameter [id] renamed to [newName] (trimmed).  The id is format-level and
+ * never changes - only the display name.  A blank name is a no-op (returns this same instance), so an empty
  * commit keeps the old label; an unchanged name likewise returns this.
  *
  * @param ParameterId id The parameter to rename.
@@ -378,7 +378,13 @@ private fun CollapsedChannels.withFractionalDrawOrderKept(): CollapsedChannels {
 	)
 }
 
-/** This node list with every [ParameterNode.Param] leaf for [id] spliced out, recursing into groups. */
+/**
+ * This node list with every [ParameterNode.Param] leaf for [id] spliced out, recursing into groups.
+ *
+ * @param List<ParameterNode> nodes The node list to filter.
+ * @param ParameterId id The parameter whose leaves to remove.
+ * @return List<ParameterNode> The list without those leaves.
+ */
 private fun removeParameterLeaf(nodes: List<ParameterNode>, id: ParameterId): List<ParameterNode> =
 	nodes.mapNotNull { node ->
 		when (node) {
@@ -389,7 +395,7 @@ private fun removeParameterLeaf(nodes: List<ParameterNode>, id: ParameterId): Li
 
 /**
  * Creates a new animatable parameter (a freshly minted id, default -1..1 range) named [name] of [kind]
- * and returns its id, so the caller can immediately open inline rename on it. One undo step.
+ * and returns its id, so the caller can immediately open inline rename on it.  One undo step.
  *
  * @param String name The initial display name.
  * @param ParameterKind kind The parameter kind (NORMAL key-form or BLEND_SHAPE); defaults to NORMAL.
@@ -403,7 +409,7 @@ fun EditorSession.createParameter(name: String, kind: ParameterKind = ParameterK
 }
 
 /**
- * Renames parameter [id]'s display name to [newName] (trimmed) as one undo step. A blank or unchanged
+ * Renames parameter [id]'s display name to [newName] (trimmed) as one undo step.  A blank or unchanged
  * name records nothing.
  *
  * @param ParameterId id The parameter to rename.

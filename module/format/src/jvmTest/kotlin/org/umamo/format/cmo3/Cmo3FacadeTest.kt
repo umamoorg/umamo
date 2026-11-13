@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
 
 /**
  * End-to-end facade test: read a real .cmo3 into a typed model, inspect/replace layer images, and
- * write it back losslessly. Self-contained (no editor jar). Skips without the sample.
+ * write it back losslessly.  Self-contained (no editor jar).  Skips without the sample.
  */
 class Cmo3FacadeTest {
 	private val sample: File? = System.getProperty("cmo3.sample")?.let(::File)?.takeIf { it.isFile }

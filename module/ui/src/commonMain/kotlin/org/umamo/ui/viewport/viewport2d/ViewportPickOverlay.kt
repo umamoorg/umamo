@@ -53,8 +53,14 @@ fun ViewportPickOverlay(areaId: String, service: PuppetViewportService, modifier
 	// walks the whole org tree allocating a fresh map.
 	val partOfDrawable = remember(puppet) { puppet.partByDrawable() }
 
-	// Resolves the entity a click at this position would bind, or null for a miss.  The selectability filter
-	// the Object gizmo applies is deliberately skipped - an eyedropper may bind an unselectable object.
+	/**
+	 * Resolves the entity a click at this position would bind, or null for a miss.  The selectability filter
+	 * the Object gizmo applies is deliberately skipped - an eyedropper may bind an unselectable object.
+	 *
+	 * @param Float x The pointer's x in the area, in pixels.
+	 * @param Float y The pointer's y in the area, in pixels.
+	 * @return SelectionTarget? The target, or null for a miss.
+	 */
 	fun targetAt(x: Float, y: Float): SelectionTarget? {
 		if (!resolvableHere) {
 			return null

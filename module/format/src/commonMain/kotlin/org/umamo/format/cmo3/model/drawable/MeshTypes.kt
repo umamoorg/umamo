@@ -5,7 +5,7 @@ import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.format.cmo3.serialize.annotations.SerialTag
 
 /**
- * A named coordinate space. Fields derived from the serialized
+ * A named coordinate space.  Fields derived from the serialized
  * form: a single `coordName` string.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Serializer mechanics</a>
@@ -31,7 +31,7 @@ public class PointInTriangle {
 }
 
 /**
- * A point sampled along a controller curve. Mirrors the serialized form: a curve reference, the
+ * A point sampled along a controller curve.  Mirrors the serialized form: a curve reference, the
  * normalized/total parameter, distance, and a local position.
  *
  * EN: [curveId] references a CControllerCurveGuid (a [Guid]).

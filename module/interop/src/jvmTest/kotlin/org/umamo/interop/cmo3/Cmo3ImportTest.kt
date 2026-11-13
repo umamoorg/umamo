@@ -36,8 +36,8 @@ import kotlin.test.assertTrue
 /**
  * Reads a real `.cmo3` corpus sample, maps it to a `PuppetModel`, and checks the structural tree.
  *
- * Self-contained (no editor jar); skips when the sample is absent. Pass
- * `-Dcmo3.sample=/path/to/Model.cmo3`. The printed summary matches the official editor's Parts/Parameters
+ * Self-contained (no editor jar); skips when the sample is absent.  Pass
+ * `-Dcmo3.sample=/path/to/Model.cmo3`.  The printed summary matches the official editor's Parts/Parameters
  * panels; the assertions verify referential integrity (every GUID cross-reference resolves to a real entity).
  */
 class Cmo3ImportTest {
@@ -83,8 +83,8 @@ class Cmo3ImportTest {
 		)
 
 		// Golden gate: for the EricaTamamo corpus, assert the exact figures from
-		// test/corpus/EricaTamamo.stats. Other samples get only the sample-agnostic integrity checks
-		// below. (Parameter count is observed - the stats file does not list it.)
+		// test/corpus/EricaTamamo.stats.  Other samples get only the sample-agnostic integrity checks
+		// below.  (Parameter count is observed - the stats file does not list it.)
 		if (file.name.startsWith("EricaTamamo")) {
 			assertEquals(116, puppet.parameters.size, "parameters")
 			// CMO3 combined-parameter pairs: head Angle X/Y and Eyeball X/Y are the model's only links.
@@ -336,7 +336,7 @@ class Cmo3ImportTest {
 	/**
 	 * Probe loop over the whole corpus (`cmo3.probe`, comma-separated; defaults to every corpus
 	 * .cmo3): every model ingests with well-formed blend-shape bindings, and the two blend-shape
-	 * corpus anchors (Model A, Model B) match their golden counts. Skips gracefully without the corpus.
+	 * corpus anchors (Model A, Model B) match their golden counts.  Skips gracefully without the corpus.
 	 */
 	@Test
 	fun blendShapeBindingsAcrossCorpus() {

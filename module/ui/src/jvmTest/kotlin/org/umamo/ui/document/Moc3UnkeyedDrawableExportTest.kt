@@ -4,6 +4,7 @@ import org.umamo.interop.ExportNotice
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.restMeshesToCanvasSpace
+import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.PuppetModel
 import java.io.File
@@ -45,7 +46,7 @@ class Moc3UnkeyedDrawableExportTest {
 			).document as Moc3Document
 		// A warp child specifically: a base in any space but the lattice's would miss by the whole lattice
 		// transform there.
-		val warpIds = loaded.puppet.deformers.filterIsInstance<org.umamo.runtime.model.Deformer.Warp>().map { it.id }
+		val warpIds = loaded.puppet.deformers.filterIsInstance<Deformer.Warp>().map { it.id }
 		val target =
 			loaded.puppet.drawables.firstOrNull { drawable ->
 				drawable.parentDeformerId in warpIds && drawable.geometryGrid != null && drawable.mesh != null

@@ -18,6 +18,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
+import org.umamo.runtime.model.WarpLatticeForm
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -324,8 +325,8 @@ class Moc3Cmo3ParityTest {
 	 */
 	private fun compareWarpGrids(
 		drawableId: DrawableId,
-		cmo3Grid: KeyformGrid<org.umamo.runtime.model.WarpLatticeForm>?,
-		moc3Grid: KeyformGrid<org.umamo.runtime.model.WarpLatticeForm>?,
+		cmo3Grid: KeyformGrid<WarpLatticeForm>?,
+		moc3Grid: KeyformGrid<WarpLatticeForm>?,
 		tolerance: Float,
 	) {
 		if (cmo3Grid == null || moc3Grid == null) {

@@ -8,11 +8,11 @@ import kotlin.test.assertEquals
 
 /**
  * Serializer (bake-framing) self-consistency: re-frame each decoded model with [MocEncoder] and
- * confirm a re-decode yields the identical semantic model. This validates the offset table / section
- * ordering / alignment independent of the semantic lowering. Covers all three framings - the raw
+ * confirm a re-decode yields the identical semantic model.  This validates the offset table / section
+ * ordering / alignment independent of the semantic lowering.  Covers all three framings - the raw
  * repack, the reference-carrying [Moc3.bake], and the reference-free [Moc3.write] that is the
- * registered codec's own write. Baked files are also written to `build/moc3-bake/` for a manual
- * runtime check. Skips gracefully without samples.
+ * registered codec's own write.  Baked files are also written to `build/moc3-bake/` for a manual
+ * runtime check.  Skips gracefully without samples.
  */
 class MocBakeTest {
 	private val samplesDir: File? = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }
@@ -56,7 +56,7 @@ class MocBakeTest {
 
 			workDir.resolve("baked-${file.name}").writeBytes(baked)
 
-			// Full bake: synthesize sections from the (editable) document, carry the rest. Re-decode
+			// Full bake: synthesize sections from the (editable) document, carry the rest.  Re-decode
 			// must reproduce the same semantic model, and the synthesized sections come from `before`.
 			val viaDocument = Moc3.bake(original, before)
 			val rebaked = Moc3.decode(MocCodec.read(viaDocument))

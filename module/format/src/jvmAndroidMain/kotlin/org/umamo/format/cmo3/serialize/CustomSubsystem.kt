@@ -17,7 +17,7 @@ import org.umamo.format.cmo3.model.custom.WarpDeformerOriginalShape
 import org.umamo.format.cmo3.model.type.FileRef
 
 /**
- * Serializer for the `<file xs.n="…" path="…"/>` element. Mirrors the editor's writeFile: the path
+ * Serializer for the `<file xs.n="…" path="…"/>` element.  Mirrors the editor's writeFile: the path
  * names a de-duplicated CAFF entry; the bytes are managed by the container, not the XML.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §1 Container / §3 Payload</a>

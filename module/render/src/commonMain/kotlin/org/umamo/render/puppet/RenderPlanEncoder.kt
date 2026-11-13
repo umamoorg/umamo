@@ -50,7 +50,7 @@ internal class RenderPlanEncoder(
 	private val sideTargets: SideTargetPool,
 	private val residency: DrawableResidency,
 ) {
-	// Reused per-draw uniform + texture scratch, refilled each draw rather than allocated. Render-thread only.
+	// Reused per-draw uniform + texture scratch, refilled each draw rather than allocated.  Render-thread only.
 	private val deformScratch = DeformUniforms()
 	private val fragmentScratch = FragmentUniforms()
 	private val texturesScratch = DrawTextures()
@@ -62,7 +62,7 @@ internal class RenderPlanEncoder(
 	 * @param FrameEncoder frame The frame being recorded.
 	 */
 	fun encodeGlueCapture(frame: FrameEncoder) {
-		// Pass 1: capture every glue mesh's deformed positions into the shared store. Only when the pose
+		// Pass 1: capture every glue mesh's deformed positions into the shared store.  Only when the pose
 		// changed - a static pose leaves the store (and pass 2's reads of it) unchanged.
 		val activeStore = residency.positionStore
 
@@ -185,7 +185,7 @@ internal class RenderPlanEncoder(
 
 					if (gpuDrawable.maskIds.isNotEmpty()) {
 						// Mask by pass fragmentation: end the pass, render coverage into the mask target,
-						// resume preserving what is drawn so far. Correct on every backend and non-nesting.
+						// resume preserving what is drawn so far.  Correct on every backend and non-nesting.
 						pass.end()
 						renderMaskCoverage(frame, gpuDrawable.maskIds, inputs)
 						pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, inputs.viewportWidth, inputs.viewportHeight, scissor = scissor, drawOrder = orderTarget))
@@ -526,7 +526,7 @@ internal class RenderPlanEncoder(
 		fragmentScratch.drawOrder = drawOrder
 		fragmentScratch.orderOpacity = orderOpacity
 		// Reused per draw rather than allocating a bundle per drawable per frame, matching the deform /
-		// fragment scratch. A glue draw does not deform, so it needs no delta / control-point textures.
+		// fragment scratch.  A glue draw does not deform, so it needs no delta / control-point textures.
 		texturesScratch.atlas = gpuDrawable.activeTexture()
 		texturesScratch.maskCoverage = maskCoverage
 

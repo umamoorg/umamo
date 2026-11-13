@@ -6,10 +6,14 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.BlendWeightLimit
 import org.umamo.runtime.model.BlendWeightLimitPoint
+import org.umamo.runtime.model.ChannelGrids
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -105,7 +109,7 @@ class ParameterObjectBindingTest {
 
 	/**
 	 * A blend-shape binding is an object -> parameter edge like a keyform axis: an object whose ONLY
-	 * link to a parameter is a blend shape still lists it. Limit-curve constraint parameters are NOT
+	 * link to a parameter is a blend shape still lists it.  Limit-curve constraint parameters are NOT
 	 * edges - a limit gates the binding's weight, it does not key the object.
 	 */
 	@Test
@@ -153,19 +157,19 @@ class ParameterObjectBindingTest {
 		val meshA = drawable("a", parentDeformerId = null, ownParamId = null)
 		val meshB = drawable("b", parentDeformerId = null, ownParamId = angleZ)
 		val weld =
-			org.umamo.runtime.model.Glue(
+			Glue(
 				meshA = meshA.id,
 				meshB = meshB.id,
 				pairs = emptyList(),
 				channelGrids =
-					org.umamo.runtime.model.ChannelGrids(
+					ChannelGrids(
 						mapOf(
-							org.umamo.runtime.model.FormChannel.GLUE_INTENSITY to
+							FormChannel.GLUE_INTENSITY to
 								KeyformGrid(
 									listOf(KeyformAxis(angleX, floatArrayOf(-1f, 1f))),
 									listOf(
-										KeyformCell(intArrayOf(0), org.umamo.runtime.model.ChannelValue.Scalar(0.5f)),
-										KeyformCell(intArrayOf(1), org.umamo.runtime.model.ChannelValue.Scalar(1f)),
+										KeyformCell(intArrayOf(0), ChannelValue.Scalar(0.5f)),
+										KeyformCell(intArrayOf(1), ChannelValue.Scalar(1f)),
 									),
 								),
 						),

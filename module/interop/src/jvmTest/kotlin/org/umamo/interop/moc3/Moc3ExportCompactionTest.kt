@@ -158,22 +158,22 @@ class Moc3ExportCompactionTest {
 				check("mesh ${mesh.id} binding", mesh.keyformBindingIndex, other.keyformBindingIndex)
 
 				for (keyIndex in mesh.keyforms.indices) {
-					val a = mesh.keyforms.getOrNull(keyIndex) ?: continue
-					val b = other.keyforms.getOrNull(keyIndex) ?: continue
+					val uncompactedKeyform = mesh.keyforms.getOrNull(keyIndex) ?: continue
+					val compactedKeyform = other.keyforms.getOrNull(keyIndex) ?: continue
 
-					if (!a.vertexPositions.contentEquals(b.vertexPositions)) {
+					if (!uncompactedKeyform.vertexPositions.contentEquals(compactedKeyform.vertexPositions)) {
 						val worst =
-							a.vertexPositions.indices.maxByOrNull { component ->
-								kotlin.math.abs(a.vertexPositions[component] - (b.vertexPositions.getOrNull(component) ?: 0f))
+							uncompactedKeyform.vertexPositions.indices.maxByOrNull { component ->
+								kotlin.math.abs(uncompactedKeyform.vertexPositions[component] - (compactedKeyform.vertexPositions.getOrNull(component) ?: 0f))
 							} ?: 0
 						failures.add(
 							"${file.name}: mesh ${mesh.id} keyform $keyIndex positions differ at $worst " +
-								"uncompacted=${a.vertexPositions.getOrNull(worst)} compacted=${b.vertexPositions.getOrNull(worst)}",
+								"uncompacted=${uncompactedKeyform.vertexPositions.getOrNull(worst)} compacted=${compactedKeyform.vertexPositions.getOrNull(worst)}",
 						)
 					}
 
-					check("mesh ${mesh.id} keyform $keyIndex opacity", a.opacity, b.opacity)
-					check("mesh ${mesh.id} keyform $keyIndex drawOrder", a.drawOrder, b.drawOrder)
+					check("mesh ${mesh.id} keyform $keyIndex opacity", uncompactedKeyform.opacity, compactedKeyform.opacity)
+					check("mesh ${mesh.id} keyform $keyIndex drawOrder", uncompactedKeyform.drawOrder, compactedKeyform.drawOrder)
 				}
 			}
 

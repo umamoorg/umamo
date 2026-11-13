@@ -21,7 +21,7 @@ import org.umamo.format.moc3.model.WarpDeformer
  * object's per-keyform values (vertex positions, opacity, draw-order, color, deformer transforms).
  *
  * Reads the typed Layer-1 sections and follows the base/index tables - it does not evaluate the
- * model (no interpolation/cascade). Blend shapes (MOC3 v4+) and offscreens (MOC3 v6) are assembled
+ * model (no interpolation/cascade).  Blend shapes (MOC3 v4+) and offscreens (MOC3 v6) are assembled
  * too.  Every section index is modeled in [Section], so nothing is left to raw access.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
@@ -180,7 +180,7 @@ public object MocDecoder {
 
 	/**
 	 * Decodes the offscreen render targets (moc 6), including their per-keyform opacity/color and
-	 * mask indices. An offscreen's keyforms ride its owner part's keyform grid (no offscreen
+	 * mask indices.  An offscreen's keyforms ride its owner part's keyform grid (no offscreen
 	 * keyform-binding section exists; MOC3 §5.6, OffscreenKeyformProbeTest): opacity rows in
 	 * section 161 and the color tables' PREFIX rows are laid out per offscreen in offscreen order.
 	 *

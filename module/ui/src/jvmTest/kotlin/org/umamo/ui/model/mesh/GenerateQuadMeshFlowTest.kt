@@ -18,6 +18,7 @@ import org.umamo.interop.art.BirthMeshMode
 import org.umamo.interop.art.SourceArtImport
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.interop.art.mesh.ArtMeshPreset
+import org.umamo.render.DecodedImage
 import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasComposition
@@ -193,7 +194,7 @@ class GenerateQuadMeshFlowTest {
 			// is no art, so the quad fits the core.
 			val faintField = raster(64, 64, alpha = 30) { column, row -> column in 4..59 && row in 4..59 }
 			val core = raster(64, 64) { column, row -> column in 20..43 && row in 20..43 }
-			val art = rasters(tileA to org.umamo.render.DecodedImage(ByteArray(64 * 64 * 4) { component -> maxOf(faintField.rgba[component].toInt() and 0xFF, core.rgba[component].toInt() and 0xFF).toByte() }, 64, 64))
+			val art = rasters(tileA to DecodedImage(ByteArray(64 * 64 * 4) { component -> maxOf(faintField.rgba[component].toInt() and 0xFF, core.rgba[component].toInt() and 0xFF).toByte() }, 64, 64))
 			val atlas = unplacedAtlas(listOf(tileA)).copy(composition = AtlasComposition(alphaThreshold = 40))
 			val session = EditorSession(model(listOf(quad(drawableA, tileA, 10f, 10f, 54f, 54f)), atlas))
 

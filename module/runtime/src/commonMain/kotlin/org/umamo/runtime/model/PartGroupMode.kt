@@ -38,14 +38,14 @@ sealed interface PartGroupMode {
  * `CPartSource.useOffscreen` and friends; MOC3 §5.6 sections 152-163.)
  */
 data class PartComposite(
-	/** The composite's color blend mode. (CMO3 colorComposition; MOC3 s157 colorMode.) */
+	/** The composite's color blend mode.  (CMO3 colorComposition; MOC3 s157 colorMode.) */
 	val blendMode: BlendMode = BlendMode.Normal,
-	/** The composite's alpha blend mode. (CMO3 alphaComposition; MOC3 s157 alphaMode.) */
+	/** The composite's alpha blend mode.  (CMO3 alphaComposition; MOC3 s157 alphaMode.) */
 	val alphaBlendMode: AlphaBlendMode = AlphaBlendMode.Over,
 	/**
 	 * Drawables whose alpha clips the whole composite (Cubism clipping masks at the part level).
 	 * Always drawables - a part chosen as Clipping ID in the editor is expanded to its constituent
-	 * drawables at authoring time. (CMO3 clipGuidList; MOC3 offscreen mask prefix.)
+	 * drawables at authoring time.  (CMO3 clipGuidList; MOC3 offscreen mask prefix.)
 	 */
 	val maskedBy: List<DrawableId> = emptyList(),
 	/**
@@ -58,12 +58,12 @@ data class PartComposite(
 	 * this away (that format has nowhere to put it); UMA carries it.
 	 */
 	val maskedByParts: List<PartId> = emptyList(),
-	/** When true, the clip is inverted - the composite shows outside the [maskedBy] coverage. (CMO3 invertClippingMask; MOC3 offscreen flags bit 3.) */
+	/** When true, the clip is inverted - the composite shows outside the [maskedBy] coverage.  (CMO3 invertClippingMask; MOC3 offscreen flags bit 3.) */
 	val invertMask: Boolean = false,
-	/** Static composite opacity (0..1) when the part has no keyform grid. (CMO3 CPartForm.opacity; MOC3 s161.) */
+	/** Static composite opacity (0..1) when the part has no keyform grid.  (CMO3 CPartForm.opacity; MOC3 s161.) */
 	val opacity: Float = 1f,
-	/** Static multiply color when the part has no keyform grid. (CMO3 CPartForm.multiplyColor.) */
+	/** Static multiply color when the part has no keyform grid.  (CMO3 CPartForm.multiplyColor.) */
 	val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
-	/** Static screen color when the part has no keyform grid. (CMO3 CPartForm.screenColor.) */
+	/** Static screen color when the part has no keyform grid.  (CMO3 CPartForm.screenColor.) */
 	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
 )

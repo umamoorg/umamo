@@ -6,11 +6,11 @@ package org.umamo.format.kra
  *
  * Krita compresses tile pixels with a fast LZF variant (a Lempel-Ziv byte coder), and - before
  * compressing - reorders the interleaved pixel bytes into a planar layout (all of channel 0, then
- * all of channel 1, and so on) because runs of one channel compress far better. Reading is the
+ * all of channel 1, and so on) because runs of one channel compress far better.  Reading is the
  * mirror: LZF-decompress, then de-interleave back to packed pixels.
  *
  * Pure Kotlin with no platform APIs, so it lives below the ZIP/XML orchestration and is unit
- * testable on its own. Ported verbatim from Krita's GPL source.
+ * testable on its own.  Ported verbatim from Krita's GPL source.
  *
  * Krita タイルの復号プリミティブ。LZF 伸長と平面→インターリーブ変換。プラットフォーム非依存。
  */
@@ -22,10 +22,10 @@ internal const val KRA_COMPRESSED_DATA_FLAG: Int = 1
 /**
  * Decompresses one LZF stream into output, a direct port of Krita's lzff_decompress.
  *
- * The coder emits a stream of control bytes. A control byte whose value is below 32 starts a
+ * The coder emits a stream of control bytes.  A control byte whose value is below 32 starts a
  * literal run of value-plus-one raw bytes; otherwise its top 3 bits are a back-reference length and
  * its low 5 bits are the high bits of a back-reference distance (the next byte carries the low 8
- * bits, and a length of 7 means "read one more byte and add it"). Back-references copy
+ * bits, and a length of 7 means "read one more byte and add it").  Back-references copy
  * already-decoded bytes, so output must be written strictly left to right.
  *
  * @param ByteArray input          Buffer holding the compressed stream.
@@ -54,7 +54,7 @@ internal fun lzfDecompress(
 		var backReferenceLength = control ushr 5
 
 		if (literalRunLength < 33) {
-			// Literal copy of literalRunLength raw bytes. KRA: kis_lzf_compression.cpp:186-208.
+			// Literal copy of literalRunLength raw bytes.  KRA: kis_lzf_compression.cpp:186-208.
 			if (outputPos + literalRunLength > outputLimit) {
 				return 0
 			}
@@ -68,7 +68,7 @@ internal fun lzfDecompress(
 				remaining--
 			}
 		} else {
-			// Back reference. KRA: kis_lzf_compression.cpp:209-232.
+			// Back reference.  KRA: kis_lzf_compression.cpp:209-232.
 			backReferenceLength -= 1
 			// ref = op - ofs; ref-- where ofs = (control & 31) << 8.
 			var referencePos = outputPos - ((control and 31) shl 8) - 1

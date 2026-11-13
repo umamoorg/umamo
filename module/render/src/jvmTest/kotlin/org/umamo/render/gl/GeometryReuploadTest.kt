@@ -32,11 +32,11 @@ import kotlin.test.assertTrue
 /**
  * Proves the GPU renderer re-uploads an edited base mesh so the textured art actually moves: an
  * Object/Edit-mode G/S/R commits new positions, and those positions must reach the VBO on the next
- * render or the art visibly lags behind the mesh. Renders a flat-color quad into an offscreen FBO, shifts
+ * render or the art visibly lags behind the mesh.  Renders a flat-color quad into an offscreen FBO, shifts
  * its base positions via [PuppetRenderer.updateModel], re-renders, and asserts the drawn art's pixel
  * centroid moved by the expected screen delta - once for a direct (undeformed) drawable and once for a
  * rotation-deformer-parented one, so a parented drawable's art fully tracks the edit rather than lagging
- * partway. Also asserts [PuppetRenderer.pickGeometry] follows the edit, so picking stays in sync with
+ * partway.  Also asserts [PuppetRenderer.pickGeometry] follows the edit, so picking stays in sync with
  * what's drawn.
  *
  * Self-skips in a display-less environment (no GL context), like [GpuDeformValidationTest].
@@ -114,7 +114,7 @@ class GeometryReuploadTest {
 
 	/**
 	 * Renders [source] and its base-shifted variant into an offscreen FBO and asserts the drawn art moved by
-	 * the expected screen delta and that pick geometry followed. Self-skips (returns) with no GL context.
+	 * the expected screen delta and that pick geometry followed.  Self-skips (returns) with no GL context.
 	 */
 	private fun runMotionCase(source: PuppetModel, label: String) {
 		requireHeadlessGl("[geometry-reupload]")
@@ -125,7 +125,7 @@ class GeometryReuploadTest {
 		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
 		val framebuffer = (target as GlRenderTarget).framebuffer
 		// A fixed 1:1 camera centered on the origin, so one world unit == one screen pixel and the frame
-		// never moves - only the art does. Held across both renders.
+		// never moves - only the art does.  Held across both renders.
 		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 
 		// Background only (the drawable hidden), so the art can be isolated by differencing against it.
@@ -160,7 +160,7 @@ class GeometryReuploadTest {
 		assertTrue(massA > 1000, "$label: frame A drew too little art (mass $massA) - the probe did not render")
 		assertTrue(massB > 1000, "$label: frame B drew too little art (mass $massB)")
 		// The whole quad translated rigidly, so its pixel centroid shifts by exactly the world delta at
-		// zoom 1. A generous tolerance covers anti-aliased edge pixels near the flat-color threshold.
+		// zoom 1.  A generous tolerance covers anti-aliased edge pixels near the flat-color threshold.
 		assertEquals(shiftWorld, centroidBx - centroidAx, 4f, "$label: art did not move by the edited base delta")
 		assertTrue(abs(centroidBy - centroidAy) < 4f, "$label: art drifted in y (${centroidBy - centroidAy})")
 		// Pick geometry must follow the edit too (world x unchanged by the global Y-flip).

@@ -42,39 +42,39 @@ internal class ParametersViewState : PersistentSpaceState {
 	/**
 	 * Parameter islands whose range editor is open, keyed by the island's primary parameter id (a pad
 	 * keys on its horizontal member, so the state survives the param <-> pair row-identity change on
-	 * link / unlink). Multiple islands may be open at once, so range editors on different parameters
+	 * link / unlink).  Multiple islands may be open at once, so range editors on different parameters
 	 * never contend for one shared slot.
 	 */
 	val openRangeEditors = mutableStateMapOf<ParameterId, Boolean>()
 
 	/**
 	 * Which parameter groups are expanded, keyed by group id; an absent entry falls back to the group's
-	 * imported initiallyOpen. Parked here rather than in a remember(puppet) so it survives every model
+	 * imported initiallyOpen.  Parked here rather than in a remember(puppet) so it survives every model
 	 * edit - a link, an undo, a rename each mint a new PuppetModel instance that would otherwise reset it
-	 * and collapse an open group. A newly created group has no entry and is minted initiallyOpen = true,
+	 * and collapse an open group.  A newly created group has no entry and is minted initiallyOpen = true,
 	 * so it defaults open.
 	 */
 	val expandedGroups = mutableStateMapOf<ParameterGroupId, Boolean>()
 
 	/**
-	 * The group whose header is being renamed in place, or null. Parked here (not remember(puppet), not
+	 * The group whose header is being renamed in place, or null.  Parked here (not remember(puppet), not
 	 * body-local) because the New Group header button - a sibling subtree - opens rename on the group it
 	 * just created, and a rename commit mints a new PuppetModel that must not yank this out mid-edit.
 	 */
 	var renamingGroupId: ParameterGroupId? by mutableStateOf(null)
 
 	/**
-	 * The parameter whose name is being renamed in place, or null. Parked here for the same reasons as
+	 * The parameter whose name is being renamed in place, or null.  Parked here for the same reasons as
 	 * [renamingGroupId]: the Add Parameter header button (a sibling subtree) opens rename on the parameter
 	 * it just created, and every rename / create commit mints a new PuppetModel that must not yank the
-	 * in-place editor out mid-edit. At most one of this and [renamingGroupId] is non-null at a time.
+	 * in-place editor out mid-edit.  At most one of this and [renamingGroupId] is non-null at a time.
 	 */
 	var renamingParameterId: ParameterId? by mutableStateOf(null)
 
 	/**
 	 * When true, the panel shows only the parameters that affect the current selection (a drawable's own
 	 * keyform axes plus every parent deformer up its chain; a deformer's own plus its ancestors'; a part's
-	 * draw-order axes plus its member drawables' effective sets). Off by default. With nothing selected the
+	 * draw-order axes plus its member drawables' effective sets).  Off by default.  With nothing selected the
 	 * filter is inert (the whole list shows), so the panel is never mysteriously empty.
 	 */
 	var showOnlySelected: Boolean by mutableStateOf(false)

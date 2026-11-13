@@ -24,6 +24,12 @@ internal fun countInfoSection(context: MocLoweringContext): ByteArray {
 	val rotations = context.rotations
 	val blendLayout = context.blendLayout.takeIf { context.hasBlendShapes }
 
+	/**
+	 * Rounds a coordinate count up to a multiple of 16.
+	 *
+	 * @param Int coordinateCount The count to round.
+	 * @return Int The padded count.
+	 */
 	fun padded(coordinateCount: Int): Int = (coordinateCount + 15) / 16 * 16
 
 	/**

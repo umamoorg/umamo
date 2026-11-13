@@ -105,6 +105,7 @@ internal fun rememberDocumentWatch(
 		val watch = documentWatch ?: return@LaunchedEffect
 		val activeSession = session ?: return@LaunchedEffect
 
+		/** Hands the watcher the document's current artwork files that live on the file system. */
 		fun trackCurrentSources() {
 			watch.coordinator.track(
 				activeSession.model.value.sources.mapNotNull { source ->

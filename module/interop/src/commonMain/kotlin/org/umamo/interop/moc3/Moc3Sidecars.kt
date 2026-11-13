@@ -1,5 +1,6 @@
 package org.umamo.interop.moc3
 
+import kotlinx.serialization.SerializationException
 import org.umamo.format.FileKind
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.json.Cdi3Json
@@ -266,7 +267,7 @@ object Moc3Sidecars {
 	 *
 	 * @param PassThroughSidecar sidecar The sidecar.
 	 * @return NamedIds The ids it names.
-	 * @throws kotlinx.serialization.SerializationException When the text is not the kind's shape.
+	 * @throws SerializationException When the text is not the kind's shape.
 	 */
 	private fun namedIdsOf(sidecar: PassThroughSidecar): NamedIds =
 		when (sidecar.kind) {

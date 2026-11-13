@@ -1,5 +1,6 @@
 package org.umamo.editor.desktop.viewport
 
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.runBlocking
 import org.umamo.format.raster.RasterImage
 import org.umamo.render.ContentBounds
@@ -25,7 +26,7 @@ class SnapshotQueueTest {
 	private val camera = ViewportCamera.fit(ContentBounds(0f, 0f, 10f, 10f), 10, 10)
 	private val image = RasterImage(1, 1, ByteArray(4))
 
-	private fun settled(result: kotlinx.coroutines.Deferred<RasterImage?>): RasterImage? {
+	private fun settled(result: Deferred<RasterImage?>): RasterImage? {
 		assertTrue(result.isCompleted, "the capture must have been answered")
 
 		return runBlocking { result.await() }

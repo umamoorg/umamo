@@ -1,7 +1,7 @@
 package org.umamo.format.moc3.model
 
 /**
- * One keyform of an [Offscreen]: its opacity plus multiply/screen color. Offscreen keyforms ride
+ * One keyform of an [Offscreen]: its opacity plus multiply/screen color.  Offscreen keyforms ride
  * the owner part's keyform grid (there is no offscreen keyform-binding section; Σ owner-part grid
  * sizes == CountInfo 36), and their rows form the PREFIX of the shared color tables on moc 6.
  *
@@ -60,8 +60,8 @@ public enum class BlendShapeTarget { WARP, ART_MESH, ROTATION, PART }
  *
  * Values are the raw per-key delta rows lifted from the shared keyform value tables (MOC3.md
  * §5.6): relative to the object's grid form at the default pose, with the neutral key's row
- * all-zero. Geometry stays in the space the base keyforms use (parent-relative); no coordinate
- * conversion happens at the format layer. The reused keyform types carry the per-kind channels
+ * all-zero.  Geometry stays in the space the base keyforms use (parent-relative); no coordinate
+ * conversion happens at the format layer.  The reused keyform types carry the per-kind channels
  * (positions/control points/affine plus opacity, draw order, and color), all as deltas - so an
  * unauthored channel reads 0, not the channel's identity value.
  */
@@ -82,11 +82,11 @@ public sealed class BlendShapeKeyform {
 /**
  * A blend-weight limit ("blend shape limit") on a [BlendShape] record: an end-clamped
  * piecewise-linear (key, weight) curve over ANOTHER parameter's value that caps the record's
- * weight. A record's effective multiplier is the MINIMUM over its limits (1 when it has none).
+ * weight.  A record's effective multiplier is the MINIMUM over its limits (1 when it has none).
  *
  * On disk (MOC3 v4+ §5.6, sections 123/124 + 131-136) records reference a DEDUPLICATED pool of
  * sub-bindings; the decoder expands the pool per record, so identical curves shared by many
- * records appear on each. A future lowering re-dedups by value when synthesizing the tables.
+ * records appear on each.  A future lowering re-dedups by value when synthesizing the tables.
  *
  * @property parameterIndex The gating parameter (index into [org.umamo.format.moc3.MocDocument.parameters]).
  * @property keyPositions   The curve's parameter values, ascending.
@@ -117,7 +117,7 @@ public data class BlendShapeLimit(
 
 /**
  * A blend-shape record (moc 4+ for meshes/warps, moc 5+ for rotations): an additive deformation
- * delta driven by one parameter. The deltas live in the shared keyform value tables at
+ * delta driven by one parameter.  The deltas live in the shared keyform value tables at
  * [recordBase] (per key) and are lifted into [keyforms]; each is relative to the object's grid
  * form at the default pose, with the [neutralKeyIndex] row all-zero.
  *

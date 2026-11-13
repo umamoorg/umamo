@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 /**
  * Default-pose eval sanity over EVERY corpus moc: imports each `.moc3` found beside the
  * `-Dmoc3.sample` model and asserts the evaluated world geometry is finite and lands within a
- * generous multiple of the canvas. Models with no canvas, and models with no art meshes at all, are
+ * generous multiple of the canvas.  Models with no canvas, and models with no art meshes at all, are
  * reported and skipped rather than failed - both are shapes a real `.moc3` takes.
  */
 class Moc3EvalSanityTest {

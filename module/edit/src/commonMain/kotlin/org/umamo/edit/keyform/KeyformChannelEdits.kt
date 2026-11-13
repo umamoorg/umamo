@@ -16,6 +16,7 @@ import org.umamo.runtime.keyform.withKeyRemoved
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ChannelValueKind
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.Glue
@@ -44,6 +45,10 @@ import org.umamo.runtime.model.withDerivedRenderRoot
  *
  * The seed value for a first bind: binding replicates the entity's present look across the new axis, so
  * that binding alone never changes the render, only the capture that follows does.
+ *
+ * @param KeyformOwner owner The entity to read.
+ * @param FormChannel channel The channel to read.
+ * @return ChannelValue? The static value, or null when the owner is unknown or has no such channel.
  */
 private fun PuppetModel.staticValueOf(owner: KeyformOwner, channel: FormChannel): ChannelValue? =
 	when (owner) {
@@ -109,6 +114,10 @@ private fun PuppetModel.staticValueOf(owner: KeyformOwner, channel: FormChannel)
  *
  * A part edit re-derives the render root, because the render tree carries its own copy of each part's
  * tracks and would otherwise keep evaluating the pre-edit ones.
+ *
+ * @param KeyformOwner owner The entity whose tracks to replace.
+ * @param ChannelGrids channelGrids The replacement channel tracks.
+ * @return PuppetModel The model with the tracks replaced.
  */
 private fun PuppetModel.withChannelGrids(owner: KeyformOwner, channelGrids: ChannelGrids): PuppetModel =
 	when (owner) {
@@ -151,7 +160,12 @@ private fun PuppetModel.withChannelGrids(owner: KeyformOwner, channelGrids: Chan
 		}
 	}
 
-/** Whether [value] is the kind [channel] stores - a guard against writing a color into a scalar track. */
+/**
+ * Whether [value] is the kind [channel] stores - a guard against writing a color into a scalar track.
+ *
+ * @param ChannelValue value The value to test.
+ * @return Boolean True when the value is of this channel's kind.
+ */
 private fun FormChannel.accepts(value: ChannelValue): Boolean = valueKind == value.valueKind
 
 /**
@@ -337,10 +351,14 @@ fun EditorSession.removeChannelKey(target: KeyableTarget, parameter: Parameter) 
 	}
 }
 
-/** The kind guard's counterpart for callers building a value: the neutral value of [channel]'s kind. */
+/**
+ * The kind guard's counterpart for callers building a value: the neutral value of [channel]'s kind.
+ *
+ * @return ChannelValue The neutral value: zero, black, or false.
+ */
 internal fun FormChannel.neutralValue(): ChannelValue =
 	when (valueKind) {
 		ChannelValueKind.SCALAR -> ChannelValue.Scalar(0f)
-		ChannelValueKind.COLOR -> ChannelValue.Color(org.umamo.runtime.model.ColorRgb(0f, 0f, 0f))
+		ChannelValueKind.COLOR -> ChannelValue.Color(ColorRgb(0f, 0f, 0f))
 		ChannelValueKind.FLAG -> ChannelValue.Flag(false)
 	}

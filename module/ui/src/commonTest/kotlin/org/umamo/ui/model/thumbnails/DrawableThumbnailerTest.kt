@@ -20,9 +20,9 @@ import kotlin.test.assertNull
 
 /**
  * Unit-tests [DrawableThumbnailer], the shared crop-and-downsample used by both the overlap picker and the
- * Outliner hover preview. Corpus-free: a hand-built 4x4 atlas with distinct corner pixels and a drawable
+ * Outliner hover preview.  Corpus-free: a hand-built 4x4 atlas with distinct corner pixels and a drawable
  * whose UVs cover the left half, so the cropped thumbnail is a known 2x4 1:1 copy whose pixels can be
- * asserted exactly. No GL - the bitmap is read back via toPixelMap (common Compose API). If the ui android target ever
+ * asserted exactly.  No GL - the bitmap is read back via toPixelMap (common Compose API).  If the ui android target ever
  * enables host tests, the Bitmap-backed rgbaToImageBitmap actual will need Robolectric.
  */
 class DrawableThumbnailerTest {
@@ -203,7 +203,7 @@ class DrawableThumbnailerTest {
 	@Test
 	fun combinesPartMembersInModelSpaceLeftToRight() {
 		// Two opaque, non-overlapping layers under one part: 'a' on the model-space left (red atlas region),
-		// 'b' on the right (green). Their union is 20x10 model units → a 128x64 composite split down the middle.
+		// 'b' on the right (green).  Their union is 20x10 model units → a 128x64 composite split down the middle.
 		val left =
 			drawable(
 				id = "a",

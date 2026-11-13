@@ -118,7 +118,7 @@ public object MocEncoder {
 	}
 
 	/**
-	 * Re-frames an existing [MocModel]'s sections into a compact valid `.moc3` (a "repack"). Useful to
+	 * Re-frames an existing [MocModel]'s sections into a compact valid `.moc3` (a "repack").  Useful to
 	 * validate the serializer independent of the semantic lowering: the runtime accepts it and reads
 	 * the same model, though the byte layout differs from the original (use
 	 * [org.umamo.format.moc3.moc.MocCodec.write] for a byte-identical re-emit).
@@ -195,7 +195,7 @@ public object MocEncoder {
 	private fun synthesize(doc: MocDocument): Map<Int, ByteArray> = MocLowering.lower(doc)
 
 	/**
-	 * The number of section-table entries the editor emits for a moc [version]. The runtime indexes the
+	 * The number of section-table entries the editor emits for a moc [version].  The runtime indexes the
 	 * table by fixed section index and never reads its length, so this only needs to be ≥ the highest
 	 * index used; matching the editor keeps the file shape conventional.
 	 *
@@ -220,7 +220,7 @@ public object MocEncoder {
 }
 
 /**
- * The section payloads in table-index order (internal accessor for the encoder). Absent sections
+ * The section payloads in table-index order (internal accessor for the encoder).  Absent sections
  * become empty arrays so the list is dense and index-aligned with the offset table.
  *
  * @return List<ByteArray> Each section's raw bytes, in table order.

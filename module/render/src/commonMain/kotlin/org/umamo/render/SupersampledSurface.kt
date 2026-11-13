@@ -56,11 +56,11 @@ class SupersampledSurface(
 	var usedScale: Int = scale
 		private set
 
-	/** The supersampled draw target (capacity-sized; render its used region). Call [ensure] first. */
+	/** The supersampled draw target (capacity-sized; render its used region).  Call [ensure] first. */
 	val drawTarget: RenderTarget
 		get() = draw ?: error("ensure(width, height) before drawTarget")
 
-	/** The resolve target the read-back reads (capacity-sized; used region only). Call [ensure] first. */
+	/** The resolve target the read-back reads (capacity-sized; used region only).  Call [ensure] first. */
 	val resolveTarget: RenderTarget
 		get() = resolve ?: error("ensure(width, height) before resolveTarget")
 
@@ -112,7 +112,7 @@ class SupersampledSurface(
 		device.resolveUsed(drawTarget, usedWidth * usedScale, usedHeight * usedScale, resolveTarget, usedWidth, usedHeight)
 	}
 
-	/** Frees both targets and resets the capacities. Safe to call before the first [ensure] and idempotent. */
+	/** Frees both targets and resets the capacities.  Safe to call before the first [ensure] and idempotent. */
 	fun dispose() {
 		draw?.let { device.destroyRenderTarget(it) }
 		resolve?.let { device.destroyRenderTarget(it) }

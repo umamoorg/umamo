@@ -29,7 +29,7 @@ import kotlin.test.assertTrue
  * Proves [PuppetRenderer.updateModel]'s STRUCTURAL reconcile: a session-created drawable (e.g. an
  * Object-mode duplicate) must reach the GPU, not just have position VBOs patched on drawables it already
  * knew about, or it renders blank; likewise a remesh must re-upload the element buffer, or the
- * newly-referenced geometry never draws. Renders flat-color art into an offscreen FBO and asserts by
+ * newly-referenced geometry never draws.  Renders flat-color art into an offscreen FBO and asserts by
  * covered-pixel mass that:
  *
  * - a drawable ADDED after init (the duplicate) draws, and its removal (the undo) stops drawing it;

@@ -20,7 +20,14 @@ public class UmamoRuleSetProvider : RuleSetProviderV3(RuleSetId(UMAMO_RULE_SET_I
 	override fun getRuleProviders(): Set<RuleProvider> =
 		setOf(
 			RuleProvider { BlankLineAroundControlFlowRule() },
+			RuleProvider { CommentSentenceSpacingRule() },
+			RuleProvider { DocblockTagsRule() },
+			RuleProvider { FunctionDocblockRule() },
+			RuleProvider { NoCommentEmphasisRule() },
+			RuleProvider { NoFullyQualifiedNameRule() },
+			RuleProvider { NoSingleLetterNameRule() },
 			RuleProvider { NoUnitOnlyBlockRule() },
+			RuleProvider { StatementIfBracesRule() },
 		)
 }
 

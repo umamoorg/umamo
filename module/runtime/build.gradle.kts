@@ -1,6 +1,6 @@
 // :runtime — the pure puppet runtime: the immutable PuppetModel and its typed ids, the keyform grid
-// algebra, and the sampling eval. Zero format knowledge — CMO3/MOC3 conversion lives in :interop,
-// which depends on this module and :format. (Deformation eval and the renderer live in :render,
+// algebra, and the sampling eval.  Zero format knowledge — CMO3/MOC3 conversion lives in :interop,
+// which depends on this module and :format.  (Deformation eval and the renderer live in :render,
 // which depends on :runtime — not the reverse.)
 
 plugins {
@@ -15,7 +15,7 @@ kotlin {
 
 	jvm()
 
-	// The iPadOS ship target, mirroring :format (see its docblock for the full rationale). Two jobs:
+	// The iPadOS ship target, mirroring :format (see its docblock for the full rationale).  Two jobs:
 	// it makes commonMain purity a COMPILER GUARANTEE rather than the root regex gate's convention, and
 	// it is what lets :render declare the same target — :render/commonMain does api(:runtime), so the
 	// renderer the Metal engineer builds against could not compile for iOS until this module did.

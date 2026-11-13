@@ -23,7 +23,7 @@ enum class FileRole {
  * The file families Umamo understands, plus the art-source formats it ingests.
  *
  * Modelled as a `sealed interface` so a `when` over kinds is exhaustive (the compiler rejects an
- * unhandled case) - the same enforcement applied to [Cmo3Version]. Each kind declares its
+ * unhandled case) - the same enforcement applied to [Cmo3Version].  Each kind declares its
  * capabilities ([readable]/[writable]/[role]), so dispatch and UI can reason about support without a
  * scattered list of booleans, and its [extension] (with any [extensionAliases]), so nothing else
  * spells the extension by hand.

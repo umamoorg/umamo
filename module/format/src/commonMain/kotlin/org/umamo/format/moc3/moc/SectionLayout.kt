@@ -29,7 +29,7 @@ public enum class ElementType(public val size: Int) {
  *
  * Per-object arrays are sized by a CountInfo count; "table" arrays (keyform values, key
  * positions, glue pairs, …) have no single count field and are read across the whole section
- * slice (the runtime indexes them via base/offset tables, not a length). Reading the full slice
+ * slice (the runtime indexes them via base/offset tables, not a length).  Reading the full slice
  * is lossless - trailing zero padding becomes trailing zero elements that the semantic layer
  * never dereferences.
  */
@@ -67,7 +67,7 @@ public enum class Sizing {
  * version - the single registry the decoder, the lowering, and the lossless gate all read.
  *
  * The per-version indices are on-disk facts (which table slot holds which data, recovered from the
- * runtime). `index[version-1]` gives the slot; `-1` means the section is absent in that version.
+ * runtime).  `index[version-1]` gives the slot; `-1` means the section is absent in that version.
  *
  * Completeness is enforced, not aspirational: `SectionRegistryTest` asserts that every slot each
  * version's table defines has exactly one entry here, that no two entries claim a slot, and that an
@@ -435,10 +435,10 @@ public enum class Section(
 	// against Model A/Model B/Model C including v6 - see MorphTargetJoinProbeTest).
 	BLENDSHAPE_RECORD_KEY_COUNT(ElementType.I32, Sizing.TABLE, -1, -1, -1, 122, 122, 122),
 
-	// MOC3 v4+ §5.6: blend-weight limit ("blend shape limit") sub-binding tables. A record's
+	// MOC3 v4+ §5.6: blend-weight limit ("blend shape limit") sub-binding tables.  A record's
 	// SUBSTART/CORNER_COUNT range into SUB_INDEX yields refs into a DEDUPLICATED sub-binding pool;
 	// each pool entry maps another parameter (SUB_PARAMETER) through an end-clamped piecewise-linear
-	// (SUB_KEYS, SUB_WEIGHT_VALUES) curve addressed by SUB_KEY_OFFSET/COUNT. The record's weight
+	// (SUB_KEYS, SUB_WEIGHT_VALUES) curve addressed by SUB_KEY_OFFSET/COUNT.  The record's weight
 	// multiplier is the MINIMUM over its refs. v4/v5 indices confirmed against Model B/Model C (v5) and
 	// the C-runtime layout; the v6 column is assumed = v5 pending a v6 constraint bake (every confirmed
 	// blend section is index-identical v5 -> v6, incl. section 122 above).
@@ -486,10 +486,10 @@ public enum class Section(
 	OFFSCREEN_MASK_BASE(ElementType.I32, Sizing.PER_OFFSCREEN, -1, -1, -1, -1, -1, 158),
 
 	/**
-	 * Offscreen keyform → color-table row maps (multiply / screen). Observed identity on the corpus
+	 * Offscreen keyform → color-table row maps (multiply / screen).  Observed identity on the corpus
 	 * (the offscreen keyforms ARE the color tables' prefix rows, in offscreen order); the multiply
 	 * vs screen split is assumed from the per-object color-base precedent, pending a discriminating
-	 * sample. An offscreen's keyforms ride its owner part's keyform grid (Σ owner grid == CountInfo
+	 * sample.  An offscreen's keyforms ride its owner part's keyform grid (Σ owner grid == CountInfo
 	 * 36) - there is no offscreen keyform-binding section.
 	 */
 	OFFSCREEN_KEYFORM_MULTIPLY_ROW(ElementType.I32, Sizing.TABLE, -1, -1, -1, -1, -1, 162),

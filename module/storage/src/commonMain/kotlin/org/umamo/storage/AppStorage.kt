@@ -6,11 +6,11 @@ import okio.Path
 /**
  * The app's file foundation: where its config/data live (per-OS) and read/write over those locations.
  * The platform factories (`desktopAppStorage`, `androidAppStorage`) resolve the directories; everything
- * else is shared. Backed by okio so one API covers desktop and Android - Kotlin's stdlib has no common
+ * else is shared.  Backed by okio so one API covers desktop and Android - Kotlin's stdlib has no common
  * `File` type, and `java.io.File` is JVM-only.
  */
 interface AppStorage {
-	/** Per-user config directory (small JSON: settings, keymaps, layout). Parents created on write. */
+	/** Per-user config directory (small JSON: settings, keymaps, layout).  Parents created on write. */
 	val configDirectory: Path
 
 	/** Per-user data directory (larger app data, caches). */

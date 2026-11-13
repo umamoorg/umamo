@@ -369,6 +369,11 @@ private fun KeyformSheetSurfaceEffect(
 		if (keyformSheetViews == null) {
 			onDispose {}
 		} else {
+			/**
+			 * The keys the session's key selection resolves to in the sheet's current rows.
+			 *
+			 * @return List<Triple<KeyformTrackRef, Parameter, Int>> Each selected key as its track, its parameter, and its key index.
+			 */
 			fun selectedTracks(): List<Triple<KeyformTrackRef, Parameter, Int>> =
 				resolveTrackKeys(session?.keySelection?.value.orEmpty(), currentProjections.value).map { (_, key) -> key }
 

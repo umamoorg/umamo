@@ -111,7 +111,7 @@ class Moc3HiddenDrawableSpaceTest {
 			"the forward pass must actually have moved the mesh, or this proves nothing",
 		)
 
-		// Back: the export's seam. It has to pick the same pose the forward pass used.
+		// Back: the export's seam.  It has to pick the same pose the forward pass used.
 		val recovered = assertNotNull(canvasToParentSpaceFor(canvasSpace)(drawableId, canvasMesh.positions))
 
 		for (index in parentLocal.indices) {

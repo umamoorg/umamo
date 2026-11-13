@@ -17,7 +17,7 @@ import org.umamo.format.art.ChannelMask
  *
  * channelflags is a per-channel enable mask in channel-index order ('0' disables a channel,
  * anything else enables it; indices beyond the string default to enabled), or empty meaning all
- * channels enabled. The channel-index order is the color space's own: for RGB it is Blue, Green,
+ * channels enabled.  The channel-index order is the color space's own: for RGB it is Blue, Green,
  * Red, Alpha (the addChannel sequence in RgbU8ColorSpace.cpp), and for GRAYA it is Gray, Alpha.
  * Grayscale's single gray channel maps onto R, G, and B together, because the raster expands gray
  * to RGB.
@@ -37,6 +37,12 @@ internal fun channelMaskFrom(channelFlags: String?, format: KraPixelFormat): Cha
 		return ChannelMask.ALL
 	}
 
+	/**
+	 * Tells whether the layer's channel flags leave a channel enabled; one the flags do not cover is.
+	 *
+	 * @param Int channelIndex The channel's position in the flags.
+	 * @return Boolean True unless the channel's flag is `0`.
+	 */
 	fun channelEnabled(channelIndex: Int): Boolean =
 		channelIndex !in channelFlags.indices || channelFlags[channelIndex] != '0'
 

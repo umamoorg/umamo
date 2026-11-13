@@ -5,7 +5,7 @@ package org.umamo.format.cmo3.io
  *
  * EN: All multi-byte integers
  *     are big-endian; an obfuscation key XORs values by width (byte=key&0xFF, short=key&0xFFFF,
- *     int=key, long=(key<<32)|key). A key of 0 means "not obfuscated".
+ *     int=key, long=(key<<32)|key).  A key of 0 means "not obfuscated".
  * JA: 多バイト整数はビッグエンディアン。難読化キーで幅ごとに XOR する。
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §1 Container: CAFF</a>
@@ -116,16 +116,24 @@ public class BinaryReader(private val data: ByteArray) {
 	 * Reads a 7-bit, MSB-first variable-length unsigned integer.
 	 *
 	 * EN: A 7-bit variable-length integer: each byte carries 7 value bits;
-	 *     the high bit signals continuation. Used as the length prefix for strings.
+	 *     the high bit signals continuation.  Used as the length prefix for strings.
 	 *
 	 * @param Int key Obfuscation key (0 = none).
 	 * @return Int The decoded length/count.
 	 */
 	public fun readVarInt(key: Int): Int {
 		val byte0 = readU8(key)
-		if (byte0 and 0x80 == 0) return byte0 and 0xFF
+
+		if (byte0 and 0x80 == 0) {
+			return byte0 and 0xFF
+		}
+
 		val byte1 = readU8(key)
-		if (byte1 and 0x80 == 0) return ((byte0 and 0x7F) shl 7) or (byte1 and 0x7F)
+
+		if (byte1 and 0x80 == 0) {
+			return ((byte0 and 0x7F) shl 7) or (byte1 and 0x7F)
+		}
+
 		val byte2 = readU8(key)
 
 		if (byte2 and 0x80 == 0) {

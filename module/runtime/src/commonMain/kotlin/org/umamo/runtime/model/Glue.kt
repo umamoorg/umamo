@@ -2,7 +2,7 @@ package org.umamo.runtime.model
 
 /**
  * One glued vertex pair: vertex [indexA] of the glue's mesh A welded to vertex [indexB] of mesh B, each
- * pulled toward the other by its per-side weight. Indices are into the meshes' deformed position arrays,
+ * pulled toward the other by its per-side weight.  Indices are into the meshes' deformed position arrays,
  * so each importer has to land them in that space: a CMO3 import resolves that format's stable vertex
  * UIDs, while MOC3 (§5.6 s99) already stores them mesh-local.
  */
@@ -23,9 +23,9 @@ class GlueForm(val intensity: Float)
 
 /**
  * A glue affecter - seam-welds two art meshes' shared-edge vertices so they move together (a tail's
- * two skinned strips, a sleeve seam, …). It runs after both meshes are deformed: for each [GluePair]
+ * two skinned strips, a sleeve seam, …).  It runs after both meshes are deformed: for each [GluePair]
  * each side slides toward the other by `weight · intensity` from the pre-blend positions -
- * `A' = A + (B−A)·wA·i`, `B' = B + (A−B)·wB·i`. Without it the welded strips drift apart into "two
+ * `A' = A + (B−A)·wA·i`, `B' = B + (A−B)·wB·i`.  Without it the welded strips drift apart into "two
  * copies".
  *
  * Weld strength is the [FormChannel.GLUE_INTENSITY] track when one is keyed, else the static

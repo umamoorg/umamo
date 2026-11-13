@@ -31,7 +31,7 @@ public data class KeyformAxis(
 
 /**
  * The interpolation grid an object's keyforms are laid out on: the controlling parameter [axes]
- * (in stride order, the first the fastest-varying). The number of keyforms is [gridSize]; a grid
+ * (in stride order, the first the fastest-varying).  The number of keyforms is [gridSize]; a grid
  * index decomposes to per-axis key indices via [keyIndices].
  *
  * EN: A static object (no controlling parameters) has no axes and a single keyform.

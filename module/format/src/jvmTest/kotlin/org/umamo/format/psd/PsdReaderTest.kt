@@ -8,7 +8,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * End-to-end reader test against a real .psd. Corpus-gated: it uses -Dpsd.sample=<file> when given,
+ * End-to-end reader test against a real .psd.  Corpus-gated: it uses -Dpsd.sample=<file> when given,
  * else auto-discovers a sample under test/corpus/ (or test/) by walking up from the working
  * directory; if none is present it self-skips so CI stays green without a committed corpus.
  *

@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
  * End-to-end XML fidelity: cmo3 -> CAFF -> main.xml bytes -> JDOM parse -> emit -> identical bytes.
  *
  * This locks the editor's XML formatting contract - re-emitted bytes must be byte-identical to the
- * original. Skips when the sample is unavailable.
+ * original.  Skips when the sample is unavailable.
  */
 class XmlRoundTripTest {
 	private val sample: File? =

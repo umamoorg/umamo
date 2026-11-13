@@ -1,5 +1,6 @@
 package org.umamo.ui.document
 
+import com.sun.management.ThreadMXBean
 import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonObject
@@ -16,6 +17,9 @@ import org.umamo.ui.transform.captureDrawableWorld
 import org.umamo.ui.viewport.AtlasPageBinding
 import java.io.File
 import java.lang.management.ManagementFactory
+import java.lang.ref.Reference
+import java.util.Collections
+import java.util.IdentityHashMap
 import java.util.zip.Deflater
 import java.util.zip.ZipFile
 import kotlin.io.path.createTempDirectory
@@ -55,7 +59,7 @@ class DeltaPrecisionProfileProbe {
 	 *
 	 * @return Long The bytes.
 	 */
-	private fun threadAllocatedBytes(): Long = (ManagementFactory.getThreadMXBean() as com.sun.management.ThreadMXBean).getThreadAllocatedBytes(Thread.currentThread().threadId())
+	private fun threadAllocatedBytes(): Long = (ManagementFactory.getThreadMXBean() as ThreadMXBean).getThreadAllocatedBytes(Thread.currentThread().threadId())
 
 	/**
 	 * The heap one primitive array occupies: a 16-byte header and its components, padded to 8 bytes.
@@ -136,9 +140,9 @@ class DeltaPrecisionProfileProbe {
 		 */
 		fun arraysOf(model: PuppetModel): List<Any> =
 			model.drawables.flatMap { drawable -> listOfNotNull(drawable.mesh?.positions, drawable.mesh?.localPositions, drawable.mesh?.uvs, drawable.mesh?.indices) } + deltaArraysOf(model)
-		val known = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+		val known = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
 		known.addAll(arraysOf(before))
-		val counted = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+		val counted = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
 		var bytes = 0L
 
 		for (array in arraysOf(after)) {
@@ -207,7 +211,7 @@ class DeltaPrecisionProfileProbe {
 		val baseline = settledHeapBytes()
 		val document = (loadDocument(PlatformFile(sample)) as? DocumentLoad.Loaded)?.document as? PuppetDocument
 		val opened = settledHeapBytes()
-		java.lang.ref.Reference.reachabilityFence(document)
+		Reference.reachabilityFence(document)
 		val line =
 			buildJsonObject {
 				put("sample", JsonPrimitive(sample.name))
@@ -303,7 +307,7 @@ class DeltaPrecisionProfileProbe {
 		val historyAfter = settledHeapBytes()
 		// Nothing reads the session after the moves, so without the fence the collector may take it - history and all -
 		// before the reading above.
-		java.lang.ref.Reference.reachabilityFence(session)
+		Reference.reachabilityFence(session)
 		val (_, movedDeltaBytes) = inventoryOf(deltaArraysOf(puppet, movedIds))
 		metrics["movedDrawables"] = movedIds.size
 		metrics["commitMicros"] = commitNanos / 1000 / moveCount

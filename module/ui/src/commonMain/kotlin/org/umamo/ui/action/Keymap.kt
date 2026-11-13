@@ -3,11 +3,11 @@ package org.umamo.ui.action
 import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
- * One key combination, stored logically rather than as a literal character. [primaryModifier] is the
+ * One key combination, stored logically rather than as a literal character.  [primaryModifier] is the
  * platform's main accelerator (Cmd on macOS, Ctrl elsewhere) - the intent is stored, not "Ctrl", so a
- * binding resolves correctly per OS. [controlKey] is the literal Control key, a modifier of its own only
+ * binding resolves correctly per OS.  [controlKey] is the literal Control key, a modifier of its own only
  * where Control is not the primary one (macOS, see [controlIsDistinctFromPrimary]); everywhere else a
- * Control chord IS a primary chord and never carries this flag. [keyName] names the physical key by
+ * Control chord IS a primary chord and never carries this flag.  [keyName] names the physical key by
  * position ("KeyP", "KeyK"), not the produced character, so a chord survives non-QWERTY layouts.
  *
  * @property String keyName The position-based key token (e.g. "KeyP"), layout-independent.
@@ -190,7 +190,7 @@ fun chordToSpec(chord: KeyChord): String =
 	}.joinToString(separator = "+")
 
 /**
- * A resolved set of key-chord → command-id bindings, plus the lookup the input layer uses. Built from
+ * A resolved set of key-chord → command-id bindings, plus the lookup the input layer uses.  Built from
  * a preset spec map; a chord bound twice resolves last-write-wins at build time, while one command may
  * keep several chords.  The keymap holds only ids - it never references [Command] objects -
  * so it stays decoupled from registration order and from whether a command currently exists.
@@ -243,7 +243,7 @@ class Keymap(private val commandIdByChord: Map<KeyChord, String>) {
 	companion object {
 		/**
 		 * Builds a [Keymap] from a preset's chord-spec → command-id map, parsing each spec via
-		 * [parseKeyChord]. A spec that fails to parse is dropped (a malformed preset entry must not
+		 * [parseKeyChord].  A spec that fails to parse is dropped (a malformed preset entry must not
 		 * shadow a valid one); callers that need strict validation can compare [size] to the input.
 		 *
 		 * @param Map specs The preset bindings (chord spec → command id).

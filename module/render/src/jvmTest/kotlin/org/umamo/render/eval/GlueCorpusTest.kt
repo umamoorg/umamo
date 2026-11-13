@@ -12,9 +12,9 @@ import kotlin.test.assertTrue
 
 /**
  * Corpus E2E for glue: on a real model at a non-default tail pose, every glued seam pair must weld to
- * essentially one point (the editor's weights satisfy `wA + wB ≈ 1`, so `A'` and `B'` converge). This is
+ * essentially one point (the editor's weights satisfy `wA + wB ≈ 1`, so `A'` and `B'` converge).  This is
  * the real-model counterpart of the synthetic `GlueTest`; without the glue pass the tail strips split by
- * hundreds of pixels. Gated on `-Dcmo3.sample`; self-skips without it.
+ * hundreds of pixels.  Gated on `-Dcmo3.sample`; self-skips without it.
  */
 class GlueCorpusTest {
 	@Test

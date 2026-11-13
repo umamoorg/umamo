@@ -188,6 +188,11 @@ private fun clampedDefaultsFor(model: PuppetModel, hiddenIds: List<DrawableId>):
 	val lowerByParameter = HashMap<ParameterId, Float>()
 	val upperByParameter = HashMap<ParameterId, Float>()
 
+	/**
+	 * Narrows each parameter's shared key range to what a grid's axes cover.
+	 *
+	 * @param KeyformGrid<*>? grid The grid whose axes to take in, or null.
+	 */
 	fun addAxes(grid: KeyformGrid<*>?) {
 		for (axis in grid?.axes.orEmpty()) {
 			if (axis.keys.isEmpty()) {

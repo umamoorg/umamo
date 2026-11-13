@@ -151,21 +151,21 @@ internal fun rememberParameterPoseState(puppet: PuppetModel, liveParams: LivePar
 			}
 		}
 	// Reseed the sliders from the session pose when it changes out from under us - an undo / redo restores
-	// a prior pose, and these controls must follow it. Mid-drag previews update [values] directly (the
+	// a prior pose, and these controls must follow it.  Mid-drag previews update [values] directly (the
 	// session pose does not move until commit), so this never fights a live scrub; the guard skips
-	// unchanged entries so a commit (pose == values already) triggers no writes. An empty fallback flow
+	// unchanged entries so a commit (pose == values already) triggers no writes.  An empty fallback flow
 	// keeps the collect unconditional when no session is present.
 	val pose by remember(session) { session?.pose ?: MutableStateFlow(emptyMap<ParameterId, Float>()) }.collectAsState()
 	LaunchedEffect(pose, values) {
 		followPose(values, pose)
 	}
 	// And follow PREVIEWS made from elsewhere - the keyform sheet scrubs the same pose by dragging its
-	// track region. A preview deliberately never touches session.pose (that is what keeps a whole drag to
+	// track region.  A preview deliberately never touches session.pose (that is what keeps a whole drag to
 	// one undo step), so the effect above catches up only on release.
 	//
 	// Through snapshotFlow rather than a composition read: the scrub path writes on every pointer move, and
 	// reading it in composition would recompose the whole panel per frame instead of only the sliders
-	// whose value actually moved. Edit mode publishes an EMPTY pose, which writes nothing and so cannot
+	// whose value actually moved.  Edit mode publishes an EMPTY pose, which writes nothing and so cannot
 	// disturb the locked panel's displayed values.
 	LaunchedEffect(liveParams, values) {
 		snapshotFlow { liveParams?.observedValues.orEmpty() }.collect { livePose ->

@@ -145,7 +145,7 @@ class WorkspaceListTest {
 
 	@Test
 	fun reorderTargetIndexCountsNeighborsLeftOfProjectedCenter() {
-		// Three tabs centered at 50, 150, 250 (width 100). Drag the first far enough right to pass tab b.
+		// Three tabs centered at 50, 150, 250 (width 100).  Drag the first far enough right to pass tab b.
 		val centers = listOf(50f, 150f, 250f)
 		assertEquals(0, reorderTargetIndex(fromIndex = 0, dragDeltaX = 0f, centers = centers))
 		assertEquals(1, reorderTargetIndex(fromIndex = 0, dragDeltaX = 120f, centers = centers))

@@ -39,7 +39,7 @@ internal fun selectCommands(
 	availability: SessionAvailability,
 ): List<Command> =
 	listOf(
-		// The element modes' select modes (Blender 1 / 2 / 3). The session guards them to no-op in Object mode,
+		// The element modes' select modes (Blender 1 / 2 / 3).  The session guards them to no-op in Object mode,
 		// so the keymap can bind bare digits context-free; the availability tier additionally hides them
 		// from the palette there (there is no element domain to switch).
 		Command(
@@ -67,7 +67,7 @@ internal fun selectCommands(
 			editorSession?.setMeshSelectMode(MeshSelectMode.Face)
 		},
 		// Select All / Invert dispatch by mode so one binding (A / Ctrl+I) serves both: elements in Edit and Pose
-		// mode, whole selectable entities in Object mode. Each session method no-ops in the wrong mode.
+		// mode, whole selectable entities in Object mode.  Each session method no-ops in the wrong mode.
 		Command("select.all", title = Res.string.cmd_select_all, availability = availability.hasDocument) {
 			if (editorSession?.mode?.value?.editsElements == true) {
 				editorSession.selectAllMeshElements()
@@ -84,7 +84,7 @@ internal fun selectCommands(
 		},
 		// Box (Blender B) and Circle (Blender C) select tools latch on the session; the arming surface's
 		// overlay drives the gesture (every mode in the viewport; Edit mode in the UV editor, whose
-		// overlay only composes there). The circle grow / shrink commands (numpad +/-) apply only
+		// overlay only composes there).  The circle grow / shrink commands (numpad +/-) apply only
 		// while a Circle brush is live, so they hide from the palette otherwise.
 		// ONE Box Select that acts on whatever is under the pointer, rather than a second command fighting
 		// for the same chord: a hovered keyform sheet arms its own marquee, a hovered viewport (or UV

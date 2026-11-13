@@ -45,13 +45,13 @@ sealed interface VertexSource {
 	data class AverageOf(val oldIndices: List<Int>) : VertexSource
 
 	/**
-	 * The new vertex splits the old edge (oldA, oldB) at parameter [t]: its deltas lerp accordingly.
+	 * The new vertex splits the old edge (oldA, oldB) at [fraction]: its deltas lerp accordingly.
 	 *
 	 * @property Int oldA The edge's first old endpoint.
 	 * @property Int oldB The edge's second old endpoint.
-	 * @property Float t The split parameter (0 = at oldA, 1 = at oldB).
+	 * @property Float fraction How far along the edge the split is (0 = at oldA, 1 = at oldB).
 	 */
-	data class LerpOf(val oldA: Int, val oldB: Int, val t: Float) : VertexSource
+	data class LerpOf(val oldA: Int, val oldB: Int, val fraction: Float) : VertexSource
 
 	/**
 	 * The new vertex blends old vertices by weights summing to one: its deltas are the same weighted
@@ -242,8 +242,20 @@ private fun remapMeshDeltas(form: MeshDeltaForm, vertexSources: List<VertexSourc
  * @return FloatArray The rebuilt values, two per new vertex.
  */
 internal fun remapPerVertex(values: FloatArray, vertexSources: List<VertexSource>, oldVertexCount: Int): FloatArray {
+	/**
+	 * Reads an old vertex's first component, or 0 when the index is out of range.
+	 *
+	 * @param Int oldIndex The old vertex index.
+	 * @return Float The component, or 0.
+	 */
 	fun oldX(oldIndex: Int): Float = if (oldIndex in 0 until oldVertexCount && oldIndex * 2 < values.size) values[oldIndex * 2] else 0f
 
+	/**
+	 * Reads an old vertex's second component, or 0 when the index is out of range.
+	 *
+	 * @param Int oldIndex The old vertex index.
+	 * @return Float The component, or 0.
+	 */
 	fun oldY(oldIndex: Int): Float = if (oldIndex in 0 until oldVertexCount && oldIndex * 2 + 1 < values.size) values[oldIndex * 2 + 1] else 0f
 	val newValues = FloatArray(vertexSources.size * 2)
 	vertexSources.forEachIndexed { newIndex, source ->
@@ -269,8 +281,8 @@ internal fun remapPerVertex(values: FloatArray, vertexSources: List<VertexSource
 			}
 
 			is VertexSource.LerpOf -> {
-				newValues[newIndex * 2] = oldX(source.oldA) + (oldX(source.oldB) - oldX(source.oldA)) * source.t
-				newValues[newIndex * 2 + 1] = oldY(source.oldA) + (oldY(source.oldB) - oldY(source.oldA)) * source.t
+				newValues[newIndex * 2] = oldX(source.oldA) + (oldX(source.oldB) - oldX(source.oldA)) * source.fraction
+				newValues[newIndex * 2 + 1] = oldY(source.oldA) + (oldY(source.oldB) - oldY(source.oldA)) * source.fraction
 			}
 
 			is VertexSource.Weighted -> {

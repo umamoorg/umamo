@@ -26,6 +26,13 @@ internal fun importRenderRoot(context: Moc3ImportContext): RenderGroup? {
 
 	val visitedGroups = HashSet<Int>()
 
+	/**
+	 * Builds the render nodes of a render-order group, recursing into draw-order groups and visiting each group
+	 * once.
+	 *
+	 * @param Int groupIndex The group's index in the render-order group list.
+	 * @return List<RenderNode> The group's nodes, empty for an unknown or already visited group.
+	 */
 	fun childrenOf(groupIndex: Int): List<RenderNode> {
 		val group = mocDocument.renderOrderGroups.getOrNull(groupIndex) ?: return emptyList()
 

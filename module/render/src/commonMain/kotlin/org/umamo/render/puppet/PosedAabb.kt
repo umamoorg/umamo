@@ -127,7 +127,13 @@ internal fun deformedWorldBounds(
 	return PosedAabb(minX, minY, maxX, maxY)
 }
 
-/** The union of two bounds. */
+/**
+ * The union of two bounds.
+ *
+ * @param PosedAabb first One bounds.
+ * @param PosedAabb second The other.
+ * @return PosedAabb The smallest bounds that hold both.
+ */
 internal fun unionBounds(first: PosedAabb, second: PosedAabb): PosedAabb =
 	PosedAabb(
 		min(first.minX, second.minX),

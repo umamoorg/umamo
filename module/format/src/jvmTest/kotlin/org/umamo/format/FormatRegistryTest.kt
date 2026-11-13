@@ -24,8 +24,8 @@ import kotlin.test.assertTrue
 
 /**
  * Confirms the format dispatcher routes a file to the right codec by leading magic, falls back to the
- * file extension when the magic is unknown, and resolves a codec by [FileKind]. The fixtures are just
- * correctly-magicked headers - no full container is needed to exercise `matches`. Every reader,
+ * file extension when the magic is unknown, and resolves a codec by [FileKind].  The fixtures are just
+ * correctly-magicked headers - no full container is needed to exercise `matches`.  Every reader,
  * PSD included, is registered on every target: PsdReader is pure Kotlin with no desktop-only
  * dependency, so these JVM-target assertions hold on Android too.
  */

@@ -11,7 +11,7 @@ import java.io.ByteArrayOutputStream
  * Parses and emits the serialized model XML (main.xml) using the editor's exact JDOM backend.
  *
  * Matches the editor's writer: XMLOutputter + Format.getPrettyFormat() with indent "" and
- * TextMode TRIM (line separator "\r\n", UTF-8). Using JDOM 1.1.3 with the same Format reproduces
+ * TextMode TRIM (line separator "\r\n", UTF-8).  Using JDOM 1.1.3 with the same Format reproduces
  * main.xml byte-for-byte across the whole corpus; this class centralises that contract so every
  * emit path (generic round-trip and the typed model) shares one formatter.
  *

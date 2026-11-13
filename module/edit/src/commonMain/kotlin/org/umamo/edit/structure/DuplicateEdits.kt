@@ -46,6 +46,12 @@ fun PuppetModel.withDrawableDuplicated(id: DrawableId): Pair<PuppetModel, Drawab
 	// Insert the copy immediately after its source, in whichever child list holds it.
 	var placed = false
 
+	/**
+	 * Inserts the copy right after its source, in the one child list that holds the source.
+	 *
+	 * @param List<OrgChild> children A child list that may hold the source.
+	 * @return List<OrgChild> The list with the copy inserted, or the list itself.
+	 */
 	fun insertAfterSource(children: List<OrgChild>): List<OrgChild> {
 		if (placed) {
 			return children

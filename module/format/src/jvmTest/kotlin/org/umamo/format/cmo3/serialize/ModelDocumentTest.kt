@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 
 /**
  * Verifies the ModelDocument backbone: parses the sample's main.xml into navigable parts (versions,
- * imports, shared pool, main root) and re-emits byte-identically. Skips without the sample.
+ * imports, shared pool, main root) and re-emits byte-identically.  Skips without the sample.
  */
 class ModelDocumentTest {
 	private val sample: File? =

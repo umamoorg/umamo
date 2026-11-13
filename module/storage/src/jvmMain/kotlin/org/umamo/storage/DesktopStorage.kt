@@ -8,7 +8,7 @@ import java.io.File
 /**
  * Builds the desktop [AppStorage], resolving per-OS config/data directories under [applicationName]:
  * Linux follows XDG (`~/.config`, `~/.local/share`), macOS uses `~/Library/Application Support`, Windows
- * uses `%APPDATA%` / `%LOCALAPPDATA%`. IO goes through the real filesystem (`FileSystem.SYSTEM`).
+ * uses `%APPDATA%` / `%LOCALAPPDATA%`.  IO goes through the real filesystem (`FileSystem.SYSTEM`).
  *
  * @param String applicationName The app's directory name (e.g. "umamo").
  * @return AppStorage The desktop storage.
@@ -49,5 +49,9 @@ private fun desktopBaseDirectory(config: Boolean): File {
 	}
 }
 
-/** Converts a `java.io.File` to an okio [Path] via its absolute path. */
+/**
+ * Converts a `java.io.File` to an okio [Path] via its absolute path.
+ *
+ * @return Path The okio path.
+ */
 private fun File.toOkioPath(): Path = absolutePath.toPath()

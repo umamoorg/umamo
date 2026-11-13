@@ -28,6 +28,12 @@ internal data class SourcesRow(val node: SourcesNode, val depth: Int)
 internal fun flattenSources(nodes: List<SourcesNode>, isOpen: (String) -> Boolean): List<SourcesRow> {
 	val rows = ArrayList<SourcesRow>()
 
+	/**
+	 * Adds a node's row, then its children's when the node is open.
+	 *
+	 * @param SourcesNode node The node to add.
+	 * @param Int depth The node's nesting depth.
+	 */
 	fun visit(node: SourcesNode, depth: Int) {
 		rows.add(SourcesRow(node, depth))
 

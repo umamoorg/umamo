@@ -28,6 +28,7 @@ import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.cmo3.cmo3AtlasIngest
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
+import org.umamo.render.SourceArtRasters
 import org.umamo.render.atlasPlacementFromPack
 import org.umamo.render.generatedPuppetTextures
 import org.umamo.runtime.model.AtlasPage
@@ -39,6 +40,7 @@ import org.umamo.ui.model.repack.buildRepackPackInput
 import org.umamo.ui.model.repack.repackRefusals
 import org.umamo.ui.viewport.initialLiveParams
 import java.io.File
+import java.util.IdentityHashMap
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -199,7 +201,7 @@ class ConvertedRepackGateTest {
 				cmo3 = cmo3,
 				puppet = imported,
 				textures = PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false),
-				artRasters = org.umamo.render.SourceArtRasters { null },
+				artRasters = SourceArtRasters { null },
 				liveParams = initialLiveParams(imported),
 			)
 		val prepared = prepareCmo3Export(probeDocument, repacked, effective, "modelG", 0L, 0x5A17E5)
@@ -290,7 +292,7 @@ class ConvertedRepackGateTest {
 		// Drawable page-consistency, zero disagreements: the sampled resource, the region's atlas
 		// guid, and the entry's membership all name the same page.
 		val atlasIndexByGuidUuid = HashMap<String, Int>()
-		val atlasIndexByResource = java.util.IdentityHashMap<Any, Int>()
+		val atlasIndexByResource = IdentityHashMap<Any, Int>()
 		val atlasIndexByEntryGuid = HashMap<String, Int>()
 
 		for ((atlasIndex, atlas) in atlases.withIndex()) {

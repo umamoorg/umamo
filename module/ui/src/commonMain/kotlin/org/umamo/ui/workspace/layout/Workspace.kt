@@ -3,7 +3,7 @@ package org.umamo.ui.workspace.layout
 import kotlinx.serialization.Serializable
 
 /**
- * One workspace: a named, top-level tab holding an independent area tree. The [id] is a stable,
+ * One workspace: a named, top-level tab holding an independent area tree.  The [id] is a stable,
  * locale-free identity - built-in workspaces use known ids ("modelling", "texture") that the tab
  * strip resolves to a localized title, so the persisted layout never bakes in a display language.
  *
@@ -22,7 +22,7 @@ data class Workspace(
 
 /**
  * The whole persisted interface layout: which workspace is active and the ordered set of workspaces.
- * Serialized as one object under the interface.layout settings key. An empty [workspaces] list is the
+ * Serialized as one object under the interface.layout settings key.  An empty [workspaces] list is the
  * "no layout yet - seed defaults" signal (matches defaultSettings.json's `interface.layout.workspaces: []`).
  *
  * @property String activeWorkspaceId The id of the workspace currently shown.

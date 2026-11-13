@@ -3,7 +3,7 @@ package org.umamo.ui.workspace.layout
 import org.umamo.ui.workspace.SpaceKind
 
 /**
- * A structural edit to an area tree, addressed by the target leaf's id. These are the named commands
+ * A structural edit to an area tree, addressed by the target leaf's id.  These are the named commands
  * the area header (and a future keymap/palette) issue; keeping them as data objects routed through
  * one pure [reduce] choke point means the mutation logic is centralized and unit-testable, and the
  * action registry can drive them by name without the header touching the tree directly.
@@ -70,7 +70,7 @@ enum class DockEdge {
 
 /**
  * Applies a structural [command] to [root], returning the new tree (the input is never mutated -
- * data classes + copy). Unknown ids are no-ops (the tree returns unchanged), so a stale command from
+ * data classes + copy).  Unknown ids are no-ops (the tree returns unchanged), so a stale command from
  * a closed area fails safely.
  *
  * 構造的コマンドを root に適用し、新しいツリーを返す（入力は不変）。未知の id は無操作。
@@ -202,7 +202,7 @@ internal fun areDirectSiblings(node: AreaNode, firstId: String, secondId: String
 
 /**
  * Returns a copy of [node] with the leaf whose id is [areaId] replaced by [transform]'s result;
- * recurses into splits. Leaves that don't match (and the whole tree, if none matches) come back
+ * recurses into splits.  Leaves that don't match (and the whole tree, if none matches) come back
  * structurally unchanged.
  *
  * id 一致の葉を transform で置換したコピーを返す。分割は再帰。一致が無ければ不変。
@@ -231,7 +231,7 @@ private fun mapLeaf(node: AreaNode, areaId: String, transform: (LeafArea) -> Are
 	}
 
 /**
- * Closes the leaf [areaId] by collapsing its parent split into the surviving sibling. Closing the
+ * Closes the leaf [areaId] by collapsing its parent split into the surviving sibling.  Closing the
  * sole leaf of a workspace is refused (returns the tree unchanged) - a workspace must always have at
  * least one area.
  *
@@ -251,13 +251,13 @@ private fun closeArea(root: AreaNode, areaId: String): AreaNode {
 
 /**
  * Recursively removes the leaf [areaId] from a subtree, returning the rewritten subtree, or null when
- * the leaf is not in this subtree (the caller uses null to mean "keep looking / not here"). When a
+ * the leaf is not in this subtree (the caller uses null to mean "keep looking / not here").  When a
  * split's direct child is the target, the split collapses to its other child.
  *
  * 部分木から葉を再帰的に取り除き、書き換えた部分木を返す。ここに無ければ null。
  *
- * @param node The subtree to search.
- * @param areaId The leaf id to remove.
+ * @param AreaNode node The subtree to search.
+ * @param String areaId The leaf id to remove.
  * @return AreaNode? The rewritten subtree, or null if the leaf was not found here.
  */
 private fun removeLeaf(node: AreaNode, areaId: String): AreaNode? =

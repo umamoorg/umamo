@@ -11,7 +11,7 @@ import org.umamo.settings.Settings
 
 /**
  * The active UI language tag (BCP-47) for the composition, driven by the localization.locale setting rather
- * than the OS locale. Descendants that need the raw tag read `LocalAppLocale.current`; most code just calls
+ * than the OS locale.  Descendants that need the raw tag read `LocalAppLocale.current`; most code just calls
  * stringResource() and lets the catalogs resolve.
  */
 val LocalAppLocale = staticCompositionLocalOf { "en" }
@@ -136,7 +136,7 @@ fun rememberLocaleTag(settings: Settings): State<String> =
 	}
 
 /**
- * Applies [languageTag] as the process resource locale on the current platform. Compose
+ * Applies [languageTag] as the process resource locale on the current platform.  Compose
  * Multiplatform has no first-party "override the resource locale at runtime" API yet (JetBrains issue
  * #4197), so the portable lever is the JVM default locale, which the desktop/Android resource
  * environment derives from. expect/actual keeps java.util.Locale out of commonMain (absent there).

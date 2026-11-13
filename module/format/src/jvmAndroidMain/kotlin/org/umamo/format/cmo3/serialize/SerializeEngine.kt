@@ -1,9 +1,12 @@
 package org.umamo.format.cmo3.serialize
 
+import org.jdom.Attribute
 import org.jdom.Document
 import org.jdom.Element
 import org.jdom.ProcessingInstruction
 import org.umamo.format.cmo3.serialize.annotations.SerialTag
+import org.umamo.format.cmo3.type.CArrayList
+import org.umamo.format.cmo3.type.CHashMap
 import java.util.IdentityHashMap
 import kotlin.reflect.KClass
 import kotlin.reflect.full.findAnnotation
@@ -27,10 +30,10 @@ internal class SerializerRegistry {
 	private val boolSerializer = PrimitiveSerializer("b") { it == "true" }
 	private val stringSerializer = PrimitiveSerializer("s") { it }
 	private val arrayListSerializer = ListSerializer("array_list") { ArrayList() }
-	private val carrayListSerializer = ListSerializer("carray_list") { org.umamo.format.cmo3.type.CArrayList() }
+	private val carrayListSerializer = ListSerializer("carray_list") { CArrayList() }
 
 	// hash_map reads into an order-preserving CHashMap so non-empty maps re-emit in document order.
-	private val hashMapSerializer = MapSerializer("hash_map") { org.umamo.format.cmo3.type.CHashMap() }
+	private val hashMapSerializer = MapSerializer("hash_map") { CHashMap() }
 	private val linkedMapSerializer = MapSerializer("linked_map") { LinkedHashMap() }
 	private val linkedSetSerializer = SetSerializer("linked_set") { LinkedHashSet() }
 
@@ -95,14 +98,23 @@ internal class SerializerRegistry {
 	private val customByClass = HashMap<KClass<*>, XmlSerializer>()
 	private val customByTag = HashMap<String, XmlSerializer>()
 
-	/** Registers a model class so its tag resolves on read and its version PI can be emitted. */
+	/**
+	 * Registers a model class so its tag resolves on read and its version PI can be emitted.
+	 *
+	 * @param KClass<*> kClass The model class to register.
+	 */
 	fun register(kClass: KClass<*>) {
 		val tag = tagFor(kClass)
 		tagToClass[tag] = kClass
 		classToTag[kClass] = tag
 	}
 
-	/** Registers a class with a hand-written (e.g. attribute-based) serializer, e.g. value-types. */
+	/**
+	 * Registers a class with a hand-written (e.g. attribute-based) serializer, e.g. value-types.
+	 *
+	 * @param KClass<*> kClass The class to register.
+	 * @param XmlSerializer serializer The serializer that reads and writes it.
+	 */
 	fun registerCustom(kClass: KClass<*>, serializer: XmlSerializer) {
 		register(kClass)
 		customByClass[kClass] = serializer
@@ -110,7 +122,7 @@ internal class SerializerRegistry {
 	}
 
 	/**
-	 * Registers a custom serializer for an explicit [tag] backed by [kClass]. Lets one class cover
+	 * Registers a custom serializer for an explicit [tag] backed by [kClass].  Lets one class cover
 	 * many tags (e.g. a single Guid type carrying its kind for all *Guid tags); the serializer must
 	 * derive the element tag from the value on write.
 	 *
@@ -125,30 +137,62 @@ internal class SerializerRegistry {
 		customByTag[tag] = serializer
 	}
 
+	/**
+	 * The cached serializer for an enum class.
+	 *
+	 * @param Class<*> enumClass The enum's class.
+	 * @return EnumSerializer The serializer.
+	 */
 	private fun enumSerializerFor(enumClass: Class<*>): EnumSerializer {
 		val kClass = enumClass.kotlin
 
 		return enumSerializerCache.getOrPut(kClass) { EnumSerializer(tagFor(kClass), enumClass) }
 	}
 
+	/**
+	 * The enum class of a constant, which for a constant with a body of its own is the superclass.
+	 *
+	 * @param Enum<*> value The enum constant.
+	 * @return Class<*> The enum class.
+	 */
 	private fun enumClassOf(value: Enum<*>): Class<*> =
 		value.javaClass.let { if (it.isEnum) it else it.superclass }
 
-	/** The element tag for [kClass]: its @SerialTag, else its simple name. */
+	/**
+	 * The element tag for [kClass]: its @SerialTag, else its simple name.
+	 *
+	 * @param KClass<*> kClass The class to name.
+	 * @return String The element tag.
+	 */
 	fun tagFor(kClass: KClass<*>): String =
 		classToTag[kClass] ?: (
 			kClass.findAnnotation<SerialTag>()?.tag ?: kClass.simpleName
 				?: error("anonymous class cannot be serialized: $kClass")
 		)
 
-	/** The class registered under [tag], or null if unknown (caller may fall back to verbatim). */
+	/**
+	 * The class registered under [tag], or null if unknown (caller may fall back to verbatim).
+	 *
+	 * @param String tag The element tag.
+	 * @return KClass<*>? The registered class, or null.
+	 */
 	fun classForTag(tag: String): KClass<*>? = tagToClass[tag]
 
-	/** Cached reflective serializer for [kClass]. */
+	/**
+	 * Cached reflective serializer for [kClass].
+	 *
+	 * @param KClass<*> kClass The class to serialize.
+	 * @return ReflectiveClassSerializer The class's serializer.
+	 */
 	fun classSerializer(kClass: KClass<*>): ReflectiveClassSerializer =
 		classSerializerCache.getOrPut(kClass) { ReflectiveClassSerializer(kClass, this) }
 
-	/** Serializer for a runtime value, dispatched by type (write path). */
+	/**
+	 * Serializer for a runtime value, dispatched by type (write path).
+	 *
+	 * @param Any value The value about to be written.
+	 * @return XmlSerializer The serializer for its type.
+	 */
 	fun serializerForValue(value: Any): XmlSerializer {
 		customByClass[value::class]?.let { return it }
 
@@ -190,13 +234,13 @@ internal class SerializerRegistry {
 			is BooleanArray -> boolArraySerializer
 
 			// Order matters: subtypes before supertypes so the on-disk tag round-trips exactly.
-			is org.umamo.format.cmo3.type.CHashMap<*, *> -> hashMapSerializer
+			is CHashMap<*, *> -> hashMapSerializer
 
 			is LinkedHashMap<*, *> -> linkedMapSerializer
 
 			is Map<*, *> -> hashMapSerializer
 
-			is org.umamo.format.cmo3.type.CArrayList<*> -> carrayListSerializer
+			is CArrayList<*> -> carrayListSerializer
 
 			is List<*> -> arrayListSerializer
 
@@ -206,7 +250,12 @@ internal class SerializerRegistry {
 		}
 	}
 
-	/** Serializer for an element tag (read path), or null if the tag is unknown. */
+	/**
+	 * Serializer for an element tag (read path), or null if the tag is unknown.
+	 *
+	 * @param String tag The element tag.
+	 * @return XmlSerializer? The serializer, or null.
+	 */
 	fun serializerForTag(tag: String): XmlSerializer? {
 		customByTag[tag]?.let { return it }
 
@@ -307,16 +356,32 @@ internal class SerializerRegistry {
 		}
 	}
 
-	/** Serializer for the serializable superclass of [kClass], or null. Never instantiated directly. */
+	/**
+	 * Serializer for the serializable superclass of [kClass], or null.  Never instantiated directly.
+	 *
+	 * @param KClass<*> kClass The class whose superclass to look up.
+	 * @param Boolean suppress True to report no superclass at all.
+	 * @return ReflectiveClassSerializer? The superclass's serializer, or null.
+	 */
 	fun superSerializerOf(kClass: KClass<*>, suppress: Boolean): ReflectiveClassSerializer? {
-		if (suppress) return null
+		if (suppress) {
+			return null
+		}
+
 		val superJava = kClass.java.superclass ?: return null
-		if (superJava == Any::class.java || superJava.isInterface) return null
+
+		if (superJava == Any::class.java || superJava.isInterface) {
+			return null
+		}
 
 		return classSerializer(superJava.kotlin)
 	}
 
-	/** Registered (tag -> version) pairs for classes that declare a @SerialTag version. */
+	/**
+	 * Registered (tag -> version) pairs for classes that declare a @SerialTag version.
+	 *
+	 * @return List<Pair<String, Int>> One tag and version pair per versioned class.
+	 */
 	fun versions(): List<Pair<String, Int>> =
 		classToTag.entries.mapNotNull { (kClass, tag) ->
 			kClass.findAnnotation<SerialTag>()?.version?.takeIf { it >= 0 }?.let { tag to it }
@@ -331,14 +396,14 @@ internal class SharedDef(val element: Element, val refId: String, val index: Int
 
 /**
  * A shared object's preserved identity (xs.id), pool index (xs.idx), and exact def tag, captured at
- * read time. The [tag] is reused verbatim for references so it always matches the def - even where
+ * read time.  The [tag] is reused verbatim for references so it always matches the def - even where
  * one class covers many tags (Guid/Id) or the tag differs from the class name (float-array, etc.).
  */
 internal class SharedRef(val id: String, val index: Int, val tag: String)
 
 /**
  * One child slot of a reflective object, captured on read so the exact child sequence can be replayed
- * on write. This makes typed classes tolerant of format evolution (added, removed, or reordered
+ * on write.  This makes typed classes tolerant of format evolution (added, removed, or reordered
  * fields) across schema versions while staying byte-identical: a known field is re-serialized from the
  * typed value, an unrecognized one is re-emitted verbatim, and the superclass keeps its position.
  */
@@ -394,19 +459,36 @@ internal class WriteContext(
 	private var refIdCounter = nextFreshRefId(preassignedShared)
 	private var writtenIndexCounter = 0
 
-	/** Records [value]'s element on first write (subsequent calls are no-ops, matching the editor). */
+	/**
+	 * Records [value]'s element on first write (subsequent calls are no-ops, matching the editor).
+	 *
+	 * @param Any value The object that was written.
+	 * @param Element element The element it was written as.
+	 */
 	fun setWritten(value: Any, element: Element) {
-		if (!written.containsKey(value)) written[value] = WrittenRecord(element, writtenIndexCounter++)
+		if (!written.containsKey(value)) {
+			written[value] = WrittenRecord(element, writtenIndexCounter++)
+		}
 	}
 
 	/**
 	 * The child sequence read for [owner] at the [tag] level, or null for a freshly constructed object.
 	 * When non-null it is replayed verbatim (order, presence and unknown children all preserved), so a
 	 * round-trip reproduces the source exactly - independent of schema version.
+	 *
+	 * @param Any owner The object the record is kept for.
+	 * @param String tag The class level of the owner, by tag.
+	 * @return List<ChildSlot>? The recorded child sequence, or null.
 	 */
 	fun childOrderFor(owner: Any, tag: String): List<ChildSlot>? = preservedChildOrder?.get(owner)?.get(tag)
 
-	/** The attributes present when [owner] was read at the [tag] level, or null for a fresh object. */
+	/**
+	 * The attributes present when [owner] was read at the [tag] level, or null for a fresh object.
+	 *
+	 * @param Any owner The object the record is kept for.
+	 * @param String tag The class level of the owner, by tag.
+	 * @return Set<String>? The recorded attribute names, or null.
+	 */
 	fun presentAttrsFor(owner: Any, tag: String): Set<String>? = preservedPresentAttrs?.get(owner)?.get(tag)
 
 	/**
@@ -438,7 +520,12 @@ internal class WriteContext(
 		if (value is VerbatimNode) {
 			// Re-emit the preserved subtree, re-stamping the owning field name (or dropping it for items).
 			val clone = value.element.clone() as Element
-			if (name != null) clone.setAttribute(ATTR_NAME, name) else clone.removeAttribute(ATTR_NAME)
+
+			if (name != null) {
+				clone.setAttribute(ATTR_NAME, name)
+			} else {
+				clone.removeAttribute(ATTR_NAME)
+			}
 
 			return clone
 		}
@@ -476,21 +563,50 @@ internal class ReadContext(
 	/** Names of the attributes actually present on read, keyed by owner then serializer tag. */
 	val presentAttrs = IdentityHashMap<Any, MutableMap<String, MutableSet<String>>>()
 
+	/**
+	 * The recorded child sequence of an owner at one class level, created on first use.
+	 *
+	 * @param Any owner The object the record is kept for.
+	 * @param String tag The class level of the owner, by tag.
+	 */
 	private fun slots(owner: Any, tag: String) =
 		childOrder.getOrPut(owner) { HashMap() }.getOrPut(tag) { ArrayList() }
 
-	/** Records, in document order, a recognized child field of [owner] at the [tag] level. */
+	/**
+	 * Records, in document order, a recognized child field of [owner] at the [tag] level.
+	 *
+	 * @param Any owner The object the record is kept for.
+	 * @param String tag The class level of the owner, by tag.
+	 * @param String propertyName The field the child was read into.
+	 */
 	fun recordKnownChild(owner: Any, tag: String, propertyName: String) =
 		slots(owner, tag).add(ChildSlot.KnownField(propertyName))
 
-	/** Records, in document order, a child of [owner] the [tag] serializer did not recognise. */
+	/**
+	 * Records, in document order, a child of [owner] the [tag] serializer did not recognise.
+	 *
+	 * @param Any owner The object the record is kept for.
+	 * @param String tag The class level of the owner, by tag.
+	 * @param Element element The unrecognized child, which is kept as a copy.
+	 */
 	fun recordVerbatimChild(owner: Any, tag: String, element: Element) =
 		slots(owner, tag).add(ChildSlot.VerbatimChild(element.clone() as Element))
 
-	/** Records, in document order, the position of the `<super>` element of [owner] at the [tag] level. */
+	/**
+	 * Records, in document order, the position of the `<super>` element of [owner] at the [tag] level.
+	 *
+	 * @param Any owner The object the record is kept for.
+	 * @param String tag The class level of the owner, by tag.
+	 */
 	fun recordSuperChild(owner: Any, tag: String) = slots(owner, tag).add(ChildSlot.Super)
 
-	/** Records that attribute [attrName] of [owner] (at the [tag] level) was present in the source. */
+	/**
+	 * Records that attribute [attrName] of [owner] (at the [tag] level) was present in the source.
+	 *
+	 * @param Any owner The object the record is kept for.
+	 * @param String tag The class level of the owner, by tag.
+	 * @param String attrName The attribute's name.
+	 */
 	fun recordPresentAttr(owner: Any, tag: String, attrName: String) {
 		presentAttrs.getOrPut(owner) { HashMap() }.getOrPut(tag) { HashSet() }.add(attrName)
 	}
@@ -504,7 +620,11 @@ internal class ReadContext(
 	 */
 	fun createObjectFromElement(element: Element): Any? {
 		val tag = element.name
-		if (tag == TAG_NULL) return null
+
+		if (tag == TAG_NULL) {
+			return null
+		}
+
 		element.getAttributeValue(ATTR_REF)?.let { return references[it] }
 		val serializer = registry.serializerForTag(tag)
 
@@ -516,7 +636,7 @@ internal class ReadContext(
 		}
 
 		// A typed serializer may still fail on evolved/unknown content (e.g. a newer enum constant,
-		// an added field, a missing no-arg constructor). Fall back to verbatim + report, so format
+		// an added field, a missing no-arg constructor).  Fall back to verbatim + report, so format
 		// evolution never crashes or loses data - it just isn't typed yet.
 		return try {
 			val instance = serializer.createInstance(element, this) ?: return null
@@ -714,7 +834,10 @@ public class SerializeEngine internal constructor(
 			context.references[id] = instance
 			sharedInfo[instance] = SharedRef(id, index, element.name)
 			sharedOrder.add(instance)
-			if (serializer != null) typedToSetup.add(element to instance)
+
+			if (serializer != null) {
+				typedToSetup.add(element to instance)
+			}
 		}
 
 		for ((element, instance) in typedToSetup) {
@@ -729,7 +852,7 @@ public class SerializeEngine internal constructor(
 			document.content.filterIsInstance<ProcessingInstruction>().map { it.clone() as ProcessingInstruction }
 
 		@Suppress("UNCHECKED_CAST")
-		val rootAttributes = (rootElement.attributes as List<org.jdom.Attribute>).map { it.name to it.value }
+		val rootAttributes = (rootElement.attributes as List<Attribute>).map { it.name to it.value }
 
 		return ModelGraph(
 			rootObject,

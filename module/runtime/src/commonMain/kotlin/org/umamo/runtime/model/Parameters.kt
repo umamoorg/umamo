@@ -14,10 +14,10 @@ enum class ParameterKind {
 }
 
 /**
- * An animation axis, e.g. `ParamAngleX`. Drives keyform blending at runtime.
+ * An animation axis, e.g. `ParamAngleX`.  Drives keyform blending at runtime.
  *
  * [id] is the format-level identifier (`ParamAngleX`, …) - kept verbatim for interop, never
- * localised. [name] is the user-facing display name (the editor's `cdi3`-style label), free to
+ * localised.  [name] is the user-facing display name (the editor's `cdi3`-style label), free to
  * localise.
  */
 data class Parameter(
@@ -39,9 +39,9 @@ data class Parameter(
 
 /**
  * A LINKED ("combined") pair of parameters that the editor presents as a single 2D pad instead of two
- * independent sliders - e.g. head "Angle X" + "Angle Y" shown as one grid control. [horizontal] drives
+ * independent sliders - e.g. head "Angle X" + "Angle Y" shown as one grid control.  [horizontal] drives
  * the X axis (Cubism's first/topmost member of the pair), [vertical] drives the Y axis (the next member
- * in document order). Both remain ordinary, independently-keyable [Parameter]s; this record only states
+ * in document order).  Both remain ordinary, independently-keyable [Parameter]s; this record only states
  * that they should be scrubbed together as a 2D unit.
  *
  * @property ParameterId horizontal The X-axis parameter (the pair's first/topmost member).

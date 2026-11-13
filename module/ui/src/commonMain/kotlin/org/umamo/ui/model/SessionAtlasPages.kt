@@ -74,6 +74,11 @@ class SessionAtlasPages(
 			.collectLatest { model -> publishFor(model) }
 	}
 
+	/**
+	 * Publishes the page textures that match a model's atlas, building them only for an atlas not seen before.
+	 *
+	 * @param PuppetModel model The session's current model.
+	 */
 	private suspend fun publishFor(model: PuppetModel) {
 		val atlas = model.atlas
 

@@ -61,6 +61,8 @@ import org.umamo.runtime.model.inversePlacementAffine
 import org.umamo.runtime.model.isOriginAtCanvasCenter
 import org.umamo.runtime.model.lineageRoot
 import org.umamo.runtime.model.storedToArtAffineForTile
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /**
  * The flat-property half of the CMO3 export reconcile: every diffed field with a direct CMO3 field
@@ -112,6 +114,13 @@ internal class Cmo3PropertyLowering(
 	/** The structural engine, for topology rewrites and glue re-binding on Changed entities. */
 	private val structure = Cmo3StructureLowering(index.modelSource, index, editor, edited, notices, textureFrames)
 
+	/**
+	 * Records an edit this export cannot represent.
+	 *
+	 * @param ExportEntityCategory category The kind of entity the edit is on.
+	 * @param String? subject The entity's id, or null.
+	 * @param ExportNoticeReason reason Why it cannot be written.
+	 */
 	private fun unsupported(
 		category: ExportEntityCategory,
 		subject: String?,
@@ -120,6 +129,11 @@ internal class Cmo3PropertyLowering(
 		notices.add(ExportNotice.UnsupportedChange(category, subject, reason))
 	}
 
+	/**
+	 * Lowers each changed parameter's fields onto its graph source.
+	 *
+	 * @param List<EntityDiff<ParameterId, ParameterField>> diffs The parameter diffs.
+	 */
 	fun lowerParameters(diffs: List<EntityDiff<ParameterId, ParameterField>>) {
 		for (diff in diffs) {
 			when (diff) {
@@ -167,6 +181,11 @@ internal class Cmo3PropertyLowering(
 		}
 	}
 
+	/**
+	 * Lowers each changed parameter group's fields onto its graph source.
+	 *
+	 * @param List<EntityDiff<ParameterGroupId, ParameterGroupField>> diffs The parameter group diffs.
+	 */
 	fun lowerParameterGroups(diffs: List<EntityDiff<ParameterGroupId, ParameterGroupField>>) {
 		for (diff in diffs) {
 			when (diff) {
@@ -210,6 +229,11 @@ internal class Cmo3PropertyLowering(
 		}
 	}
 
+	/**
+	 * Lowers each changed part's fields onto its graph source.
+	 *
+	 * @param List<EntityDiff<PartId, PartField>> diffs The part diffs.
+	 */
 	fun lowerParts(diffs: List<EntityDiff<PartId, PartField>>) {
 		for (diff in diffs) {
 			when (diff) {
@@ -283,6 +307,11 @@ internal class Cmo3PropertyLowering(
 		}
 	}
 
+	/**
+	 * Lowers each changed deformer's fields onto its graph source.
+	 *
+	 * @param List<EntityDiff<DeformerId, DeformerField>> diffs The deformer diffs.
+	 */
 	fun lowerDeformers(diffs: List<EntityDiff<DeformerId, DeformerField>>) {
 		for (diff in diffs) {
 			when (diff) {
@@ -416,6 +445,11 @@ internal class Cmo3PropertyLowering(
 		}
 	}
 
+	/**
+	 * Lowers each changed drawable's fields onto its graph source.
+	 *
+	 * @param List<EntityDiff<DrawableId, DrawableField>> diffs The drawable diffs.
+	 */
 	fun lowerDrawables(diffs: List<EntityDiff<DrawableId, DrawableField>>) {
 		structure.expectTopologyRewrites(
 			diffs.mapNotNull { diff -> if (diff is EntityDiff.Changed && DrawableField.MESH_TOPOLOGY in diff.fields) diff.id else null },
@@ -651,6 +685,11 @@ internal class Cmo3PropertyLowering(
 		editor.ensureChildSlot(source, "CArtMeshSource", "uvs", "texture")
 	}
 
+	/**
+	 * Lowers each changed glue onto its graph source, resolved by mesh pair and ordinal.
+	 *
+	 * @param List<GlueDiff> diffs The glue diffs.
+	 */
 	fun lowerGlues(diffs: List<GlueDiff>) {
 		if (diffs.isEmpty()) {
 			return
@@ -838,6 +877,11 @@ internal class Cmo3PropertyLowering(
 		editor.ensureChildSlot(entry, "ModelImageEntry", "atlasLocalToCanvasTransform", null)
 	}
 
+	/**
+	 * Lowers the changed document-level fields.
+	 *
+	 * @param Set<DocumentField> fields The document fields that changed.
+	 */
 	fun lowerDocument(fields: Set<DocumentField>) {
 		// Order and links rewrite the same _sources list; run the shared lowering once.
 		if (DocumentField.PARAMETER_ORDER in fields || DocumentField.PARAMETER_LINKS in fields) {
@@ -907,19 +951,34 @@ internal class Cmo3PropertyLowering(
 		}
 	}
 
-	/** CMO3: ACParameterControllableSource field localName - the user-facing display name. */
+	/**
+	 * CMO3: ACParameterControllableSource field localName - the user-facing display name.
+	 *
+	 * @param ACParameterControllableSource source The entity's graph source.
+	 * @param String name The display name to write.
+	 */
 	private fun lowerLocalName(source: ACParameterControllableSource, name: String) {
 		source.localName = name
 		editor.ensureChildSlot(source, "ACParameterControllableSource", "localName", "isVisible")
 	}
 
-	/** CMO3: ACParameterControllableSource field isVisible - the Parts-panel eyeball. */
+	/**
+	 * CMO3: ACParameterControllableSource field isVisible - the Parts-panel eyeball.
+	 *
+	 * @param ACParameterControllableSource source The entity's graph source.
+	 * @param Boolean isVisible Whether the entity is shown.
+	 */
 	private fun lowerIsVisible(source: ACParameterControllableSource, isVisible: Boolean) {
 		source.isVisible = isVisible
 		editor.ensureChildSlot(source, "ACParameterControllableSource", "isVisible", "isLocked")
 	}
 
-	/** CMO3: ACParameterControllableSource field isLocked (inverted: Cubism lock = not selectable). */
+	/**
+	 * CMO3: ACParameterControllableSource field isLocked (inverted: Cubism lock = not selectable).
+	 *
+	 * @param ACParameterControllableSource source The entity's graph source.
+	 * @param Boolean isSelectable Whether the entity can be selected; the stored lock is its inverse.
+	 */
 	private fun lowerIsLocked(source: ACParameterControllableSource, isSelectable: Boolean) {
 		source.isLocked = !isSelectable
 		editor.ensureChildSlot(source, "ACParameterControllableSource", "isLocked", "parentGuid")
@@ -1229,7 +1288,7 @@ internal class Cmo3PropertyLowering(
 		}
 
 		val orderedSources = ArrayList<Any?>()
-		val placed = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+		val placed = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
 
 		for (parameter in edited.parameters) {
 			val source = index.parameterByIdStr[parameter.id.raw] ?: continue
@@ -1445,6 +1504,11 @@ internal class Cmo3PropertyLowering(
 		val part = editedPartById[partId] ?: return emptyList()
 		val drawableIds = ArrayList<DrawableId>()
 
+		/**
+		 * Adds the drawables in a child list and under its parts.
+		 *
+		 * @param List<OrgChild> children The child list to walk.
+		 */
 		fun walk(children: List<OrgChild>) {
 			for (child in children) {
 				when (child) {
@@ -1458,7 +1522,19 @@ internal class Cmo3PropertyLowering(
 		return drawableIds
 	}
 
+	/**
+	 * Finds a parameter group in the edited model's parameter tree.
+	 *
+	 * @param ParameterGroupId groupId The group to find.
+	 * @return ParameterNode.Group? The group, or null when the edited model has none by that id.
+	 */
 	private fun findEditedGroup(groupId: ParameterGroupId): ParameterNode.Group? {
+		/**
+		 * Searches a node list, nested groups included, for the wanted group.
+		 *
+		 * @param List<ParameterNode> nodes The node list to search.
+		 * @return ParameterNode.Group? The group, or null.
+		 */
 		fun walk(nodes: List<ParameterNode>): ParameterNode.Group? {
 			for (node in nodes) {
 				if (node is ParameterNode.Group) {

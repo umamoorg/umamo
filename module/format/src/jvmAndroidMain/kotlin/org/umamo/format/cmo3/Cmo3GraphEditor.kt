@@ -5,6 +5,9 @@ import org.umamo.format.cmo3.serialize.ATTR_REF
 import org.umamo.format.cmo3.serialize.ChildSlot
 import org.umamo.format.cmo3.serialize.ModelGraph
 import org.umamo.format.cmo3.serialize.VerbatimNode
+import java.lang.reflect.Modifier
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /**
  * Mutation support for a read [Cmo3Model]'s graph, for callers lowering editor state back onto it.
@@ -72,7 +75,7 @@ public class Cmo3GraphEditor internal constructor(private val graph: ModelGraph)
 			graph.sharedInfo[instance]?.let { sharedRef -> sharedById[sharedRef.id] = instance }
 		}
 
-		val reachable = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+		val reachable = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
 		val stack = ArrayDeque<Any?>()
 		graph.root?.let(stack::addLast)
 
@@ -121,7 +124,7 @@ public class Cmo3GraphEditor internal constructor(private val graph: ModelGraph)
 
 						while (currentClass != null && currentClass != Any::class.java) {
 							for (field in currentClass.declaredFields) {
-								if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
+								if (Modifier.isStatic(field.modifiers)) {
 									continue
 								}
 

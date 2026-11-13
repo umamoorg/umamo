@@ -14,7 +14,8 @@ internal object WebpTransformType {
 	const val COLOR_INDEXING = 3
 }
 
-// VP8L spatial predictor modes.
+// VP8L spatial predictor modes, named the way the spec names the neighboring pixels: L left, T top.
+@Suppress("ktlint:umamo:no-single-letter-name")
 private object PredictorMode {
 	const val BLACK = 0
 	const val L = 1

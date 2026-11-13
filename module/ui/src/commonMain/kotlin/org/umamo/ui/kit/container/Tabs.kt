@@ -20,7 +20,7 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 
 /**
- * A flat tab strip - a [Row] over the header background, hosting [Tab]s. No animated indicator (the active
+ * A flat tab strip - a [Row] over the header background, hosting [Tab]s.  No animated indicator (the active
  * tab is shown by its fill); replaces Material's TabRow.
  *
  * @param Modifier modifier Layout modifier.

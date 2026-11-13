@@ -16,7 +16,7 @@ import java.io.File
  */
 object ClipAndroid {
 	// TODO(android-clip): currently assigned nowhere - the Android app has no file-open flow yet, so
-	// CLIP is unreachable there and this hook is inert. When Android gains an open path, set
+	// CLIP is unreachable there and this hook is inert.  When Android gains an open path, set
 	// `ClipAndroid.applicationContext = applicationContext` in MainActivity.onCreate (where a future
 	// FileKit.init(this) will also go), or reading a .clip will fail the error() in useClipDatabase.
 	@Volatile

@@ -1,7 +1,7 @@
 package org.umamo.runtime.model
 
 /**
- * A copy of this model with [PuppetModel.renderRoot] recomputed from the current org tree. Every edit that
+ * A copy of this model with [PuppetModel.renderRoot] recomputed from the current org tree.  Every edit that
  * changes the org tree (a move, a delete) ends with this, so draw order stays a consistent derivation of
  * the tree rather than something the edit has to maintain by hand.
  *
@@ -31,6 +31,12 @@ fun PuppetModel.deriveRenderRoot(): RenderGroup {
 	// building it per composite would cost O(parts * masked composites) on every model mutation.
 	val maskSubtrees by lazy { drawablesByPartSubtree() }
 
+	/**
+	 * A part's active composite, with its part masks expanded into the drawables they cover.
+	 *
+	 * @param Part part The part.
+	 * @return PartComposite? The composite, or null when the part has none active.
+	 */
 	fun resolvedComposite(part: Part): PartComposite? {
 		val composite = part.activeComposite ?: return null
 
@@ -44,6 +50,13 @@ fun PuppetModel.deriveRenderRoot(): RenderGroup {
 		return composite.copy(maskedBy = flattenedMasks(composite, maskSubtrees), maskedByParts = emptyList())
 	}
 
+	/**
+	 * Appends a child list's render nodes back to front, nesting each grouping part and hoisting a pass-through
+	 * part's children.
+	 *
+	 * @param List<OrgChild> children The child list, in panel order.
+	 * @param ArrayList<RenderNode> into The list that takes the nodes.
+	 */
 	fun collect(children: List<OrgChild>, into: ArrayList<RenderNode>) {
 		// Panel order is top = front; render order is back-to-front, so walk reversed.
 		for (child in children.asReversed()) {
@@ -85,6 +98,11 @@ fun PuppetModel.deriveRenderRoot(): RenderGroup {
 	// so the render never silently drops a mesh.
 	val placed = HashSet<DrawableId>()
 
+	/**
+	 * Records every drawable a render node places.
+	 *
+	 * @param RenderNode node The node to walk.
+	 */
 	fun collectPlaced(node: RenderNode) {
 		when (node) {
 			is RenderDrawable -> placed.add(node.id)

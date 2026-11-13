@@ -1,6 +1,7 @@
 package org.umamo.render.eval
 
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Drawable
@@ -35,7 +36,7 @@ class ChannelOverrideEvalTest {
 	private val drawableId = DrawableId("d")
 	private val owner = KeyformOwner.Drawable(drawableId)
 
-	private fun model(channelGrids: org.umamo.runtime.model.ChannelGrids): PuppetModel {
+	private fun model(channelGrids: ChannelGrids): PuppetModel {
 		val positions = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f)
 		val drawable =
 			Drawable(
@@ -68,7 +69,7 @@ class ChannelOverrideEvalTest {
 	/** With no override, the channel reads its static as usual - the parameter is inert by default. */
 	@Test
 	fun withoutAnOverrideTheStaticHolds() {
-		val inputs = preparePose(model(org.umamo.runtime.model.ChannelGrids.Empty), emptyMap())
+		val inputs = preparePose(model(ChannelGrids.Empty), emptyMap())
 		assertEquals(0.25f, inputs.drawables.single().opacity)
 	}
 
@@ -76,7 +77,7 @@ class ChannelOverrideEvalTest {
 	@Test
 	fun anOverrideBeatsTheStatic() {
 		val overrides = mapOf(KeyableTarget(owner, FormChannel.OPACITY) to ChannelValue.Scalar(0.9f))
-		val inputs = preparePose(model(org.umamo.runtime.model.ChannelGrids.Empty), emptyMap(), overrides)
+		val inputs = preparePose(model(ChannelGrids.Empty), emptyMap(), overrides)
 		assertEquals(0.9f, inputs.drawables.single().opacity, "the typed value is what the viewport shows")
 	}
 
@@ -97,7 +98,7 @@ class ChannelOverrideEvalTest {
 					KeyformCell<ChannelValue>(intArrayOf(1), ChannelValue.Scalar(1f)),
 				),
 			)
-		val keyed = org.umamo.runtime.model.ChannelGrids(mapOf(FormChannel.OPACITY to track))
+		val keyed = ChannelGrids(mapOf(FormChannel.OPACITY to track))
 		val withoutOverride = preparePose(model(keyed), mapOf(paramA to 0f))
 		assertEquals(0.5f, withoutOverride.drawables.single().opacity, "the track blends to its midpoint")
 
@@ -110,7 +111,7 @@ class ChannelOverrideEvalTest {
 	@Test
 	fun anOverrideIsScopedToItsChannel() {
 		val overrides = mapOf(KeyableTarget(owner, FormChannel.MULTIPLY_COLOR) to ChannelValue.Color(ColorRgb(1f, 0f, 0f)))
-		val resolved = preparePose(model(org.umamo.runtime.model.ChannelGrids.Empty), emptyMap(), overrides).drawables.single()
+		val resolved = preparePose(model(ChannelGrids.Empty), emptyMap(), overrides).drawables.single()
 		assertEquals(ColorRgb(1f, 0f, 0f), resolved.multiplyColor)
 		assertEquals(0.25f, resolved.opacity, "an unrelated channel keeps its own value")
 	}

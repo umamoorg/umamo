@@ -134,7 +134,11 @@ private class SourceArtworkGaps {
 	private var reportedCount = 0
 	private var reportedUnavailable = false
 
-	/** Starts over against a new mapping. */
+	/**
+	 * Starts over against a new mapping.
+	 *
+	 * @param LayerDrawPlan plan The new layer mapping.
+	 */
 	fun reset(plan: LayerDrawPlan) {
 		this.plan = plan
 		undecodable.clear()
@@ -275,8 +279,8 @@ fun rememberPuppetViewportHost(
 	}
 	// Bridge the session's selection to the render thread: push the selected drawable ids (the only kind the
 	// viewport tints) plus the active (last-selected) one, so it re-renders the tint with the active drawable
-	// distinguished from the rest of a multi-selection. The session is the source of truth, so this also
-	// follows an undo/redo that changes the selection. Mirrors how settings/liveparams reach the render thread.
+	// distinguished from the rest of a multi-selection.  The session is the source of truth, so this also
+	// follows an undo/redo that changes the selection.  Mirrors how settings/liveparams reach the render thread.
 	// What tints in which mode is selectionTintOf's rule.
 	LaunchedEffect(service, session) {
 		combine(session.selection, session.mode, session.previewSelection, ::selectionTintOf)
@@ -288,7 +292,7 @@ fun rememberPuppetViewportHost(
 	}
 	// Bridge the session's model to the render thread on every committed edit or undo/redo: push the whole
 	// model (so a layer reorder re-sorts the draw order) and the resolved Parts-panel visibility cascade (so
-	// an eyeball toggle hides / re-shows art). Edit mode renders the same model as Object mode — the gizmo
+	// an eyeball toggle hides / re-shows art).  Edit mode renders the same model as Object mode — the gizmo
 	// overlay projects itself onto the real deformed geometry, so there is no edit-view transform here.
 	LaunchedEffect(service, session) {
 		session.model.collect { model ->
@@ -407,14 +411,14 @@ fun rememberPuppetViewportHost(
 			}
 	}
 	// Mirror the session's pose into the render-thread hand-off so undo / redo (and any committed scrub)
-	// re-poses the viewport. Mid-drag previews already take the faster direct path (the Parameters panel
+	// re-poses the viewport.  Mid-drag previews already take the faster direct path (the Parameters panel
 	// writes this same volatile through LiveParamsAdapter.preview), so this fires only at gesture
 	// boundaries and on undo, not per frame — and a commit re-publishes the identical map, a no-op.
 	//
 	// Edit mode overrides the DISPLAYED pose to neutral (an empty map — the renderer falls back to every
 	// parameter's default): Edit mode edits the neutral state of the base mesh, so the whole puppet snaps
-	// to rest for its duration. Display-only by construction — session.pose is never touched, so leaving
-	// Edit mode restores the Object-mode pose with no stash. Every preview goes through LiveParamsAdapter,
+	// to rest for its duration.  Display-only by construction — session.pose is never touched, so leaving
+	// Edit mode restores the Object-mode pose with no stash.  Every preview goes through LiveParamsAdapter,
 	// which refuses it while the pose is pinned, so none can bypass this override.
 	LaunchedEffect(service, session) {
 		combine(session.pose, session.mode) { pose, mode ->
@@ -437,6 +441,7 @@ fun rememberPuppetViewportHost(
 	// defaults, and highlight parser are shared with the preferences window via ViewportSettings.
 	val settings = LocalSettings.current
 	LaunchedEffect(service, settings, session) {
+		/** Pushes the current viewport settings into the render service. */
 		fun applyViewportSettings() {
 			service.zoomStepPercent =
 				(settings.getDouble(ViewportSettings.ZOOM_STEP_KEY) ?: ViewportSettings.ZOOM_STEP_DEFAULT).toFloat()
@@ -465,7 +470,7 @@ fun rememberPuppetViewportHost(
 	}
 	// Feed the themed grid-backdrop colors into the service and keep them live: LocalUmamoColors already
 	// resolves the active scheme (including "system"), so a theme switch recomposes with new colors and this
-	// effect re-pushes them, re-tinting the viewport backdrop. Compose Color components are 0..1 sRGB, exactly
+	// effect re-pushes them, re-tinting the viewport backdrop.  Compose Color components are 0..1 sRGB, exactly
 	// what the grid shader mixes.  A UV area's scene also paints the panel color around its surface and the
 	// panel border, 1 dp wide, just outside the surface's edge; the 2D grid ignores both.
 	val gridPalette = LocalUmamoColors.current
@@ -609,7 +614,7 @@ fun rememberPuppetViewportHost(
 								},
 							)
 							// The Object-mode gizmo: the mode-exclusive sibling of the element gizmo (each self-gates to
-							// its modes). It owns the whole primary-button surface in Object mode - the click pick
+							// its modes).  It owns the whole primary-button surface in Object mode - the click pick
 							// (including the Alt overlap popup), the un-armed box drag, the armed box / circle tools,
 							// and object G / S / R. Same frame-camera projection as the Edit gizmo so the
 							// affordance stays glued to the art.
@@ -639,7 +644,7 @@ fun rememberPuppetViewportHost(
 								heightPx = heightPx,
 							)
 							// The relation-pick overlay sits above the gizmos so an armed eyedropper claims the
-							// click before Object mode's pick would change the selection. It self-gates on the
+							// click before Object mode's pick would change the selection.  It self-gates on the
 							// shell's pick slot, so it is inert (and passes input through) whenever none is armed.
 							ViewportPickOverlay(
 								areaId = areaId,
@@ -655,9 +660,9 @@ fun rememberPuppetViewportHost(
 								heightPx = heightPx,
 							)
 							// The HUD layer draws topmost (the modal-op status badge, the active-mesh info chip,
-							// and the zoom readout). It installs no pointer input, so it never steals a gesture
-							// from the overlays below. The zoom readout takes the LIVE camera - the wheel
-							// updates it immediately, where the frame camera lags the raster. The near-cursor
+							// and the zoom readout).  It installs no pointer input, so it never steals a gesture
+							// from the overlays below.  The zoom readout takes the LIVE camera - the wheel
+							// updates it immediately, where the frame camera lags the raster.  The near-cursor
 							// notices and the radial pie menus render at the SHELL level
 							// (ShellCursorOverlays.kt): one instance above the whole area tree, escaping this
 							// viewport's clipped bounds.

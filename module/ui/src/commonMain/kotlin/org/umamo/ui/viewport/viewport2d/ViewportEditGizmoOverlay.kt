@@ -195,13 +195,13 @@ fun ViewportEditGizmoOverlay(
 	}
 
 	// A tool change - armed, cleared by Escape / right-click, or switched between box and circle - resolves any
-	// in-flight gesture (see MarqueeSelectController.cancel: the stroke commits, the box abandons). This clears
+	// in-flight gesture (see MarqueeSelectController.cancel: the stroke commits, the box abandons).  This clears
 	// a cancelled circle stroke / box rubber-band that would otherwise linger as the drawn selection until the
 	// next stroke reseeded it.
 	//
 	// This effect is recomposition-gated (the key must change, a recomposition must run, then the effect
 	// relaunches), so it can lose the race to a mouse release still in flight - a cancelled armed box would
-	// then commit through the idle Release path before this ran. The authoritative, race-free cancel is the
+	// then commit through the idle Release path before this ran.  The authoritative, race-free cancel is the
 	// meshGestureCancelRequests signal below (fired by the shell alongside clearSelectTool); this effect is the
 	// backstop for tool switches and leaving Edit, where no signal is sent.
 	//

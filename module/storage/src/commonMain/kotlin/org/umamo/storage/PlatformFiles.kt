@@ -4,7 +4,7 @@ import io.github.vinceglb.filekit.PlatformFile
 
 /**
  * Rebuilds a [PlatformFile] from a path string previously stored from `PlatformFile.absolutePath()`
- * (e.g. the recent-files list). FileKit's `PlatformFile(path)` constructors are per-platform API —
+ * (e.g. the recent-files list).  FileKit's `PlatformFile(path)` constructors are per-platform API —
  * not visible from shared code — and Android must additionally route SAF `content://` strings back
  * through a Uri, hence the seam.
  *

@@ -70,12 +70,12 @@ class CaffZipFramingTest {
 	fun blobEndsAtItsDataDescriptorWithNoCentralDirectory() {
 		val framed = CaffZip.zipSingle(contents, 1)
 		// Sanity FIRST: an absence assertion is worthless if the scanner can never find anything, and
-		// a vacuously-empty occurrencesOf would pass both checks below while proving nothing. Pin that
+		// a vacuously-empty occurrencesOf would pass both checks below while proving nothing.  Pin that
 		// it locates the one signature we know is present before trusting it about the ones that are not.
 		assertEquals(listOf(0), occurrencesOf(framed, 0x04034B50L), "the scanner must find the local header at offset 0")
 
-		// The load-bearing fact. A CAFF blob is a PARTIAL zip: ZipOutputStream would append both of
-		// these on close, adding 76 bytes per compressed entry to every save. The corpus sample has
+		// The load-bearing fact.  A CAFF blob is a PARTIAL zip: ZipOutputStream would append both of
+		// these on close, adding 76 bytes per compressed entry to every save.  The corpus sample has
 		// zero of either, and re-emitting without them reproduces its exact file size.
 		assertEquals(emptyList(), occurrencesOf(framed, 0x02014B50L), "there must be no central directory record")
 		assertEquals(emptyList(), occurrencesOf(framed, 0x06054B50L), "there must be no end-of-central-directory record")
@@ -89,7 +89,7 @@ class CaffZipFramingTest {
 	@Test
 	fun dosStampEncoderReproducesTheEditorsOwnBytes() {
 		// A free oracle: the corpus sample's local header reads DOS time 0x886F / date 0x54C6, which
-		// decodes to 2022-06-06 17:03:30. Feeding that date back through the encoder must reproduce
+		// decodes to 2022-06-06 17:03:30.  Feeding that date back through the encoder must reproduce
 		// those exact halves — so this pins the bit packing against real editor output rather than
 		// against my own reading of the spec.
 		val stamp = ZipRecords.dosDateTimeOf(2022, 6, 6, 17, 3, 30)
@@ -113,7 +113,7 @@ class CaffZipFramingTest {
 			ZipRecords.dosDateTimeOf(2022, 6, 6, 17, 3, 31),
 			"an odd second truncates to the same stamp rather than rounding into the next minute",
 		)
-		// A year outside 1980..2107 has no 7-bit representation. It must clamp, not wrap into a
+		// A year outside 1980..2107 has no 7-bit representation.  It must clamp, not wrap into a
 		// wrong-but-plausible year — a silently mangled date is worse than an obviously epochal one.
 		val epoch = (0x0021 shl 16)
 		assertEquals(epoch, ZipRecords.dosDateTimeOf(1979, 12, 31, 23, 59, 58), "a pre-epoch year clamps to 1980-01-01")
@@ -123,7 +123,7 @@ class CaffZipFramingTest {
 
 	@Test
 	fun aRealSaveStampsAPlausibleClockNotTheEpoch() {
-		// The default path is the wall clock, matching the editor. Guards the wiring: a stamp stuck at
+		// The default path is the wall clock, matching the editor.  Guards the wiring: a stamp stuck at
 		// the epoch would mean currentDosDateTime() never reached the header.
 		val framed = CaffZip.zipSingle(contents, 1)
 		val year = ((readU16(framed, 12) ushr 9) and 0x7F) + 1980
@@ -133,7 +133,7 @@ class CaffZipFramingTest {
 	@Test
 	fun inflateIsBoundedByTheDeclaredUncompressedSize() {
 		// storedSize bounds the INPUT only; DEFLATE reaches ~1000:1, so the descriptor's usize is the
-		// only thing capping the output. A descriptor that lies must truncate its own entry, not
+		// only thing capping the output.  A descriptor that lies must truncate its own entry, not
 		// allocate on the reader's behalf.
 		val framed = CaffZip.zipSingle(contents, 1)
 		val lying = framed.copyOf()

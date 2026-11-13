@@ -63,14 +63,19 @@ internal class ArraySerializer(
 	}
 
 	internal companion object {
-		/** Joins a typed array's elements with the array separator. */
+		/**
+		 * Joins a typed array's elements with the array separator.
+		 *
+		 * @param Sequence<Any?> values The elements to join.
+		 * @return String The joined text.
+		 */
 		fun join(values: Sequence<Any?>): String = values.joinToString(ARRAY_SEPARATOR)
 	}
 }
 
 /**
  * Serializer for sets: `<tag count="n" xs.n="field">` with positional item children (no xs.n).
- * Covers LinkedHashSet ("linked_set"). Reads into the [factory] type to preserve order.
+ * Covers LinkedHashSet ("linked_set").  Reads into the [factory] type to preserve order.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Primitive & collection tags</a>
  */
@@ -96,7 +101,7 @@ internal class SetSerializer(private val tag: String, private val factory: () ->
 
 /**
  * Serializer for maps: `<tag count="n" [keyType="string"]>` with `<entry>` children, each holding a
- * `key` and `value` child. Covers HashMap ("hash_map") and LinkedHashMap ("linked_map").
+ * `key` and `value` child.  Covers HashMap ("hash_map") and LinkedHashMap ("linked_map").
  *
  * EN: Reads into a LinkedHashMap so entry order is preserved for faithful re-emit.
  *
@@ -143,7 +148,10 @@ internal class MapSerializer(
 			}
 		} else {
 			for (entry in children) {
-				if (entry.name != TAG_ENTRY) continue
+				if (entry.name != TAG_ENTRY) {
+					continue
+				}
+
 				@Suppress("UNCHECKED_CAST")
 				val parts = entry.children as List<Element>
 				val keyElement = parts.firstOrNull { it.getAttributeValue(ATTR_NAME) == NAME_KEY }

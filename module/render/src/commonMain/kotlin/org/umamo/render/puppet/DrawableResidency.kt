@@ -208,7 +208,7 @@ internal class DrawableResidency(
 			}
 		}
 
-		// Free residents the edit dropped. A Reupload already freed its own and is never in `removed`, so
+		// Free residents the edit dropped.  A Reupload already freed its own and is never in `removed`, so
 		// nothing is freed twice.
 		for (drawableId in diff.removed) {
 			residents[drawableId]?.let { deleteDrawable(it) }
@@ -239,7 +239,7 @@ internal class DrawableResidency(
 			gpuDrawable.parentWorld = parentWorld
 
 			// Warp control points are pose-dependent but frame-INVARIANT: upload them here, once per pose
-			// change, NOT every frame in the draw loop. Re-specifying this texture 60×/sec would churn the
+			// change, NOT every frame in the draw loop.  Re-specifying this texture 60×/sec would churn the
 			// d3d12/Mesa driver and progressively corrupt the sampled control points, causing visible
 			// warp flicker over time - worst on masked warp meshes, which draw twice per frame.
 			if (parentWorld is WarpWorld && gpuDrawable.cpTexture != null) {
@@ -295,7 +295,7 @@ internal class DrawableResidency(
 	): GpuDrawable? {
 		val mesh = drawable.mesh ?: return null
 		// A null grid is an UNKEYED drawable, which uploads a single all-zero delta column and renders at
-		// its rest mesh. Refusing to upload it would leave a freshly created (or freshly unbound) drawable
+		// its rest mesh.  Refusing to upload it would leave a freshly created (or freshly unbound) drawable
 		// invisible - the one state where the rigger most needs to see it.
 		val grid = drawable.geometryGrid
 
@@ -312,7 +312,7 @@ internal class DrawableResidency(
 
 		val cellCount = keyformCellCount(grid)
 		val vertexCount = mesh.localPositions.size / 2
-		// Built once and shared: the delta-texel bake and the composite-bounds walk both need it. An
+		// Built once and shared: the delta-texel bake and the composite-bounds walk both need it.  An
 		// unkeyed drawable has no cells, so every lookup misses and contributes a zero offset.
 		val cells = if (grid != null) cellsByLinearIndex(grid) else emptyMap()
 		// Blend-shape delta columns append after the grid cells; the zero-blend layout is empty and
@@ -328,7 +328,7 @@ internal class DrawableResidency(
 			device.createFloatTexture(cellCount + blendLayout.blendColumnCount, vertexCount, TextureFilter.Nearest, texels)
 		// The shader's base is the keyform-space mesh the deltas are measured from; the canvas mesh is never drawn.
 		val gpuMesh = device.createMesh(MeshSpec(mesh.localPositions, mesh.uvs, mesh.indices, glueAttributes))
-		// A warp-parented drawable needs a control-point texture a pose re-specifies. Created as a
+		// A warp-parented drawable needs a control-point texture a pose re-specifies.  Created as a
 		// 1x1 placeholder here so updateFloatTexture always has a handle to overwrite.
 		val cpTexture =
 			if (drawable.parentDeformerId in warpDeformerIds) {

@@ -4,12 +4,12 @@ import io.github.vinceglb.filekit.PlatformFile
 
 /**
  * A native open/save file dialog - a platform service (not Compose UI), so it belongs in :storage with the
- * other file concerns. Backed by FileKit ([org.umamo.storage.FileKitFilePicker]), which already speaks each
+ * other file concerns.  Backed by FileKit ([org.umamo.storage.FileKitFilePicker]), which already speaks each
  * platform's native dialog, so the single implementation covers desktop and Android alike.
  *
  * Returns a FileKit [PlatformFile] rather than an okio `Path`: on Android the Storage Access Framework hands
  * back a `content://` URI that has no real filesystem path, which a `Path` cannot represent - `PlatformFile`
- * abstracts that and exposes read/write directly. Suspending so the (potentially async) native flow is
+ * abstracts that and exposes read/write directly.  Suspending so the (potentially async) native flow is
  * awaited the same way on every platform.
  */
 interface FilePicker {

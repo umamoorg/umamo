@@ -300,7 +300,11 @@ private class FixedFootprint(
 	val artRight: Int,
 	val artBottom: Int,
 ) {
-	/** The footprint as the rect packer's seed. */
+	/**
+	 * The footprint as the rect packer's seed.
+	 *
+	 * @return RectPackSeed The seed: the page and the footprint's rectangle.
+	 */
 	fun toSeed(): RectPackSeed = RectPackSeed(pageIndex, left, top, right - left, bottom - top)
 }
 

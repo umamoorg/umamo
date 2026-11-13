@@ -49,6 +49,7 @@ import org.umamo.render.glsl.puppetFragmentShader
 import org.umamo.render.glsl.puppetVertexShader
 import org.umamo.render.glsl.tfDeformVertexShader
 import org.umamo.render.glsl.tfDiscardFragmentShader
+import org.umamo.render.puppet.GlueVertexAttributes
 import org.umamo.render.puppet.flipRowsVertically
 import java.nio.ByteBuffer
 
@@ -73,6 +74,11 @@ class GlRenderDevice : RenderDevice {
 	private val renderPipelines = HashMap<RenderPipelineSpec, GlRenderPipeline>()
 	private var deformCapturePipeline: GlDeformCapturePipeline? = null
 
+	/**
+	 * The vertex array with no attributes, created on first use.
+	 *
+	 * @return Int The vertex array's name.
+	 */
 	private fun ensureEmptyVao(): Int {
 		if (emptyVao == 0) {
 			emptyVao = GL30.glGenVertexArrays()
@@ -469,7 +475,7 @@ class GlRenderDevice : RenderDevice {
 
 		// Content sits at GL (0, 0): every pass runs glViewport(0, 0, used, used), so the used region
 		// IS the bottom-left rows.  GL_LINEAR makes the downscale a box filter - the supersample
-		// resolve. On GL this whole primitive IS a blit; on Metal it cannot be (a blit encoder neither
+		// resolve.  On GL this whole primitive IS a blit; on Metal it cannot be (a blit encoder neither
 		// filters nor scales), which is why the interface names the effect rather than the mechanism.
 		if (region == null) {
 			GL30.glBlitFramebuffer(
@@ -485,7 +491,7 @@ class GlRenderDevice : RenderDevice {
 				GL11.GL_LINEAR,
 			)
 		} else {
-			// A same-size sub-rectangle copy (the composite path's snapshot). The rect is
+			// A same-size sub-rectangle copy (the composite path's snapshot).  The rect is
 			// top-left-origin per the ScissorRect contract; GL blits bottom-up, so the flip is against
 			// the USED height - flipping against a larger allocation would land above the content.
 			val bottomUpY = sourceUsedHeight - region.y - region.height
@@ -557,7 +563,7 @@ class GlRenderDevice : RenderDevice {
 		}
 
 		// The fence signaled, so the read is done and the ticket is consumed HERE - exactly once, whether or
-		// not the map below succeeds. Returning null past this point would make the caller treat a consumed
+		// not the map below succeeds.  Returning null past this point would make the caller treat a consumed
 		// ticket as still-in-flight and re-poll it, tripping the spent check and killing the render thread.
 		glTicket.spent = true
 		GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, glTicket.pbo.id)
@@ -634,7 +640,7 @@ class GlRenderDevice : RenderDevice {
 		val bottomUp = ByteArray(usedWidth * usedHeight * 4)
 		pixels.get(bottomUp)
 
-		// GL reads bottom-up; RasterImage is top-first. The flip is this backend's; no caller asks.
+		// GL reads bottom-up; RasterImage is top-first.  The flip is this backend's; no caller asks.
 		return RasterImage(usedWidth, usedHeight, flipRowsVertically(bottomUp, usedWidth, usedHeight))
 	}
 
@@ -658,7 +664,12 @@ class GlRenderDevice : RenderDevice {
 		return "renderer=$renderer | version=$version | vendor=$vendor | glsl=$glsl | maxTexture=${maxTextureSize()}"
 	}
 
-	/** The (vertex, fragment) GLSL for a pipeline purpose - this backend's shader library, keyed by purpose. */
+	/**
+	 * The (vertex, fragment) GLSL for a pipeline purpose - this backend's shader library, keyed by purpose.
+	 *
+	 * @param PipelinePurpose purpose What the pipeline draws.
+	 * @return Pair<String, String> The vertex source, then the fragment source.
+	 */
 	private fun sourcesFor(purpose: PipelinePurpose): Pair<String, String> =
 		when (purpose) {
 			PipelinePurpose.PuppetDeformDraw -> puppetVertexShader(DIALECT) to puppetFragmentShader(DIALECT)
@@ -698,10 +709,28 @@ class GlRenderDevice : RenderDevice {
 		}
 	}
 
+	/**
+	 * The GL internal format a texture format is stored as.
+	 *
+	 * @param TextureFormat format The texture format.
+	 * @return Int The GL constant.
+	 */
 	private fun internalFormatOf(format: TextureFormat): Int = if (format == TextureFormat.Rgba8) GL11.GL_RGBA8 else GL30.GL_RG32F
 
+	/**
+	 * The GL pixel format a texture format is uploaded as.
+	 *
+	 * @param TextureFormat format The texture format.
+	 * @return Int The GL constant.
+	 */
 	private fun pixelFormatOf(format: TextureFormat): Int = if (format == TextureFormat.Rgba8) GL11.GL_RGBA else GL30.GL_RG
 
+	/**
+	 * The GL pixel type a texture format is uploaded as.
+	 *
+	 * @param TextureFormat format The texture format.
+	 * @return Int The GL constant.
+	 */
 	private fun pixelTypeOf(format: TextureFormat): Int = if (format == TextureFormat.Rgba8) GL11.GL_UNSIGNED_BYTE else GL11.GL_FLOAT
 
 	/**
@@ -771,7 +800,13 @@ class GlRenderDevice : RenderDevice {
 			flip()
 		}
 
-	/** Uploads a float array into a fresh GL_ARRAY_BUFFER with the given usage; leaves it bound. */
+	/**
+	 * Uploads a float array into a fresh GL_ARRAY_BUFFER with the given usage; leaves it bound.
+	 *
+	 * @param FloatArray values The floats to upload.
+	 * @param Int usage The GL usage hint.
+	 * @return Int The new buffer's name.
+	 */
 	private fun uploadArrayBuffer(values: FloatArray, usage: Int): Int {
 		val buffer =
 			BufferUtils.createFloatBuffer(values.size).apply {
@@ -788,7 +823,12 @@ class GlRenderDevice : RenderDevice {
 	// Reusable scratch for in-place VBO re-uploads, grown on demand so a live preview edit never allocates.
 	private var uploadScratch = BufferUtils.createFloatBuffer(0)
 
-	/** Re-specifies a whole array buffer's contents in place, reusing the scratch buffer. */
+	/**
+	 * Re-specifies a whole array buffer's contents in place, reusing the scratch buffer.
+	 *
+	 * @param Int vbo The buffer to rewrite.
+	 * @param FloatArray values The floats to write.
+	 */
 	private fun subDataArrayBuffer(vbo: Int, values: FloatArray) {
 		if (uploadScratch.capacity() < values.size) {
 			uploadScratch = BufferUtils.createFloatBuffer(values.size)
@@ -815,7 +855,7 @@ private val DIALECT = GlslDialect.Core330
  * @param GlueVertexAttributes attributes The mesh's planned per-vertex weld attributes.
  * @return ByteBuffer The interleaved buffer, flipped and ready to upload.
  */
-private fun interleaveGlueAttributes(attributes: org.umamo.render.puppet.GlueVertexAttributes): ByteBuffer {
+private fun interleaveGlueAttributes(attributes: GlueVertexAttributes): ByteBuffer {
 	val vertexCount = attributes.partnerIndex.size
 	val buffer = BufferUtils.createByteBuffer(vertexCount * 3 * Int.SIZE_BYTES)
 
@@ -848,7 +888,13 @@ internal fun linkGlProgram(vertexSource: String, fragmentSource: String, label: 
 	return program
 }
 
-/** Compiles and attaches both stages onto a fresh program (not yet linked, so the TF varyings can be set). */
+/**
+ * Compiles and attaches both stages onto a fresh program (not yet linked, so the TF varyings can be set).
+ *
+ * @param String vertexSource The vertex stage's GLSL.
+ * @param String fragmentSource The fragment stage's GLSL.
+ * @return Int The unlinked program's name.
+ */
 internal fun attachGlShaders(vertexSource: String, fragmentSource: String): Int {
 	val vertexShader = compileGlShader(GL20.GL_VERTEX_SHADER, vertexSource)
 	val fragmentShader = compileGlShader(GL20.GL_FRAGMENT_SHADER, fragmentSource)
@@ -859,7 +905,13 @@ internal fun attachGlShaders(vertexSource: String, fragmentSource: String): Int 
 	return program
 }
 
-/** Compiles one shader stage, throwing with the info log if compilation fails. */
+/**
+ * Compiles one shader stage, throwing with the info log if compilation fails.
+ *
+ * @param Int stage The GL shader stage.
+ * @param String source The stage's GLSL.
+ * @return Int The compiled shader's name.
+ */
 internal fun compileGlShader(stage: Int, source: String): Int {
 	val shader = GL20.glCreateShader(stage)
 	GL20.glShaderSource(shader, source)

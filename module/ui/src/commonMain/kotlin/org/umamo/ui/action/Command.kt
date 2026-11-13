@@ -4,7 +4,7 @@ import org.jetbrains.compose.resources.StringResource
 import org.umamo.ui.workspace.SpaceScope
 
 /**
- * Receives a command invocation. A `fun interface` (Kotlin SAM) so call sites can pass a lambda -
+ * Receives a command invocation.  A `fun interface` (Kotlin SAM) so call sites can pass a lambda -
  * `CommandHandler { argument -> … }` - instead of an anonymous object.
  *
  * コマンド実行を受け取る関数型インターフェース。ラムダで渡せる。
@@ -41,9 +41,9 @@ fun interface CommandAvailability {
 }
 
 /**
- * A named, invokable editor operation - the atom the action registry dispatches. Every operation
+ * A named, invokable editor operation - the atom the action registry dispatches.  Every operation
  * (split an area, open a file, fit the view) is one of these, addressed by a stable dotted [id]
- * ("area.split.leftRight", "file.open"). Menus, the area header, the command palette, and key
+ * ("area.split.leftRight", "file.open").  Menus, the area header, the command palette, and key
  * bindings all resolve to a Command and run its [handler]; nothing hardcodes a handler, so rebinding
  * a key or relabeling a menu changes one place.
  *

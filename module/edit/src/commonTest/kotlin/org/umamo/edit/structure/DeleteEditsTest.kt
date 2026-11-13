@@ -125,7 +125,7 @@ class DeleteEditsTest {
 
 	/**
 	 * Deleting a drawable scrubs every reference to it: the drawables list, the render-order tree, another
-	 * drawable's clip mask, and any glue it was half of. Undo restores them all.
+	 * drawable's clip mask, and any glue it was half of.  Undo restores them all.
 	 */
 	@Test
 	fun deleteDrawableScrubsAllReferences() {

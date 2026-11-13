@@ -35,7 +35,7 @@ public data class ArtMeshKeyform(
  * An art mesh (drawable): static topology (UVs, triangles, mask list) plus per-keyform geometry.
  *
  * EN: [vertexUvs] (interleaved `u,v`) and [triangleIndices] are static; the vertex positions are
- *     keyed in [keyforms] over [keyformBindingIndex]'s grid. [parentDeformerIndex] is -1 for a mesh
+ *     keyed in [keyforms] over [keyformBindingIndex]'s grid.  [parentDeformerIndex] is -1 for a mesh
  *     parented directly to its part.
  */
 public data class ArtMesh(

@@ -81,7 +81,7 @@ fun SettingsWindow(onDismiss: () -> Unit) {
 	val typography = LocalUmamoTypography.current
 	var category by remember { mutableStateOf(SettingsCategory.Interface) }
 	Box(
-		// indication = null: the kit's convention everywhere interactive. Without it the full-size scrim
+		// indication = null: the kit's convention everywhere interactive.  Without it the full-size scrim
 		// renders the default hover/press indication - a second dimming layer that toggles as the pointer
 		// enters/leaves the window or presses a dropdown, stacking on the intended scrim.
 		modifier =

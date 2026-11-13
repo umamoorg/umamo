@@ -16,21 +16,31 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.withDerivedRenderRoot
 
 /*
- * Entity deletion over the org tree. Removing a drawable, a deformer, or a part scrubs every dangling
- * reference so no later code dereferences a deleted id. Deleting an art mesh is the only inherently
+ * Entity deletion over the org tree.  Removing a drawable, a deformer, or a part scrubs every dangling
+ * reference so no later code dereferences a deleted id.  Deleting an art mesh is the only inherently
  * destructive case; deleting a deformer "unwraps" it (its sub-deformers and bound meshes re-home to its
  * parent); deleting a part is either a cascade (the part and its whole subtree) or an ungroup (the folder
- * only, contents spliced up into its parent). Org-tree edits re-derive the render order.
+ * only, contents spliced up into its parent).  Org-tree edits re-derive the render order.
  */
 
-/** A copy of this deformer re-nested under [newParent] in the transform hierarchy (used to re-home orphans). */
+/**
+ * A copy of this deformer re-nested under [newParent] in the transform hierarchy (used to re-home orphans).
+ *
+ * @param DeformerId? newParent The new parent deformer, or null for a root.
+ * @return Deformer The re-nested copy.
+ */
 private fun Deformer.reparentedTo(newParent: DeformerId?): Deformer =
 	when (this) {
 		is Deformer.Warp -> copy(parent = newParent)
 		is Deformer.Rotation -> copy(parent = newParent)
 	}
 
-/** A copy of this deformer re-bound to the organizational part [newPart] (or null to clear a dangling ref). */
+/**
+ * A copy of this deformer re-bound to the organizational part [newPart] (or null to clear a dangling ref).
+ *
+ * @param PartId? newPart The part to bind to, or null to clear the binding.
+ * @return Deformer The re-bound copy.
+ */
 private fun Deformer.reboundToPart(newPart: PartId?): Deformer =
 	when (this) {
 		is Deformer.Warp -> copy(partId = newPart)
@@ -110,7 +120,7 @@ private fun List<Part>.withPartMaskUngrouped(dissolved: Part): List<Part> =
 
 /**
  * Returns a copy of [this] with the single drawable [id] deleted (mask / glue / tree references scrubbed,
- * render order re-derived). A no-op (no such drawable) returns the same instance.
+ * render order re-derived).  A no-op (no such drawable) returns the same instance.
  *
  * @param DrawableId id The drawable to delete.
  * @return PuppetModel The model without that drawable, or [this] if it was absent.
@@ -150,7 +160,12 @@ fun PuppetModel.withDeformerDeleted(id: DeformerId, localPositionsByDrawable: Ma
 	return copy(deformers = updatedDeformers, drawables = updatedDrawables)
 }
 
-/** The set of part ids in [id]'s org-tree subtree (the part itself plus every descendant part). */
+/**
+ * The set of part ids in [id]'s org-tree subtree (the part itself plus every descendant part).
+ *
+ * @param PartId id The part at the top of the subtree.
+ * @return Set<PartId> That part's id and every descendant part's.
+ */
 private fun PuppetModel.partSubtreeIds(id: PartId): Set<PartId> {
 	val partById = parts.associateBy { it.id }
 	val subtree = LinkedHashSet<PartId>()
@@ -164,7 +179,11 @@ private fun PuppetModel.partSubtreeIds(id: PartId): Set<PartId> {
 			continue
 		}
 
-		partById[next]?.children?.forEach { child -> if (child is OrgChild.Part) stack.add(child.id) }
+		partById[next]?.children?.forEach { child ->
+			if (child is OrgChild.Part) {
+				stack.add(child.id)
+			}
+		}
 	}
 
 	return subtree
@@ -209,7 +228,12 @@ fun PuppetModel.withPartDeleted(id: PartId, cascade: Boolean): PuppetModel {
 			.copy(rootPartId = if (rootPartId != null && rootPartId in subtree) null else rootPartId)
 			.withDerivedRenderRoot()
 	} else {
-		// Ungroup: replace the part ref with the part's own children, in place, wherever it sits.
+		/**
+		 * Ungroups: replaces the part's reference with the part's own children, in place, wherever it sits.
+		 *
+		 * @param List<OrgChild> children The child list to rewrite.
+		 * @return List<OrgChild> The rewritten list.
+		 */
 		fun splice(children: List<OrgChild>): List<OrgChild> = children.flatMap { if (it == partRef) part.children else listOf(it) }
 		val cleanedRoot = splice(rootChildren)
 		val remainingParts = parts.filterNot { it.id == id }.map { it.copy(children = splice(it.children)) }.withPartMaskUngrouped(part)
@@ -224,7 +248,7 @@ fun PuppetModel.withPartDeleted(id: PartId, cascade: Boolean): PuppetModel {
 }
 
 /**
- * Deletes the drawable [id] as one undo step. A no-op records nothing.
+ * Deletes the drawable [id] as one undo step.  A no-op records nothing.
  *
  * @param DrawableId id The drawable to delete.
  */
@@ -265,7 +289,7 @@ fun EditorSession.deletePart(id: PartId, cascade: Boolean) {
 }
 
 /**
- * Deletes the entity named by [target] as one undo step. [cascade] applies only to a part (a drawable or a
+ * Deletes the entity named by [target] as one undo step.  [cascade] applies only to a part (a drawable or a
  * deformer ignores it - a deformer always unwraps).
  *
  * @param SelectionTarget target  The entity to delete.

@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
- * Exercises the identity subsystem (*Guid / *Id). Confirms the reconciliation gate stays byte-identical
+ * Exercises the identity subsystem (*Guid / *Id).  Confirms the reconciliation gate stays byte-identical
  * with these typed, and that GUID/Id tags drop out of the unmodeled set (typing has real effect).
  */
 class IdentitySubsystemTest {
@@ -67,7 +67,10 @@ class IdentitySubsystemTest {
 			}
 		}
 
-		if (firstDiff < 0 && expected.size == actual.size) return
+		if (firstDiff < 0 && expected.size == actual.size) {
+			return
+		}
+
 		val at = if (firstDiff < 0) limit else firstDiff
 		val start = maxOf(0, at - 60)
 		fail(

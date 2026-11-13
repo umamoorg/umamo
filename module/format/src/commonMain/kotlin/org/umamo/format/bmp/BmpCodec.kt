@@ -159,7 +159,7 @@ public object BmpCodec : RasterCodec {
 		out.writeIntLe(0) // gammaGreen
 		out.writeIntLe(0) // gammaBlue
 
-		// Pixel array, bottom-up: file row 0 is the image's bottom row. Each pixel is B, G, R, A.
+		// Pixel array, bottom-up: file row 0 is the image's bottom row.  Each pixel is B, G, R, A.
 		for (fileRow in 0 until model.height) {
 			val imageRow = model.height - 1 - fileRow
 			var source = imageRow * rowStride

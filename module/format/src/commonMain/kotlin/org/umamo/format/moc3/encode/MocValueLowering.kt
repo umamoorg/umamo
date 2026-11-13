@@ -20,7 +20,7 @@ internal fun valueTableSections(context: MocLoweringContext): Map<Int, ByteArray
 	val rotations = context.rotations
 
 	// POS_VALUES: warp control-point keyform blocks first, then art-mesh vertex keyform blocks,
-	// each padded to a 16-float (64-byte) boundary. Index tables record each block's float offset.
+	// each padded to a 16-float (64-byte) boundary.  Index tables record each block's float offset.
 	val positionValues = LittleEndianWriter(64 * 1024)
 	val warpPositionIndex = ArrayList<Int>()
 	val warpKeyformBase = IntArray(warps.size)

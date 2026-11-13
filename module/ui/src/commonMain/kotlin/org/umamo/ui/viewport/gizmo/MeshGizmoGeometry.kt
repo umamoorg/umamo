@@ -241,7 +241,7 @@ internal fun circleSelection(
 
 /**
  * The per-domain highlight state the wireframe draw renders: the stored selection projected onto
- * vertices, edges, and faces. Only the current select mode's domain comes straight from the selection;
+ * vertices, edges, and faces.  Only the current select mode's domain comes straight from the selection;
  * the others are derived with Blender's display rules (an edge from both endpoints, a face from all of
  * its own vertices or edges, a face's edges flushing down in face mode).
  *

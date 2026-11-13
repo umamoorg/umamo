@@ -16,17 +16,30 @@ public class BinaryWriter(initialCapacity: Int = 64 * 1024) {
 	public var position: Int = 0
 		private set
 
+	/**
+	 * Grows the buffer so that more bytes fit past the cursor.
+	 *
+	 * @param Int additional The number of bytes about to be written.
+	 */
 	private fun ensure(additional: Int) {
 		val needed = position + additional
 
 		if (needed > buffer.size) {
 			var newSize = buffer.size * 2
-			if (newSize < needed) newSize = needed
+
+			if (newSize < needed) {
+				newSize = needed
+			}
+
 			buffer = buffer.copyOf(newSize)
 		}
 	}
 
-	/** Returns a copy of the written bytes (length == [position]). */
+	/**
+	 * Returns a copy of the written bytes (length == [position]).
+	 *
+	 * @return ByteArray A copy of the bytes written so far.
+	 */
 	public fun toByteArray(): ByteArray = buffer.copyOf(position)
 
 	/**

@@ -1,10 +1,9 @@
 // :android (app/android) — Android entrypoint (Activity + Compose + GLSurfaceView viewport).
 // A plain Android application module (not KMP): it consumes the shared KMP libraries.
-// :android — Android 起動点（Activity ＋ Compose ＋ GLSurfaceView ビューポート）。
 
 plugins {
 	// AGP 9+ has built-in Kotlin support, so the org.jetbrains.kotlin.android plugin is gone —
-	// applying it now errors. AGP compiles Kotlin itself; the Compose compiler plugin hooks in.
+	// applying it now errors.  AGP compiles Kotlin itself; the Compose compiler plugin hooks in.
 	alias(libs.plugins.androidApplication)
 	alias(libs.plugins.composeMultiplatform)
 	alias(libs.plugins.composeCompiler)
@@ -66,7 +65,7 @@ dependencies {
 	// setContent { } lives in androidx.activity.compose.
 	implementation(libs.androidx.activity.compose)
 	// Direct Compose Multiplatform coordinates via the version catalog — the old `compose.runtime`
-	// plugin aliases were deprecated in CMP 1.10/1.11. The artifacts still redirect to
+	// plugin aliases were deprecated in CMP 1.10/1.11.  The artifacts still redirect to
 	// androidx.compose on this Android target (Gradle metadata), so resolution is unchanged; see the
 	// catalog note on the `compose-*` entries and the matching :ui commonMain block.
 	implementation(libs.compose.runtime)

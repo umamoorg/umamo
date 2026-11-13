@@ -1,6 +1,7 @@
 package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CLayer
 import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
@@ -17,6 +18,7 @@ import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.GTransform2
+import org.umamo.format.cmo3.model.gen.LayerSet
 import org.umamo.format.cmo3.model.gen.LayeredImageWrapper
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.gen.TextureState
@@ -216,7 +218,7 @@ class Cmo3SourceLayerWebTest {
 		val eyes = Cmo3Import.elementsOf(head._children).filterIsInstance<CLayerGroup>().single()
 		assertEquals("Eyes", eyes.name)
 		assertEquals(listOf("Eye"), names(eyes._children))
-		assertEquals(listOf("root", "Head", "Eyes", "Eye", "Hair", "Guide"), names(imageA.layerSet?.let { set -> (set as org.umamo.format.cmo3.model.gen.LayerSet)._layerEntryList }), "the flat set lists groups and layers in walk order")
+		assertEquals(listOf("root", "Head", "Eyes", "Eye", "Hair", "Guide"), names(imageA.layerSet?.let { set -> (set as LayerSet)._layerEntryList }), "the flat set lists groups and layers in walk order")
 
 		// Each layer's rect is the art frame at the row's origin; the identifier carries the lyid.
 		val eye = Cmo3Import.elementsOf(eyes._children).filterIsInstance<CLayer>().single()
@@ -273,7 +275,7 @@ class Cmo3SourceLayerWebTest {
 		assertEquals(listOf(guide.texture), chain.rasterTextures, "one raster texture, for the one unpacked tile")
 
 		// The layer PNG is the tile's raster.
-		val eyeResource = eye.imageResource as org.umamo.format.cmo3.model.custom.CImageResource
+		val eyeResource = eye.imageResource as CImageResource
 		val eyeEntryBytes = assertNotNull(chain.pngEntries.firstOrNull { entry -> entry.path == eyeResource.imageFileBuf?.archivePath }, "the eye layer's PNG is an entry").pngBytes
 		assertContentEquals(gradient(1).rgba, PngCodec.read(eyeEntryBytes).rgba)
 

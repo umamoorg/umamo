@@ -54,7 +54,7 @@ internal object TiffConstants {
 	const val COMPRESSION_CCITT_T4 = 3 // CCITT T.4/Group 3 Fax compression.
 	const val COMPRESSION_CCITT_T6 = 4 // CCITT T.6/Group 4 Fax compression.
 	const val COMPRESSION_LZW = 5
-	const val COMPRESSION_OLD_JPEG = 6 // Deprecated. For backwards compatibility only ("Old-style" JPEG).
+	const val COMPRESSION_OLD_JPEG = 6 // Deprecated.  For backwards compatibility only ("Old-style" JPEG).
 	const val COMPRESSION_JPEG = 7 // JPEG Compression (lossy).
 	const val COMPRESSION_ZLIB = 8 // Adobe-style Deflate.
 	const val COMPRESSION_PACKBITS = 32773

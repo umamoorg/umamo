@@ -60,7 +60,7 @@ private const val STAT_SEPARATOR = " | "
 /**
  * The bottom status strip: thin, always-present window chrome below the area tree, laid out as four
  * conceptual zones left to right - the current context's input binds, a blank flexible middle, the
- * selected item, and the model stats. Lives in commonMain so the strip is shared chrome on desktop
+ * selected item, and the model stats.  Lives in commonMain so the strip is shared chrome on desktop
  * and Android.
  *
  * @param Modifier modifier The layout modifier (the shell passes fillMaxWidth).
@@ -223,7 +223,7 @@ private fun ContextBindsZone() {
  * The selected-item zone: in Object mode the active target's display name (or a "%d selected" count
  * for a multi-selection); in Edit and Pose mode the selected element count over the domain total of
  * every mesh or lattice in the session ("3/120 vertices", or points, grid lines, and cells for a
- * lattice). Renders nothing when nothing is selected or no document is open.
+ * lattice).  Renders nothing when nothing is selected or no document is open.
  */
 @Composable
 private fun SelectedItemZone() {
@@ -349,7 +349,7 @@ private fun ModelStats() {
 	}
 
 	// The stats denominator: in Edit mode the session meshes' own totals (so "3/240" reads against the
-	// meshes being edited, matching the selected-item zone), else the whole model's totals. A val for
+	// meshes being edited, matching the selected-item zone), else the whole model's totals.  A val for
 	// the smart-cast to survive into the remember lambda.
 	val editedMeshesForTotals = editedMeshes
 	val totals =

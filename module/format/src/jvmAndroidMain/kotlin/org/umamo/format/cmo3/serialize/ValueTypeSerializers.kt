@@ -2,6 +2,9 @@ package org.umamo.format.cmo3.serialize
 
 import org.jdom.Element
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.format.cmo3.model.type.CColor
+import org.umamo.format.cmo3.model.type.CRect
+import org.umamo.format.cmo3.model.type.GVector2
 
 /**
  * Custom serializer for CAffine: `<CAffine m00="…" m01="…" m02="…" m10="…" m11="…" m12="…" />`.
@@ -41,8 +44,8 @@ internal object CAffineSerializer : XmlSerializer {
  * @param SerializerRegistry registry The registry to populate.
  */
 internal fun registerValueTypeSubsystem(registry: SerializerRegistry) {
-	registry.register(org.umamo.format.cmo3.model.type.GVector2::class)
-	registry.register(org.umamo.format.cmo3.model.type.CRect::class)
-	registry.register(org.umamo.format.cmo3.model.type.CColor::class)
+	registry.register(GVector2::class)
+	registry.register(CRect::class)
+	registry.register(CColor::class)
 	registry.registerCustom(CAffine::class, CAffineSerializer)
 }

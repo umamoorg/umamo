@@ -3,7 +3,7 @@ package org.umamo.render
 import kotlin.math.roundToInt
 
 /**
- * The visible content extent in world space (the renderer's post-deform, Y-up pixel space). It frames
+ * The visible content extent in world space (the renderer's post-deform, Y-up pixel space).  It frames
  * the model for an initial fit; width and height are clamped by the producer to at least 1 so a
  * degenerate model never divides by zero downstream.
  *
@@ -15,15 +15,15 @@ import kotlin.math.roundToInt
 data class ContentBounds(val minX: Float, val minY: Float, val width: Float, val height: Float)
 
 /**
- * A 2D viewport camera over the puppet's world space: an orthographic pan/zoom, no rotation. The model
- * renders 1:1 (one world unit = one model pixel = one screen pixel) at [zoom] == 1. Deformation never
+ * A 2D viewport camera over the puppet's world space: an orthographic pan/zoom, no rotation.  The model
+ * renders 1:1 (one world unit = one model pixel = one screen pixel) at [zoom] == 1.  Deformation never
  * reframes the view - the camera is set once (fit on open) and thereafter moved only by the user.
  *
  * Every edit helper is PURE - it returns a new camera and touches no GL - so the navigation math
  * unit-tests without a context.  The render backend consumes only [worldToNdc].
  *
  * Coordinate conventions: screen pixels measure +x right, +y DOWN from the top-left; world space is
- * +y UP (the deform shader flips Cubism's native +y-down before projection). The screen-to-world math
+ * +y UP (the deform shader flips Cubism's native +y-down before projection).  The screen-to-world math
  * below therefore carries the Y sign explicitly.
  *
  * @property Float centerX World X shown at the viewport center.
@@ -33,7 +33,7 @@ data class ContentBounds(val minX: Float, val minY: Float, val width: Float, val
 data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Float) {
 	/**
 	 * Builds the affine world-to-NDC parameters the vertex shader applies as
-	 * `ndc = world * (scaleX, scaleY) + (transformX, transformY)`. A world point at the camera center
+	 * `ndc = world * (scaleX, scaleY) + (transformX, transformY)`.  A world point at the camera center
 	 * maps to NDC origin (the viewport center); a point one unit to the right maps [zoom] pixels right.
 	 *
 	 * @param Int viewportWidth  Target width in pixels.
@@ -49,7 +49,7 @@ data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Floa
 
 	/**
 	 * Pans by a screen-pixel drag delta in grab style - the world point under the pointer stays under
-	 * the pointer. Y carries the screen-down vs world-up sign flip.
+	 * the pointer.  Y carries the screen-down vs world-up sign flip.
 	 *
 	 * @param Float deltaXpx Horizontal drag in pixels (+ right).
 	 * @param Float deltaYpx Vertical drag in pixels (+ down).
@@ -61,7 +61,7 @@ data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Floa
 	/**
 	 * Cursor-anchored zoom by [deltaPercent] percentage points (the wheel zoom): the world point under
 	 * the cursor stays pinned to that same pixel, and the result snaps to the [stepPercent] grid so clean
-	 * values (… 100%, 50%, 25% …) are reachable instead of drifting off the fit-derived ratio. The recenter
+	 * values (… 100%, 50%, 25% …) are reachable instead of drifting off the fit-derived ratio.  The recenter
 	 * uses the snapped, clamped zoom so the pin holds exactly even at the limits.
 	 *
 	 * @param Float deltaPercent   Percentage points to add (negative zooms out).
@@ -98,7 +98,7 @@ data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Floa
 
 	/**
 	 * The zoom scale after adding [deltaPercent] points to the current zoom-percentage and snapping to the
-	 * [stepPercent] grid, clamped to the limits. Snapping to the grid is what makes round percentages
+	 * [stepPercent] grid, clamped to the limits.  Snapping to the grid is what makes round percentages
 	 * land exactly: from a 41.3% fit, +1%-steps pass through 42, 43, … 100, and +5%-steps through 45, 50, …
 	 *
 	 * @param Float deltaPercent Percentage points to add.

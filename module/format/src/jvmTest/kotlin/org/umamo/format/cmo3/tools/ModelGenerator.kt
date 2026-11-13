@@ -1,5 +1,6 @@
 package org.umamo.format.cmo3.tools
 
+import org.jdom.Attribute
 import org.jdom.Element
 import org.jdom.input.SAXBuilder
 import org.umamo.format.cmo3.caff.CaffArchive
@@ -11,21 +12,21 @@ import java.io.File
 import kotlin.test.Test
 
 /**
- * Sample-driven code generator for the reflective Cubism model classes. Reads each sample's main.xml,
+ * Sample-driven code generator for the reflective Cubism model classes.  Reads each sample's main.xml,
  * infers every tag's serialized field signature (name/type/order, <super> inheritance,
  * @DontSerializeIfDefault for sometimes-present fields), detects enums, and reports custom
- * (attribute-bearing) tags for hand-writing. Emits model classes + a registration function.
+ * (attribute-bearing) tags for hand-writing.  Emits model classes + a registration function.
  *
- * ADDITIVE, never destructive. The previously generated model is an INPUT: the output is the union of
- * what is already there and what the corpus proves. This is not a nicety. The generator only ever sees
+ * ADDITIVE, never destructive.  The previously generated model is an INPUT: the output is the union of
+ * what is already there and what the corpus proves.  This is not a nicety.  The generator only ever sees
  * what the samples happen to exercise, so a replace-everything run deletes every part of the format
  * that no sample reaches -- measured against a 4-sample corpus, that was 31 enum constants, 7 whole
- * enums, 29 classes, and 128 fields. And nothing would catch it: an unused enum constant fails no
- * test, and a dropped class falls back to verbatim and still round-trips byte-identical. So the rule
+ * enums, 29 classes, and 128 fields.  And nothing would catch it: an unused enum constant fails no
+ * test, and a dropped class falls back to verbatim and still round-trips byte-identical.  So the rule
  * is: add what is newly proven, keep everything else exactly as it stands.
  *
- * Run with: -Dcmo3.generate=true. Input samples come from -Dcmo3.gensample (defaults to the whole
- * cmo3/ corpus, so the union spans every version and feature available). The byte-identity gate over
+ * Run with: -Dcmo3.generate=true.  Input samples come from -Dcmo3.gensample (defaults to the whole
+ * cmo3/ corpus, so the union spans every version and feature available).  The byte-identity gate over
  * that same corpus validates the output.
  */
 class ModelGenerator {
@@ -131,7 +132,10 @@ class ModelGenerator {
 
 	@Test
 	fun generate() {
-		if (System.getProperty("cmo3.generate") != "true") return
+		if (System.getProperty("cmo3.generate") != "true") {
+			return
+		}
+
 		// Generate from cmo3.gensample if given (a comma-separated list unions several projects, e.g. the
 		// feature-complete so enum constants and fields from every version are covered), else the default single sample.
 		val sampleSpec =
@@ -157,7 +161,9 @@ class ModelGenerator {
 		val custom = sortedSetOf<String>()
 
 		for ((tag, info) in tags) {
-			if (tag in handHandled || tag in primitiveTags || tag in collectionTags) continue
+			if (tag in handHandled || tag in primitiveTags || tag in collectionTags) {
+				continue
+			}
 
 			when {
 				info.customAttrs == sortedSetOf("v") && !info.hasChildren -> enums[tag] = info
@@ -167,7 +173,7 @@ class ModelGenerator {
 		}
 
 		// Exclude classes that would redeclare an inherited field (e.g. the IOption mixin pattern):
-		// Kotlin forbids hiding a supertype member, and a safe override is risky to infer. Skip such
+		// Kotlin forbids hiding a supertype member, and a safe override is risky to infer.  Skip such
 		// classes (and anything extending them) - they stay verbatim and round-trip byte-identical.
 		fun ownFields(tag: String): Set<String> =
 			reflective[tag]?.let { (it.bestOrder + it.fieldTypeTags.keys).toSet() } ?: emptySet()
@@ -185,7 +191,13 @@ class ModelGenerator {
 		}
 
 		val skip = sortedSetOf<String>()
-		for (tag in reflective.keys) if ((ownFields(tag) intersect ancestorFields(tag)).isNotEmpty()) skip += tag
+
+		for (tag in reflective.keys) {
+			if ((ownFields(tag) intersect ancestorFields(tag)).isNotEmpty()) {
+				skip += tag
+			}
+		}
+
 		var changed = true
 
 		while (changed) { // cascade: drop anything extending a skipped class
@@ -215,19 +227,25 @@ class ModelGenerator {
 	private fun walk(element: Element, tags: HashMap<String, TagInfo>) {
 		// A reference (xs.ref) is not a definition: it has no fields and must not be counted as an
 		// instance (doing so made every field look "sometimes-present").
-		if (element.getAttributeValue("xs.ref") != null) return
+		if (element.getAttributeValue("xs.ref") != null) {
+			return
+		}
+
 		val tag = element.name
 
 		if (tag !in primitiveTags && tag !in collectionTags && tag != "entry") {
 			val info = tags.getOrPut(tag) { TagInfo() }
 			info.instances++
 			@Suppress("UNCHECKED_CAST")
-			val attrs = element.attributes as List<org.jdom.Attribute>
+			val attrs = element.attributes as List<Attribute>
 
 			for (attribute in attrs) {
 				if (attribute.name !in neutralAttrs) {
 					info.customAttrs += attribute.name
-					if (attribute.name == "v") info.enumValues += attribute.value
+
+					if (attribute.name == "v") {
+						info.enumValues += attribute.value
+					}
 				}
 			}
 
@@ -268,7 +286,9 @@ class ModelGenerator {
 	}
 
 	private fun ktTypeAndDefault(typeTags: Set<String>): Pair<String, String> {
-		if (typeTags.size == 1) primitiveTags[typeTags.first()]?.let { return it }
+		if (typeTags.size == 1) {
+			primitiveTags[typeTags.first()]?.let { return it }
+		}
 
 		return "Any?" to "null"
 	}
@@ -356,7 +376,7 @@ class ModelGenerator {
 
 		val builder = StringBuilder()
 		builder.appendLine("// GENERATED by ModelGenerator from the corpus main.xml, merged over the previous output.")
-		builder.appendLine("// Do not edit by hand; re-run with -Dcmo3.generate=true. Generation only ever ADDS.")
+		builder.appendLine("// Do not edit by hand; re-run with -Dcmo3.generate=true.  Generation only ever ADDS.")
 		builder.appendLine("package org.umamo.format.cmo3.model.gen")
 		builder.appendLine()
 		builder.appendLine("import org.umamo.format.cmo3.serialize.annotations.DontSerializeIfDefault")
@@ -473,13 +493,17 @@ class ModelGenerator {
 				File(rootDir, "module/format/src/commonMain/kotlin/org/umamo/format/cmo3/model/gen/GeneratedModel.kt"),
 			)
 		val builder = StringBuilder()
-		builder.appendLine("// GENERATED by ModelGenerator. Do not edit by hand.")
+		builder.appendLine("// GENERATED by ModelGenerator.  Do not edit by hand.")
 		builder.appendLine("package org.umamo.format.cmo3.serialize.gen")
 		builder.appendLine()
 		builder.appendLine("import org.umamo.format.cmo3.model.gen.*")
 		builder.appendLine("import org.umamo.format.cmo3.serialize.SerializerRegistry")
 		builder.appendLine()
-		builder.appendLine("/** Registers every generated reflective class + enum. */")
+		builder.appendLine("/**")
+		builder.appendLine(" * Registers every generated reflective class + enum.")
+		builder.appendLine(" *")
+		builder.appendLine(" * @param SerializerRegistry registry The registry to fill.")
+		builder.appendLine(" */")
 		builder.appendLine("internal fun registerGeneratedSubsystem(registry: SerializerRegistry) {")
 
 		for (tag in (model.classes.keys + model.enums.keys + reflective.keys + enums.keys).sorted()) {

@@ -13,10 +13,13 @@ import org.umamo.format.cmo3.serialize.ModelGraph
 import org.umamo.format.cmo3.serialize.cubismEngine
 import org.umamo.format.cmo3.xml.XmlCodec
 import java.io.File
+import java.lang.reflect.Modifier
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /**
  * A loaded CMO3: the CAFF container (all entries, incl. layer/atlas/icon PNGs) and the typed model
- * graph (the CModelSource root plus the shared pool). Mutate the graph or layer images, then write.
+ * graph (the CModelSource root plus the shared pool).  Mutate the graph or layer images, then write.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md</a>
  */
@@ -54,9 +57,13 @@ public class Cmo3Model internal constructor(
 		)
 	}
 
-	/** All [CImageResource]s reachable in the model (shared pool + inline), each linking an embedded PNG. */
+	/**
+	 * All [CImageResource]s reachable in the model (shared pool + inline), each linking an embedded PNG.
+	 *
+	 * @return List<CImageResource> Every reachable image resource, each listed once.
+	 */
 	public fun imageResources(): List<CImageResource> {
-		val seen = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+		val seen = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
 		val out = ArrayList<CImageResource>()
 		val stack = ArrayDeque<Any?>()
 		graph.root?.let(stack::addLast)
@@ -64,9 +71,18 @@ public class Cmo3Model internal constructor(
 
 		while (stack.isNotEmpty()) {
 			val obj = stack.removeLast() ?: continue
-			if (obj is CharSequence || obj is Number || obj is Boolean || obj is Char || obj is Enum<*>) continue
-			if (!seen.add(obj)) continue
-			if (obj is CImageResource) out.add(obj)
+
+			if (obj is CharSequence || obj is Number || obj is Boolean || obj is Char || obj is Enum<*>) {
+				continue
+			}
+
+			if (!seen.add(obj)) {
+				continue
+			}
+
+			if (obj is CImageResource) {
+				out.add(obj)
+			}
 
 			when (obj) {
 				is Iterable<*> -> {
@@ -87,7 +103,10 @@ public class Cmo3Model internal constructor(
 
 						while (cls != null && cls != Any::class.java) {
 							for (field in cls.declaredFields) {
-								if (java.lang.reflect.Modifier.isStatic(field.modifiers)) continue
+								if (Modifier.isStatic(field.modifiers)) {
+									continue
+								}
+
 								field.isAccessible = true
 								stack.addLast(field.get(obj))
 							}
@@ -263,9 +282,9 @@ public object Cmo3 : FormatCodec<Cmo3Model> {
 	override val kind: FileKind get() = FileKind.Cmo3
 
 	/**
-	 * True if [candidateBytes] starts with the CAFF magic. Note that every CAFF container sniffs the
+	 * True if [candidateBytes] starts with the CAFF magic.  Note that every CAFF container sniffs the
 	 * same way; a `.cmo3` is distinguished from other CAFF files only on full [read] (the `main_xml`
-	 * entry). Good enough for dispatch among the formats Umamo registers.
+	 * entry).  Good enough for dispatch among the formats Umamo registers.
 	 *
 	 * @param ByteArray candidateBytes Candidate file contents.
 	 * @return Boolean Whether this looks like a CAFF container.
@@ -366,7 +385,12 @@ public object Cmo3 : FormatCodec<Cmo3Model> {
 		return Cmo3Model(archive, graph)
 	}
 
-	/** Parses a `.cmo3` from a file. */
+	/**
+	 * Parses a `.cmo3` from a file.
+	 *
+	 * @param File file The file to read.
+	 * @return Cmo3Model The parsed model.
+	 */
 	public fun read(file: File): Cmo3Model = read(file.readBytes())
 
 	/**
@@ -393,6 +417,11 @@ public object Cmo3 : FormatCodec<Cmo3Model> {
 		return CaffCodec.write(model.archive.withEntries(entries))
 	}
 
-	/** Writes a model to a `.cmo3` file. */
+	/**
+	 * Writes a model to a `.cmo3` file.
+	 *
+	 * @param Cmo3Model model The model to write.
+	 * @param File file The file to write it to.
+	 */
 	public fun write(model: Cmo3Model, file: File): Unit = file.writeBytes(write(model))
 }

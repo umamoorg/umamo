@@ -16,6 +16,13 @@ internal class WebpRaster private constructor(
 	val height: Int,
 	private val rowStridePixels: Int,
 ) {
+	/**
+	 * The byte offset of a pixel in the backing array.
+	 *
+	 * @param Int x The pixel's column.
+	 * @param Int y The pixel's row.
+	 * @return Int The offset of the pixel's first byte.
+	 */
 	private fun base(x: Int, y: Int): Int = ((offsetY + y) * rowStridePixels + offsetX + x) * 4
 
 	/**

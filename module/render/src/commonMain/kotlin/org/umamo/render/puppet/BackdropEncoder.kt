@@ -36,12 +36,12 @@ internal class BackdropEncoder(
 	private val pipelines: DrawPipelines,
 ) {
 	// Underlay images uploaded on demand (the UV editor's source-layer view), keyed by image identity and
-	// insertion-ordered so eviction drops the oldest. Unlike the atlas pages, which upload and free as one
+	// insertion-ordered so eviction drops the oldest.  Unlike the atlas pages, which upload and free as one
 	// whole page set (at init, or wholesale on a page swap), these arrive and are created or destroyed one
 	// at a time across the renderer's life - as the source-artwork textures also are.
 	private val underlayTextures = LinkedHashMap<DecodedImage, GpuTexture>()
 
-	// Reused per underlay draw rather than allocated. Render-thread only.
+	// Reused per underlay draw rather than allocated.  Render-thread only.
 	private val fragmentScratch = FragmentUniforms()
 
 	/**

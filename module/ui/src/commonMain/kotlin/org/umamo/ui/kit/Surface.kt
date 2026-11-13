@@ -19,7 +19,7 @@ import org.umamo.ui.theme.LocalUmamoColors
 
 /**
  * A background container: a [Box] with a fill [color], an optional [shape] clip, an optional [border], and an
- * optional drop [shadowElevation]. Replaces Material's Surface (its tonal-elevation tinting is intentionally
+ * optional drop [shadowElevation].  Replaces Material's Surface (its tonal-elevation tinting is intentionally
  * dropped - pick an explicit [color] instead).
  *
  * @param Modifier      modifier        Layout modifier.

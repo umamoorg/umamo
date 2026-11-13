@@ -74,7 +74,7 @@ class KeyformGridShapeTest {
 	}
 
 	/**
-	 * The stride folding matches the evaluator's cellsByLinearIndex exactly. Both now share
+	 * The stride folding matches the evaluator's cellsByLinearIndex exactly.  Both now share
 	 * KeyformGrid's own members, so this pins the contract rather than guarding a duplicate.
 	 */
 	@Test

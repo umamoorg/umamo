@@ -88,7 +88,7 @@ internal class GlfwOffscreenGlContext : OffscreenGlContext {
 	override fun describeContext(): String = GlRenderDevice().describeBackend()
 
 	/**
-	 * Releases the GLFW window and unbinds the context. Runs on the render thread, where the context is
+	 * Releases the GLFW window and unbinds the context.  Runs on the render thread, where the context is
 	 * current, after the engine's glFinish barrier - or from a failed [createAndMakeCurrent], to release the
 	 * window it made.  Does nothing once no window is held, so a second call is harmless.
 	 */

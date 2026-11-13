@@ -13,7 +13,17 @@ class UmamoRuleSetProviderTest {
 		val providers = UmamoRuleSetProvider().getRuleProviders()
 
 		assertEquals(
-			listOf("umamo:blank-line-around-control-flow", "umamo:no-unit-only-block"),
+			listOf(
+				"umamo:blank-line-around-control-flow",
+				"umamo:comment-sentence-spacing",
+				"umamo:docblock-tags",
+				"umamo:function-docblock",
+				"umamo:no-comment-emphasis",
+				"umamo:no-fully-qualified-name",
+				"umamo:no-single-letter-name",
+				"umamo:no-unit-only-block",
+				"umamo:statement-if-braces",
+			),
 			providers.map { provider -> provider.createNewRuleInstance().ruleId.value },
 		)
 	}

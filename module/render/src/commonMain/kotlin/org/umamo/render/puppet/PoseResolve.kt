@@ -109,11 +109,11 @@ internal fun resolvePose(
 		drawOrderById[drawableInputs.drawableId] = drawableInputs.drawOrder
 	}
 
-	// Weld intensity per pose, gated on BOTH meshes being posed. Pass 1 only writes a posed glue mesh's
+	// Weld intensity per pose, gated on BOTH meshes being posed.  Pass 1 only writes a posed glue mesh's
 	// region of the shared position store; if a partner is unposed its region is uninitialised, so welding
-	// toward it would read garbage (random spikes on a live, dirty GPU). A zero intensity makes the weld
+	// toward it would read garbage (random spikes on a live, dirty GPU).  A zero intensity makes the weld
 	// skip the partner read entirely - matching the CPU applyGluesResolved, which skips a glue whose
-	// partner produced no geometry. Note this asks whether the partner POSED, not whether it draws: an
+	// partner produced no geometry.  Note this asks whether the partner POSED, not whether it draws: an
 	// index-less anchor is a legitimate partner.
 	glueIntensities.fill(1f) // slots beyond glues.size stay 1f and are never read by the shader
 

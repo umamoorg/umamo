@@ -14,8 +14,8 @@ import org.umamo.ui.l10n.systemLanguageTags
 import org.umamo.ui.resources.Res
 
 /**
- * App-wide settings, provided once at the Compose root by [ProvideSettings]. Reading it before it is
- * provided is a programming error (the `error` default fires). `static` because the [Settings] instance
+ * App-wide settings, provided once at the Compose root by [ProvideSettings].  Reading it before it is
+ * provided is a programming error (the `error` default fires).  `static` because the [Settings] instance
  * is stable for the app's life - individual values change through its `changes` flow, not by swapping the
  * local - so Compose need not track reads of this local for recomposition.
  */
@@ -23,9 +23,9 @@ val LocalSettings = staticCompositionLocalOf<Settings> { error("LocalSettings no
 
 /**
  * Loads [Settings] over the platform [storage] (bundled `defaultSettings.json` ← the user's file) and
- * provides it as [LocalSettings] to [content]. The load is async (the bundled default is a Compose
+ * provides it as [LocalSettings] to [content].  The load is async (the bundled default is a Compose
  * resource), so [content] renders once settings are ready; for a tiny config file that's an imperceptible
- * first frame. Each app supplies the right [storage] (`desktopAppStorage` / `androidAppStorage`).
+ * first frame.  Each app supplies the right [storage] (`desktopAppStorage` / `androidAppStorage`).
  *
  * @param AppStorage storage The platform storage (config directory + IO).
  * @param Function   content The app content that may read [LocalSettings].

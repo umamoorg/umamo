@@ -214,6 +214,12 @@ fun OverflowRow(
 		val measurables = HashMap<Int, Measurable>(slots.size)
 		val naturalWidthPx = HashMap<Int, Int>(slots.size)
 
+		/**
+		 * The measurable for an item slot, subcomposed on first use.
+		 *
+		 * @param Int slotIndex The slot's index.
+		 * @return Measurable The item's one measurable.
+		 */
 		fun measurableFor(slotIndex: Int): Measurable =
 			measurables.getOrPut(slotIndex) {
 				val slot = slots[slotIndex]

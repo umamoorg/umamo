@@ -5,12 +5,12 @@ package org.umamo.format
  *
  * EN: Every format Umamo can both parse and emit as a self-contained byte stream (`.uma`, `.cmo3`,
  *     and `.moc3`) exposes the same members, so callers and the [FormatRegistry]
- *     dispatcher treat formats uniformly instead of hardcoding one facade's method names. The
+ *     dispatcher treat formats uniformly instead of hardcoding one facade's method names.  The
  *     in-memory model type differs per format ([org.umamo.format.cmo3.Cmo3Model] vs
  *     [org.umamo.format.moc3.MocDocument]) and the models share no supertype - hence the generic
- *     [TModel]; a heterogeneous registry holds `FormatCodec<*>` and callers branch on [kind]. The
+ *     [TModel]; a heterogeneous registry holds `FormatCodec<*>` and callers branch on [kind].  The
  *     dependency runs codec → [FileKind] (a codec names its kind), never the reverse, so [FileKind]
- *     stays pure metadata. Text sidecars (`model3.json` and friends) are `String`-shaped, not
+ *     stays pure metadata.  Text sidecars (`model3.json` and friends) are `String`-shaped, not
  *     `ByteArray`, so they deliberately fall outside this contract.
  * JA: `.cmo3`/`.moc3` など「バイト列で完結する」形式の共通読み書き契約。モデル型は形式ごとに異なる。
  */

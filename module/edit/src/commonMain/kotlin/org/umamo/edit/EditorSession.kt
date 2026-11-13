@@ -15,7 +15,7 @@ import org.umamo.runtime.model.WarpLatticeForm
 
 /**
  * The single mutable owner of one open document: the live [model], the ephemeral editor state
- * ([selection], [mode]), the undo [History], and the change-event bus. Every edit flows through here so
+ * ([selection], [mode]), the undo [History], and the change-event bus.  Every edit flows through here so
  * undo, change events, and dirty-tracking stay consistent.
  *
  * [changes] announces every step the history records, and every amend of one: a document mutation
@@ -23,7 +23,7 @@ import org.umamo.runtime.model.WarpLatticeForm
  * tool latches and tool settings are transient session state - never steps, and not on the bus.
  *
  * Undo is by immutable snapshot, never inverse op: [undo] / [redo] just republish a stored
- * [EditorSnapshot]. Dirty is reference-equality of the model against the last-saved instance — because
+ * [EditorSnapshot].  Dirty is reference-equality of the model against the last-saved instance — because
  * undo restores the exact prior model instance and selection-only steps reuse the same instance,
  * `model !== savedModel` is correct across undo/redo and is never tripped by a bare selection change.
  *
@@ -55,7 +55,7 @@ class EditorSession private constructor(
 	 *
 	 * @param PuppetModel initialModel The document model at open.
 	 * @param Pose initialPose The pose at open (the displayed scrub values); defaults to every parameter's
-	 *   default. The host passes the renderer's starting values so the session, the panel, and the viewport
+	 *   default.  The host passes the renderer's starting values so the session, the panel, and the viewport
 	 *   agree from frame one (e.g. a headless dump's overridden pose is not reset to defaults).
 	 * @param Int initialHistoryLimit The retained-undo-step cap at open; [historyLimit] carries it and the
 	 *   host reassigns it when the preference changes.
@@ -465,7 +465,7 @@ class EditorSession private constructor(
 
 	/**
 	 * Applies a document edit: computes the new model via [transform], records it as one undo step, and
-	 * publishes it. The [change] describes the edit for the bus and the history-panel label. A transform
+	 * publishes it.  The [change] describes the edit for the bus and the history-panel label.  A transform
 	 * that returns the same model instance (a no-op edit) records nothing, so callers need not pre-check.
 	 *
 	 * @param Change change The descriptor of this edit (its [Change.undoability] is assumed undoable here).
@@ -710,7 +710,7 @@ class EditorSession private constructor(
 
 	/**
 	 * Records a selection gesture as its own undo step (the chosen Blender-faithful granularity), so a
-	 * misclick that clears the selection is recoverable. A no-op (selecting the already-current
+	 * misclick that clears the selection is recoverable.  A no-op (selecting the already-current
 	 * selection) records nothing.
 	 *
 	 * @param Selection selection The new selection.
@@ -856,8 +856,8 @@ class EditorSession private constructor(
 
 	/**
 	 * Records an Edit-mode element-selection gesture as its own undo step (the same Blender-faithful
-	 * granularity as object selection), so a misclick that loses a selection is recoverable. A no-op
-	 * (selecting the already-current selection) records nothing. Not a document edit — leaves dirty
+	 * granularity as object selection), so a misclick that loses a selection is recoverable.  A no-op
+	 * (selecting the already-current selection) records nothing.  Not a document edit — leaves dirty
 	 * untouched.
 	 *
 	 * @param MeshSelection meshSelection The new element selection.
@@ -970,7 +970,7 @@ class EditorSession private constructor(
 		)
 
 	/**
-	 * Steps back one undo level, republishing the model and selection. No-op when nothing to undo, and while
+	 * Steps back one undo level, republishing the model and selection.  No-op when nothing to undo, and while
 	 * a select drag is held ([viewportGestureActive]): the drag lands or is abandoned first (Blender parity),
 	 * rather than landing on top of the restored state and wiping redo.
 	 */
@@ -983,7 +983,7 @@ class EditorSession private constructor(
 	}
 
 	/**
-	 * Steps forward one redo level, republishing the model and selection. No-op when nothing to redo, and
+	 * Steps forward one redo level, republishing the model and selection.  No-op when nothing to redo, and
 	 * while a select drag is held (see [undo]).
 	 */
 	fun redo() {
@@ -995,9 +995,9 @@ class EditorSession private constructor(
 	}
 
 	/**
-	 * Jumps the history cursor directly to [index], republishing the model and selection at that step. The
+	 * Jumps the history cursor directly to [index], republishing the model and selection at that step.  The
 	 * history panel calls this when a row is clicked, so the user can leap across several undo levels at
-	 * once. No-op when [index] is already the live step, and while a select drag is held (see [undo]).
+	 * once.  No-op when [index] is already the live step, and while a select drag is held (see [undo]).
 	 *
 	 * @param Int index The target step index within [historyView].
 	 */

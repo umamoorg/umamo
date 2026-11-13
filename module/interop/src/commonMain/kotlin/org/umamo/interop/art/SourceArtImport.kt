@@ -577,6 +577,13 @@ object SourceArtImport {
 		val rootGathered = ArrayList<FolderChild>()
 		val gatheredByAnchor = LinkedHashMap<String, MutableList<FolderChild>>()
 
+		/**
+		 * The list that gathers the children bound for a folder path: the root's, an existing part's, or a new
+		 * folder's own.
+		 *
+		 * @param String parentPath The folder path, empty for the root.
+		 * @return MutableList<FolderChild> The list to add a child to.
+		 */
 		fun gatheredFor(parentPath: String): MutableList<FolderChild> =
 			when {
 				parentPath.isEmpty() -> rootGathered

@@ -268,6 +268,12 @@ internal fun buildSourcesTree(
 	val tilesByBinding = puppet.atlas.tiles.filter { tile -> tile.source != null }.groupBy { tile -> tile.source!!.sourceId to tile.source!!.layerKey }
 	val listedSourceIds = puppet.sources.mapTo(HashSet()) { source -> source.id }
 
+	/**
+	 * Builds the tree node for a tile, with the drawables that use it as its children.
+	 *
+	 * @param AtlasTileId tileId The tile.
+	 * @return SourcesNode The tile's node.
+	 */
 	fun tileNode(tileId: AtlasTileId): SourcesNode {
 		val tile = puppet.atlas.tileById.getValue(tileId)
 		val placement = tile.placement
@@ -306,6 +312,19 @@ internal fun buildSourcesTree(
 		)
 	}
 
+	/**
+	 * Builds the tree node for a source layer, its status read from the tiles bound to it.
+	 *
+	 * @param ArtSource source The artwork file the layer is in.
+	 * @param String key The layer's key.
+	 * @param String label The row's label.
+	 * @param SourcesDetail detail The row's detail.
+	 * @param Boolean listed Whether the file's inventory lists the layer.
+	 * @param Boolean emptied Whether the layer was read with no pixels.
+	 * @param Boolean replaced Whether the layer is gone because the artwork file was replaced.
+	 * @param Boolean ignored Whether the rigger marked the layer ignored.
+	 * @return SourcesNode The layer's node.
+	 */
 	fun layerNode(
 		source: ArtSource,
 		key: String,
@@ -464,6 +483,12 @@ internal fun filterSourcesTree(nodes: List<SourcesNode>, query: String, filters:
 	val trimmed = query.trim()
 	val unfiltered = filters.size == SourcesFilter.entries.size
 
+	/**
+	 * Tells whether a node satisfies any of the active status filters.
+	 *
+	 * @param SourcesNode node The node to test.
+	 * @return Boolean True when it does, or when no filter narrows the tree.
+	 */
 	fun matchesFilter(node: SourcesNode): Boolean =
 		unfiltered ||
 			filters.any { filter ->
@@ -475,6 +500,13 @@ internal fun filterSourcesTree(nodes: List<SourcesNode>, query: String, filters:
 				}
 			}
 
+	/**
+	 * Prunes a node to what the filters and the search text keep.
+	 *
+	 * @param SourcesNode node The node to prune.
+	 * @param Boolean satisfiedAbove Whether an ancestor already satisfied the filters.
+	 * @return SourcesNode? The node with its surviving children, or null when nothing under it is kept.
+	 */
 	fun prune(node: SourcesNode, satisfiedAbove: Boolean): SourcesNode? {
 		val satisfied = satisfiedAbove || matchesFilter(node)
 		val children = node.children.mapNotNull { child -> prune(child, satisfied) }

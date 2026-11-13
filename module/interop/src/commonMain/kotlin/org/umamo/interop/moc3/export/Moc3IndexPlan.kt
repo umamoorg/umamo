@@ -37,16 +37,36 @@ class Moc3IndexPlan private constructor(
 	private val drawableIndexById: Map<DrawableId, Int>,
 	private val parameterIndexById: Map<ParameterId, Int>,
 ) {
-	/** The file index of [id], or -1 when it names nothing (the moc's own "absent" encoding). */
+	/**
+	 * The file index of [id], or -1 when it names nothing (the moc's own "absent" encoding).
+	 *
+	 * @param PartId? id The part, or null.
+	 * @return Int The file index, or -1.
+	 */
 	fun partIndex(id: PartId?): Int = id?.let { partIndexById[it] } ?: -1
 
-	/** The file index of [id], or -1 when it names nothing. */
+	/**
+	 * The file index of [id], or -1 when it names nothing.
+	 *
+	 * @param DeformerId? id The deformer, or null.
+	 * @return Int The file index, or -1.
+	 */
 	fun deformerIndex(id: DeformerId?): Int = id?.let { deformerIndexById[it] } ?: -1
 
-	/** The file index of [id], or -1 when it names nothing. */
+	/**
+	 * The file index of [id], or -1 when it names nothing.
+	 *
+	 * @param DrawableId? id The drawable, or null.
+	 * @return Int The file index, or -1.
+	 */
 	fun drawableIndex(id: DrawableId?): Int = id?.let { drawableIndexById[it] } ?: -1
 
-	/** The file index of [id], or -1 when it names nothing. */
+	/**
+	 * The file index of [id], or -1 when it names nothing.
+	 *
+	 * @param ParameterId? id The parameter, or null.
+	 * @return Int The file index, or -1.
+	 */
 	fun parameterIndex(id: ParameterId?): Int = id?.let { parameterIndexById[it] } ?: -1
 
 	companion object {
@@ -105,6 +125,11 @@ class Moc3IndexPlan private constructor(
 			val ordered = ArrayList<Part>(puppet.parts.size)
 			val visited = HashSet<PartId>()
 
+			/**
+			 * Appends the parts in a child list and under them, depth first, each once.
+			 *
+			 * @param List<OrgChild> children The child list to walk.
+			 */
 			fun walk(children: List<OrgChild>) {
 				for (child in children) {
 					if (child !is OrgChild.Part) {
@@ -149,6 +174,11 @@ class Moc3IndexPlan private constructor(
 			val ordered = ArrayList<Deformer>(deformers.size)
 			val visited = HashSet<DeformerId>()
 
+			/**
+			 * Appends a deformer and then its children, depth first, each once.
+			 *
+			 * @param Deformer deformer The deformer to visit.
+			 */
 			fun walk(deformer: Deformer) {
 				if (!visited.add(deformer.id)) {
 					return

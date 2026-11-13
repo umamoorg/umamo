@@ -195,7 +195,7 @@ fun EditorSession.setDeformerPart(id: DeformerId, partId: PartId?) {
 }
 
 /**
- * Sets rotation deformer [id]'s base angle as one undo step. A no-op on a warp deformer (it has no base
+ * Sets rotation deformer [id]'s base angle as one undo step.  A no-op on a warp deformer (it has no base
  * angle), so the commit short-circuits.
  *
  * @param DeformerId id The deformer to retarget.
@@ -240,7 +240,7 @@ fun EditorSession.setPartDrawOrder(id: PartId, order: Int) {
 }
 
 /**
- * Sets part [id]'s rendering group mode as one undo step. The [mode] carries the whole value, so a mode
+ * Sets part [id]'s rendering group mode as one undo step.  The [mode] carries the whole value, so a mode
  * switch and any Isolated-composite sub-field edit both flow through here.
  *
  * @param PartId id The part to retarget.

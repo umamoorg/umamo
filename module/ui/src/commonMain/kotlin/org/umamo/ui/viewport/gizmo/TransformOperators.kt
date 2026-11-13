@@ -223,12 +223,12 @@ internal fun slideVertexByFactor(
 	neighborIndex: Int,
 	factor: Float,
 ): FloatArray {
-	val t = factor.coerceIn(0f, 1f)
+	val clampedFactor = factor.coerceIn(0f, 1f)
 
 	return originalWorld.copyOf().also { positions ->
-		positions[vertexIndex * 2] = originalWorld[vertexIndex * 2] + (originalWorld[neighborIndex * 2] - originalWorld[vertexIndex * 2]) * t
+		positions[vertexIndex * 2] = originalWorld[vertexIndex * 2] + (originalWorld[neighborIndex * 2] - originalWorld[vertexIndex * 2]) * clampedFactor
 		positions[vertexIndex * 2 + 1] =
-			originalWorld[vertexIndex * 2 + 1] + (originalWorld[neighborIndex * 2 + 1] - originalWorld[vertexIndex * 2 + 1]) * t
+			originalWorld[vertexIndex * 2 + 1] + (originalWorld[neighborIndex * 2 + 1] - originalWorld[vertexIndex * 2 + 1]) * clampedFactor
 	}
 }
 

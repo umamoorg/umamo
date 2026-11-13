@@ -171,7 +171,7 @@ interface DrawableThumbnailProvider {
 
 /**
  * The drawable-thumbnail provider for the composition, or null when none is wired (e.g. no document open,
- * or a platform without the renderer). The Outliner and Sources hover previews no-op when it is null.
+ * or a platform without the renderer).  The Outliner and Sources hover previews no-op when it is null.
  */
 val LocalDrawableThumbnails = staticCompositionLocalOf<DrawableThumbnailProvider?> { null }
 
@@ -200,7 +200,7 @@ interface LiveParamsHandle {
 	val observedValues: Map<ParameterId, Float>
 
 	/**
-	 * Previews one parameter's live value toward the renderer without recording an undo step. Called every
+	 * Previews one parameter's live value toward the renderer without recording an undo step.  Called every
 	 * frame of a scrub gesture; the matching [commit] records the single step on release.
 	 *
 	 * @param ParameterId id The parameter to set.
@@ -209,7 +209,7 @@ interface LiveParamsHandle {
 	fun preview(id: ParameterId, value: Float)
 
 	/**
-	 * Records the current pose as one undo step, ending a scrub gesture. The values previewed since the
+	 * Records the current pose as one undo step, ending a scrub gesture.  The values previewed since the
 	 * gesture began are captured as a single step labelled by which parameters [changedIds] moved.
 	 *
 	 * @param Set<ParameterId> changedIds The parameters this gesture moved (for the history-panel label).
@@ -218,7 +218,7 @@ interface LiveParamsHandle {
 }
 
 /**
- * The live-parameter handle for the composition, or null when no posable document is open. The
+ * The live-parameter handle for the composition, or null when no posable document is open.  The
  * Parameters space writes slider changes here; the host wires it to the renderer.
  */
 val LocalLiveParams = staticCompositionLocalOf<LiveParamsHandle?> { null }
@@ -250,7 +250,7 @@ interface SelectionHandle {
 }
 
 /**
- * The selection handle for the composition, or null when no document is open. Panels read
+ * The selection handle for the composition, or null when no document is open.  Panels read
  * `LocalSelection.current?.selection`; gesture sites call `set`.
  */
 val LocalSelection = staticCompositionLocalOf<SelectionHandle?> { null }
@@ -283,7 +283,7 @@ interface EditorModeHandle {
 }
 
 /**
- * The editor-mode handle for the composition, or null when no document is open. A null handle is
+ * The editor-mode handle for the composition, or null when no document is open.  A null handle is
  * treated as [EditorMode.Object] by callers.
  */
 val LocalEditorMode = staticCompositionLocalOf<EditorModeHandle?> { null }

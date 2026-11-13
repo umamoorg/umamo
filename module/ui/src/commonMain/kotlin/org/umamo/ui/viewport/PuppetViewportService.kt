@@ -25,18 +25,18 @@ import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.model.DrawableThumbnailProvider
 
 /**
- * Creates (and starts) the platform render service for one open document. Desktop supplies the
+ * Creates (and starts) the platform render service for one open document.  Desktop supplies the
  * offscreen GLFW/LWJGL engine; Android has no GLES sibling yet and passes no factory, so its viewport
- * areas render placeholders. Injected into rememberPuppetViewportHost so the whole viewport composable
+ * areas render placeholders.  Injected into rememberPuppetViewportHost so the whole viewport composable
  * stack stays common.
  */
 typealias PuppetViewportServiceFactory = (PuppetModel, PuppetTextures, LiveParams) -> PuppetViewportService
 
 /**
- * A rendered puppet frame together with the camera it was rendered with. The engine renders
+ * A rendered puppet frame together with the camera it was rendered with.  The engine renders
  * asynchronously, so a frame lands a few ticks behind the live state; the gizmo overlays project their
  * chrome through [camera] so it stays glued to the raster during pan and zoom instead of racing ahead of
- * it, and the mesh overlay is drawn into the pixels themselves. Bundling both in one immutable value keeps
+ * it, and the mesh overlay is drawn into the pixels themselves.  Bundling both in one immutable value keeps
  * the publish atomic, so the bitmap and its camera can never tear apart across the frame flow.
  *
  * @property ImageBitmap bitmap The area's rendered pixels (already downscaled to the area size).
@@ -130,14 +130,14 @@ enum class CameraSurface {
 data class AreaCameraKey(val areaId: String, val surface: CameraSurface)
 
 /**
- * The platform seam between the common viewport UI and a puppet render engine. The engine owns a GPU
+ * The platform seam between the common viewport UI and a puppet render engine.  The engine owns a GPU
  * context on its own thread, renders the posed puppet per registered area, and publishes each frame as
  * a Compose ImageBitmap; the common `Viewport2D` composable, the navigation/pick pointer loop, and the
- * Edit-mode gizmo overlay drive it exclusively through this interface. Desktop implements it with an
+ * Edit-mode gizmo overlay drive it exclusively through this interface.  Desktop implements it with an
  * offscreen GLFW/LWJGL service; Android's GLES sibling implements the same surface when it lands.
  *
  * Threading contract: everything here is called from the UI thread; implementations publish to their
- * render thread internally (volatile swaps of immutable values). Picking is CPU-side and synchronous.
+ * render thread internally (volatile swaps of immutable values).  Picking is CPU-side and synchronous.
  */
 interface PuppetViewportService {
 	/** The fine zoom increment in percentage points (one wheel notch / key press), fed from settings. */
@@ -156,7 +156,7 @@ interface PuppetViewportService {
 	var gridColors: GridColors
 
 	/**
-	 * Registers a viewport area and returns the flow its rendered frames arrive on. Reference-counted
+	 * Registers a viewport area and returns the flow its rendered frames arrive on.  Reference-counted
 	 * per [areaId]: register/unregister pair across the area's composable life.
 	 *
 	 * @param String areaId The hosting area's stable id.

@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 
 /**
  * Byte-identical round-trip + typed-accessor checks against the real `.moc3` samples (resolved
- * from the `moc3.samples` system property). Skips gracefully when the samples are absent, so a
+ * from the `moc3.samples` system property).  Skips gracefully when the samples are absent, so a
  * public checkout still passes.
  */
 class MocRoundTripTest {

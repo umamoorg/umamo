@@ -20,7 +20,7 @@ import kotlin.test.assertEquals
 
 /**
  * Assembly tests for [CpuDeformationEvaluator] on tiny synthetic models: that it routes direct vs
- * deformer-parented meshes correctly and resolves unspecified parameters to their defaults. The
+ * deformer-parented meshes correctly and resolves unspecified parameters to their defaults.  The
  * per-stage math is covered by the keyform/transform/cascade tests; this checks the wiring.
  */
 class CpuDeformationEvaluatorTest {

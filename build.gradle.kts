@@ -1,8 +1,9 @@
-// Root build script. Plugins are declared here with `apply false` purely to pin their
+// Root build script.  Plugins are declared here with `apply false` purely to pin their
 // versions for the whole build; each module opts in by `alias(...)`-ing the ones it needs.
 // This avoids every module repeating version numbers (the version catalog holds those).
-// ルートビルドスクリプト。プラグインは `apply false` でバージョン固定のみを行い、各モジュールが
-// 必要なものを `alias(...)` で取り込む。
+
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.jlleitschuh.gradle.ktlint.KtlintExtension
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform) apply false
@@ -35,7 +36,7 @@ subprojects {
 	apply(plugin = "org.jlleitschuh.gradle.ktlint")
 	// Compose Multiplatform generates Kotlin under build/generated (JetBrains space-indent style); lint
 	// our own sources, not generated output (e.g. the resources `Res` collectors).
-	configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
+	configure<KtlintExtension> {
 		version.set(ktlintEngineVersion)
 
 		filter {
@@ -61,7 +62,7 @@ subprojects {
 	tasks.withType<Test>().configureEach {
 		testLogging {
 			events("passed", "skipped", "failed")
-			exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+			exceptionFormat = TestExceptionFormat.FULL
 		}
 	}
 }
@@ -77,11 +78,11 @@ subprojects {
 //
 // commonTest is in scope too, and deliberately: it has to compile for every target its commonMain
 // does, so a JVM-only API there is the same latent break, and a test source set is exactly where one
-// slips in unnoticed (a test that only ever runs on the JVM still has to *build* everywhere).  It is
+// slips in unnoticed (a test that only ever runs on the JVM still has to build everywhere).  It is
 // also where the leaks were: `"ABCD".toByteArray(Charsets.US_ASCII)` in a shared test reads as
 // harmless until the day it isn't.
 //
-// Three rules, each from a real leak found in this tree. Note that none of them is only about imports:
+// Three rules, each from a real leak found in this tree.  Note that none of them is only about imports:
 // the JVM's default imports (`java.lang.*`, `kotlin.jvm.*`, `kotlin.text.Charsets`) mean JVM-only APIs
 // can appear with no import line to grep for, and even a non-default API can be written out in full at
 // the use site — `catch (_: java.util.zip.DataFormatException)` needs no import and was exactly how the
@@ -195,7 +196,7 @@ val checkCommonSourcePurity =
 	}
 
 // Wire into `check` so the guard runs with the normal verification lifecycle rather than needing to be
-// remembered. Gradle runs the task once however many subprojects depend on it.
+// remembered.  Gradle runs the task once however many subprojects depend on it.
 //
 // The ktlint rule set's own tests ride the same lifecycle: an included build's tests never run under the
 // root's `build` on their own, and a rule that silently stopped matching would pass every ktlintCheck.

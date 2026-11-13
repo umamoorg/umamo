@@ -16,21 +16,32 @@ import org.umamo.runtime.model.partSelfAndDescendants
 import org.umamo.runtime.model.withDerivedRenderRoot
 
 /*
- * Organizational-tree structure edits. The org tree (PuppetModel.rootChildren + Part.children - an ordered
+ * Organizational-tree structure edits.  The org tree (PuppetModel.rootChildren + Part.children - an ordered
  * mix of sub-parts and drawables) is the single source of truth for the hierarchy AND the parts-panel
- * order, and that order is the draw-order tiebreak. So one move - withOrgChildMoved - covers reparenting a
+ * order, and that order is the draw-order tiebreak.  So one move - withOrgChildMoved - covers reparenting a
  * part, re-homing a drawable, reordering siblings, and interleaving a drawable between parts; every move
- * re-derives the render order from the tree. Deformer moves are separate (deformers live in the Armature,
+ * re-derives the render order from the tree.  Deformer moves are separate (deformers live in the Armature,
  * not the org tree).
  *
  * 組織ツリーの構造編集。ツリーが階層とパネル順の唯一の真実で、描画順のタイブレークでもある。移動は1つに統合。
  */
 
-/** True when [child] is present somewhere in the org tree (the root level or some part's children). */
+/**
+ * True when [child] is present somewhere in the org tree (the root level or some part's children).
+ *
+ * @param OrgChild child The org child to find.
+ * @return Boolean True when the tree holds it.
+ */
 private fun PuppetModel.containsOrgChild(child: OrgChild): Boolean =
 	child in rootChildren || parts.any { child in it.children }
 
-/** This child list with [child] inserted before [before] (or appended when [before] is null or absent). */
+/**
+ * This child list with [child] inserted before [before] (or appended when [before] is null or absent).
+ *
+ * @param OrgChild child The child to insert.
+ * @param OrgChild? before The child to insert it before, or null to append.
+ * @return List<OrgChild> The list with the child inserted.
+ */
 private fun List<OrgChild>.withChildInsertedBefore(child: OrgChild, before: OrgChild?): List<OrgChild> {
 	val result = toMutableList()
 	val insertAt = before?.let { result.indexOf(it) }?.takeIf { it >= 0 } ?: result.size
@@ -87,7 +98,7 @@ fun PuppetModel.withOrgChildMoved(child: OrgChild, newParentId: PartId?, before:
 
 /**
  * Moves the org child [child] under [newParentId] (null = top level), before [before] (null = append), as
- * one undo step. A cycle-forming or no-op move records nothing.
+ * one undo step.  A cycle-forming or no-op move records nothing.
  *
  * @param OrgChild child The sub-part or drawable to move.
  * @param PartId? newParentId The destination part, or null for the top level.
@@ -102,7 +113,12 @@ fun EditorSession.moveOrgChild(child: OrgChild, newParentId: PartId?, before: Or
 	mutate(change) { model -> model.withOrgChildMoved(child, newParentId, before) }
 }
 
-/** A copy of this deformer re-homed under [newParent] in the transform (nesting) hierarchy. */
+/**
+ * A copy of this deformer re-homed under [newParent] in the transform (nesting) hierarchy.
+ *
+ * @param DeformerId? newParent The new parent deformer, or null for a root.
+ * @return Deformer The re-homed copy.
+ */
 private fun Deformer.withParent(newParent: DeformerId?): Deformer =
 	when (this) {
 		is Deformer.Warp -> copy(parent = newParent)
@@ -111,7 +127,7 @@ private fun Deformer.withParent(newParent: DeformerId?): Deformer =
 
 /**
  * Returns a copy of [this] with the deformer [id] re-nested under [newParentId] (null = an armature root)
- * and re-positioned among the deformers list before [beforeId] (null = appended). Reparent and reorder are
+ * and re-positioned among the deformers list before [beforeId] (null = appended).  Reparent and reorder are
  * one move: [Deformer.parent] sets the transform nesting (which changes deformation), and the deformers
  * list order sets sibling order in the armature (cosmetic).
  *

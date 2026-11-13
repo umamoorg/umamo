@@ -222,7 +222,7 @@ class MeshTopologyEditsTest {
 		assertEquals(1f, mesh.positions[9], 1e-4f, "and midpoint y")
 		assertEquals(4, mesh.indices.size / 3, "each crossed triangle splits in two")
 		val crossingSource = result.edit.vertexSources[4]
-		assertTrue(crossingSource is VertexSource.LerpOf && absDiff(crossingSource.t, 0.5f) < 1e-4f, "the crossing lerps at t = 0.5")
+		assertTrue(crossingSource is VertexSource.LerpOf && absDiff(crossingSource.fraction, 0.5f) < 1e-4f, "the crossing lerps at t = 0.5")
 		assertTrue(MeshElement.Vertex(4) in result.newElements, "the cut path is selected")
 
 		// Already-connected vertices (an existing edge) refuse.

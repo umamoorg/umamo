@@ -120,7 +120,7 @@ fun Pad2D(
 }
 
 /**
- * Maps a pointer coordinate within [extent] onto [range], clamped to the ends. When [invert] is set the
+ * Maps a pointer coordinate within [extent] onto [range], clamped to the ends.  When [invert] is set the
  * axis is flipped so coordinate 0 (the top of a Canvas) becomes the range maximum - used for the Y axis,
  * where screen-top should read as the highest value.
  *
