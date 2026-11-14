@@ -1,11 +1,10 @@
 package org.umamo.ui.workspace.commands
 
-import org.umamo.edit.DrawableChange
 import org.umamo.edit.EditorSession
-import org.umamo.edit.PartChange
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.VisibilityChange
 import org.umamo.edit.structure.hideUnselected
 import org.umamo.edit.structure.unhideAll
 import org.umamo.edit.structure.visibilityOf
@@ -49,9 +48,9 @@ internal fun objectCommands(
 				val newVisible = !editorSession.model.value.visibilityOf(active)
 				val change =
 					when (active) {
-						is SelectionTarget.Part -> PartChange.SetVisibility(active.id, newVisible)
+						is SelectionTarget.Part -> VisibilityChange.Part(active.id, newVisible)
 
-						is SelectionTarget.Drawable -> DrawableChange.SetVisibility(active.id, newVisible)
+						is SelectionTarget.Drawable -> VisibilityChange.Drawable(active.id, newVisible)
 
 						// A deformer has no visibility flag; nothing to toggle.
 						is SelectionTarget.Deformer -> null
@@ -72,11 +71,9 @@ internal fun objectCommands(
 		// Select Hierarchy: with a target argument (the outliner context menu passes its row) the row's
 		// subtree replaces the selection; without one (the palette) the current selection expands in place.
 		Command("outliner.selectHierarchy", title = Res.string.cmd_outliner_select_hierarchy, availability = availability.hasDocument) { argument ->
-			val live = editorSession
-
-			if (live != null) {
-				val seed = (argument as? SelectionTarget)?.let { target -> Selection(setOf(target), target) } ?: live.selection.value
-				live.setSelection(SelectionOps.selectHierarchy(seed, live.model.value))
+			if (editorSession != null) {
+				val seed = (argument as? SelectionTarget)?.let { target -> Selection(setOf(target), target) } ?: editorSession.selection.value
+				editorSession.setSelection(SelectionOps.selectHierarchy(seed, editorSession.model.value))
 			}
 		},
 	)

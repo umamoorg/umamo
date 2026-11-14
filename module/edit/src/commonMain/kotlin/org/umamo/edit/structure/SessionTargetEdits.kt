@@ -30,11 +30,11 @@ fun EditorSession.toggleVisibility(target: SelectionTarget) {
 
 	when (target) {
 		is SelectionTarget.Part -> {
-			mutate(PartChange.SetVisibility(target.id, newVisible)) { model -> model.withPartVisibility(target.id, newVisible) }
+			mutate(VisibilityChange.Part(target.id, newVisible)) { model -> model.withPartVisibility(target.id, newVisible) }
 		}
 
 		is SelectionTarget.Drawable -> {
-			mutate(DrawableChange.SetVisibility(target.id, newVisible)) { model -> model.withDrawableVisibility(target.id, newVisible) }
+			mutate(VisibilityChange.Drawable(target.id, newVisible)) { model -> model.withDrawableVisibility(target.id, newVisible) }
 		}
 
 		is SelectionTarget.Deformer -> {
@@ -117,11 +117,11 @@ fun EditorSession.toggleSelectableSubtree(target: SelectionTarget) {
  */
 fun EditorSession.toggleVisibilitySubtree(target: SelectionTarget) {
 	val newVisible = !model.value.visibilityOf(target)
-	val change: Change =
+	val change: VisibilityChange =
 		when (target) {
-			is SelectionTarget.Part -> PartChange.SetVisibility(target.id, newVisible)
+			is SelectionTarget.Part -> VisibilityChange.Part(target.id, newVisible)
 
-			is SelectionTarget.Drawable -> DrawableChange.SetVisibility(target.id, newVisible)
+			is SelectionTarget.Drawable -> VisibilityChange.Drawable(target.id, newVisible)
 
 			// A deformer has no visibility flag; nothing to toggle.
 			is SelectionTarget.Deformer -> return
