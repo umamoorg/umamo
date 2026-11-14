@@ -1,12 +1,16 @@
 package org.umamo.ui.workspace.commands
 
+import org.jetbrains.compose.resources.StringResource
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelectMode
+import org.umamo.edit.SelectableKind
 import org.umamo.edit.editsElements
 import org.umamo.edit.invertMeshSelection
 import org.umamo.edit.invertObjectSelection
+import org.umamo.edit.invertObjectSelectionOfKind
 import org.umamo.edit.selectAllMeshElements
 import org.umamo.edit.selectAllObjects
+import org.umamo.edit.selectAllObjectsOfKind
 import org.umamo.edit.setMeshSelectMode
 import org.umamo.edit.transform.beginBoxSelect
 import org.umamo.edit.transform.beginCircleSelect
@@ -18,8 +22,65 @@ import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SpaceScope
 
 /**
- * The selection commands: the element domains of Edit and Pose mode, select all / invert, the Box and
- * Circle marquee tools, and the pointer-driven Select Linked pair.
+ * One object kind's Select All of Type and Invert Selection of Type pair: the single source the command table and
+ * both menus (the menu bar's Select menu, the viewport context menu's Select submenu) read their rows from.
+ *
+ * @property SelectableKind kind The kind the pair filters to.
+ * @property String selectAllId The Select All of Type command.
+ * @property String invertId The Invert Selection of Type command.
+ * @property StringResource selectAllTitle The select command's palette title, which names the kind.
+ * @property StringResource invertTitle The invert command's palette title, which names the kind.
+ * @property StringResource menuLabel The kind alone, for a row under a submenu that already says what it does.
+ */
+internal class SelectableKindCommands(
+	val kind: SelectableKind,
+	val selectAllId: String,
+	val invertId: String,
+	val selectAllTitle: StringResource,
+	val invertTitle: StringResource,
+	val menuLabel: StringResource,
+)
+
+/** The by-kind pairs, in menu order. */
+internal val SELECTABLE_KIND_COMMANDS: List<SelectableKindCommands> =
+	listOf(
+		SelectableKindCommands(
+			SelectableKind.Part,
+			selectAllId = "select.all.parts",
+			invertId = "select.invert.parts",
+			selectAllTitle = Res.string.cmd_select_all_parts,
+			invertTitle = Res.string.cmd_select_invert_parts,
+			menuLabel = Res.string.menu_select_kind_parts,
+		),
+		SelectableKindCommands(
+			SelectableKind.Drawable,
+			selectAllId = "select.all.drawables",
+			invertId = "select.invert.drawables",
+			selectAllTitle = Res.string.cmd_select_all_drawables,
+			invertTitle = Res.string.cmd_select_invert_drawables,
+			menuLabel = Res.string.menu_select_kind_drawables,
+		),
+		SelectableKindCommands(
+			SelectableKind.WarpDeformer,
+			selectAllId = "select.all.warps",
+			invertId = "select.invert.warps",
+			selectAllTitle = Res.string.cmd_select_all_warps,
+			invertTitle = Res.string.cmd_select_invert_warps,
+			menuLabel = Res.string.menu_select_kind_warps,
+		),
+		SelectableKindCommands(
+			SelectableKind.RotationDeformer,
+			selectAllId = "select.all.rotations",
+			invertId = "select.invert.rotations",
+			selectAllTitle = Res.string.cmd_select_all_rotations,
+			invertTitle = Res.string.cmd_select_invert_rotations,
+			menuLabel = Res.string.menu_select_kind_rotations,
+		),
+	)
+
+/**
+ * The selection commands: the element domains of Edit and Pose mode, select all / invert and their by-kind
+ * Object-mode pairs, the Box and Circle marquee tools, and the pointer-driven Select Linked pair.
  *
  * Several of these dispatch by mode so one binding serves both - elements in Edit and Pose mode, whole
  * entities in Object mode - and the session methods no-op in the wrong mode, so the keymap binds them
@@ -37,8 +98,23 @@ internal fun selectCommands(
 	routing: CommandRouting,
 	keyformSheets: KeyformSheetViews,
 	availability: SessionAvailability,
-): List<Command> =
-	listOf(
+): List<Command> {
+	// Select All of Type and Invert Selection of Type filter the OBJECT selection, so they apply in Object mode
+	// alone.  They route to no area, so they belong everywhere, and carry no chord in any preset.
+	val selectAllOfKind =
+		SELECTABLE_KIND_COMMANDS.map { pair ->
+			Command(pair.selectAllId, title = pair.selectAllTitle, availability = availability.inObjectMode) {
+				editorSession?.selectAllObjectsOfKind(pair.kind)
+			}
+		}
+	val invertOfKind =
+		SELECTABLE_KIND_COMMANDS.map { pair ->
+			Command(pair.invertId, title = pair.invertTitle, availability = availability.inObjectMode) {
+				editorSession?.invertObjectSelectionOfKind(pair.kind)
+			}
+		}
+
+	return listOf(
 		// The element modes' select modes (Blender 1 / 2 / 3).  The session guards them to no-op in Object mode,
 		// so the keymap can bind bare digits context-free; the availability tier additionally hides them
 		// from the palette there (there is no element domain to switch).
@@ -82,6 +158,8 @@ internal fun selectCommands(
 				editorSession?.invertObjectSelection()
 			}
 		},
+		*selectAllOfKind.toTypedArray(),
+		*invertOfKind.toTypedArray(),
 		// Box (Blender B) and Circle (Blender C) select tools latch on the session; the arming surface's
 		// overlay drives the gesture (every mode in the viewport; Edit mode in the UV editor, whose
 		// overlay only composes there).  The circle grow / shrink commands (numpad +/-) apply only
@@ -133,3 +211,4 @@ internal fun selectCommands(
 			editorSession?.requestSwitchObjectUnderCursor(routing.viewportArea())
 		},
 	)
+}

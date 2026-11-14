@@ -5,9 +5,9 @@ import org.umamo.runtime.model.meshOf
 
 /*
  * Selection operations over the session: the select-mode switch of the modes that edit elements (Edit and Pose),
- * Select All and Invert over elements or objects, and the Alt+Q switch of the edited owner.  Each records one undo
- * step through the session's selection setters or commitStep; none is a document edit, so none marks the document
- * dirty.
+ * Select All and Invert over elements or objects, their by-kind object variants, and the Alt+Q switch of the edited
+ * owner.  Each records one undo step through the session's selection setters or commitStep; none is a document edit,
+ * so none marks the document dirty.
  */
 
 /**
@@ -90,6 +90,34 @@ fun EditorSession.invertObjectSelection() {
 	}
 
 	setSelection(SelectionOps.invert(selection.value, model.value))
+}
+
+/**
+ * Replaces the object selection with every selectable entity of one kind (Select All of Type) as one undo step.
+ * A no-op in a mode that edits elements.  Not a document edit.
+ *
+ * @param SelectableKind kind The kind to select.
+ */
+fun EditorSession.selectAllObjectsOfKind(kind: SelectableKind) {
+	if (mode.value.editsElements) {
+		return
+	}
+
+	setSelection(SelectionOps.selectAllOfKind(selection.value, model.value, kind))
+}
+
+/**
+ * Inverts the object selection within one kind (Invert Selection of Type) as one undo step, leaving every other
+ * kind's selected entities alone.  A no-op in a mode that edits elements.  Not a document edit.
+ *
+ * @param SelectableKind kind The kind to invert.
+ */
+fun EditorSession.invertObjectSelectionOfKind(kind: SelectableKind) {
+	if (mode.value.editsElements) {
+		return
+	}
+
+	setSelection(SelectionOps.invertKind(selection.value, model.value, kind))
 }
 
 /**

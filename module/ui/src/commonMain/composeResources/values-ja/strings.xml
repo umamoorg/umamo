@@ -101,6 +101,14 @@
 	<string name="menu_redo">やり直す</string>
 	<string name="menu_preferences">設定…</string>
 
+	<string name="menu_select">選択</string>
+	<string name="menu_select_all_of_type">種類ですべて選択</string>
+	<string name="menu_invert_selection_of_type">種類で選択を反転</string>
+	<string name="menu_select_kind_parts">パーツ</string>
+	<string name="menu_select_kind_drawables">ドローアブル</string>
+	<string name="menu_select_kind_warps">ワープデフォーマ</string>
+	<string name="menu_select_kind_rotations">回転デフォーマ</string>
+
 	<string name="menu_workspace">ワークスペース</string>
 	<string name="menu_workspace_reset">ワークスペースをリセット</string>
 	<string name="menu_workspace_export_this">このワークスペースをエクスポート…</string>
@@ -311,6 +319,14 @@
 	<string name="cmd_select_clear">選択を解除</string>
 	<string name="cmd_select_all">すべて選択</string>
 	<string name="cmd_select_invert">選択を反転</string>
+	<string name="cmd_select_all_parts">すべてのパーツを選択</string>
+	<string name="cmd_select_all_drawables">すべてのドローアブルを選択</string>
+	<string name="cmd_select_all_warps">すべてのワープデフォーマを選択</string>
+	<string name="cmd_select_all_rotations">すべての回転デフォーマを選択</string>
+	<string name="cmd_select_invert_parts">パーツの選択を反転</string>
+	<string name="cmd_select_invert_drawables">ドローアブルの選択を反転</string>
+	<string name="cmd_select_invert_warps">ワープデフォーマの選択を反転</string>
+	<string name="cmd_select_invert_rotations">回転デフォーマの選択を反転</string>
 	<string name="cmd_mode_toggle_edit">編集モード切り替え</string>
 	<string name="cmd_mode_object">オブジェクトモード</string>
 	<string name="cmd_mode_edit">編集モード</string>

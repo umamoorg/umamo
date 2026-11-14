@@ -119,6 +119,16 @@
 	<string name="menu_redo">Redo</string>
 	<string name="menu_preferences">Settings…</string>
 
+	<!-- Select menu, and the viewport context menu's Select submenu.  The kind rows sit under a submenu that already
+	  says what they do, so they read as the bare kind. -->
+	<string name="menu_select">Select</string>
+	<string name="menu_select_all_of_type">Select All of Type</string>
+	<string name="menu_invert_selection_of_type">Invert Selection of Type</string>
+	<string name="menu_select_kind_parts">Parts</string>
+	<string name="menu_select_kind_drawables">Drawables</string>
+	<string name="menu_select_kind_warps">Warp Deformers</string>
+	<string name="menu_select_kind_rotations">Rotation Deformers</string>
+
 	<!-- Workspace menu (workspace management; the tab strip covers create/duplicate/rename/reorder). -->
 	<string name="menu_workspace">Workspace</string>
 	<string name="menu_workspace_reset">Reset Workspace</string>
@@ -350,6 +360,14 @@
 	<string name="cmd_select_clear">Clear Selection</string>
 	<string name="cmd_select_all">Select All</string>
 	<string name="cmd_select_invert">Invert Selection</string>
+	<string name="cmd_select_all_parts">Select All Parts</string>
+	<string name="cmd_select_all_drawables">Select All Drawables</string>
+	<string name="cmd_select_all_warps">Select All Warp Deformers</string>
+	<string name="cmd_select_all_rotations">Select All Rotation Deformers</string>
+	<string name="cmd_select_invert_parts">Invert Part Selection</string>
+	<string name="cmd_select_invert_drawables">Invert Drawable Selection</string>
+	<string name="cmd_select_invert_warps">Invert Warp Deformer Selection</string>
+	<string name="cmd_select_invert_rotations">Invert Rotation Deformer Selection</string>
 	<string name="cmd_mode_toggle_edit">Toggle Edit Mode</string>
 	<string name="cmd_mode_object">Object Mode</string>
 	<string name="cmd_mode_edit">Edit Mode</string>
