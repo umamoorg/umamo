@@ -2,24 +2,45 @@ package org.umamo.ui.kit.menu
 
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import kotlin.math.abs
+import kotlin.math.sign
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
 /**
- * The pie's chip anchoring and center clamp: each chip touches the ring with its inner edge (Blender's
- * pie layout rule), so a full eight-entry ring of long labels overlaps neither itself nor the title,
- * and the center moves only as far as the measured pie needs.
+ * The pie's chip anchoring and center clamp: the slots run clockwise from West, each chip touches the ring
+ * with its inner edge (Blender's pie layout rule), so a full eight-entry ring of long labels overlaps
+ * neither itself nor the title, and the center moves only as far as the measured pie needs.
  */
 class PieMenuLayoutTest {
+	/**
+	 * The slots run clockwise from West, so an entry's number says where it sits: the first is West, the third
+	 * North, the fifth East, the seventh South, with a diagonal between each pair.
+	 */
+	@Test
+	fun theSlotsRunClockwiseFromWest() {
+		val centers = (0 until 8).map { slotIndex -> chipRect(slotIndex, chipWidth = 26).center }
+		// The direction of each chip's center from the pie's, as the sign of x and of y (screen space, y down); a
+		// coordinate within a pixel of the center's is on the axis.
+		val side = { coordinate: Float -> if (abs(coordinate) < 1f) 0 else sign(coordinate).toInt() }
+		val directions = centers.map { center -> side(center.x) to side(center.y) }
+
+		assertEquals(
+			listOf(-1 to 0, -1 to -1, 0 to -1, 1 to -1, 1 to 0, 1 to 1, 0 to 1, -1 to 1),
+			directions,
+			"W, NW, N, NE, E, SE, S, SW",
+		)
+	}
+
 	@Test
 	fun eachChipTouchesTheRingWithItsInnerEdge() {
 		val west = chipRect(slotIndex = 0, chipWidth = 200)
-		val east = chipRect(slotIndex = 1, chipWidth = 200)
-		val south = chipRect(slotIndex = 2, chipWidth = 200)
-		val north = chipRect(slotIndex = 3, chipWidth = 200)
-		val northWest = chipRect(slotIndex = 4, chipWidth = 200)
-		val southEast = chipRect(slotIndex = 7, chipWidth = 200)
+		val northWest = chipRect(slotIndex = 1, chipWidth = 200)
+		val north = chipRect(slotIndex = 2, chipWidth = 200)
+		val east = chipRect(slotIndex = 4, chipWidth = 200)
+		val southEast = chipRect(slotIndex = 5, chipWidth = 200)
+		val south = chipRect(slotIndex = 6, chipWidth = 200)
 		val diagonalReach = RING_RADIUS * 0.70710677f
 
 		assertEquals(-RING_RADIUS, west.right, TOLERANCE, "West ends at its ring point")
@@ -35,8 +56,37 @@ class PieMenuLayoutTest {
 
 	@Test
 	fun aFullRingOfLongLabelsOverlapsNeitherItselfNorTheTitle() {
-		// Chip widths in the range the snap pie's English labels measure, the widest on a diagonal.
-		val chipWidths = intArrayOf(200, 180, 170, 160, 170, 190, 280, 180)
+		// Chip widths in the range the snap pie's English labels measure, in its order: the widest is its seventh.
+		assertNoOverlap(intArrayOf(200, 180, 170, 160, 170, 190, 280, 180))
+	}
+
+	/**
+	 * Which label lands in which slot is the command table's to say, so the widest chip can sit anywhere: whichever
+	 * slot holds it, the ring still overlaps neither itself nor the title.
+	 */
+	@Test
+	fun theWidestChipCanSitInAnySlot() {
+		for (widestSlot in 0 until 8) {
+			assertNoOverlap(IntArray(8) { slotIndex -> if (slotIndex == widestSlot) 320 else 180 })
+		}
+	}
+
+	/**
+	 * A pie with few choices fills the first slots from West and leaves the rest of the ring open, and its chips
+	 * still keep clear of each other and the title.
+	 */
+	@Test
+	fun aPieWithFewChoicesKeepsItsChipsApart() {
+		assertNoOverlap(intArrayOf(280, 280, 280))
+		assertNoOverlap(intArrayOf(280, 280, 280, 280))
+	}
+
+	/**
+	 * Asserts that a ring of chips of these widths, one per slot from the first, overlaps neither itself nor the title.
+	 *
+	 * @param IntArray chipWidths Each slot's chip width in pixels.
+	 */
+	private fun assertNoOverlap(chipWidths: IntArray) {
 		val chipRects = chipWidths.mapIndexed { slotIndex, chipWidth -> chipRect(slotIndex, chipWidth) }
 
 		for (firstSlot in chipRects.indices) {

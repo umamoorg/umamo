@@ -36,9 +36,9 @@ class ViewportPieMenusTest {
 	private fun registryOver(session: EditorSession): CommandRegistry = CommandRegistry().apply { everyCommandTable(session).forEach { command -> register(command) } }
 
 	/**
-	 * The ring each pie draws, slot by slot (W, E, S, N, then the diagonals).  The order is the order the pie's table
-	 * registers its family in, and it is what the hand and the 1-8 digit picks know - so a table edit that moves a
-	 * slot should be a deliberate edit to these lists.
+	 * The ring each pie draws, slot by slot, clockwise from West.  The order is the family's, as its table
+	 * registers it, and it is what the hand and the 1-8 digit picks know - so a table edit that moves a slot
+	 * should be a deliberate edit to these lists.
 	 */
 	@Test
 	fun eachPieOffersItsChoicesInSlotOrder() {

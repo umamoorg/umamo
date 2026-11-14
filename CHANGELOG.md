@@ -14,6 +14,7 @@ Umamo is early alpha.
 
 ### Changed
 * UI: Menu bar entries and command buttons are now grayed out exactly when their command is unavailable, such as Import -> Artwork with a MOC3 open.
+* UI: Pie menus now place their choices clockwise from West in numerical order.  This is so that the numberic input choice stays in the same place on every pie menu to build up visual memory.
 * UI: The Snap pie and the 2D Viewport context menu's Snap submenu now list the snaps in the same order as the header's Snap menu.
 * UI: Undo and Redo are no longer listed in the command palette while there is nothing to undo or redo.
 * UI: Rename Workspace, Duplicate Workspace, and Delete Workspace are now in the Command Registry.
