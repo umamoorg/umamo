@@ -10,6 +10,7 @@ import org.umamo.edit.UvSnapRequest
 import org.umamo.edit.atlas.placementSelectedTileIds
 import org.umamo.edit.atlas.setAtlasPins
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandHint
 import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandTable
@@ -100,11 +101,26 @@ internal fun uvCommands(
 		CommandTable.Uv,
 		// Mirror UVs (the duplicated-and-flipped texture regions workflow, e.g. both eyes sampling one
 		// eye texture): axis-aligned reflections about the transform pivot, palette-discoverable and
-		// unbound by default - an interactive flip is already S + axis + drag through the pivot.
-		Command("uv.mirrorU", title = Res.string.cmd_uv_mirror_u, availability = availability.inEditMode, spaces = SpaceScope.UvEditor) {
+		// unbound by default - an interactive flip is already S + axis + drag through the pivot.  The pair is a
+		// family the UV editor's context menu lists, each under its axis.
+		Command(
+			"uv.mirrorU",
+			title = Res.string.cmd_uv_mirror_u,
+			availability = availability.inEditMode,
+			spaces = SpaceScope.UvEditor,
+			group = CommandFamily.UvMirror,
+			groupLabel = Res.string.menu_uv_mirror_x,
+		) {
 			requestUvMirror(mirrorU = true)
 		},
-		Command("uv.mirrorV", title = Res.string.cmd_uv_mirror_v, availability = availability.inEditMode, spaces = SpaceScope.UvEditor) {
+		Command(
+			"uv.mirrorV",
+			title = Res.string.cmd_uv_mirror_v,
+			availability = availability.inEditMode,
+			spaces = SpaceScope.UvEditor,
+			group = CommandFamily.UvMirror,
+			groupLabel = Res.string.menu_uv_mirror_y,
+		) {
 			requestUvMirror(mirrorU = false)
 		},
 		Command(

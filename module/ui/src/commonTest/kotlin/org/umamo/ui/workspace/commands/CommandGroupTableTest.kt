@@ -16,6 +16,8 @@ import org.umamo.ui.resources.menu_select_kind_drawables
 import org.umamo.ui.resources.menu_select_kind_parts
 import org.umamo.ui.resources.menu_select_kind_rotations
 import org.umamo.ui.resources.menu_select_kind_warps
+import org.umamo.ui.resources.menu_uv_mirror_x
+import org.umamo.ui.resources.menu_uv_mirror_y
 import org.umamo.ui.viewport.falloffLabelResource
 import org.umamo.ui.workspace.AreaOverlayHub
 import kotlin.test.Test
@@ -194,6 +196,23 @@ class CommandGroupTableTest {
 		assertEquals(kindLabels, selectAll.map { command -> command.rowLabel })
 		assertEquals(kindLabels, invert.map { command -> command.rowLabel })
 		assertTrue(selectAll.all { command -> command.title != command.rowLabel }, "the palette title still names what the command does")
+	}
+
+	/**
+	 * The two pairs a context menu lists inline.  The mirrors go by their axis, which the UV editor's menu shows; the
+	 * key pair goes by its titles, since a keyable row's menu has no heading over it to say what is keyed.
+	 */
+	@Test
+	fun theMirrorAndKeyPairsListTheirTwoCommandsUnderTheLabelsTheirMenusShow() {
+		val registry = registryOverEveryTable()
+		val mirrors = registry.inGroup(CommandFamily.UvMirror)
+		val keys = registry.inGroup(CommandFamily.KeyformKey)
+
+		assertEquals(listOf("uv.mirrorU", "uv.mirrorV"), mirrors.map { command -> command.id })
+		assertEquals(listOf(Res.string.menu_uv_mirror_x, Res.string.menu_uv_mirror_y), mirrors.map { command -> command.rowLabel })
+		assertTrue(mirrors.all { command -> command.title != command.rowLabel }, "the palette title still says which UVs and which way")
+		assertEquals(listOf("keyform.insert", "keyform.delete"), keys.map { command -> command.id })
+		assertEquals(keys.map { command -> command.title }, keys.map { command -> command.rowLabel })
 	}
 
 	/** A family's members are in their table too, which is a separate fact from the family: neither implies the other. */

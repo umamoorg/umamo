@@ -19,7 +19,8 @@ import kotlin.test.assertTrue
 
 /**
  * How a command family becomes a menu, over commands made up for each case: a family's sections are its blocks, a
- * family inside it is a submenu, and each row is built from its command alone.
+ * family inside it is a submenu, and each row is built from its command alone.  An arranged menu, which names
+ * commands and families row by row, is built the same way.
  */
 class CommandMenuTest {
 	/**
@@ -219,5 +220,149 @@ class CommandMenuTest {
 		}
 
 		assertNull(registry["test.bare"]?.group)
+	}
+
+	/**
+	 * A command that is in no family, under [title].
+	 *
+	 * @param String id The command's id.
+	 * @param StringResource title The command's title.
+	 * @param Boolean available Whether the command applies.
+	 * @return Command The command.
+	 */
+	private fun titled(
+		id: String,
+		title: StringResource,
+		available: Boolean = true,
+	): Command = Command(id, title = title, availability = CommandAvailability { available }, handler = {})
+
+	/**
+	 * An arranged row for one command goes by the command's title, and a group listed inline by each member's label
+	 * in its family: the same command reads differently in the two places.
+	 */
+	@Test
+	fun anArrangedRowGoesByTheTitleAndAnInlineMemberByItsLabel() {
+		val member = Command("test.member", title = Res.string.menu_file_open, group = CommandSection.HelpLinks, groupLabel = Res.string.menu_file_new, handler = {})
+		val registry = registryOf(member)
+
+		assertEquals(listOf("Open…"), menuOutline(commandMenuOf(listOf(CommandMenuRow.Single("test.member")), registry)))
+		assertEquals(listOf("New"), menuOutline(commandMenuOf(listOf(CommandMenuRow.Members(CommandSection.HelpLinks)), registry)))
+	}
+
+	/** A row whose command is not registered is left out, and so is the rule it would have stood beside. */
+	@Test
+	fun aRowWithNoCommandIsLeftOutWithTheRuleItStranded() {
+		val registry = registryOf(titled("test.first", Res.string.menu_file_new), titled("test.last", Res.string.menu_exit))
+		val rows =
+			listOf(
+				CommandMenuRow.Separator,
+				CommandMenuRow.Single("test.first"),
+				CommandMenuRow.Separator,
+				CommandMenuRow.Single("test.missing"),
+				CommandMenuRow.Separator,
+				CommandMenuRow.Single("test.last"),
+				CommandMenuRow.Separator,
+			)
+
+		assertEquals(listOf("New", "---", "Exit"), menuOutline(commandMenuOf(rows, registry)))
+		assertEquals(emptyList(), commandMenuOf(rows, CommandRegistry()), "with nothing registered there is no row and no rule")
+	}
+
+	/**
+	 * A family row is the family's whole menu as a submenu, rules and all, under the family's heading - or under the
+	 * title of the command that opens it as a pie, without which the row is left out.
+	 */
+	@Test
+	fun aFamilyRowIsTheFamilysMenuUnderItsHeadingOrItsOpenersTitle() {
+		val registry =
+			registryOf(
+				rowOf("test.selection", CommandSection.SnapSelection, Res.string.menu_file_save),
+				rowOf("test.cursor", CommandSection.SnapCursor, Res.string.menu_file_new),
+				titled("test.opener", Res.string.menu_file_open),
+			)
+
+		assertEquals(
+			listOf("Snap >", "  New", "  ---", "  Save"),
+			menuOutline(commandMenuOf(listOf(CommandMenuRow.Family(CommandFamily.Snap)), registry)),
+			"the cursor's block, a rule, then the selection's",
+		)
+		assertEquals(
+			listOf("Open… >", "  New", "  ---", "  Save"),
+			menuOutline(commandMenuOf(listOf(CommandMenuRow.Family(CommandFamily.Snap, openerId = "test.opener")), registry)),
+		)
+		assertEquals(emptyList(), commandMenuOf(listOf(CommandMenuRow.Family(CommandFamily.Snap, openerId = "test.missing")), registry), "no opener, no row")
+		assertEquals(emptyList(), commandMenuOf(listOf(CommandMenuRow.Family(CommandFamily.UvSnap)), registry), "a family with nothing registered has no submenu")
+	}
+
+	/** A family listed inline is its whole menu in place, with its own rules. */
+	@Test
+	fun aFamilyListedInlineIsItsWholeMenuInPlace() {
+		val registry =
+			registryOf(
+				rowOf("test.selection", CommandSection.SnapSelection, Res.string.menu_file_save),
+				rowOf("test.cursor", CommandSection.SnapCursor, Res.string.menu_file_new),
+				titled("test.after", Res.string.menu_exit),
+			)
+		val rows = listOf(CommandMenuRow.Members(CommandFamily.Snap), CommandMenuRow.Separator, CommandMenuRow.Single("test.after"))
+
+		assertEquals(listOf("New", "---", "Save", "---", "Exit"), menuOutline(commandMenuOf(rows, registry)))
+	}
+
+	/** A named submenu holds its rows, grays when none of them can be picked, and is left out when none is there. */
+	@Test
+	fun aNamedSubmenuGraysWithItsRowsAndIsLeftOutWithNone() {
+		val rows = listOf(CommandMenuRow.Submenu(Res.string.menu_open_recent, listOf(CommandMenuRow.Single("test.first"), CommandMenuRow.Separator, CommandMenuRow.Single("test.second"))))
+
+		assertEquals(
+			listOf("Open Recent >", "  New", "  ---", "  Save (off)"),
+			menuOutline(commandMenuOf(rows, registryOf(titled("test.first", Res.string.menu_file_new), titled("test.second", Res.string.menu_file_save, available = false)))),
+		)
+		assertEquals(
+			listOf("Open Recent > (off)", "  New (off)"),
+			menuOutline(commandMenuOf(rows, registryOf(titled("test.first", Res.string.menu_file_new, available = false)))),
+			"the one row that is there cannot be picked, and its rule went with the row that is not",
+		)
+		assertEquals(emptyList(), commandMenuOf(rows, CommandRegistry()))
+	}
+
+	/**
+	 * A row's grayed state is read each time the menu opens, with nothing recomposed in between: a surface stays
+	 * composed while what its commands read changes under it.
+	 */
+	@Test
+	fun anArrangedRowIsGrayedAsItIsWhenTheMenuOpens() {
+		var applies = false
+		val gated = Command("test.gated", title = Res.string.menu_file_save, availability = CommandAvailability { applies }, handler = {})
+		val menu = commandMenuBuilderOf(listOf(CommandMenuRow.Single("test.gated")), registryOf(gated))
+
+		assertEquals(listOf("Save (off)"), menuOutline(menu()))
+
+		applies = true
+
+		assertEquals(listOf("Save"), menuOutline(menu()))
+	}
+
+	/**
+	 * A site that has to set something up for its command to read wraps the dispatch: the wrapper runs around the
+	 * command, once, and the row is otherwise the command's own.
+	 */
+	@Test
+	fun aRowsDispatchCanBeBracketed() {
+		val order = ArrayList<String>()
+		val command = Command("file.save", title = Res.string.menu_file_save, handler = { order.add("run") })
+		val registry = registryOf(command)
+		val keymap = defaultKeymap()
+		val row =
+			commandMenuItem(command, "Save", registry, keymap) { dispatch ->
+				order.add("before")
+				dispatch()
+				order.add("after")
+			} as MenuItem.Action
+
+		assertEquals(keymap.chordFor("file.save")?.let { chord -> formatAccelerator(chord) }, row.shortcut)
+
+		row.onSelect()
+
+		assertEquals(listOf("before", "run", "after"), order)
 	}
 }

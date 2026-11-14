@@ -142,11 +142,17 @@ enum class CommandFamily(val heading: StringResource, private val parentOf: () -
 	/** The UV editor's texture-space snaps: the selection's, then the cursor's. */
 	UvSnap(Res.string.pie_title_uv_snap),
 
+	/** The UV editor's mirrors, one member per axis. */
+	UvMirror(Res.string.group_uv_mirror),
+
 	/** Where a merge collapses the selected vertices to. */
 	MergeTarget(Res.string.pie_title_merge),
 
 	/** Which of the posed warps' tracks an insert keys. */
 	InsertKey(Res.string.pie_title_insert_key),
+
+	/** Inserting and deleting the key under the pointer: the pair every keyable row and lane offers. */
+	KeyformKey(Res.string.group_keyform_key),
 
 	/** The element select modes, one member per mesh domain. */
 	SelectMode(Res.string.status_select_mode),
