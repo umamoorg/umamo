@@ -45,6 +45,9 @@
 	<string name="cmd_workspace_prev">前のワークスペース</string>
 	<string name="cmd_workspace_next">次のワークスペース</string>
 	<string name="cmd_workspace_reset">ワークスペースをリセット</string>
+	<string name="cmd_workspace_rename">ワークスペース名を変更</string>
+	<string name="cmd_workspace_duplicate">ワークスペースを複製</string>
+	<string name="cmd_workspace_delete">ワークスペースを削除</string>
 
 	<string name="space_viewport2d">2D ビューポート</string>
 	<string name="space_uv">UV エディター</string>

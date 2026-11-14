@@ -37,8 +37,11 @@ sealed interface CommandMenuRow {
 	 * ("Mirror X") or under the family's heading.
 	 *
 	 * @property CommandListing group The family or the section.
+	 * @property Any? argument What every row runs its command with, for a menu opened on one thing among several
+	 *   (a workspace's tab), or null to run each with none.  A row run with an argument shows no accelerator: the
+	 *   chord runs the command with none, which may not be the same thing.
 	 */
-	data class Members(val group: CommandListing) : CommandMenuRow
+	data class Members(val group: CommandListing, val argument: Any? = null) : CommandMenuRow
 
 	/**
 	 * A family as a submenu: its whole menu, under its heading.  Left out while none of its commands is registered.
@@ -68,8 +71,9 @@ private sealed interface ResolvedRow {
 	 *
 	 * @property Command command The command the row stands for.
 	 * @property String label The resolved label.
+	 * @property Any? argument What the row runs the command with, or null for none.
 	 */
-	data class Of(val command: Command, val label: String) : ResolvedRow
+	data class Of(val command: Command, val label: String, val argument: Any? = null) : ResolvedRow
 
 	/**
 	 * A family as a submenu.
@@ -149,9 +153,16 @@ private fun arrangedRow(row: CommandMenuRow, commands: CommandRegistry): List<Re
 		}
 
 		is CommandMenuRow.Members -> {
-			when (val group = row.group) {
-				is CommandFamily -> familyRows(group, commands)
-				is CommandSection -> listingRows(group, commands)
+			val members =
+				when (val group = row.group) {
+					is CommandFamily -> familyRows(group, commands)
+					is CommandSection -> listingRows(group, commands)
+				}
+
+			if (row.argument == null) {
+				members
+			} else {
+				runWith(row.argument, members)
 			}
 		}
 
@@ -183,6 +194,22 @@ private fun arrangedRow(row: CommandMenuRow, commands: CommandRegistry): List<Re
 
 		CommandMenuRow.Separator -> {
 			listOf(ResolvedRow.Rule)
+		}
+	}
+
+/**
+ * [rows] with every command row, at any depth, set to run its command with [argument].
+ *
+ * @param Any argument The argument.
+ * @param List<ResolvedRow> rows The rows.
+ * @return List<ResolvedRow> The rows, each command row carrying the argument.
+ */
+private fun runWith(argument: Any, rows: List<ResolvedRow>): List<ResolvedRow> =
+	rows.map { row ->
+		when (row) {
+			is ResolvedRow.Of -> row.copy(argument = argument)
+			is ResolvedRow.Submenu -> row.copy(rows = runWith(argument, row.rows))
+			ResolvedRow.Rule -> row
 		}
 	}
 
@@ -308,7 +335,7 @@ private fun menuItemOf(
 ): MenuItem =
 	when (row) {
 		is ResolvedRow.Of -> {
-			commandMenuItem(row.command, row.label, commands, keymap)
+			commandMenuItem(row.command, row.label, commands, keymap, row.argument)
 		}
 
 		is ResolvedRow.Submenu -> {
@@ -328,12 +355,13 @@ private fun menuItemOf(
  *
  * A command offered with a list of arguments is a submenu of them, a row apiece under the argument's own label, and
  * cannot open while the list is empty.  Any other command is one row, with its glyph and whatever chord the keymap
- * binds to it.
+ * binds to it - unless the row runs it with an argument, since the chord runs it with none.
  *
  * @param Command command The command the entry stands for.
  * @param String label The entry's label, already resolved.
  * @param CommandRegistry commands The registry the entry dispatches through.
  * @param Keymap keymap The keymap the accelerator is read from.
+ * @param Any? argument What the entry runs the command with, or null for none.
  * @param Function around Runs the dispatch it is handed, for a site that has to set something up for the command to
  *   read and clear it after: a menu owns the pointer by the time a row is picked, so a command that reads what the
  *   pointer was over needs that published again around its run.
@@ -344,6 +372,7 @@ internal fun commandMenuItem(
 	label: String,
 	commands: CommandRegistry,
 	keymap: Keymap,
+	argument: Any? = null,
 	around: (dispatch: () -> Unit) -> Unit = { dispatch -> dispatch() },
 ): MenuItem {
 	val available = command.availability.isAvailable()
@@ -357,8 +386,8 @@ internal fun commandMenuItem(
 
 	return MenuItem.Action(
 		label = label,
-		onSelect = { around { commands.invoke(command.id) } },
-		shortcut = keymap.chordFor(command.id)?.let { chord -> formatAccelerator(chord) },
+		onSelect = { around { commands.invoke(command.id, argument) } },
+		shortcut = if (argument == null) keymap.chordFor(command.id)?.let { chord -> formatAccelerator(chord) } else null,
 		enabled = available,
 		icon = command.icon,
 	)

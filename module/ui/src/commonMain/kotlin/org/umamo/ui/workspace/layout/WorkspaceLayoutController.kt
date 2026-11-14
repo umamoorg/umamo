@@ -7,7 +7,7 @@ import org.umamo.ui.workspace.SpaceKind
 
 /**
  * Owns the shell's workspace layout state and every operation that rewrites it: the area-tree
- * structural edits, the workspace CRUD behind the tab strip and its context menu, and the import
+ * structural edits, the workspace CRUD behind the workspace commands and the tab strip, and the import
  * paths.  Each write publishes the new layout through [onLayoutChange] (the persistence hook), and a
  * write that disposes or re-homes the focused area subtree also bumps [structuralEditCount], which
  * the shell's focus-reclaim effect watches - a join/split (or a workspace switch/delete invoked from
@@ -25,6 +25,13 @@ internal class WorkspaceLayoutController(
 
 	/** Bumped on every focus-hazardous edit; the shell's refocus effect keys on it. */
 	var structuralEditCount: Int by mutableStateOf(0)
+		private set
+
+	/**
+	 * The workspace whose tab is being renamed in place, or null while none is.  Held here, beside the layout, so the
+	 * rename command can open the editor from a key press or a menu as well as the tab strip can from a double-click.
+	 */
+	var renamingWorkspaceId: String? by mutableStateOf(null)
 		private set
 
 	/**
@@ -119,11 +126,16 @@ internal class WorkspaceLayoutController(
 	}
 
 	/**
-	 * Removes [targetId] (refused when it is the last workspace) and republishes the layout.
+	 * Removes [targetId] (refused when it is the last workspace) and republishes the layout.  A rename in progress
+	 * on that tab ends with it.
 	 *
 	 * @param String targetId The workspace to remove.
 	 */
 	fun delete(targetId: String) {
+		if (renamingWorkspaceId == targetId) {
+			renamingWorkspaceId = null
+		}
+
 		publish(layout.withWorkspaceRemoved(targetId), structural = true)
 	}
 
@@ -138,12 +150,29 @@ internal class WorkspaceLayoutController(
 	}
 
 	/**
-	 * Sets the display name of [workspaceId] from an inline rename and republishes the layout.
+	 * Opens the in-place rename editor on [workspaceId]'s tab.  Nothing is renamed until the editor commits.
+	 *
+	 * @param String workspaceId The workspace to rename; one the layout does not hold is ignored.
+	 */
+	fun beginRename(workspaceId: String) {
+		if (layout.workspaces.any { workspace -> workspace.id == workspaceId }) {
+			renamingWorkspaceId = workspaceId
+		}
+	}
+
+	/** Closes the in-place rename editor without renaming, as Escape or a blank name does. */
+	fun cancelRename() {
+		renamingWorkspaceId = null
+	}
+
+	/**
+	 * Sets the display name of [workspaceId] from an inline rename, closes the editor, and republishes the layout.
 	 *
 	 * @param String workspaceId The workspace to rename.
 	 * @param String newName The new display name.
 	 */
 	fun rename(workspaceId: String, newName: String) {
+		renamingWorkspaceId = null
 		publish(layout.withWorkspaceRenamed(workspaceId, newName), structural = false)
 	}
 
@@ -183,6 +212,7 @@ internal class WorkspaceLayoutController(
 	 * @param InterfaceLayout imported The parsed layout to apply.
 	 */
 	fun applyImported(imported: InterfaceLayout) {
+		renamingWorkspaceId = null
 		publish(imported, structural = true)
 	}
 }

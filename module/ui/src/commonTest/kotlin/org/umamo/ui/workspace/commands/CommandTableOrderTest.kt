@@ -85,11 +85,14 @@ class CommandTableOrderTest {
 	/** The workspace-management and document-report tables, in the order the shell concatenates them. */
 	@Test
 	fun workspaceAndDocumentTablesAreComplete() {
-		val commands = workspaceCommands(workspaces(), overlays()) { "Workspace" } + documentCommands(overlays())
+		val commands = workspaceCommands(workspaces(), overlays()) { fixtureWorkspaceNames() } + documentCommands(overlays())
 		assertEquals(
 			listOf(
 				"workspace.new",
 				"workspace.reset",
+				"workspace.rename",
+				"workspace.duplicate",
+				"workspace.delete",
 				"workspace.applyLayout",
 				"workspace.appendWorkspace",
 				"document.openFailed",

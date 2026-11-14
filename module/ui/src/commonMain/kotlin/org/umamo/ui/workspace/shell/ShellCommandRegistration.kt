@@ -114,7 +114,7 @@ internal fun RegisterShellCommands(
 	DisposableEffect(commandRegistry) {
 		val cleanup =
 			commandRegistry.registerAll(
-				workspaceCommands(workspaces, overlays) { controllers.newWorkspaceBaseName } + documentCommands(overlays),
+				workspaceCommands(workspaces, overlays) { controllers.workspaceNames } + documentCommands(overlays),
 			)
 		onDispose { cleanup() }
 	}
