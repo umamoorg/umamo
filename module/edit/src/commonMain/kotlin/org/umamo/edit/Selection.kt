@@ -2,6 +2,7 @@ package org.umamo.edit
 
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
+import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.OrgChild
@@ -25,6 +26,24 @@ sealed interface SelectionTarget {
 
 	/** A warp or rotation deformer. */
 	data class Deformer(val id: DeformerId) : SelectionTarget
+}
+
+/**
+ * The kinds of object a by-kind Select All or Invert filters to.  Finer than [SelectionTarget], whose one
+ * deformer case cannot tell a warp from a rotation without the model.
+ */
+enum class SelectableKind {
+	/** An organizational tree part. */
+	Part,
+
+	/** A textured drawable mesh. */
+	Drawable,
+
+	/** A warp deformer. */
+	WarpDeformer,
+
+	/** A rotation deformer. */
+	RotationDeformer,
 }
 
 /**
@@ -169,29 +188,37 @@ object SelectionOps {
 	/**
 	 * Every selectable entity in the model as a target set, in parts-then-deformers-then-drawables order.
 	 * A locked entity (isSelectable == false) is excluded, matching the pointer picker.  The full set
-	 * [selectAll] fills and [invert] complements against.
+	 * [selectAll] fills and [invert] complements against, or with a [kind], the set the by-kind pair works over.
 	 *
 	 * @param PuppetModel model The rig to enumerate.
-	 * @return Set<SelectionTarget> Every selectable target.
+	 * @param SelectableKind? kind The one kind to enumerate, or null for every kind.
+	 * @return Set<SelectionTarget> Every selectable target of [kind].
 	 */
-	private fun allSelectableTargets(model: PuppetModel): Set<SelectionTarget> {
+	private fun allSelectableTargets(
+		model: PuppetModel,
+		kind: SelectableKind? = null,
+	): Set<SelectionTarget> {
 		val targets = LinkedHashSet<SelectionTarget>()
 
-		for (part in model.parts) {
-			if (part.isSelectable) {
-				targets.add(SelectionTarget.Part(part.id))
+		if (kind == null || kind == SelectableKind.Part) {
+			for (part in model.parts) {
+				if (part.isSelectable) {
+					targets.add(SelectionTarget.Part(part.id))
+				}
 			}
 		}
 
 		for (deformer in model.deformers) {
-			if (deformer.isSelectable) {
+			if (deformer.isSelectable && (kind == null || deformer.selectableKind == kind)) {
 				targets.add(SelectionTarget.Deformer(deformer.id))
 			}
 		}
 
-		for (drawable in model.drawables) {
-			if (drawable.isSelectable) {
-				targets.add(SelectionTarget.Drawable(drawable.id))
+		if (kind == null || kind == SelectableKind.Drawable) {
+			for (drawable in model.drawables) {
+				if (drawable.isSelectable) {
+					targets.add(SelectionTarget.Drawable(drawable.id))
+				}
 			}
 		}
 
@@ -224,6 +251,50 @@ object SelectionOps {
 	 */
 	fun invert(selection: Selection, model: PuppetModel): Selection {
 		val inverted = allSelectableTargets(model) - selection.targets
+
+		return Selection(inverted, selection.active?.takeIf { target -> target in inverted })
+	}
+
+	/**
+	 * Replaces the selection with every selectable entity of one kind (Select All of Type).  Keeps the current
+	 * active target when it is of that kind; otherwise the last enumerated target becomes active.
+	 *
+	 * @param Selection selection The current selection (its active target is preserved when possible).
+	 * @param PuppetModel model The rig whose entities to select.
+	 * @param SelectableKind kind The kind to select.
+	 * @return Selection The selection holding every selectable target of [kind].
+	 */
+	fun selectAllOfKind(
+		selection: Selection,
+		model: PuppetModel,
+		kind: SelectableKind,
+	): Selection {
+		val ofKind = allSelectableTargets(model, kind)
+		val active = selection.active?.takeIf { target -> target in ofKind } ?: ofKind.lastOrNull()
+
+		return Selection(ofKind, active)
+	}
+
+	/**
+	 * Inverts the selection within one kind (Invert Selection of Type): what [invert] does, applied to that kind's
+	 * targets alone, so every selected target of another kind stays selected.  The active target is kept only when
+	 * it survives.
+	 *
+	 * @param Selection selection The selection to invert.
+	 * @param PuppetModel model The rig whose entities define the domain.
+	 * @param SelectableKind kind The kind to invert.
+	 * @return Selection The selection with [kind]'s targets inverted.
+	 */
+	fun invertKind(
+		selection: Selection,
+		model: PuppetModel,
+		kind: SelectableKind,
+	): Selection {
+		val ofKind = allSelectableTargets(model, kind)
+		// Every selected target of the kind drops, a locked one included, as invert drops it; a target whose
+		// deformer no longer resolves has no kind and is left as it is.
+		val otherKinds = selection.targets.filterTo(LinkedHashSet()) { target -> model.selectableKindOf(target) != kind }
+		val inverted = otherKinds + (ofKind - selection.targets)
 
 		return Selection(inverted, selection.active?.takeIf { target -> target in inverted })
 	}
@@ -263,6 +334,27 @@ fun PuppetModel.hasTarget(target: SelectionTarget): Boolean =
 		is SelectionTarget.Part -> parts.any { part -> part.id == target.id }
 		is SelectionTarget.Drawable -> drawables.any { drawable -> drawable.id == target.id }
 		is SelectionTarget.Deformer -> deformers.any { deformer -> deformer.id == target.id }
+	}
+
+/** The kind this deformer counts as for a by-kind selection. */
+private val Deformer.selectableKind: SelectableKind
+	get() =
+		when (this) {
+			is Deformer.Warp -> SelectableKind.WarpDeformer
+			is Deformer.Rotation -> SelectableKind.RotationDeformer
+		}
+
+/**
+ * The kind [target] counts as for a by-kind selection.
+ *
+ * @param SelectionTarget target The target to classify.
+ * @return SelectableKind? The kind, or null for a deformer this model no longer has.
+ */
+private fun PuppetModel.selectableKindOf(target: SelectionTarget): SelectableKind? =
+	when (target) {
+		is SelectionTarget.Part -> SelectableKind.Part
+		is SelectionTarget.Drawable -> SelectableKind.Drawable
+		is SelectionTarget.Deformer -> deformerById[target.id]?.selectableKind
 	}
 
 /**

@@ -147,10 +147,6 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 ## Keymap
 * Keymappings will need to become area contextual.  For example: P is pin in the UV editor area.  Once the Separate operation(Into multiple drawables) exist, if we want to match Blender's P shortcut for that then it has to become contextual per area.
 
-## Selection
-* Select All of Type
-* Invert Selection of Type
-
 ## Format
 
 ### File
