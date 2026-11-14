@@ -23,6 +23,7 @@ class UmamoRuleSetProviderTest {
 				"umamo:no-command-table-export",
 				"umamo:no-comment-emphasis",
 				"umamo:no-fully-qualified-name",
+				"umamo:no-hand-built-command-row",
 				"umamo:no-main-dispatcher",
 				"umamo:no-plan-citation",
 				"umamo:no-print-and-return-gate",
