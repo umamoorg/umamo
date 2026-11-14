@@ -187,6 +187,27 @@ class CommandRegistryTest {
 		assertEquals(Res.string.menu_select_kind_parts, labeled.rowLabel)
 	}
 
+	/**
+	 * A command is in effect only while its state says so, read fresh at each query, and a command with no state is
+	 * never the current one.  Like spaces and availability's palette half, the state never gates dispatch.
+	 */
+	@Test
+	fun aCommandIsInEffectOnlyWhileItsStateSaysSo() {
+		val registry = CommandRegistry()
+		var current = false
+		var runCount = 0
+		val stateful = Command("test.state", title = null, state = CommandState { current }, handler = { runCount++ })
+		registry.register(stateful)
+
+		assertFalse(stateful.isOn())
+		assertTrue(registry.invoke("test.state"), "a command that is not the current one still runs")
+		assertEquals(1, runCount)
+
+		current = true
+		assertTrue(stateful.isOn(), "the state is read live")
+		assertFalse(Command("test.stateless", title = null, handler = {}).isOn())
+	}
+
 	/** A group is within itself and everything it sits inside, and its table is where that chain ends. */
 	@Test
 	fun aGroupIsWithinItsAncestors() {

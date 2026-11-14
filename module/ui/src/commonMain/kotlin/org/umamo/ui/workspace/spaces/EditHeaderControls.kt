@@ -9,22 +9,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
-import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
 import org.umamo.edit.MAX_PROPORTIONAL_RADIUS_WORLD
 import org.umamo.edit.MIN_PROPORTIONAL_RADIUS_WORLD
-import org.umamo.edit.MeshSelectMode
-import org.umamo.edit.ProportionalFalloff
-import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.editsElements
-import org.umamo.edit.transform.choiceKey
+import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandFamily
+import org.umamo.ui.action.CommandRegistry
+import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.kit.BelowAnchorPositionProvider
 import org.umamo.ui.kit.StackAxis
@@ -45,8 +45,6 @@ import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
-import org.umamo.ui.theme.UmamoIcon
-import org.umamo.ui.viewport.falloffLabel
 import org.umamo.ui.workspace.commands.ProportionalConnectedRequest
 
 /*
@@ -56,6 +54,10 @@ import org.umamo.ui.workspace.commands.ProportionalConnectedRequest
  * mutates by dispatching registry commands, per the everything-through-the-action-registry rule; the
  * one exception is the proportional panel's size row, a value no command carries, which each header
  * routes to its own surface's radius.
+ *
+ * A control that offers a set of commands lists their family from the registry, so the family's table is what
+ * decides its members, their order, their labels and glyphs, and which of them is current: nothing here names a
+ * command of a family, and the pies and menus listing the same family cannot come to disagree with these.
  */
 
 /** The opacity of the proportional panel while the tool is off: Blender's inactive look, still live. */
@@ -71,8 +73,8 @@ private val PROPORTIONAL_PANEL_GROUP_GAP = 6.dp
 private const val PROPORTIONAL_SIZE_DECIMALS = 2
 
 /**
- * The vertex / edge / face select-mode buttons: a three-segment radio ButtonGroup whose lit segment is
- * the selection's current mode, shown only in the modes [shownIn] accepts.
+ * The vertex / edge / face select-mode buttons: the select-mode family as a radio ButtonGroup whose lit segment
+ * is the selection's current mode, shown only in the modes [shownIn] accepts.
  *
  * @param Function shownIn Whether a mode shows the buttons: the modes that edit elements by default; a surface that
  *   edits in fewer passes its own.
@@ -88,62 +90,33 @@ internal fun MeshSelectModeButtons(shownIn: (EditorMode) -> Boolean = { mode -> 
 		return
 	}
 
-	val selectMode = meshSelection.selectMode
-	ButtonGroup(
-		items =
-			listOf(
-				ButtonGroupItem(
-					icon = LocalUmamoIcons.meshSelectVertex,
-					selected = selectMode == MeshSelectMode.Vertex,
-					onClick = { commands.invoke("mesh.selectMode.vertex") },
-					contentDescription = stringResource(Res.string.cmd_mesh_select_mode_vertex),
-				),
-				ButtonGroupItem(
-					icon = LocalUmamoIcons.meshSelectEdge,
-					selected = selectMode == MeshSelectMode.Edge,
-					onClick = { commands.invoke("mesh.selectMode.edge") },
-					contentDescription = stringResource(Res.string.cmd_mesh_select_mode_edge),
-				),
-				ButtonGroupItem(
-					icon = LocalUmamoIcons.meshSelectFace,
-					selected = selectMode == MeshSelectMode.Face,
-					onClick = { commands.invoke("mesh.selectMode.face") },
-					contentDescription = stringResource(Res.string.cmd_mesh_select_mode_face),
-				),
-			),
-	)
+	// Keyed on the select mode for its changes alone: each rebuilds the segments, whose commands say which is lit.
+	ButtonGroup(items = key(meshSelection.selectMode) { familyButtons(CommandFamily.SelectMode, commands, labeled = false) })
 }
 
 /**
  * The transform pivot selector (Blender's Transform Pivot Point, the header face of the Period pie): a chip
- * wearing the current pivot's glyph over a panel of the pivots, each dispatching its transform.pivot command
- * so the pie, the palette, and this panel stay one behavior.
+ * wearing the current pivot's glyph over a panel of the pivot family, each option dispatching its command, so
+ * the pie, the palette, and this panel stay one behavior.
  */
 @Composable
 internal fun PivotModeDropdown() {
 	val commands = LocalCommands.current
 	val session = LocalEditorSession.current
 	val enabled = session != null
-	val pivotMode = session?.pivotMode?.collectAsState()?.value ?: TransformPivotMode.MedianPoint
+	val pivotMode = session?.pivotMode?.collectAsState()?.value
 	val title = stringResource(Res.string.header_transform_pivot_point)
+	// Keyed on the pivot for its changes alone: each rebuilds the options, whose commands say which is current.  Only
+	// the options are keyed, so a pick leaves the open panel in place.
+	val pivots = key(pivotMode) { familyButtons(CommandFamily.PivotMode, commands, labeled = true) }
 	PopupChip(
 		contentDescription = title,
-		icon = pivotIcon(pivotMode),
+		icon = pivots.firstOrNull { pivot -> pivot.selected }?.icon,
 		enabled = enabled,
 	) {
 		FilterSectionLabel(title)
 		ButtonGroup(
-			items =
-				TransformPivotMode.entries.map { mode ->
-					val label = pivotLabel(mode)
-					ButtonGroupItem(
-						icon = pivotIcon(mode),
-						selected = mode == pivotMode,
-						onClick = { commands.invoke(pivotCommandId(mode)) },
-						contentDescription = label,
-						label = label,
-					)
-				},
+			items = pivots,
 			modifier = Modifier.fillMaxWidth().padding(horizontal = HEADER_PANEL_ROW_INSET),
 			axis = StackAxis.Vertical,
 		)
@@ -157,58 +130,10 @@ internal enum class SnapMenuKind {
 }
 
 /**
- * One row of a snap menu: the command it dispatches, its title, and its glyph.
- *
- * @property String commandId The snap command the row dispatches.
- * @property StringResource title The command's title, the row's label.
- * @property UmamoIcon icon The row's glyph, the one the snap pie shows for the same command.
- */
-private class SnapMenuRow(
-	val commandId: String,
-	val title: StringResource,
-	val icon: UmamoIcon,
-)
-
-/** The 2D viewport's snap rows: the cursor moves, then the selection moves. */
-private val VIEWPORT_SNAP_CURSOR_ROWS =
-	listOf(
-		SnapMenuRow("snap.cursorToWorldOrigin", Res.string.cmd_snap_cursor_world_origin, LocalUmamoIcons.cursor),
-		SnapMenuRow("snap.cursorToGrid", Res.string.cmd_snap_cursor_grid, LocalUmamoIcons.cursor),
-		SnapMenuRow("snap.cursorToSelected", Res.string.cmd_snap_cursor_selected, LocalUmamoIcons.cursor),
-		SnapMenuRow("snap.cursorToActive", Res.string.cmd_snap_cursor_active, LocalUmamoIcons.cursor),
-	)
-
-/** The 2D viewport's selection snap rows. */
-private val VIEWPORT_SNAP_SELECTION_ROWS =
-	listOf(
-		SnapMenuRow("snap.selectionToGrid", Res.string.cmd_snap_selection_grid, LocalUmamoIcons.selection),
-		SnapMenuRow("snap.selectionToCursor", Res.string.cmd_snap_selection_cursor, LocalUmamoIcons.selection),
-		SnapMenuRow("snap.selectionToCursorOffset", Res.string.cmd_snap_selection_cursor_offset, LocalUmamoIcons.selection),
-		SnapMenuRow("snap.selectionToActive", Res.string.cmd_snap_selection_active, LocalUmamoIcons.selection),
-	)
-
-/** The UV editor's cursor snap rows, wearing the cursor glyph Blender's UV editor uses. */
-private val UV_SNAP_CURSOR_ROWS =
-	listOf(
-		SnapMenuRow("uv.snap.cursorToPixels", Res.string.cmd_uv_snap_cursor_pixels, LocalUmamoIcons.pivotCursor),
-		SnapMenuRow("uv.snap.cursorToSelected", Res.string.cmd_uv_snap_cursor_selected, LocalUmamoIcons.pivotCursor),
-		SnapMenuRow("uv.snap.cursorToGrid", Res.string.cmd_uv_snap_cursor_grid, LocalUmamoIcons.pivotCursor),
-	)
-
-/** The UV editor's selection snap rows. */
-private val UV_SNAP_SELECTION_ROWS =
-	listOf(
-		SnapMenuRow("uv.snap.selectionToPixels", Res.string.cmd_uv_snap_selection_pixels, LocalUmamoIcons.selection),
-		SnapMenuRow("uv.snap.selectionToCursor", Res.string.cmd_uv_snap_selection_cursor, LocalUmamoIcons.selection),
-		SnapMenuRow("uv.snap.selectionToCursorOffset", Res.string.cmd_uv_snap_selection_cursor_offset, LocalUmamoIcons.selection),
-		SnapMenuRow("uv.snap.selectionToGrid", Res.string.cmd_uv_snap_selection_grid, LocalUmamoIcons.selection),
-	)
-
-/**
- * The snap menu (Blender's Shift+S, as a header dropdown): a magnet chip over the surface's snap commands,
- * each row dispatching the snap pie's command and wearing its glyph so the pie, the palette, and this menu
- * stay one behavior.  A pick acts on the header's own area: the click that opened the chip stamped that area
- * as the hovered one, and the open menu keeps the pointer from stamping another.
+ * The snap menu (Blender's Shift+S, as a header dropdown): a magnet chip over the surface's snap family - the
+ * cursor's snaps, a rule, then the selection's - each row dispatching its command and wearing its glyph, so the
+ * pie, the palette, and this menu stay one behavior.  A pick acts on the header's own area: the click that opened
+ * the chip stamped that area as the hovered one, and the open menu keeps the pointer from stamping another.
  *
  * @param SnapMenuKind kind Which surface's snaps the menu offers.
  */
@@ -217,13 +142,13 @@ internal fun SnapDropdown(kind: SnapMenuKind) {
 	val commands = LocalCommands.current
 	val session = LocalEditorSession.current
 	var expanded by remember { mutableStateOf(false) }
-	val (cursorRows, selectionRows) =
+	val (cursorSnaps, selectionSnaps) =
 		when (kind) {
-			SnapMenuKind.Viewport2D -> VIEWPORT_SNAP_CURSOR_ROWS to VIEWPORT_SNAP_SELECTION_ROWS
-			SnapMenuKind.UvEditor -> UV_SNAP_CURSOR_ROWS to UV_SNAP_SELECTION_ROWS
+			SnapMenuKind.Viewport2D -> CommandSection.SnapCursor to CommandSection.SnapSelection
+			SnapMenuKind.UvEditor -> CommandSection.UvSnapCursor to CommandSection.UvSnapSelection
 		}
-	val cursorItems = cursorRows.map { row -> snapMenuItem(row) { commands.invoke(row.commandId) } }
-	val selectionItems = selectionRows.map { row -> snapMenuItem(row) { commands.invoke(row.commandId) } }
+	val cursorItems = commands.inGroup(cursorSnaps).map { snap -> snapMenuItem(snap) { commands.invoke(snap.id) } }
+	val selectionItems = commands.inGroup(selectionSnaps).map { snap -> snapMenuItem(snap) { commands.invoke(snap.id) } }
 	DropdownChip(
 		expanded = expanded,
 		onExpandRequest = { expanded = true },
@@ -240,15 +165,15 @@ internal fun SnapDropdown(kind: SnapMenuKind) {
 }
 
 /**
- * A snap row's menu entry: its title and glyph, running [onSelect] when picked.
+ * A snap command's menu entry: its label and glyph, running [onSelect] when picked.
  *
- * @param SnapMenuRow row The row.
- * @param Function onSelect Dispatches the row's command.
+ * @param Command snap The snap command.
+ * @param Function onSelect Dispatches the command.
  * @return MenuItem.Action The entry.
  */
 @Composable
-private fun snapMenuItem(row: SnapMenuRow, onSelect: () -> Unit): MenuItem.Action =
-	MenuItem.Action(label = stringResource(row.title), onSelect = onSelect, icon = row.icon)
+private fun snapMenuItem(snap: Command, onSelect: () -> Unit): MenuItem.Action =
+	MenuItem.Action(label = snap.rowLabel?.let { label -> stringResource(label) } ?: snap.id, onSelect = onSelect, icon = snap.icon)
 
 /**
  * The Proportional Size row of the proportional panel: the radius a surface's proportional editing reaches,
@@ -319,6 +244,8 @@ internal fun ProportionalEditControls(
 			enabled -> LocalUmamoIcons.proportionalOn
 			else -> LocalUmamoIcons.proportionalOff
 		}
+	// Keyed on the falloff for its changes alone: each rebuilds the curves, whose commands say which is current.
+	val curves = key(settings.falloff) { familyButtons(CommandFamily.ProportionalFalloff, commands, labeled = true) }
 	PopupChip(
 		contentDescription = stringResource(Res.string.header_proportional_falloff),
 		icon = stateIcon,
@@ -328,7 +255,7 @@ internal fun ProportionalEditControls(
 				onToggle = { commands.invoke("mesh.proportional.toggle") },
 				contentDescription = stringResource(Res.string.cmd_mesh_proportional_toggle),
 			),
-		valueIcon = falloffIcon(settings.falloff),
+		valueIcon = curves.firstOrNull { curve -> curve.selected }?.icon,
 		valueIconTint = if (enabled) null else colors.textMuted,
 	) {
 		// Blender's inactive look: the whole panel dims while the tool is off, and stays live.
@@ -346,16 +273,7 @@ internal fun ProportionalEditControls(
 			Spacer(modifier = Modifier.height(PROPORTIONAL_PANEL_GROUP_GAP))
 			// The curves as Blender's expanded enum: one butted column of options, the active curve lit.
 			ButtonGroup(
-				items =
-					ProportionalFalloff.entries.map { falloff ->
-						ButtonGroupItem(
-							icon = falloffIcon(falloff),
-							selected = falloff == settings.falloff,
-							onClick = { commands.invoke("mesh.proportional.falloff.${falloff.choiceKey}") },
-							contentDescription = falloffLabel(falloff),
-							label = falloffLabel(falloff),
-						)
-					},
+				items = curves,
 				modifier = Modifier.fillMaxWidth().padding(horizontal = HEADER_PANEL_ROW_INSET),
 				axis = StackAxis.Vertical,
 			)
@@ -399,63 +317,31 @@ private fun ProportionalSizeRow(size: ProportionalSizeField) {
 }
 
 /**
- * A transform pivot's glyph: Blender's pivot icon, the one the Period pie shows for it, on the chip while the
- * pivot is current and on the pivot's menu row.
+ * A command family as button-group segments, in the family's order: each wears its command's glyph, is lit while its
+ * command is the one in effect, and dispatches it when picked.  A segment is its glyph, so a member with none drawn
+ * has no segment.
  *
- * @param TransformPivotMode pivotMode The pivot.
- * @return UmamoIcon The pivot's glyph.
- */
-private fun pivotIcon(pivotMode: TransformPivotMode): UmamoIcon =
-	when (pivotMode) {
-		TransformPivotMode.MedianPoint -> LocalUmamoIcons.pivotMedian
-		TransformPivotMode.IndividualOrigins -> LocalUmamoIcons.pivotIndividual
-		TransformPivotMode.ActiveElement -> LocalUmamoIcons.pivotActive
-		TransformPivotMode.Cursor -> LocalUmamoIcons.pivotCursor
-	}
-
-/**
- * A transform pivot's display name, the label of its command.
- *
- * @param TransformPivotMode pivotMode The pivot.
- * @return String The localized name.
+ * @param CommandFamily family The family the segments stand for.
+ * @param CommandRegistry commands The registry the family is listed from and its segments dispatch through.
+ * @param Boolean labeled Whether a segment shows its member's label beside the glyph, as an option list does.
+ * @return List<ButtonGroupItem> The segments.
  */
 @Composable
-private fun pivotLabel(pivotMode: TransformPivotMode): String =
-	when (pivotMode) {
-		TransformPivotMode.MedianPoint -> stringResource(Res.string.cmd_transform_pivot_median)
-		TransformPivotMode.IndividualOrigins -> stringResource(Res.string.cmd_transform_pivot_individual)
-		TransformPivotMode.ActiveElement -> stringResource(Res.string.cmd_transform_pivot_active)
-		TransformPivotMode.Cursor -> stringResource(Res.string.cmd_transform_pivot_cursor)
-	}
+private fun familyButtons(
+	family: CommandFamily,
+	commands: CommandRegistry,
+	labeled: Boolean,
+): List<ButtonGroupItem> =
+	commands.inGroup(family).mapNotNull { member ->
+		member.icon?.let { icon ->
+			val label = member.rowLabel?.let { resource -> stringResource(resource) } ?: member.id
 
-/**
- * The command that sets a transform pivot, the one the Period pie's entry dispatches too.
- *
- * @param TransformPivotMode pivotMode The pivot.
- * @return String The command id.
- */
-private fun pivotCommandId(pivotMode: TransformPivotMode): String =
-	when (pivotMode) {
-		TransformPivotMode.MedianPoint -> "transform.pivot.median"
-		TransformPivotMode.IndividualOrigins -> "transform.pivot.individual"
-		TransformPivotMode.ActiveElement -> "transform.pivot.active"
-		TransformPivotMode.Cursor -> "transform.pivot.cursor"
-	}
-
-/**
- * A falloff curve's glyph: Blender's curve icon, on the chip beside the chevron and on the curve's row.
- *
- * @param ProportionalFalloff falloff The falloff curve.
- * @return UmamoIcon The curve's glyph.
- */
-private fun falloffIcon(falloff: ProportionalFalloff): UmamoIcon =
-	when (falloff) {
-		ProportionalFalloff.Smooth -> LocalUmamoIcons.falloffSmooth
-		ProportionalFalloff.Sphere -> LocalUmamoIcons.falloffSphere
-		ProportionalFalloff.Root -> LocalUmamoIcons.falloffRoot
-		ProportionalFalloff.InverseSquare -> LocalUmamoIcons.falloffInverseSquare
-		ProportionalFalloff.Sharp -> LocalUmamoIcons.falloffSharp
-		ProportionalFalloff.Linear -> LocalUmamoIcons.falloffLinear
-		ProportionalFalloff.Constant -> LocalUmamoIcons.falloffConstant
-		ProportionalFalloff.Random -> LocalUmamoIcons.falloffRandom
+			ButtonGroupItem(
+				icon = icon,
+				selected = member.isOn(),
+				onClick = { commands.invoke(member.id) },
+				contentDescription = label,
+				label = label.takeIf { labeled },
+			)
+		}
 	}

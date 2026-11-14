@@ -3,11 +3,12 @@ package org.umamo.ui.workspace.spaces.viewport2d
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import org.jetbrains.compose.resources.stringResource
-import org.umamo.edit.EditorMode
+import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.formatAccelerator
@@ -17,8 +18,6 @@ import org.umamo.ui.kit.container.OverflowRowScope
 import org.umamo.ui.kit.menu.Menu
 import org.umamo.ui.kit.menu.MenuItem
 import org.umamo.ui.model.LocalEditorSession
-import org.umamo.ui.resources.*
-import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.spaces.MeshSelectModeButtons
 import org.umamo.ui.workspace.spaces.OverlaysHeaderControl
@@ -55,7 +54,8 @@ fun OverflowRowScope.viewport2DHeaderControls(scope: AreaScope) {
 
 /**
  * The editor-mode selector, Blender-style: the current mode's icon and label on the shared kit
- * [DropdownChip] face, opening a menu whose rows dispatch the matching set-mode command.
+ * [DropdownChip] face, opening a menu of the editor-mode family whose rows dispatch the matching set-mode command.
+ * The family's table says which modes there are, what each looks like, and which is current.
  */
 @Composable
 private fun EditorModeDropdown() {
@@ -63,49 +63,30 @@ private fun EditorModeDropdown() {
 	val keymap = LocalKeymap.current
 	val session = LocalEditorSession.current
 	val enabled = session != null
-	val editorMode = session?.mode?.collectAsState()?.value ?: EditorMode.Object
-	val modeIcon =
-		when (editorMode) {
-			EditorMode.Object -> LocalUmamoIcons.editorModeObject
-			EditorMode.Edit -> LocalUmamoIcons.editorModeEdit
-			EditorMode.Pose -> LocalUmamoIcons.editorModePose
-		}
-	// Resolved in composition because the chip's semantics lambda is not composable.
-	val currentLabel =
-		when (editorMode) {
-			EditorMode.Object -> stringResource(Res.string.cmd_mode_object)
-			EditorMode.Edit -> stringResource(Res.string.cmd_mode_edit)
-			EditorMode.Pose -> stringResource(Res.string.cmd_mode_pose)
-		}
+	val editorMode = session?.mode?.collectAsState()?.value
+	// Keyed on the mode for its changes alone: each re-reads the family, whose commands say which is current.
+	val modes = key(editorMode) { commands.inGroup(CommandFamily.EditorMode) }
+	val current = modes.firstOrNull { mode -> mode.isOn() }
+	// Resolved in composition because the chip's semantics lambda is not composable.  A chip with no mode to show
+	// is named by the family.
+	val currentLabel = stringResource(current?.rowLabel ?: CommandFamily.EditorMode.heading)
 	var expanded by remember { mutableStateOf(false) }
 	// One row per mode; the menu's own dismiss closes the popup, so onSelect need not toggle `expanded`.
 	// Each row shows its own command's bound chord (none by default - a hint appears if the user binds one).
 	val items =
-		listOf(
+		modes.map { mode ->
 			MenuItem.Action(
-				label = stringResource(Res.string.cmd_mode_object),
-				onSelect = { commands.invoke("mode.object") },
-				shortcut = keymap.chordFor("mode.object")?.let { chord -> formatAccelerator(chord) },
-				icon = LocalUmamoIcons.editorModeObject,
-			),
-			MenuItem.Action(
-				label = stringResource(Res.string.cmd_mode_edit),
-				onSelect = { commands.invoke("mode.edit") },
-				shortcut = keymap.chordFor("mode.edit")?.let { chord -> formatAccelerator(chord) },
-				icon = LocalUmamoIcons.editorModeEdit,
-			),
-			MenuItem.Action(
-				label = stringResource(Res.string.cmd_mode_pose),
-				onSelect = { commands.invoke("mode.pose") },
-				shortcut = keymap.chordFor("mode.pose")?.let { chord -> formatAccelerator(chord) },
-				icon = LocalUmamoIcons.editorModePose,
-			),
-		)
+				label = mode.rowLabel?.let { label -> stringResource(label) } ?: mode.id,
+				onSelect = { commands.invoke(mode.id) },
+				shortcut = keymap.chordFor(mode.id)?.let { chord -> formatAccelerator(chord) },
+				icon = mode.icon,
+			)
+		}
 	DropdownChip(
 		expanded = expanded,
 		onExpandRequest = { expanded = true },
 		contentDescription = currentLabel,
-		icon = modeIcon,
+		icon = current?.icon,
 		label = currentLabel,
 		enabled = enabled,
 	) {

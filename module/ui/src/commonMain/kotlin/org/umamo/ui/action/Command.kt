@@ -38,6 +38,23 @@ fun interface CommandAvailability {
 }
 
 /**
+ * Reports whether a command is the one in effect: the pivot that is current, the select mode in use.  It is what a
+ * control listing a family lights, and whose glyph its chip wears, without knowing what the family sets.
+ *
+ * A `fun interface` so a table passes a lambda closing over live session state, evaluated fresh at each query.
+ * Like [CommandAvailability] it is a query the snapshot system cannot see, so a control that shows it also observes
+ * whatever it reads.
+ */
+fun interface CommandState {
+	/**
+	 * Reports whether the command is the one in effect.
+	 *
+	 * @return Boolean True while it is.
+	 */
+	fun isOn(): Boolean
+}
+
+/**
  * A named, invokable editor operation - the atom the action registry dispatches.  Every operation
  * (split an area, open a file, fit the view) is one of these, addressed by a stable dotted [id]
  * ("area.split.leftRight", "file.open").  Menus, the area header, the command palette, and key
@@ -63,6 +80,9 @@ fun interface CommandAvailability {
  *   already says what the family does ("Parts" under "Select All of Type"), or null to show the [title] there too.
  * @property UmamoIcon? icon The command's glyph wherever a pie slot, a menu row, or a chip stands for it, or null
  *   for a command with none drawn.
+ * @property CommandState? state Whether the command is the one in effect, which a control listing its family lights
+ *   (never a dispatch guard), or null for a command that is never "the current one".  Its table decides what it
+ *   reports with no document open, so a control shows the same face before the first file opens.
  * @property CommandHandler handler The work to perform when invoked.
  */
 data class Command(
@@ -74,6 +94,7 @@ data class Command(
 	val group: CommandGroup? = null,
 	val groupLabel: StringResource? = null,
 	val icon: UmamoIcon? = null,
+	val state: CommandState? = null,
 	val handler: CommandHandler,
 ) {
 	init {
@@ -84,4 +105,11 @@ data class Command(
 
 	/** The label of the command's row in a listing of its group: its [groupLabel], else its [title]. */
 	val rowLabel: StringResource? get() = groupLabel ?: title
+
+	/**
+	 * Reports whether the command is the one in effect.
+	 *
+	 * @return Boolean True while its [state] reports on; false for a command that reports no state.
+	 */
+	fun isOn(): Boolean = state?.isOn() == true
 }

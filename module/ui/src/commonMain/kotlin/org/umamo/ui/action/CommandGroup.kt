@@ -97,6 +97,15 @@ enum class CommandFamily(val heading: StringResource, override val parent: Comma
 
 	/** Which of the posed warps' tracks an insert keys. */
 	InsertKey(Res.string.pie_title_insert_key, CommandTable.Keyform),
+
+	/** The element select modes, one member per mesh domain. */
+	SelectMode(Res.string.status_select_mode, CommandTable.Select),
+
+	/** The proportional-editing falloff curves, one member per curve. */
+	ProportionalFalloff(Res.string.header_proportional_falloff, CommandTable.Proportional),
+
+	/** The editor modes, one member per mode. */
+	EditorMode(Res.string.group_editor_mode, CommandTable.Mode),
 }
 
 /**

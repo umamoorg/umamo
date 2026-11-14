@@ -332,6 +332,7 @@
 	<string name="cmd_mode_edit">編集モード</string>
 	<string name="cmd_mode_toggle_pose">ポーズモード切り替え</string>
 	<string name="cmd_mode_pose">ポーズモード</string>
+	<string name="group_editor_mode">モード</string>
 	<string name="cmd_mesh_grab">頂点を移動</string>
 	<string name="cmd_mesh_scale">頂点を拡縮</string>
 	<string name="cmd_mesh_rotate">頂点を回転</string>

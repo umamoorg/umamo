@@ -17,8 +17,10 @@ import org.umamo.edit.transform.beginCircleSelect
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandState
 import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SpaceScope
@@ -133,12 +135,16 @@ internal fun selectCommands(
 		CommandTable.Select,
 		// The element modes' select modes (Blender 1 / 2 / 3).  The session guards them to no-op in Object mode,
 		// so the keymap can bind bare digits context-free; the availability tier additionally hides them
-		// from the palette there (there is no element domain to switch).
+		// from the palette there (there is no element domain to switch).  Each is in effect while its domain is
+		// the mesh selection's, which is what the header's select-mode buttons light.
 		Command(
 			"mesh.selectMode.vertex",
 			title = Res.string.cmd_mesh_select_mode_vertex,
 			availability = availability.inElementMode,
 			hint = CommandHint(Res.string.status_select_mode),
+			group = CommandFamily.SelectMode,
+			icon = LocalUmamoIcons.meshSelectVertex,
+			state = CommandState { editorSession?.meshSelection?.value?.selectMode == MeshSelectMode.Vertex },
 		) {
 			editorSession?.setMeshSelectMode(MeshSelectMode.Vertex)
 		},
@@ -147,6 +153,9 @@ internal fun selectCommands(
 			title = Res.string.cmd_mesh_select_mode_edge,
 			availability = availability.inElementMode,
 			hint = CommandHint(Res.string.status_select_mode),
+			group = CommandFamily.SelectMode,
+			icon = LocalUmamoIcons.meshSelectEdge,
+			state = CommandState { editorSession?.meshSelection?.value?.selectMode == MeshSelectMode.Edge },
 		) {
 			editorSession?.setMeshSelectMode(MeshSelectMode.Edge)
 		},
@@ -155,6 +164,9 @@ internal fun selectCommands(
 			title = Res.string.cmd_mesh_select_mode_face,
 			availability = availability.inElementMode,
 			hint = CommandHint(Res.string.status_select_mode),
+			group = CommandFamily.SelectMode,
+			icon = LocalUmamoIcons.meshSelectFace,
+			state = CommandState { editorSession?.meshSelection?.value?.selectMode == MeshSelectMode.Face },
 		) {
 			editorSession?.setMeshSelectMode(MeshSelectMode.Face)
 		},
