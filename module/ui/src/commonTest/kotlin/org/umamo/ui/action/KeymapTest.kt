@@ -244,6 +244,26 @@ class KeymapTest {
 	}
 
 	/**
+	 * Shift+H hides the unselected objects and Alt+H unhides all of them in the default and blender presets,
+	 * beside H's toggle, and both stay unbound in the cubism preset, which binds no H at all.
+	 */
+	@Test
+	fun hideChordsBindInDefaultAndBlenderButNotCubism() {
+		val hideUnselected = KeyChord(keyName = "KeyH", shift = true)
+		val unhideAll = KeyChord(keyName = "KeyH", alt = true)
+
+		for (presetId in listOf("default", "blender")) {
+			val keymap = Keymap.fromSpecs(keymapPresetSpecs(presetId))
+			assertEquals("object.hideUnselected", keymap.commandFor(hideUnselected), "Shift+H in $presetId")
+			assertEquals("object.unhideAll", keymap.commandFor(unhideAll), "Alt+H in $presetId")
+		}
+
+		val cubism = Keymap.fromSpecs(keymapPresetSpecs("cubism"))
+		assertNull(cubism.chordFor("object.hideUnselected"))
+		assertNull(cubism.chordFor("object.unhideAll"))
+	}
+
+	/**
 	 * Shift+M generates meshes from art in the default and blender presets (beside M's Merge), and stays
 	 * unbound in the cubism preset.
 	 */

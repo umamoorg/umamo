@@ -55,18 +55,6 @@ sealed interface Change {
 /** Changes to a part (the organizational tree node). */
 sealed interface PartChange : Change {
 	/**
-	 * Toggles a part's Parts-panel eyeball.  Cascades at render time (hiding a part hides its subtree),
-	 * but the stored change is just this one part's flag.
-	 *
-	 * @property PartId id The part whose visibility changed.
-	 * @property Boolean visible The new visibility.
-	 */
-	data class SetVisibility(val id: PartId, val visible: Boolean) : PartChange {
-		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.part.visibility"
-	}
-
-	/**
 	 * Renames a part.
 	 *
 	 * @property PartId id The renamed part.
@@ -164,17 +152,6 @@ sealed interface PartChange : Change {
 
 /** Changes to a drawable (an art mesh). */
 sealed interface DrawableChange : Change {
-	/**
-	 * Toggles a drawable's own Parts-panel eyeball.
-	 *
-	 * @property DrawableId id The drawable whose visibility changed.
-	 * @property Boolean visible The new visibility.
-	 */
-	data class SetVisibility(val id: DrawableId, val visible: Boolean) : DrawableChange {
-		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.drawable.visibility"
-	}
-
 	/**
 	 * Renames a drawable.
 	 *
@@ -921,6 +898,52 @@ sealed interface DocumentChange : Change {
 	data class ReplaceArtwork(val sourceName: String, val matchedCount: Int, val reboundCount: Int, val missingCount: Int) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.replaceArtwork"
+	}
+}
+
+/** Changes to an object's Parts-panel eye, for one object or for many at once. */
+sealed interface VisibilityChange : Change {
+	/**
+	 * Toggles a part's eye.  Cascades at render time (hiding a part hides its subtree), but the stored change
+	 * is just this one part's flag.
+	 *
+	 * @property PartId id The part whose visibility changed.
+	 * @property Boolean visible The new visibility.
+	 */
+	data class Part(val id: PartId, val visible: Boolean) : VisibilityChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.visibility.part"
+	}
+
+	/**
+	 * Toggles a drawable's own eye.
+	 *
+	 * @property DrawableId id The drawable whose visibility changed.
+	 * @property Boolean visible The new visibility.
+	 */
+	data class Drawable(val id: DrawableId, val visible: Boolean) : VisibilityChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.visibility.drawable"
+	}
+
+	/**
+	 * Hides everything outside the selection, each unselected branch at its topmost part or drawable.
+	 *
+	 * @property List<SelectionTarget> hidden The parts and drawables whose own eye turned off.
+	 */
+	data class HideUnselected(val hidden: List<SelectionTarget>) : VisibilityChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.visibility.hideUnselected"
+	}
+
+	/**
+	 * Turns on the eye of every part and drawable that had it off.
+	 *
+	 * @property List<SelectionTarget> shown The parts and drawables whose own eye turned on.
+	 */
+	data class UnhideAll(val shown: List<SelectionTarget>) : VisibilityChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.visibility.unhideAll"
 	}
 }
 
