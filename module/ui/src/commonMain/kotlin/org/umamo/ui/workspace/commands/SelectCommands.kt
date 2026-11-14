@@ -24,27 +24,27 @@ import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SpaceScope
 
 /**
- * One object kind's Select All of Type and Invert Selection of Type pair: the single source the command table and
- * both menus (the menu bar's Select menu, the viewport context menu's Select submenu) read their rows from.
+ * One object kind's Select All of Type and Invert Selection of Type pair, which the table builds the two by-kind
+ * families' members from.  Whatever lists those commands reads the families from the registry.
  *
  * @property SelectableKind kind The kind the pair filters to.
  * @property String selectAllId The Select All of Type command.
  * @property String invertId The Invert Selection of Type command.
  * @property StringResource selectAllTitle The select command's palette title, which names the kind.
  * @property StringResource invertTitle The invert command's palette title, which names the kind.
- * @property StringResource menuLabel The kind alone, for a row under a submenu that already says what it does.
+ * @property StringResource kindLabel The kind alone, each member's label under its family's heading.
  */
-internal class SelectableKindCommands(
+private class SelectableKindCommands(
 	val kind: SelectableKind,
 	val selectAllId: String,
 	val invertId: String,
 	val selectAllTitle: StringResource,
 	val invertTitle: StringResource,
-	val menuLabel: StringResource,
+	val kindLabel: StringResource,
 )
 
-/** The by-kind pairs, in menu order. */
-internal val SELECTABLE_KIND_COMMANDS: List<SelectableKindCommands> =
+/** The by-kind pairs, in the order their families list them. */
+private val SELECTABLE_KIND_COMMANDS: List<SelectableKindCommands> =
 	listOf(
 		SelectableKindCommands(
 			SelectableKind.Part,
@@ -52,7 +52,7 @@ internal val SELECTABLE_KIND_COMMANDS: List<SelectableKindCommands> =
 			invertId = "select.invert.parts",
 			selectAllTitle = Res.string.cmd_select_all_parts,
 			invertTitle = Res.string.cmd_select_invert_parts,
-			menuLabel = Res.string.menu_select_kind_parts,
+			kindLabel = Res.string.menu_select_kind_parts,
 		),
 		SelectableKindCommands(
 			SelectableKind.Drawable,
@@ -60,7 +60,7 @@ internal val SELECTABLE_KIND_COMMANDS: List<SelectableKindCommands> =
 			invertId = "select.invert.drawables",
 			selectAllTitle = Res.string.cmd_select_all_drawables,
 			invertTitle = Res.string.cmd_select_invert_drawables,
-			menuLabel = Res.string.menu_select_kind_drawables,
+			kindLabel = Res.string.menu_select_kind_drawables,
 		),
 		SelectableKindCommands(
 			SelectableKind.WarpDeformer,
@@ -68,7 +68,7 @@ internal val SELECTABLE_KIND_COMMANDS: List<SelectableKindCommands> =
 			invertId = "select.invert.warps",
 			selectAllTitle = Res.string.cmd_select_all_warps,
 			invertTitle = Res.string.cmd_select_invert_warps,
-			menuLabel = Res.string.menu_select_kind_warps,
+			kindLabel = Res.string.menu_select_kind_warps,
 		),
 		SelectableKindCommands(
 			SelectableKind.RotationDeformer,
@@ -76,7 +76,7 @@ internal val SELECTABLE_KIND_COMMANDS: List<SelectableKindCommands> =
 			invertId = "select.invert.rotations",
 			selectAllTitle = Res.string.cmd_select_all_rotations,
 			invertTitle = Res.string.cmd_select_invert_rotations,
-			menuLabel = Res.string.menu_select_kind_rotations,
+			kindLabel = Res.string.menu_select_kind_rotations,
 		),
 	)
 
@@ -111,7 +111,7 @@ internal fun selectCommands(
 				title = pair.selectAllTitle,
 				availability = availability.inObjectMode,
 				group = CommandFamily.SelectAllOfKind,
-				groupLabel = pair.menuLabel,
+				groupLabel = pair.kindLabel,
 			) {
 				editorSession?.selectAllObjectsOfKind(pair.kind)
 			}
@@ -123,7 +123,7 @@ internal fun selectCommands(
 				title = pair.invertTitle,
 				availability = availability.inObjectMode,
 				group = CommandFamily.InvertSelectionOfKind,
-				groupLabel = pair.menuLabel,
+				groupLabel = pair.kindLabel,
 			) {
 				editorSession?.invertObjectSelectionOfKind(pair.kind)
 			}

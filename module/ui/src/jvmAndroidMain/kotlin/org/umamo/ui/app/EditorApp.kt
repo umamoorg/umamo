@@ -311,7 +311,8 @@ fun EditorApp(
 	}
 
 	// The menu bar, kept live by its own assembly (keymap, recent files, undo state, locale).  Every row
-	// stands for a command, so the registry is all it is handed.
+	// stands for a command, so the registry is all it is handed: to dispatch through, and to list the
+	// command families its submenus show.
 	val appMenu =
 		buildAppMenu(
 			settings = settings,
@@ -320,6 +321,7 @@ fun EditorApp(
 			canExport = export.canExport,
 			canExportImage = imageExport != null,
 			dispatch = { commandId, argument -> commandRegistry.invoke(commandId, argument) },
+			commands = commandRegistry,
 			canOpenLogFolder = openLogFolder != null,
 			canCheckForUpdates = updateTransport != null,
 		)
