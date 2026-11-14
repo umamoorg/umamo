@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.ConfirmRequest
@@ -29,8 +30,8 @@ internal fun workspaceCommands(
 ): List<Command> =
 	commandTable(
 		CommandTable.Workspace,
-		Command("workspace.new", title = Res.string.workspace_new) { workspaces.create(newWorkspaceBaseName()) },
-		Command("workspace.reset", title = Res.string.cmd_workspace_reset) {
+		Command("workspace.new", title = Res.string.workspace_new, group = CommandSection.WorkspaceManage) { workspaces.create(newWorkspaceBaseName()) },
+		Command("workspace.reset", title = Res.string.cmd_workspace_reset, group = CommandSection.WorkspaceManage, groupLabel = Res.string.menu_workspace_reset) {
 			overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_reset_workspace, confirmLabel = Res.string.dialog_reset) { workspaces.resetActive() }
 		},
 		Command("workspace.applyLayout", title = null) { argument ->
@@ -45,7 +46,8 @@ internal fun workspaceCommands(
 
 /**
  * The workspace layout's file commands: import a layout or workspace file, export the active workspace,
- * export the whole layout - in the Workspace menu's order, which is the order the palette lists them in.
+ * export the whole layout - the Workspace menu's last block, in its order, which is the order the palette lists
+ * them in.
  *
  * A table of its own rather than more rows on [workspaceCommands] because the two register in different
  * places: these read the persisted layout from settings and open a file dialog, so the settings-backed
@@ -67,7 +69,7 @@ internal fun workspaceFileCommands(
 ): List<Command> =
 	commandTable(
 		CommandTable.Workspace,
-		Command("workspace.import", title = Res.string.menu_workspace_import) { onImport() },
-		Command("workspace.exportThis", title = Res.string.menu_workspace_export_this) { onExportThis() },
-		Command("workspace.exportAll", title = Res.string.menu_workspace_export_all) { onExportAll() },
+		Command("workspace.import", title = Res.string.menu_workspace_import, group = CommandSection.WorkspaceFiles) { onImport() },
+		Command("workspace.exportThis", title = Res.string.menu_workspace_export_this, group = CommandSection.WorkspaceFiles) { onExportThis() },
+		Command("workspace.exportAll", title = Res.string.menu_workspace_export_all, group = CommandSection.WorkspaceFiles) { onExportAll() },
 	)

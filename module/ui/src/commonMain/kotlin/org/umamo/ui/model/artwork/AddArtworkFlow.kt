@@ -354,15 +354,28 @@ internal fun packNewTilesAround(
 }
 
 /**
- * Refuses an add into [session]'s document when it cannot take one, saying so in the log and on the status
- * bar: a drawable with no tile renders from the atlas pages alone, the way a baked model's art does, and the
- * add's pack composes the pages from the tiles, so it would take those drawables' pixels away.
+ * Whether artwork can be added to [model]: every drawable has a tile.  A drawable with none renders from the atlas
+ * pages alone, the way a baked model's art does, and an add's pack composes the pages from the tiles, so it would
+ * take those drawables' pixels away.
+ *
+ * This is what the Import Artwork command asks to know whether it applies, so the menu row, the palette, and the
+ * Sources button are grayed or absent on such a document.
+ *
+ * @param PuppetModel model The document's model.
+ * @return Boolean True when an add would leave every drawable its art.
+ */
+internal fun canTakeArtwork(model: PuppetModel): Boolean = model.drawables.none { drawable -> drawable.atlasTileId == null }
+
+/**
+ * Refuses an add into [session]'s document when it cannot take one ([canTakeArtwork]), saying so in the log and
+ * on the status bar.  The command is unavailable on such a document, so this speaks for the ways in that have no
+ * grayed control to read: a file dropped on the window.
  *
  * @param EditorSession session The document's session.
  * @return Boolean True when the add was refused.
  */
 internal fun refuseArtworkAdd(session: EditorSession): Boolean {
-	if (session.model.value.drawables.none { drawable -> drawable.atlasTileId == null }) {
+	if (canTakeArtwork(session.model.value)) {
 		return false
 	}
 

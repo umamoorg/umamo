@@ -10,11 +10,11 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import org.umamo.edit.EditorSession
 import org.umamo.storage.FilePicker
+import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.document.Document
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.systemSourceFilePresence
-import org.umamo.ui.kit.menu.TopLevelMenu
 import org.umamo.ui.model.LocalDrawableThumbnails
 import org.umamo.ui.model.LocalEditorMode
 import org.umamo.ui.model.LocalEditorSession
@@ -56,7 +56,7 @@ import org.umamo.ui.workspace.shell.PersistentEditorShell
  *   aware); null with no puppet document, in which case the document's own decoded textures are used.
  * @param CommandRegistry commandRegistry The registry the file commands are registered in (drives the keymap).
  * @param SidebarRegistry sidebarRegistry The window's sidebar tabs and panels, handed to each shell.
- * @param List appMenu The menu-bar contents, mounted by each shell.
+ * @param List appMenu The menu bar, one command family per menu, mounted by each shell.
  * @param PuppetViewportServiceFactory? viewportServiceFactory Creates the platform render service, or null.
  * @param FilePicker filePicker The app's native dialogs, forwarded to the shell for its own file commands.
  * @param ArtworkOperations? artwork The app's artwork orchestrations over the hovered area, handed to
@@ -76,7 +76,7 @@ internal fun DocumentViewport(
 	sessionAtlasPages: SessionAtlasPages?,
 	commandRegistry: CommandRegistry,
 	sidebarRegistry: SidebarRegistry,
-	appMenu: List<TopLevelMenu>,
+	appMenu: List<CommandFamily>,
 	viewportServiceFactory: PuppetViewportServiceFactory?,
 	filePicker: FilePicker,
 	artwork: ArtworkOperations?,

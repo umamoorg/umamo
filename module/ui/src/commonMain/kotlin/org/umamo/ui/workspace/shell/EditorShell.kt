@@ -30,11 +30,13 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.defaultKeymap
+import org.umamo.ui.action.rememberFamilyMenu
 import org.umamo.ui.kit.Surface
 import org.umamo.ui.kit.menu.MenuBar
 import org.umamo.ui.kit.menu.TopLevelMenu
@@ -100,9 +102,9 @@ import org.umamo.ui.workspace.statusbar.StatusBar
  * @param CommandRegistry commandRegistry The action registry (the app may pre-register commands).
  * @param SidebarRegistry sidebarRegistry The tabs and panels every work-surface sidebar draws from; the app
  *   holds one per window, so it outlives a document swap.
- * @param List appMenu The application menu-bar contents, shown to the left of the workspace tabs; empty
- *   (the default) renders no bar.  The app supplies it because its items close over app-specific state
- *   (the open document, the file picker), while the bar component itself is shared.
+ * @param List appMenu The application menu bar, one command family per menu, shown to the left of the workspace
+ *   tabs; empty (the default) renders no bar.  The shell builds each menu from the registry, inside its own
+ *   locale and keymap, so the app names the menus and holds none of their rows.
  * @param String languageTag The active UI language (BCP-47).
  * @param Keymap keymap The active keymap (defaults to the built-in default preset; the persistent wrapper
  *   injects the settings-resolved keymap so a preset change or a rebind takes effect everywhere at once).
@@ -126,7 +128,7 @@ fun EditorShell(
 	propertyTabOverrides: List<PropertyTab> = emptyList(),
 	commandRegistry: CommandRegistry = remember { CommandRegistry() },
 	sidebarRegistry: SidebarRegistry = rememberSidebarRegistry(),
-	appMenu: List<TopLevelMenu> = emptyList(),
+	appMenu: List<CommandFamily> = emptyList(),
 	languageTag: String = "en",
 	keymap: Keymap = defaultKeymap(),
 	onLayoutChange: (InterfaceLayout) -> Unit = {},
@@ -246,14 +248,17 @@ fun EditorShell(
  * The menu bar shares the tab strip's row, sitting to its left to save vertical space; the tabs take the
  * remaining width.  With no menu, only the tabs show.
  *
- * @param List                      appMenu    The application menu-bar contents; empty renders no bar.
+ * Each menu is its command family as the registry lists it, under the family's heading.  Its labels are resolved
+ * here, inside the shell's locale, and its rows' grayed states are read as the menu opens.
+ *
+ * @param List                      appMenu    The bar's menus, one command family apiece; empty renders no bar.
  * @param WorkspaceLayoutController workspaces The layout the tabs show and edit.
  */
 @Composable
-private fun ShellTabRow(appMenu: List<TopLevelMenu>, workspaces: WorkspaceLayoutController) {
+private fun ShellTabRow(appMenu: List<CommandFamily>, workspaces: WorkspaceLayoutController) {
 	Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 		if (appMenu.isNotEmpty()) {
-			MenuBar(menus = appMenu)
+			MenuBar(menus = appMenu.map { family -> TopLevelMenu(label = stringResource(family.heading), items = rememberFamilyMenu(family)) })
 		}
 
 		Box(

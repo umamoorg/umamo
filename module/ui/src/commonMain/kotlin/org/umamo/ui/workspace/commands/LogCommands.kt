@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 
@@ -30,4 +31,4 @@ internal fun logCommands(onExportLog: () -> Unit): List<Command> =
  * @return List<Command> The commands to register.
  */
 internal fun logFolderCommands(onOpenLogFolder: () -> Unit): List<Command> =
-	commandTable(CommandTable.Log, Command("help.openLogFolder", title = Res.string.menu_open_log_folder) { onOpenLogFolder() })
+	commandTable(CommandTable.Log, Command("help.openLogFolder", title = Res.string.menu_open_log_folder, group = CommandSection.HelpLogs) { onOpenLogFolder() })

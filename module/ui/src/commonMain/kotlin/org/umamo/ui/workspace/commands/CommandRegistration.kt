@@ -115,4 +115,10 @@ internal class SessionAvailability(session: EditorSession?) {
 
 	/** Applies while an operation may still be adjusted - the strip's F9 has something to open. */
 	val hasAdjustableOperation = CommandAvailability { session?.adjustableOperation?.value != null }
+
+	/** Applies while the undo stack has a step to take back. */
+	val canUndo = CommandAvailability { session?.canUndo?.value == true }
+
+	/** Applies while the undo stack has a step to take again. */
+	val canRedo = CommandAvailability { session?.canRedo?.value == true }
 }

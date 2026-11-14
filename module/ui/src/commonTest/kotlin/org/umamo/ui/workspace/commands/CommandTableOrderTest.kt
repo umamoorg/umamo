@@ -1,7 +1,12 @@
 package org.umamo.ui.workspace.commands
 
+import org.umamo.edit.EditorMode
+import org.umamo.edit.EditorSession
+import org.umamo.edit.SelectionTarget
+import org.umamo.edit.structure.rename
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
+import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.help.ProjectInfo
@@ -64,8 +69,8 @@ class CommandTableOrderTest {
 				"area.dragCancel",
 				"row.dragCancel",
 				"edit.preferences",
-				"help.about",
 				"help.credits",
+				"help.about",
 				"help.quickSetup",
 				"help.sourceCode",
 				"help.webSite",
@@ -319,9 +324,9 @@ class CommandTableOrderTest {
 	 */
 	@Test
 	fun fileTablesAreComplete() {
-		val commands = fileCommands({}, {}, {}, {}, { true }, {}, {}, {}, {})
+		val commands = fileCommands({}, {}, {}, {}, { true }, {}, {}, {}, { emptyList() }, {})
 		assertEquals(
-			listOf("file.new", "file.open", "file.save", "file.saveAs", "file.importCmo3", "file.importMoc3", "file.openPath", "file.exit"),
+			listOf("file.new", "file.open", "file.openPath", "file.save", "file.saveAs", "file.importCmo3", "file.importMoc3", "file.exit"),
 			commands.map { command -> command.id },
 		)
 		assertEquals(
@@ -378,7 +383,7 @@ class CommandTableOrderTest {
 	@Test
 	fun openingByPathTakesThePathAsItsArgument() {
 		val openedPaths = ArrayList<String>()
-		val openPath = fileCommands({}, {}, {}, {}, { true }, {}, {}, { path -> openedPaths.add(path) }, {}).first { command -> command.id == "file.openPath" }
+		val openPath = fileCommands({}, {}, {}, {}, { true }, {}, {}, { path -> openedPaths.add(path) }, { emptyList() }, {}).first { command -> command.id == "file.openPath" }
 
 		assertNull(openPath.title, "nothing for the palette to offer without a path")
 		openPath.handler.run("/rigs/hero.uma")
@@ -386,6 +391,53 @@ class CommandTableOrderTest {
 		openPath.handler.run(42)
 
 		assertEquals(listOf("/rigs/hero.uma"), openedPaths)
+	}
+
+	/**
+	 * Open Recent's rows are the recent files, each under its file name and carrying its whole path, read each time
+	 * they are asked for: the list changes with every open and save, and the table is registered once.
+	 */
+	@Test
+	fun openRecentOffersTheRecentFilesByNameReadLive() {
+		val recentFiles = ArrayList<String>()
+		val openPath = fileCommands({}, {}, {}, {}, { true }, {}, {}, {}, { recentFiles }, {}).first { command -> command.id == "file.openPath" }
+		val choices = checkNotNull(openPath.choices) { "file.openPath offers no choices" }
+
+		assertEquals(emptyList(), choices.list())
+
+		recentFiles.add("/rigs/hero.uma")
+		recentFiles.add("C:\\rigs\\villain.cmo3")
+
+		assertEquals(listOf("hero.uma" to "/rigs/hero.uma", "villain.cmo3" to "C:\\rigs\\villain.cmo3"), choices.list().map { choice -> choice.label to choice.argument })
+	}
+
+	/**
+	 * Undo and Redo apply only while the stack has a step for them, read live - which is what grays their menu rows
+	 * and keeps them out of the palette with nothing to undo.
+	 */
+	@Test
+	fun undoAndRedoApplyOnlyWhileTheStackHasAStep() {
+		// A session of its own over the fixture's model: the fixture's own session already holds the steps that set it up.
+		val session = EditorSession(commandFixtureSession(EditorMode.Object).model.value)
+		val history = historyCommands(session, SessionAvailability(session), OperationStripState()).associateBy { command -> command.id }
+		val undo = history.getValue("edit.undo")
+		val redo = history.getValue("edit.redo")
+
+		assertFalse(undo.availability.isAvailable(), "a fresh document has nothing to take back")
+		assertFalse(redo.availability.isAvailable())
+
+		session.rename(SelectionTarget.Drawable(DrawableId("a")), "renamed")
+
+		assertTrue(undo.availability.isAvailable())
+		assertFalse(redo.availability.isAvailable())
+
+		undo.handler.run(null)
+
+		assertFalse(undo.availability.isAvailable())
+		assertTrue(redo.availability.isAvailable())
+
+		val closed = historyCommands(null, SessionAvailability(null), OperationStripState())
+		assertTrue(closed.filter { command -> command.id != "edit.adjustLastOperation" }.none { command -> command.availability.isAvailable() }, "and neither applies with no document")
 	}
 
 	/** Each Help link command opens its own project URL, and nothing else, through the shell's opener. */
@@ -436,6 +488,7 @@ class CommandTableOrderTest {
 		var ignored: IgnoreLayerRequest? = null
 		var matched = 0
 		var canReload = false
+		var canAddArtwork = true
 		operations =
 			ArtworkOperations(
 				importArtwork = { request, areaId ->
@@ -461,8 +514,13 @@ class CommandTableOrderTest {
 				deleteArt = { request -> deleted = request },
 				ignoreLayer = { request -> ignored = request },
 				canReload = { canReload },
+				canAddArtwork = { canAddArtwork },
 			)
 		assertTrue(add.availability.isAvailable(), "the collaborator is queried per call")
+		canAddArtwork = false
+		assertFalse(add.availability.isAvailable(), "a document that cannot take artwork turns the add away, which grays its menu row")
+		assertTrue(relink.availability.isAvailable(), "and the add alone: the art it already has can still be rebound")
+		canAddArtwork = true
 		assertFalse(reload.availability.isAvailable(), "a reload needs a file it can read")
 		canReload = true
 		assertTrue(reload.availability.isAvailable())

@@ -179,7 +179,7 @@ internal fun everyCommandTableFunction(session: EditorSession? = null): List<Lis
 		listOf(
 			workspaceFileCommands({}, {}, {}),
 			logCommands {},
-			fileCommands({}, {}, {}, {}, { true }, {}, {}, {}, {}),
+			fileCommands({}, {}, {}, {}, { true }, {}, {}, {}, { emptyList() }, {}),
 			logFolderCommands {},
 			updateCommands {},
 			fileExportCommands({ true }, {}, {}),

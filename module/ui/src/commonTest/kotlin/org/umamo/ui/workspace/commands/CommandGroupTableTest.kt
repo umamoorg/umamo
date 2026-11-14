@@ -68,7 +68,14 @@ class CommandGroupTableTest {
 		val registry = registryOverEveryTable()
 		val sectioned =
 			mapOf(
+				CommandFamily.File to listOf(CommandSection.FileDocument, CommandSection.FileSession),
+				CommandFamily.FileImport to listOf(CommandSection.ImportArtwork, CommandSection.ImportPuppet),
+				CommandFamily.FileExport to listOf(CommandSection.ExportPuppet, CommandSection.ExportImage),
+				CommandFamily.Edit to listOf(CommandSection.EditHistory, CommandSection.EditSettings),
 				CommandFamily.Select to listOf(CommandSection.SelectEverything, CommandSection.SelectByKind),
+				CommandFamily.Workspace to listOf(CommandSection.WorkspaceSwitch, CommandSection.WorkspaceManage, CommandSection.WorkspaceFiles),
+				CommandFamily.Help to
+					listOf(CommandSection.HelpLinks, CommandSection.HelpSetup, CommandSection.HelpUpdates, CommandSection.HelpLogs, CommandSection.HelpAbout),
 				CommandFamily.Snap to listOf(CommandSection.SnapCursor, CommandSection.SnapSelection),
 				CommandFamily.UvSnap to listOf(CommandSection.UvSnapSelection, CommandSection.UvSnapCursor),
 			)
@@ -100,6 +107,32 @@ class CommandGroupTableTest {
 
 			assertTrue(feeding.size <= 1, "$listing is fed by ${feeding.size} table functions: ${feeding.map { function -> function.first().id }}")
 		}
+	}
+
+	/**
+	 * The sections that join the block before them, with no rule: each is the second table function feeding one
+	 * block, which is the only reason a block is cut into sections a menu does not show.
+	 */
+	@Test
+	fun theSectionsThatJoinTheBlockBeforeThemAreExactlyThese() {
+		assertEquals(
+			listOf(CommandSection.ImportPuppet, CommandSection.ExportImage, CommandSection.HelpUpdates, CommandSection.HelpLogs),
+			CommandSection.entries.filter { section -> !section.ruled },
+		)
+	}
+
+	/** The families that sit inside another are its submenus, and each sits in the block it is shown in. */
+	@Test
+	fun theSubmenusSitInTheirBlocks() {
+		assertEquals(
+			mapOf(
+				CommandFamily.FileImport to CommandSection.FileDocument,
+				CommandFamily.FileExport to CommandSection.FileDocument,
+				CommandFamily.SelectAllOfKind to CommandSection.SelectByKind,
+				CommandFamily.InvertSelectionOfKind to CommandSection.SelectByKind,
+			),
+			CommandFamily.entries.filter { family -> family.parent != null }.associateWith { family -> family.parent },
+		)
 	}
 
 	/** The Select menu: the selection as a whole, then a block holding the two by-kind submenus. */
