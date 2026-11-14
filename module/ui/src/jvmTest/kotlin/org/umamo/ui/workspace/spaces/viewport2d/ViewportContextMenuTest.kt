@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isPopup
@@ -33,6 +34,7 @@ import org.umamo.edit.ParameterSelection
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.settings.Settings
 import org.umamo.storage.OkioAppStorage
 import org.umamo.ui.LocalSettings
@@ -140,6 +142,26 @@ class ViewportContextMenuTest {
 	/** The number of open popups. */
 	private fun ComposeUiTest.popups(): Int = onAllNodes(isPopup()).fetchSemanticsNodes().size
 
+	/**
+	 * Rests the pointer on the menu row reading [label], which is what opens a submenu's flyout on the desktop.
+	 *
+	 * @param String label The row's text.
+	 */
+	private fun ComposeUiTest.hoverMenuRow(label: String) {
+		onNode(hasText(label) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performMouseInput { moveTo(center) }
+		waitForIdle()
+	}
+
+	/**
+	 * Clicks the menu row reading [label].
+	 *
+	 * @param String label The row's text.
+	 */
+	private fun ComposeUiTest.clickMenuRow(label: String) {
+		onNode(hasText(label) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performMouseInput { click(center) }
+		waitForIdle()
+	}
+
 	@Test
 	fun objectModeOffersItsOwnRowsInsteadOfTheAreaMenu() =
 		runComposeUiTest {
@@ -169,9 +191,30 @@ class ViewportContextMenuTest {
 
 			assertEquals(1, rowsReading("Merge Vertices"))
 			assertEquals(1, rowsReading("Connect Vertices"))
-			assertEquals(1, rowsReading("Select Linked"))
 			assertEquals(1, rowsReading("Subdivide Lattice"))
 			assertEquals(0, rowsReading("Toggle Visibility"))
+
+			hoverMenuRow("Select")
+
+			assertEquals(1, rowsReading("Select All", pickable = true))
+			assertEquals(1, rowsReading("Select Linked"))
+			assertEquals(0, rowsReading("Select All of Type"), "the by-kind pairs are Object mode's")
+		}
+
+	@Test
+	fun selectAllOfTypeSelectsThatKindAlone() =
+		runComposeUiTest {
+			val session = commandFixtureSession(EditorMode.Object)
+			mount(session)
+			runOnIdle { session.setSelection(Selection()) }
+
+			rightClickTheSurface()
+			hoverMenuRow("Select")
+			hoverMenuRow("Select All of Type")
+			clickMenuRow("Warp Deformers")
+
+			assertEquals(setOf<SelectionTarget>(SelectionTarget.Deformer(DeformerId("w"))), session.selection.value.targets)
+			assertEquals(0, popups(), "the menu closed behind the pick")
 		}
 
 	@Test

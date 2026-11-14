@@ -3,6 +3,7 @@ package org.umamo.ui.workspace.spaces.viewport2d
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.key
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
@@ -13,6 +14,11 @@ import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.kit.menu.MenuItem
+import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.menu_invert_selection_of_type
+import org.umamo.ui.resources.menu_select
+import org.umamo.ui.resources.menu_select_all_of_type
+import org.umamo.ui.workspace.commands.SELECTABLE_KIND_COMMANDS
 import org.umamo.ui.workspace.commands.pieMenuEntriesFor
 
 /*
@@ -22,8 +28,9 @@ import org.umamo.ui.workspace.commands.pieMenuEntriesFor
  * command's title and its accelerator from the keymap, and grays out when its command is unavailable - the row is
  * built from the command id alone, so it can never run one command and advertise another's chord.  A pie's choices
  * come in as a submenu under the title of the command that opens the pie, built from the same entry table the pie
- * draws, so a grayed chip is a grayed row.  Operations driven by the pointer's position (Rip, Vertex Slide, the
- * object switch) stay off it: from a menu, the pointer is on the menu.
+ * draws, so a grayed chip is a grayed row.  The selection rows group under a Select submenu, which grays out only when
+ * nothing under it can be picked.  Operations driven by the pointer's position (Rip, Vertex Slide, the object switch)
+ * stay off it: from a menu, the pointer is on the menu.
  */
 
 /** One row of the viewport's context menu. */
@@ -32,8 +39,18 @@ private sealed interface ViewportMenuRow {
 	 * A command, by id.
 	 *
 	 * @property String commandId The command.
+	 * @property StringResource? label A shorter label for a row under a submenu that already says what it does, or
+	 *   null for the command's title.
 	 */
-	data class Single(val commandId: String) : ViewportMenuRow
+	data class Single(val commandId: String, val label: StringResource? = null) : ViewportMenuRow
+
+	/**
+	 * A named group of rows as a submenu.
+	 *
+	 * @property StringResource label The submenu's label.
+	 * @property List<ViewportMenuRow> rows The rows inside it.
+	 */
+	data class Submenu(val label: StringResource, val rows: List<ViewportMenuRow>) : ViewportMenuRow
 
 	/**
 	 * A pie's choices as a submenu, under the title of the command that opens it.
@@ -47,13 +64,46 @@ private sealed interface ViewportMenuRow {
 	data object Separator : ViewportMenuRow
 }
 
-/** Object mode's rows: whole-object operations, the snaps, the art meshes, and wrapping the selection in a warp. */
+/**
+ * A Select submenu: Select All and Invert, then [extraRows].
+ *
+ * @param List<ViewportMenuRow> extraRows The mode's own selection rows.
+ * @return ViewportMenuRow The submenu.
+ */
+private fun selectSubmenu(extraRows: List<ViewportMenuRow>): ViewportMenuRow =
+	ViewportMenuRow.Submenu(
+		Res.string.menu_select,
+		listOf(ViewportMenuRow.Single("select.all"), ViewportMenuRow.Single("select.invert")) + extraRows,
+	)
+
+/** Object mode's Select submenu, which adds the by-kind pairs. */
+private val OBJECT_SELECT_SUBMENU =
+	selectSubmenu(
+		listOf(
+			ViewportMenuRow.Separator,
+			ViewportMenuRow.Submenu(
+				Res.string.menu_select_all_of_type,
+				SELECTABLE_KIND_COMMANDS.map { pair -> ViewportMenuRow.Single(pair.selectAllId, pair.menuLabel) },
+			),
+			ViewportMenuRow.Submenu(
+				Res.string.menu_invert_selection_of_type,
+				SELECTABLE_KIND_COMMANDS.map { pair -> ViewportMenuRow.Single(pair.invertId, pair.menuLabel) },
+			),
+		),
+	)
+
+/**
+ * Object mode's rows: whole-object operations, the object selection, the snaps, the art meshes, and wrapping the
+ * selection in a warp.
+ */
 private val OBJECT_ROWS =
 	listOf(
 		ViewportMenuRow.Single("mesh.duplicate"),
 		ViewportMenuRow.Single("object.toggleVisibility"),
 		ViewportMenuRow.Single("object.hideUnselected"),
 		ViewportMenuRow.Single("object.unhideAll"),
+		ViewportMenuRow.Separator,
+		OBJECT_SELECT_SUBMENU,
 		ViewportMenuRow.Separator,
 		ViewportMenuRow.Choices("snap.pie", PieMenuKind.Snap),
 		ViewportMenuRow.Separator,
@@ -71,9 +121,7 @@ private val EDIT_ROWS =
 		ViewportMenuRow.Single("mesh.connect"),
 		ViewportMenuRow.Single("mesh.duplicate"),
 		ViewportMenuRow.Separator,
-		ViewportMenuRow.Single("select.all"),
-		ViewportMenuRow.Single("select.invert"),
-		ViewportMenuRow.Single("mesh.selectLinked"),
+		selectSubmenu(listOf(ViewportMenuRow.Single("mesh.selectLinked"))),
 		ViewportMenuRow.Separator,
 		ViewportMenuRow.Choices("snap.pie", PieMenuKind.Snap),
 		ViewportMenuRow.Separator,
@@ -92,8 +140,7 @@ private val POSE_ROWS =
 		ViewportMenuRow.Choices("keyform.insertPie", PieMenuKind.InsertKey),
 		ViewportMenuRow.Single("keyform.clearPoseEdits"),
 		ViewportMenuRow.Separator,
-		ViewportMenuRow.Single("select.all"),
-		ViewportMenuRow.Single("select.invert"),
+		selectSubmenu(emptyList()),
 		ViewportMenuRow.Separator,
 		ViewportMenuRow.Choices("snap.pie", PieMenuKind.Snap),
 		ViewportMenuRow.Separator,
@@ -164,7 +211,7 @@ private fun menuItemOf(
 		is ViewportMenuRow.Single -> {
 			commands[row.commandId]?.let { command ->
 				MenuItem.Action(
-					label = command.title?.let { title -> stringResource(title) } ?: command.id,
+					label = (row.label ?: command.title)?.let { title -> stringResource(title) } ?: command.id,
 					onSelect = { commands.invoke(command.id) },
 					shortcut = acceleratorOf(keymap, command.id),
 					enabled = command.availability.isAvailable(),
@@ -193,9 +240,31 @@ private fun menuItemOf(
 			}
 		}
 
+		is ViewportMenuRow.Submenu -> {
+			val items = row.rows.mapNotNull { child -> menuItemOf(child, commands, keymap) }
+
+			MenuItem.Submenu(
+				label = stringResource(row.label),
+				items = items,
+				enabled = items.any { item -> item.isPickable() },
+			)
+		}
+
 		ViewportMenuRow.Separator -> {
 			MenuItem.Separator
 		}
+	}
+
+/**
+ * Whether this item, or a row somewhere under it, can be picked.
+ *
+ * @return Boolean True when it can.
+ */
+private fun MenuItem.isPickable(): Boolean =
+	when (this) {
+		is MenuItem.Action -> enabled
+		is MenuItem.Submenu -> enabled
+		is MenuItem.Heading, is MenuItem.Search, MenuItem.Separator -> false
 	}
 
 /**
