@@ -1,10 +1,14 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.edit.EditorMode
+import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.setMeshSelectMode
+import org.umamo.edit.transform.beginBoxSelect
+import org.umamo.edit.transform.beginCircleSelect
+import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.edit.transform.choiceKey
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandFamily
@@ -22,6 +26,7 @@ import org.umamo.ui.viewport.falloffLabelResource
 import org.umamo.ui.workspace.AreaOverlayHub
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -79,6 +84,7 @@ class CommandGroupTableTest {
 					listOf(CommandSection.WorkspaceSwitch, CommandSection.WorkspaceManage, CommandSection.WorkspaceTab, CommandSection.WorkspaceFiles),
 				CommandFamily.Help to
 					listOf(CommandSection.HelpLinks, CommandSection.HelpSetup, CommandSection.HelpUpdates, CommandSection.HelpLogs, CommandSection.HelpAbout),
+				CommandFamily.ViewportTool to listOf(CommandSection.ToolSelect, CommandSection.ToolTransform),
 				CommandFamily.Snap to listOf(CommandSection.SnapCursor, CommandSection.SnapSelection),
 				CommandFamily.UvSnap to listOf(CommandSection.UvSnapSelection, CommandSection.UvSnapCursor),
 			)
@@ -119,7 +125,7 @@ class CommandGroupTableTest {
 	@Test
 	fun theSectionsThatJoinTheBlockBeforeThemAreExactlyThese() {
 		assertEquals(
-			listOf(CommandSection.ImportPuppet, CommandSection.ExportImage, CommandSection.HelpUpdates, CommandSection.HelpLogs),
+			listOf(CommandSection.ImportPuppet, CommandSection.ExportImage, CommandSection.HelpUpdates, CommandSection.HelpLogs, CommandSection.ToolTransform),
 			CommandSection.entries.filter { section -> !section.ruled },
 		)
 	}
@@ -289,9 +295,65 @@ class CommandGroupTableTest {
 	fun theFamiliesShownAsButtonsHaveAGlyphPerMember() {
 		val registry = registryOverEveryTable()
 
-		for (family in listOf(CommandFamily.SelectMode, CommandFamily.PivotMode, CommandFamily.ProportionalFalloff, CommandFamily.EditorMode)) {
+		for (family in listOf(CommandFamily.SelectMode, CommandFamily.PivotMode, CommandFamily.ProportionalFalloff, CommandFamily.EditorMode, CommandFamily.ViewportTool)) {
 			assertEquals(emptyList(), registry.inGroup(family).filter { command -> command.icon == null }.map { command -> command.id }, "$family")
 		}
+	}
+
+	/** The commands a single button stands for each have a glyph for it to wear, which the palette shows too. */
+	@Test
+	fun theCommandsAButtonStandsForHaveAGlyph() {
+		val byId = everyCommandTable().associateBy { command -> command.id }
+		val buttons = listOf("file.importArtwork", "sources.matchAutomatically", "document.reloadArtwork", "logs.export", "mesh.proportional.toggle")
+
+		assertEquals(emptyList(), buttons.filter { commandId -> byId.getValue(commandId).icon == null })
+	}
+
+	/**
+	 * The toolbar's tools, in its order: the select tools, then the transforms.  Each is lit exactly while it is
+	 * armed or in flight, which the session says and the toolbar only shows.
+	 */
+	@Test
+	fun theToolbarsToolsAreLitWhileArmedOrInFlight() {
+		val session = commandFixtureSession(EditorMode.Object)
+		val registry = CommandRegistry().also { registry -> everyCommandTable(session).forEach { command -> registry.register(command) } }
+		val lit = { registry.inGroup(CommandFamily.ViewportTool).filter { command -> command.isOn() }.map { command -> command.id } }
+
+		assertEquals(
+			listOf("mesh.boxSelect", "mesh.circleSelect", "mesh.grab", "mesh.rotate", "mesh.scale"),
+			registry.inGroup(CommandFamily.ViewportTool).map { command -> command.id },
+		)
+		assertEquals(emptyList(), lit(), "nothing is armed")
+
+		session.beginBoxSelect("area")
+		assertEquals(listOf("mesh.boxSelect"), lit())
+
+		session.beginCircleSelect("area")
+		assertEquals(listOf("mesh.circleSelect"), lit())
+
+		session.clearSelectTool()
+		session.beginObjectOperator(MeshOperatorKind.Rotate, "area")
+		assertEquals(listOf("mesh.rotate"), lit())
+
+		session.clearObjectOperator()
+		assertEquals(emptyList(), lit())
+	}
+
+	/** Proportional editing's toggle is on exactly while the tool is, which is what lights its header chip. */
+	@Test
+	fun theProportionalToggleIsOnWhileTheToolIs() {
+		val session = commandFixtureSession(EditorMode.Edit)
+		val toggle = everyCommandTable(session).first { command -> command.id == "mesh.proportional.toggle" }
+
+		val before = toggle.isOn()
+
+		assertEquals(session.proportionalEdit.value != null, before)
+
+		toggle.handler.run(null)
+
+		assertEquals(!before, toggle.isOn(), "read live, never sampled at registration")
+		assertEquals(session.proportionalEdit.value != null, toggle.isOn())
+		assertFalse(everyCommandTable().first { command -> command.id == "mesh.proportional.toggle" }.isOn(), "and off with no document")
 	}
 
 	/** The falloff family holds a member per curve, in the curves' order, each under the curve's short name. */

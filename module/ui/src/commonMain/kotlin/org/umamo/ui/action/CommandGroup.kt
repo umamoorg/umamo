@@ -157,6 +157,9 @@ enum class CommandFamily(val heading: StringResource, private val parentOf: () -
 	/** The element select modes, one member per mesh domain. */
 	SelectMode(Res.string.status_select_mode),
 
+	/** The viewport toolbar's tools: the select tools, then the modal transforms. */
+	ViewportTool(Res.string.group_viewport_tools),
+
 	/** The proportional-editing falloff curves, one member per curve. */
 	ProportionalFalloff(Res.string.header_proportional_falloff),
 
@@ -236,6 +239,12 @@ enum class CommandSection(override val parent: CommandFamily, val ruled: Boolean
 
 	/** The Credits and About dialogs. */
 	HelpAbout(CommandFamily.Help),
+
+	/** The select tools a press arms: Box and Circle. */
+	ToolSelect(CommandFamily.ViewportTool),
+
+	/** The modal transforms: Grab, Rotate, and Scale. */
+	ToolTransform(CommandFamily.ViewportTool, ruled = false),
 
 	/** The world-space snaps that move the 2D cursor. */
 	SnapCursor(CommandFamily.Snap),

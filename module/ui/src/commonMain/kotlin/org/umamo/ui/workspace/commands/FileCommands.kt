@@ -11,6 +11,7 @@ import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandTable
 import org.umamo.ui.document.fileDisplayName
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoIcons
 
 /*
  * The document import / export commands.
@@ -243,11 +244,13 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 			availability = CommandAvailability { artwork()?.canAddArtwork?.invoke() == true },
 			group = CommandSection.ImportArtwork,
 			groupLabel = Res.string.menu_import_artwork,
+			icon = LocalUmamoIcons.addFile,
 		) { argument -> artwork()?.importArtwork?.invoke(argument as? ImportArtworkRequest, routing.operationStripArea()) },
 		Command(
 			"document.reloadArtwork",
 			title = Res.string.cmd_document_reload_artwork,
 			availability = CommandAvailability { artwork()?.canReload?.invoke() == true },
+			icon = LocalUmamoIcons.refresh,
 		) { argument -> artwork()?.reloadArtwork?.invoke(routing.operationStripArea(), argument as? ReloadScope) },
 		Command(
 			"sources.relink",
@@ -261,6 +264,7 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 			"sources.matchAutomatically",
 			title = Res.string.cmd_sources_match_automatically,
 			availability = CommandAvailability { artwork() != null },
+			icon = LocalUmamoIcons.wand,
 		) { artwork()?.matchArtwork?.invoke(routing.operationStripArea()) },
 		Command(
 			"sources.replaceArtwork",

@@ -8,8 +8,11 @@ import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.edit.transform.beginUvOperator
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandSection
+import org.umamo.ui.action.CommandState
 import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.workspace.SpaceScope
 
 /**
@@ -31,23 +34,18 @@ internal fun transformCommands(
 ): List<Command> =
 	commandTable(
 		CommandTable.Transform,
+		// The toolbar's transforms, in its order: each wears its tool glyph and is lit while its operator is in flight.
 		Command(
 			"mesh.grab",
 			title = Res.string.cmd_mesh_grab,
 			availability = availability.hasDocument,
 			spaces = SpaceScope.WorkSurfaces,
 			hint = CommandHint(Res.string.status_bind_grab),
+			group = CommandSection.ToolTransform,
+			icon = LocalUmamoIcons.toolGrab,
+			state = operatorState(editorSession, MeshOperatorKind.Grab),
 		) {
 			beginTransform(editorSession, MeshOperatorKind.Grab, routing)
-		},
-		Command(
-			"mesh.scale",
-			title = Res.string.cmd_mesh_scale,
-			availability = availability.hasDocument,
-			spaces = SpaceScope.WorkSurfaces,
-			hint = CommandHint(Res.string.status_bind_scale),
-		) {
-			beginTransform(editorSession, MeshOperatorKind.Scale, routing)
 		},
 		Command(
 			"mesh.rotate",
@@ -55,8 +53,23 @@ internal fun transformCommands(
 			availability = availability.hasDocument,
 			spaces = SpaceScope.WorkSurfaces,
 			hint = CommandHint(Res.string.status_bind_rotate),
+			group = CommandSection.ToolTransform,
+			icon = LocalUmamoIcons.toolRotate,
+			state = operatorState(editorSession, MeshOperatorKind.Rotate),
 		) {
 			beginTransform(editorSession, MeshOperatorKind.Rotate, routing)
+		},
+		Command(
+			"mesh.scale",
+			title = Res.string.cmd_mesh_scale,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.WorkSurfaces,
+			hint = CommandHint(Res.string.status_bind_scale),
+			group = CommandSection.ToolTransform,
+			icon = LocalUmamoIcons.toolScale,
+			state = operatorState(editorSession, MeshOperatorKind.Scale),
+		) {
+			beginTransform(editorSession, MeshOperatorKind.Scale, routing)
 		},
 		// Untitled and ungated: the ladder and the overlays dispatch it as a cleanup signal, and exactly
 		// one of the three latches can be live, so clearing all three unconditionally is the whole job.
@@ -66,6 +79,17 @@ internal fun transformCommands(
 			editorSession?.clearUvOperator()
 		},
 	)
+
+/**
+ * Whether a modal transform of [kind] is in flight on the 2D viewport's geometry: an element operator in Edit or
+ * Pose mode, or an Object-mode one.  It is what lights the transform's toolbar button.
+ *
+ * @param EditorSession? editorSession The open document's session, or null, which has none in flight.
+ * @param MeshOperatorKind kind The transform.
+ * @return CommandState The state of the command that begins [kind].
+ */
+private fun operatorState(editorSession: EditorSession?, kind: MeshOperatorKind): CommandState =
+	CommandState { (editorSession?.activeMeshOperator?.value ?: editorSession?.activeObjectOperator?.value)?.kind == kind }
 
 /**
  * Begins a modal transform on [session] for the surface the pointer last touched: a UV operator over
