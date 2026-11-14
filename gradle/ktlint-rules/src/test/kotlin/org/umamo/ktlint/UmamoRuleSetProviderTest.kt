@@ -20,6 +20,7 @@ class UmamoRuleSetProviderTest {
 				"umamo:function-docblock",
 				"umamo:import-boundary",
 				"umamo:no-command-outside-tables",
+				"umamo:no-command-table-export",
 				"umamo:no-comment-emphasis",
 				"umamo:no-fully-qualified-name",
 				"umamo:no-main-dispatcher",
