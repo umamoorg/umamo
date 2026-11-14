@@ -83,7 +83,14 @@ internal fun proportionalCommands(editorSession: EditorSession?, availability: S
 
 	return commandTable(
 		CommandTable.Proportional,
-		Command("mesh.proportional.toggle", title = Res.string.cmd_mesh_proportional_toggle, availability = availability.inElementMode) {
+		// On while the tool is, which is what lights the header chip's toggle.
+		Command(
+			"mesh.proportional.toggle",
+			title = Res.string.cmd_mesh_proportional_toggle,
+			availability = availability.inElementMode,
+			icon = LocalUmamoIcons.proportionalOn,
+			state = CommandState { editorSession?.proportionalEdit?.value != null },
+		) {
 			editorSession?.toggleProportionalEdit()
 		},
 		Command(

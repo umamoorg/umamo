@@ -11,7 +11,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
-import org.umamo.ui.action.formatAccelerator
+import org.umamo.ui.action.commandMenuItem
 import org.umamo.ui.kit.BelowAnchorPositionProvider
 import org.umamo.ui.kit.chip.DropdownChip
 import org.umamo.ui.kit.container.OverflowRowScope
@@ -71,17 +71,9 @@ private fun EditorModeDropdown() {
 	// is named by the family.
 	val currentLabel = stringResource(current?.rowLabel ?: CommandFamily.EditorMode.heading)
 	var expanded by remember { mutableStateOf(false) }
-	// One row per mode; the menu's own dismiss closes the popup, so onSelect need not toggle `expanded`.
-	// Each row shows its own command's bound chord (none by default - a hint appears if the user binds one).
-	val items =
-		modes.map { mode ->
-			MenuItem.Action(
-				label = mode.rowLabel?.let { label -> stringResource(label) } ?: mode.id,
-				onSelect = { commands.invoke(mode.id) },
-				shortcut = keymap.chordFor(mode.id)?.let { chord -> formatAccelerator(chord) },
-				icon = mode.icon,
-			)
-		}
+	// One row per mode, each its command's own: its glyph, and its bound chord (none by default - a hint appears if
+	// the user binds one).  The labels are resolved here, and the rows are built as the menu opens.
+	val rows = modes.map { mode -> mode to (mode.rowLabel?.let { label -> stringResource(label) } ?: mode.id) }
 	DropdownChip(
 		expanded = expanded,
 		onExpandRequest = { expanded = true },
@@ -90,8 +82,9 @@ private fun EditorModeDropdown() {
 		label = currentLabel,
 		enabled = enabled,
 	) {
+		// The menu's own dismiss closes the popup, so a row's pick need not toggle `expanded`.
 		Menu(
-			items = items,
+			items = rows.map { (mode, label) -> commandMenuItem(mode, label, commands, keymap) },
 			onDismissRequest = { expanded = false },
 			positionProvider = BelowAnchorPositionProvider,
 		)

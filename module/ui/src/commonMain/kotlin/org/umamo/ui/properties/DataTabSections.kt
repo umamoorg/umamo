@@ -57,6 +57,7 @@ import org.umamo.runtime.model.displayScreenColor
 import org.umamo.runtime.model.multiplyColor
 import org.umamo.runtime.model.opacity
 import org.umamo.runtime.model.screenColor
+import org.umamo.ui.action.CommandButton
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.graphics.formatHexColor
 import org.umamo.ui.graphics.parseHexColor
@@ -107,31 +108,12 @@ internal val MeshSection =
 				)
 
 				if (mesh != null) {
-					add(PropertyRow(terms = listOf(Res.string.cmd_mesh_generate_from_art)) { _ -> CommandButton("mesh.generateFromArt", Res.string.cmd_mesh_generate_from_art) })
-					add(PropertyRow(terms = listOf(Res.string.cmd_mesh_generate_quad)) { _ -> CommandButton("mesh.generateQuad", Res.string.cmd_mesh_generate_quad) })
+					add(PropertyRow(terms = listOf(Res.string.cmd_mesh_generate_from_art)) { _ -> CommandButton("mesh.generateFromArt") })
+					add(PropertyRow(terms = listOf(Res.string.cmd_mesh_generate_quad)) { _ -> CommandButton("mesh.generateQuad") })
 				}
 			}
 		},
 	)
-
-/**
- * A button that runs one command: it dispatches the command (so the chord, the palette, and this button
- * run the same thing over the same selection) and is enabled exactly when the command is.
- *
- * @param String         commandId The command.
- * @param StringResource label     The button's label, the command's title.
- */
-@Composable
-private fun CommandButton(commandId: String, label: StringResource) {
-	val commands = LocalCommands.current
-	val available = commands[commandId]?.availability?.isAvailable() == true
-	Button(
-		label = stringResource(label),
-		onClick = { commands.invoke(commandId) },
-		primary = false,
-		enabled = available,
-	)
-}
 
 /**
  * Data (drawable): the atlas texture binding, and the pin on the tile's placement when the drawable's

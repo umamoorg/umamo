@@ -26,6 +26,7 @@ import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.LocalCommands
+import org.umamo.ui.action.ObserveForCommands
 import org.umamo.ui.kit.BelowAnchorPositionProvider
 import org.umamo.ui.kit.StackAxis
 import org.umamo.ui.kit.Tooltip
@@ -237,7 +238,10 @@ internal fun ProportionalEditControls(
 		return
 	}
 
-	val enabled = proportionalEdit != null
+	// The tool's own command says whether it is on: the same answer its key and the palette act on.
+	ObserveForCommands(proportionalEdit)
+	val toggle = commands["mesh.proportional.toggle"]
+	val enabled = toggle?.isOn() == true
 	val stateIcon =
 		when {
 			enabled && settings.connectedOnly -> LocalUmamoIcons.proportionalConnected
@@ -250,11 +254,13 @@ internal fun ProportionalEditControls(
 		contentDescription = stringResource(Res.string.header_proportional_falloff),
 		icon = stateIcon,
 		iconToggle =
-			ChipToggle(
-				active = enabled,
-				onToggle = { commands.invoke("mesh.proportional.toggle") },
-				contentDescription = stringResource(Res.string.cmd_mesh_proportional_toggle),
-			),
+			toggle?.let { command ->
+				ChipToggle(
+					active = enabled,
+					onToggle = { commands.invoke(command.id) },
+					contentDescription = command.title?.let { title -> stringResource(title) } ?: command.id,
+				)
+			},
 		valueIcon = curves.firstOrNull { curve -> curve.selected }?.icon,
 		valueIconTint = if (enabled) null else colors.textMuted,
 	) {

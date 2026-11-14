@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.commands
 
 import org.jetbrains.compose.resources.StringResource
+import org.umamo.edit.ActiveSelectTool
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.SelectableKind
@@ -198,11 +199,15 @@ internal fun selectCommands(
 		// for the same chord: a hovered keyform sheet arms its own marquee, a hovered viewport (or UV
 		// editor in Edit mode) arms the session's tool, and anything else arms nothing.  Resolved at
 		// dispatch time like every other hovered-surface command.
+		// With Circle below, the toolbar's select tools: each wears its tool glyph and is lit while it is armed.
 		Command(
 			"mesh.boxSelect",
 			title = Res.string.cmd_mesh_box_select,
 			availability = availability.hasDocument,
 			spaces = SpaceScope.WorkSurfacesAndSheet,
+			group = CommandSection.ToolSelect,
+			icon = LocalUmamoIcons.toolBoxSelect,
+			state = CommandState { editorSession?.activeSelectTool?.value is ActiveSelectTool.BoxArmed },
 		) {
 			// Only reach for a sheet when the pointer actually names one.  The registry's lookup falls back
 			// to the lone open sheet when handed no area, so asking it unconditionally would hijack B in the
@@ -218,7 +223,15 @@ internal fun selectCommands(
 		// No sheet branch here, unlike Box Select: the keyform sheet has no circle brush to arm, so C over a
 		// sheet arms nothing at all - selectToolArea answers only for a viewport or an Edit-mode UV editor,
 		// and arming a viewport the pointer has left is worse than doing nothing.
-		Command("mesh.circleSelect", title = Res.string.cmd_mesh_circle_select, availability = availability.hasDocument, spaces = SpaceScope.WorkSurfaces) {
+		Command(
+			"mesh.circleSelect",
+			title = Res.string.cmd_mesh_circle_select,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.WorkSurfaces,
+			group = CommandSection.ToolSelect,
+			icon = LocalUmamoIcons.toolCircleSelect,
+			state = CommandState { editorSession?.activeSelectTool?.value is ActiveSelectTool.Circle },
+		) {
 			routing.selectToolArea(editorSession)?.let { areaId -> editorSession?.beginCircleSelect(areaId) }
 		},
 		Command("mesh.circleSelect.grow", title = Res.string.cmd_mesh_circle_grow, availability = availability.circleToolLive) {

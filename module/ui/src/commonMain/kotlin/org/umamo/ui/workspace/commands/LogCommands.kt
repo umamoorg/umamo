@@ -4,6 +4,7 @@ import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoIcons
 
 /**
  * The diagnostic-log commands.
@@ -17,7 +18,7 @@ import org.umamo.ui.resources.*
  * @return List<Command> The commands to register.
  */
 internal fun logCommands(onExportLog: () -> Unit): List<Command> =
-	commandTable(CommandTable.Log, Command("logs.export", title = Res.string.logs_export) { onExportLog() })
+	commandTable(CommandTable.Log, Command("logs.export", title = Res.string.logs_export, icon = LocalUmamoIcons.floppy) { onExportLog() })
 
 /**
  * Help > Open Log Folder: hands the folder the session logs are written to over to the platform's file manager, where
