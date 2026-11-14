@@ -35,6 +35,8 @@ internal fun OverflowRowScope.sourcesHeaderControls(scope: AreaScope) {
 				onClick = { commands.invoke("file.importArtwork") },
 				contentDescription = stringResource(Res.string.cmd_import_artwork),
 				appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
+				// Grayed with its command, which a puppet that cannot take artwork turns away.
+				enabled = commands["file.importArtwork"]?.availability?.isAvailable() == true,
 			)
 		}
 	}

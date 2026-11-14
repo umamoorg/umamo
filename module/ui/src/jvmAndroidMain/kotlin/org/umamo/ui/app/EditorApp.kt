@@ -26,10 +26,12 @@ import org.umamo.ui.document.Moc3ExportSessionOptions
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.UmaDocument
 import org.umamo.ui.document.openDroppedFiles
+import org.umamo.ui.document.recentFiles
 import org.umamo.ui.help.openLinkQuietly
 import org.umamo.ui.kit.FileDropTarget
-import org.umamo.ui.menu.buildAppMenu
+import org.umamo.ui.menu.APP_MENU_BAR
 import org.umamo.ui.model.SessionAtlasPages
+import org.umamo.ui.model.artwork.refuseArtworkAdd
 import org.umamo.ui.progress.LocalProgressTracker
 import org.umamo.ui.progress.ProgressTracker
 import org.umamo.ui.resources.Res
@@ -266,6 +268,7 @@ fun EditorApp(
 					onImportCmo3 = { open.importCmo3ViaPicker() },
 					onImportMoc3 = { open.importMoc3ViaPicker() },
 					onOpenPath = { path -> open.openStoredPath(path) },
+					recentFiles = { settings.recentFiles() },
 					onExit = {
 						UmamoLog.info("quit requested: file.exit")
 						save.confirmExit { currentOnExit() }
@@ -310,26 +313,13 @@ fun EditorApp(
 		onDispose { cleanup() }
 	}
 
-	// The menu bar, kept live by its own assembly (keymap, recent files, undo state, locale).  Every row
-	// stands for a command, so the registry is all it is handed: to dispatch through, and to list the
-	// command families its submenus show.
-	val appMenu =
-		buildAppMenu(
-			settings = settings,
-			session = session,
-			canSave = save.canSaveNow(),
-			canExport = export.canExport,
-			canExportImage = imageExport != null,
-			dispatch = { commandId, argument -> commandRegistry.invoke(commandId, argument) },
-			commands = commandRegistry,
-			canOpenLogFolder = openLogFolder != null,
-			canCheckForUpdates = updateTransport != null,
-		)
 	// A file dropped on the window takes the same way in as one chosen from a dialog: a document replaces
 	// what is open (through the unsaved-changes gate file.openPath carries), artwork is added to it.  Both
 	// go through the registry rather than straight to a controller - that is what gives the add the hovered
 	// area its operation strip shows in, and what keeps a drop under the same availability gate as the menu.
-	FileDropTarget(onDrop = { paths -> openDroppedFiles(paths, commandRegistry) }) {
+	// Where that gate turns artwork away because the open puppet cannot take it, the drop says so: the menu
+	// row is grayed, and a drop has no row to read.
+	FileDropTarget(onDrop = { paths -> openDroppedFiles(paths, commandRegistry) { session?.let { open -> refuseArtworkAdd(open) } } }) {
 		CompositionLocalProvider(
 			LocalAreaViewStates provides areaViewStates,
 			LocalQuickSetup provides quickSetup,
@@ -343,7 +333,7 @@ fun EditorApp(
 				sessionAtlasPages = sessionAtlasPages,
 				commandRegistry = commandRegistry,
 				sidebarRegistry = sidebarRegistry,
-				appMenu = appMenu,
+				appMenu = APP_MENU_BAR,
 				viewportServiceFactory = viewportServiceFactory,
 				filePicker = filePicker,
 				artwork = artwork?.operations,

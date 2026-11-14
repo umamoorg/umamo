@@ -75,10 +75,14 @@ internal fun dropRouteFor(paths: List<String>): DropRoute {
  * open needs the unsaved-changes gate that `file.openPath` is defined to carry.  Both are already what
  * those ids do, so a drop is one more way in to them and not a path of its own.
  *
- * @param List<String>    paths    The dropped files' stored paths, in the order the platform reported them.
- * @param CommandRegistry commands The registry the two file commands are registered in.
+ * A menu row grays when its command does not apply, and a drop has no row to read.  So dropped artwork the open
+ * document cannot take is handed to [onArtworkRefused], which says why where it can.
+ *
+ * @param List<String>    paths            The dropped files' stored paths, in the order the platform reported them.
+ * @param CommandRegistry commands         The registry the two file commands are registered in.
+ * @param Function        onArtworkRefused Called when dropped artwork was not added because the command does not apply.
  */
-internal fun openDroppedFiles(paths: List<String>, commands: CommandRegistry) {
+internal fun openDroppedFiles(paths: List<String>, commands: CommandRegistry, onArtworkRefused: () -> Unit) {
 	val route = dropRouteFor(paths)
 
 	if (route.ignored.isNotEmpty()) {
@@ -86,8 +90,16 @@ internal fun openDroppedFiles(paths: List<String>, commands: CommandRegistry) {
 	}
 
 	when (route) {
-		is DropRoute.OpenDocument -> commands.invoke("file.openPath", route.path)
-		is DropRoute.AddArtwork -> commands.invoke("file.importArtwork", ImportArtworkRequest(route.paths))
-		DropRoute.None -> Unit
+		is DropRoute.OpenDocument -> {
+			commands.invoke("file.openPath", route.path)
+		}
+
+		is DropRoute.AddArtwork -> {
+			if (!commands.invoke("file.importArtwork", ImportArtworkRequest(route.paths))) {
+				onArtworkRefused()
+			}
+		}
+
+		DropRoute.None -> {}
 	}
 }

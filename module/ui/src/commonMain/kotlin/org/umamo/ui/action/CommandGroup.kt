@@ -106,6 +106,18 @@ enum class CommandTable : CommandGroup {
  *   are built, since a section names its family and a family may name a section.
  */
 enum class CommandFamily(val heading: StringResource, private val parentOf: () -> CommandListing? = { null }) : CommandListing {
+	/** The File menu: the puppet's own file, with the Import and Export submenus, then leaving the application. */
+	File(Res.string.menu_file),
+
+	/** File > Import: what comes in from another format, artwork first. */
+	FileImport(Res.string.menu_import, { CommandSection.FileDocument }),
+
+	/** File > Export: what leaves for another format. */
+	FileExport(Res.string.menu_export, { CommandSection.FileDocument }),
+
+	/** The Edit menu: the undo history, then the settings. */
+	Edit(Res.string.menu_edit),
+
 	/** The Select menu: the selection as a whole, then the by-kind submenus. */
 	Select(Res.string.menu_select),
 
@@ -114,6 +126,12 @@ enum class CommandFamily(val heading: StringResource, private val parentOf: () -
 
 	/** Invert Selection of Type: one member per selectable object kind. */
 	InvertSelectionOfKind(Res.string.menu_invert_selection_of_type, { CommandSection.SelectByKind }),
+
+	/** The Workspace menu: moving between workspaces, making and resetting them, and their trips to and from a file. */
+	Workspace(Res.string.menu_workspace),
+
+	/** The Help menu: the project's links, setup and upkeep, and what Umamo is. */
+	Help(Res.string.menu_help),
 
 	/** The transform pivots, one member per pivot. */
 	PivotMode(Res.string.pie_title_pivot),
@@ -152,13 +170,63 @@ enum class CommandFamily(val heading: StringResource, private val parentOf: () -
  * family itself.
  *
  * @property CommandFamily parent The family the section is a slice of.
+ * @property Boolean ruled Whether a menu puts a rule before the section.  False joins it to the block before it, which
+ *   is how one block draws from more than one table function and still has a declared order.
  */
-enum class CommandSection(override val parent: CommandFamily) : CommandListing {
+enum class CommandSection(override val parent: CommandFamily, val ruled: Boolean = true) : CommandListing {
+	/** The puppet's own file: New, Open, Open Recent, the saves, and the Import and Export submenus. */
+	FileDocument(CommandFamily.File),
+
+	/** Leaving the application. */
+	FileSession(CommandFamily.File),
+
+	/** The import that adds artwork to the open puppet. */
+	ImportArtwork(CommandFamily.FileImport),
+
+	/** The imports that open another format as a puppet. */
+	ImportPuppet(CommandFamily.FileImport, ruled = false),
+
+	/** The exports of the puppet to another format. */
+	ExportPuppet(CommandFamily.FileExport),
+
+	/** The export of the framed view as an image. */
+	ExportImage(CommandFamily.FileExport, ruled = false),
+
+	/** Undo and Redo. */
+	EditHistory(CommandFamily.Edit),
+
+	/** The settings window. */
+	EditSettings(CommandFamily.Edit),
+
 	/** The commands that act on the selection as a whole. */
 	SelectEverything(CommandFamily.Select),
 
 	/** The by-kind submenus, which filter the object selection. */
 	SelectByKind(CommandFamily.Select),
+
+	/** Moving to the workspace before or after the active one. */
+	WorkspaceSwitch(CommandFamily.Workspace),
+
+	/** Making a workspace and resetting the active one. */
+	WorkspaceManage(CommandFamily.Workspace),
+
+	/** The layout's trips to and from a file. */
+	WorkspaceFiles(CommandFamily.Workspace),
+
+	/** The project's links. */
+	HelpLinks(CommandFamily.Help),
+
+	/** Quick Setup, the first of the setup and upkeep rows. */
+	HelpSetup(CommandFamily.Help),
+
+	/** Check for Updates, where the host can make the request. */
+	HelpUpdates(CommandFamily.Help, ruled = false),
+
+	/** Open Log Folder, where the host can show a folder. */
+	HelpLogs(CommandFamily.Help, ruled = false),
+
+	/** The Credits and About dialogs. */
+	HelpAbout(CommandFamily.Help),
 
 	/** The world-space snaps that move the 2D cursor. */
 	SnapCursor(CommandFamily.Snap),

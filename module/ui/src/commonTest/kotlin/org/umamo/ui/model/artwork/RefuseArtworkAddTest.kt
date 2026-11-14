@@ -46,6 +46,7 @@ class RefuseArtworkAddTest {
 	fun aDocumentWhoseDrawablesAllHaveTilesTakesTheAdd() {
 		val session = EditorSession(modelOf(atlasTileId = tileId))
 
+		assertTrue(canTakeArtwork(session.model.value))
 		assertFalse(refuseArtworkAdd(session))
 		assertNull(session.notice.value, "nothing is said")
 	}
@@ -54,6 +55,7 @@ class RefuseArtworkAddTest {
 	fun aDocumentWithNoDrawablesTakesTheAdd() {
 		val session = EditorSession(modelOf(atlasTileId = tileId).copy(drawables = emptyList(), rootChildren = emptyList()))
 
+		assertTrue(canTakeArtwork(session.model.value))
 		assertFalse(refuseArtworkAdd(session))
 	}
 
@@ -63,7 +65,9 @@ class RefuseArtworkAddTest {
 		val baked = bound.drawables.single().copy(id = DrawableId("baked"), atlasTileId = null)
 		val session = EditorSession(bound.copy(drawables = bound.drawables + baked, rootChildren = bound.rootChildren + OrgChild.Drawable(baked.id)))
 
+		assertFalse(canTakeArtwork(session.model.value), "what the Import Artwork command asks, so its row is grayed here")
 		assertTrue(refuseArtworkAdd(session))
+		assertEquals("notice.import.bakedAtlas", session.notice.value?.messageKey, "and a way in with no row to gray still says why")
 	}
 
 	/**

@@ -55,6 +55,30 @@ fun interface CommandState {
 }
 
 /**
+ * Lists the arguments a command is offered with, where it is run with one of several: Open Recent's row per file.  A
+ * menu shows such a command as a submenu of them, so the list is part of the command and any surface showing it
+ * offers the same rows.
+ *
+ * A `fun interface` so a table passes a lambda reading live state, evaluated fresh each time a menu opens.
+ */
+fun interface CommandChoices {
+	/**
+	 * Lists the arguments on offer.
+	 *
+	 * @return List<CommandChoice> One entry per row, in the order shown; empty when there is nothing to offer.
+	 */
+	fun list(): List<CommandChoice>
+}
+
+/**
+ * One argument a command is offered with.
+ *
+ * @property String label The row's label, shown as it is: user data such as a file's name, never a resource.
+ * @property Any? argument What the command is run with when the row is picked.
+ */
+data class CommandChoice(val label: String, val argument: Any?)
+
+/**
  * A named, invokable editor operation - the atom the action registry dispatches.  Every operation
  * (split an area, open a file, fit the view) is one of these, addressed by a stable dotted [id]
  * ("area.split.leftRight", "file.open").  Menus, the area header, the command palette, and key
@@ -85,6 +109,8 @@ fun interface CommandState {
  * @property CommandState? state Whether the command is the one in effect, which a control listing its family lights
  *   (never a dispatch guard), or null for a command that is never "the current one".  Its table decides what it
  *   reports with no document open, so a control shows the same face before the first file opens.
+ * @property CommandChoices? choices The arguments the command is offered with, a row apiece, or null for a command
+ *   that is one row.  Never read by dispatch: the handler takes whatever argument it is run with.
  * @property CommandHandler handler The work to perform when invoked.
  */
 data class Command(
@@ -98,6 +124,7 @@ data class Command(
 	val groupLabel: StringResource? = null,
 	val icon: UmamoIcon? = null,
 	val state: CommandState? = null,
+	val choices: CommandChoices? = null,
 	val handler: CommandHandler,
 ) {
 	init {

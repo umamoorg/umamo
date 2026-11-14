@@ -1,14 +1,18 @@
 package org.umamo.ui.menu
 
-import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.v2.runComposeUiTest
+import org.umamo.edit.EditorMode
+import org.umamo.edit.EditorSession
+import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
-import org.umamo.ui.action.Keymap
+import org.umamo.ui.action.chooseEveryRow
+import org.umamo.ui.action.familyMenuOf
+import org.umamo.ui.action.menuOutline
+import org.umamo.ui.action.recordingRegistryOf
 import org.umamo.ui.kit.menu.MenuItem
-import org.umamo.ui.kit.menu.TopLevelMenu
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.commands.CommandRouting
 import org.umamo.ui.workspace.commands.SessionAvailability
+import org.umamo.ui.workspace.commands.commandFixtureSession
 import org.umamo.ui.workspace.commands.registerAll
 import org.umamo.ui.workspace.commands.selectCommands
 import kotlin.test.Test
@@ -16,71 +20,25 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * The menu bar's Select menu: Select All and Invert, then the by-kind families under two submenus that only Object
- * mode opens.  The submenus hold whatever the registry lists for their families, so the selection table alone decides
- * their rows.
+ * The menu bar's Select menu: Select All and Invert, a rule, then the by-kind families under two submenus that only
+ * Object mode opens.  The menu holds whatever the registry lists for its family, so the selection table alone decides
+ * its rows, and each row's own command decides when it is grayed.
  */
-@OptIn(ExperimentalTestApi::class)
 class SelectMenuTest {
 	/**
-	 * Registers the selection table the way the shell does with no document open.
+	 * A registry holding the selection table the way the shell registers it over [session].
 	 *
-	 * @param CommandRegistry registry The registry to register into.
+	 * @param EditorSession? session The open document's session, or null for no document.
+	 * @return CommandRegistry The registry.
 	 */
-	private fun registerSelectTable(registry: CommandRegistry) {
-		registry.registerAll(selectCommands(null, CommandRouting { null }, KeyformSheetViews(), SessionAvailability(null)))
-	}
-
-	/**
-	 * Builds the Select menu, recording what its rows dispatch.
-	 *
-	 * @param Boolean inObjectMode Whether the session is in Object mode.
-	 * @param MutableList<String> dispatched Collects the dispatched command ids.
-	 * @param CommandRegistry commands The registry the by-kind families are listed from: the selection table's unless
-	 *   a case hands in its own.
-	 * @return TopLevelMenu The menu.
-	 */
-	private fun selectMenuOf(
-		inObjectMode: Boolean,
-		dispatched: MutableList<String>,
-		commands: CommandRegistry = CommandRegistry().also { registry -> registerSelectTable(registry) },
-	): TopLevelMenu {
-		var menu: TopLevelMenu? = null
-		runComposeUiTest {
-			setContent {
-				menu = selectMenu(Keymap(emptyMap()), commands, hasDocument = true, inObjectMode = inObjectMode, dispatch = { commandId, _ -> dispatched += commandId })
-			}
-			waitForIdle()
-		}
-
-		return checkNotNull(menu)
-	}
-
-	/**
-	 * Chooses every action row, nested ones included, in order.
-	 *
-	 * @param List<MenuItem> items The rows.
-	 */
-	private fun chooseEvery(items: List<MenuItem>) {
-		for (item in items) {
-			when (item) {
-				is MenuItem.Action -> {
-					item.onSelect()
-				}
-
-				is MenuItem.Submenu -> {
-					chooseEvery(item.items)
-				}
-
-				else -> {}
-			}
-		}
-	}
+	private fun selectRegistry(session: EditorSession?): CommandRegistry =
+		CommandRegistry().also { registry -> registry.registerAll(selectCommands(session, CommandRouting { null }, KeyformSheetViews(), SessionAvailability(session))) }
 
 	@Test
 	fun theRowsDispatchTheSelectCommands() {
 		val dispatched = ArrayList<String>()
-		chooseEvery(selectMenuOf(inObjectMode = true, dispatched).items)
+		val tables = selectCommands(null, CommandRouting { null }, KeyformSheetViews(), SessionAvailability(null))
+		chooseEveryRow(familyMenuOf(CommandFamily.Select, recordingRegistryOf(tables, dispatched)))
 
 		assertEquals(
 			listOf(
@@ -99,63 +57,41 @@ class SelectMenuTest {
 		)
 	}
 
+	/** The by-kind submenus sit in a block of their own, each headed by its family with its rows named by the kind alone. */
+	@Test
+	fun theMenuIsTwoBlocksAndEachSubmenuNamesItsRowsByTheKindAlone() {
+		val kinds = listOf("  Parts", "  Drawables", "  Warp Deformers", "  Rotation Deformers")
+
+		assertEquals(
+			listOf("Select All", "Invert Selection", "---", "Select All of Type >") + kinds + listOf("Invert Selection of Type >") + kinds,
+			menuOutline(familyMenuOf(CommandFamily.Select, selectRegistry(commandFixtureSession(EditorMode.Object)))),
+		)
+	}
+
 	@Test
 	fun theByKindSubmenusOpenOnlyInObjectMode() {
-		val inObjectMode = selectMenuOf(inObjectMode = true, ArrayList()).items.filterIsInstance<MenuItem.Submenu>()
-		val elsewhere = selectMenuOf(inObjectMode = false, ArrayList()).items
+		val inObjectMode = familyMenuOf(CommandFamily.Select, selectRegistry(commandFixtureSession(EditorMode.Object)))
+		val inEditMode = familyMenuOf(CommandFamily.Select, selectRegistry(commandFixtureSession(EditorMode.Edit)))
 
-		assertEquals(2, inObjectMode.size)
-		assertTrue(inObjectMode.all { submenu -> submenu.enabled })
-		assertTrue(elsewhere.filterIsInstance<MenuItem.Submenu>().none { submenu -> submenu.enabled })
-		assertTrue(elsewhere.filterIsInstance<MenuItem.Action>().all { row -> row.enabled }, "Select All and Invert serve every mode")
+		assertEquals(2, inObjectMode.filterIsInstance<MenuItem.Submenu>().size)
+		assertTrue(inObjectMode.filterIsInstance<MenuItem.Submenu>().all { submenu -> submenu.enabled })
+		assertEquals(2, inEditMode.filterIsInstance<MenuItem.Submenu>().size, "the submenus stay where they are")
+		assertTrue(inEditMode.filterIsInstance<MenuItem.Submenu>().none { submenu -> submenu.enabled }, "and cannot open: none of their rows applies")
+		assertTrue(inEditMode.filterIsInstance<MenuItem.Action>().all { row -> row.enabled }, "Select All and Invert serve every mode")
 	}
 
-	/** Each submenu is headed by its family and names its rows by the kind alone: the heading says the rest. */
+	/** With no document open nothing can be selected, so every row is grayed by its own command. */
 	@Test
-	fun eachFamilyIsHeadedAndItsRowsNameTheKindAlone() {
-		val submenus = selectMenuOf(inObjectMode = true, ArrayList()).items.filterIsInstance<MenuItem.Submenu>()
+	fun withNoDocumentEveryRowIsGrayed() {
+		val menu = familyMenuOf(CommandFamily.Select, selectRegistry(null))
 
-		assertEquals(listOf("Select All of Type", "Invert Selection of Type"), submenus.map { submenu -> submenu.label })
-
-		for (submenu in submenus) {
-			assertEquals(
-				listOf("Parts", "Drawables", "Warp Deformers", "Rotation Deformers"),
-				submenu.items.map { row -> (row as MenuItem.Action).label },
-				submenu.label,
-			)
-		}
+		assertTrue(menu.filterIsInstance<MenuItem.Action>().none { row -> row.enabled })
+		assertTrue(menu.filterIsInstance<MenuItem.Submenu>().none { submenu -> submenu.enabled })
 	}
 
-	/** The rows come from the registry and nowhere else, so a family nothing has registered offers nothing to open. */
+	/** The rows come from the registry and nowhere else, so a family nothing has registered is a menu with no row. */
 	@Test
 	fun aFamilyNothingHasRegisteredOffersNothing() {
-		val submenus = selectMenuOf(inObjectMode = true, ArrayList(), CommandRegistry()).items.filterIsInstance<MenuItem.Submenu>()
-
-		assertEquals(2, submenus.size)
-		assertTrue(submenus.all { submenu -> submenu.items.isEmpty() }, "no row without a registered command")
-		assertTrue(submenus.none { submenu -> submenu.enabled }, "and a submenu with no row cannot open, Object mode or not")
+		assertEquals(emptyList(), familyMenuOf(CommandFamily.Select, CommandRegistry()))
 	}
-
-	/**
-	 * The app builds the menu bar outside the shell, whose effects register the selection table only after that
-	 * composition - so the menu has to come back by itself when the family lands.
-	 */
-	@Test
-	fun aFamilyRegisteredAfterTheMenuWasBuiltReachesIt() =
-		runComposeUiTest {
-			val commands = CommandRegistry()
-			var menu: TopLevelMenu? = null
-			setContent {
-				menu = selectMenu(Keymap(emptyMap()), commands, hasDocument = true, inObjectMode = true, dispatch = { _, _ -> })
-			}
-			waitForIdle()
-			assertTrue(checkNotNull(menu).items.filterIsInstance<MenuItem.Submenu>().all { submenu -> submenu.items.isEmpty() }, "nothing is registered yet")
-
-			runOnIdle { registerSelectTable(commands) }
-			waitForIdle()
-
-			val submenus = checkNotNull(menu).items.filterIsInstance<MenuItem.Submenu>()
-			assertEquals(listOf(4, 4), submenus.map { submenu -> submenu.items.size }, "the registration recomposed the menu")
-			assertTrue(submenus.all { submenu -> submenu.enabled })
-		}
 }
