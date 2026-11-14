@@ -46,7 +46,7 @@ private class SelectableKindCommands(
 )
 
 /** The by-kind pairs, in the order their families list them. */
-private val SELECTABLE_KIND_COMMANDS: List<SelectableKindCommands> =
+private val selectableKindCommands: List<SelectableKindCommands> =
 	listOf(
 		SelectableKindCommands(
 			SelectableKind.Part,
@@ -107,7 +107,7 @@ internal fun selectCommands(
 	// alone.  They route to no area, so they belong everywhere, and carry no chord in any preset.  Each pair's two
 	// commands are members of the two by-kind families, under the kind alone: the family's heading says the rest.
 	val selectAllOfKind =
-		SELECTABLE_KIND_COMMANDS.map { pair ->
+		selectableKindCommands.map { pair ->
 			Command(
 				pair.selectAllId,
 				title = pair.selectAllTitle,
@@ -119,7 +119,7 @@ internal fun selectCommands(
 			}
 		}
 	val invertOfKind =
-		SELECTABLE_KIND_COMMANDS.map { pair ->
+		selectableKindCommands.map { pair ->
 			Command(
 				pair.invertId,
 				title = pair.invertTitle,

@@ -184,9 +184,9 @@ See format planning document: docs/plan/uma-format.md
 * Rework pie and context menus to inherit base sets of actions.  For example, right now using the K pie menu on a combined axis results in it going from the pie menu to a context mennu.  If both the pie and context menus use the same lists of commands they can programmatically open the correct kind of menu.  So an invoked pie menu will cascade into another pie menu.
 * Follow up for main menus: Make sure they are using the command registry families/groups/tables and build them as such.  This allows the menus to appear in other places with ease.
 * Reorder pie menus to be numerical order from West to South West clockwise.
-* Clean up SELECTABLE_KIND_COMMANDS naming when finished.
 * Add separator in Snap submenu.
 * Add icons to command palette now that they come through the command registry.  When there an icon is unavailable just reserve the space as blank.
+* Update CHANGELOG
 
 ## Theme Colors
 * Ability to edit ALL the theme colors (the UmamoColors palette) for a custom look through preferences.  For example, in Blender I make my vertex colors as ff00ec(unselected), ff7a00(selected), and 7de400(active selection) since it is easier for me to see.
