@@ -373,6 +373,7 @@
 	<string name="cmd_mode_edit">Edit Mode</string>
 	<string name="cmd_mode_toggle_pose">Toggle Pose Mode</string>
 	<string name="cmd_mode_pose">Pose Mode</string>
+	<string name="group_editor_mode">Mode</string>
 	<string name="cmd_mesh_grab">Grab Vertices</string>
 	<string name="cmd_mesh_scale">Scale Vertices</string>
 	<string name="cmd_mesh_rotate">Rotate Vertices</string>

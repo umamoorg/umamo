@@ -9,6 +9,7 @@ import org.umamo.edit.transform.snapToWorldGrid
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandSection
+import org.umamo.ui.action.CommandState
 import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -16,6 +17,17 @@ import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.workspace.AreaOverlayHub
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SpaceScope
+
+/**
+ * Reports whether [pivotMode] is the transform pivot.  With no document open the pivot reads as the median point, the
+ * one a session starts on, so the pivot control shows the same face before the first file opens.
+ *
+ * @param EditorSession? editorSession The open document's session, or null.
+ * @param TransformPivotMode pivotMode The pivot to report on.
+ * @return CommandState The state of the command that sets [pivotMode].
+ */
+private fun pivotState(editorSession: EditorSession?, pivotMode: TransformPivotMode): CommandState =
+	CommandState { (editorSession?.pivotMode?.value ?: TransformPivotMode.MedianPoint) == pivotMode }
 
 /**
  * The transform pivot modes (the Period pie / the palette) and the Shift+S snap operations over world
@@ -48,6 +60,7 @@ internal fun snapCommands(
 			availability = availability.hasDocument,
 			group = CommandFamily.PivotMode,
 			icon = LocalUmamoIcons.pivotMedian,
+			state = pivotState(editorSession, TransformPivotMode.MedianPoint),
 		) {
 			editorSession?.setPivotMode(TransformPivotMode.MedianPoint)
 			editorSession?.closePieMenu()
@@ -58,6 +71,7 @@ internal fun snapCommands(
 			availability = availability.hasDocument,
 			group = CommandFamily.PivotMode,
 			icon = LocalUmamoIcons.pivotIndividual,
+			state = pivotState(editorSession, TransformPivotMode.IndividualOrigins),
 		) {
 			editorSession?.setPivotMode(TransformPivotMode.IndividualOrigins)
 			editorSession?.closePieMenu()
@@ -68,6 +82,7 @@ internal fun snapCommands(
 			availability = availability.hasDocument,
 			group = CommandFamily.PivotMode,
 			icon = LocalUmamoIcons.pivotActive,
+			state = pivotState(editorSession, TransformPivotMode.ActiveElement),
 		) {
 			editorSession?.setPivotMode(TransformPivotMode.ActiveElement)
 			editorSession?.closePieMenu()
@@ -78,6 +93,7 @@ internal fun snapCommands(
 			availability = availability.hasDocument,
 			group = CommandFamily.PivotMode,
 			icon = LocalUmamoIcons.pivotCursor,
+			state = pivotState(editorSession, TransformPivotMode.Cursor),
 		) {
 			editorSession?.setPivotMode(TransformPivotMode.Cursor)
 			editorSession?.closePieMenu()

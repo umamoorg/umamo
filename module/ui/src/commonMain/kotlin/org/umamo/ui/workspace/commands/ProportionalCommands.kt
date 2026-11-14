@@ -5,8 +5,13 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.transform.choiceKey
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandFamily
+import org.umamo.ui.action.CommandState
 import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoIcons
+import org.umamo.ui.theme.UmamoIcon
+import org.umamo.ui.viewport.falloffLabelResource
 
 /** The localized palette title for each proportional-editing falloff curve. */
 private val FALLOFF_TITLES: Map<ProportionalFalloff, StringResource> =
@@ -20,6 +25,25 @@ private val FALLOFF_TITLES: Map<ProportionalFalloff, StringResource> =
 		ProportionalFalloff.Constant to Res.string.cmd_mesh_proportional_falloff_constant,
 		ProportionalFalloff.Random to Res.string.cmd_mesh_proportional_falloff_random,
 	)
+
+/**
+ * A falloff curve's glyph: Blender's curve icon, on the proportional chip while the curve is current and on the
+ * curve's row among the curves.
+ *
+ * @param ProportionalFalloff falloff The falloff curve.
+ * @return UmamoIcon The curve's glyph.
+ */
+private fun falloffIcon(falloff: ProportionalFalloff): UmamoIcon =
+	when (falloff) {
+		ProportionalFalloff.Smooth -> LocalUmamoIcons.falloffSmooth
+		ProportionalFalloff.Sphere -> LocalUmamoIcons.falloffSphere
+		ProportionalFalloff.Root -> LocalUmamoIcons.falloffRoot
+		ProportionalFalloff.InverseSquare -> LocalUmamoIcons.falloffInverseSquare
+		ProportionalFalloff.Sharp -> LocalUmamoIcons.falloffSharp
+		ProportionalFalloff.Linear -> LocalUmamoIcons.falloffLinear
+		ProportionalFalloff.Constant -> LocalUmamoIcons.falloffConstant
+		ProportionalFalloff.Random -> LocalUmamoIcons.falloffRandom
+	}
 
 /**
  * The payload a control that shows Connected Only hands mesh.proportional.connectedToggle: the flag to set,
@@ -42,13 +66,18 @@ internal class ProportionalConnectedRequest(val connectedOnly: Boolean)
  */
 internal fun proportionalCommands(editorSession: EditorSession?, availability: SessionAvailability): List<Command> {
 	// One falloff command per curve, looped over the enum so a new falloff cannot be forgotten here -
-	// getValue throws on a curve with no title rather than silently registering an unlabelled command.
+	// getValue throws on a curve with no title rather than silently registering an unlabelled command.  Together
+	// they are the falloff family, each under the curve's short name and in effect while its curve is the setting's.
 	val falloffs =
 		ProportionalFalloff.entries.map { falloff ->
 			Command(
 				"mesh.proportional.falloff.${falloff.choiceKey}",
 				title = FALLOFF_TITLES.getValue(falloff),
 				availability = availability.inElementMode,
+				group = CommandFamily.ProportionalFalloff,
+				groupLabel = falloffLabelResource(falloff),
+				icon = falloffIcon(falloff),
+				state = CommandState { editorSession?.proportionalSettings?.value?.falloff == falloff },
 			) { editorSession?.setProportionalFalloff(falloff) }
 		}
 

@@ -1,5 +1,11 @@
 package org.umamo.ui.workspace.commands
 
+import org.umamo.edit.EditorMode
+import org.umamo.edit.MeshSelectMode
+import org.umamo.edit.ProportionalFalloff
+import org.umamo.edit.TransformPivotMode
+import org.umamo.edit.setMeshSelectMode
+import org.umamo.edit.transform.choiceKey
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
@@ -11,6 +17,7 @@ import org.umamo.ui.resources.menu_select_kind_drawables
 import org.umamo.ui.resources.menu_select_kind_parts
 import org.umamo.ui.resources.menu_select_kind_rotations
 import org.umamo.ui.resources.menu_select_kind_warps
+import org.umamo.ui.viewport.falloffLabelResource
 import org.umamo.ui.workspace.AreaOverlayHub
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -152,5 +159,65 @@ class CommandGroupTableTest {
 		val stray = Command("test.stray", title = null, group = CommandFamily.SelectAllOfKind, groupLabel = Res.string.menu_select_kind_parts) {}
 
 		assertFailsWith<IllegalArgumentException> { commandTable(CommandTable.Overlay, stray) }
+	}
+
+	/**
+	 * A family whose members are the choices of one setting has exactly one of them in effect, and it is the one
+	 * the session holds - which is what a control listing the family lights, and whose glyph its chip wears.
+	 */
+	@Test
+	fun aChoiceFamilyHasTheSessionsChoiceInEffect() {
+		val session = commandFixtureSession(EditorMode.Edit)
+		val registry = CommandRegistry().also { registry -> everyCommandTable(session).forEach { command -> registry.register(command) } }
+		val inEffect = { family: CommandFamily -> registry.inGroup(family).filter { command -> command.isOn() }.map { command -> command.id } }
+
+		assertEquals(listOf("mode.edit"), inEffect(CommandFamily.EditorMode))
+		assertEquals(listOf("mesh.selectMode.vertex"), inEffect(CommandFamily.SelectMode))
+		assertEquals(listOf("transform.pivot.median"), inEffect(CommandFamily.PivotMode))
+		assertEquals(listOf("mesh.proportional.falloff.${session.proportionalSettings.value.falloff.choiceKey}"), inEffect(CommandFamily.ProportionalFalloff))
+
+		session.setMeshSelectMode(MeshSelectMode.Face)
+		session.setPivotMode(TransformPivotMode.Cursor)
+		session.setProportionalFalloff(ProportionalFalloff.Sharp)
+
+		assertEquals(listOf("mesh.selectMode.face"), inEffect(CommandFamily.SelectMode), "read live, never sampled at registration")
+		assertEquals(listOf("transform.pivot.cursor"), inEffect(CommandFamily.PivotMode))
+		assertEquals(listOf("mesh.proportional.falloff.sharp"), inEffect(CommandFamily.ProportionalFalloff))
+	}
+
+	/**
+	 * With no document open the pivot and the mode still read as the ones a session starts on, so their header chips
+	 * show the same face before the first file opens; the select modes and the curves belong to controls that are not
+	 * shown then, and report nothing.
+	 */
+	@Test
+	fun withNoDocumentThePivotAndTheModeReadAsASessionsFirst() {
+		val registry = registryOverEveryTable()
+		val inEffect = { family: CommandFamily -> registry.inGroup(family).filter { command -> command.isOn() }.map { command -> command.id } }
+
+		assertEquals(listOf("transform.pivot.median"), inEffect(CommandFamily.PivotMode))
+		assertEquals(listOf("mode.object"), inEffect(CommandFamily.EditorMode))
+		assertEquals(emptyList(), inEffect(CommandFamily.SelectMode))
+		assertEquals(emptyList(), inEffect(CommandFamily.ProportionalFalloff))
+	}
+
+	/** A button or a chip shows a member by its glyph, so a member of these families with none drawn would have no face. */
+	@Test
+	fun theFamiliesShownAsButtonsHaveAGlyphPerMember() {
+		val registry = registryOverEveryTable()
+
+		for (family in listOf(CommandFamily.SelectMode, CommandFamily.PivotMode, CommandFamily.ProportionalFalloff, CommandFamily.EditorMode)) {
+			assertEquals(emptyList(), registry.inGroup(family).filter { command -> command.icon == null }.map { command -> command.id }, "$family")
+		}
+	}
+
+	/** The falloff family holds a member per curve, in the curves' order, each under the curve's short name. */
+	@Test
+	fun theFalloffFamilyListsEveryCurveUnderItsShortName() {
+		val curves = registryOverEveryTable().inGroup(CommandFamily.ProportionalFalloff)
+
+		assertEquals(ProportionalFalloff.entries.map { falloff -> "mesh.proportional.falloff.${falloff.choiceKey}" }, curves.map { command -> command.id })
+		assertEquals(ProportionalFalloff.entries.map { falloff -> falloffLabelResource(falloff) }, curves.map { command -> command.rowLabel })
+		assertTrue(curves.all { command -> command.title != command.rowLabel }, "the palette title still says Proportional Falloff")
 	}
 }
