@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.settings.Settings
+import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.rememberLiveKeymap
 import org.umamo.ui.document.recentFiles
 import org.umamo.ui.kit.menu.TopLevelMenu
@@ -28,8 +29,9 @@ import org.umamo.ui.l10n.rememberLocaleTag
  * @param Boolean        canSave   Whether the open document can be saved (gates both Save rows).
  * @param Boolean        canExport Whether an exportable puppet document is open (gates the CMO3 and MOC3 rows).
  * @param Boolean        canExportImage Whether the open document can be rendered to an image (gates Export Image).
- * @param MenuDispatch   dispatch  Runs a command by id; every row of the bar stands for a command, so this is
- *   all the bar needs from its host, and a rebind reaches the menu, the keyboard, and the palette alike.
+ * @param MenuDispatch   dispatch  Runs a command by id; every row of the bar stands for a command, so a rebind
+ *   reaches the menu, the keyboard, and the palette alike.
+ * @param CommandRegistry commands The registry the menus list their command families from.
  * @param Boolean        canOpenLogFolder Whether the host registered Open Log Folder (shows its Help row).
  * @param Boolean        canCheckForUpdates Whether the host registered Check for Updates (shows its Help row).
  * @return List The top-level menus.
@@ -42,6 +44,7 @@ internal fun buildAppMenu(
 	canExport: Boolean,
 	canExportImage: Boolean,
 	dispatch: MenuDispatch,
+	commands: CommandRegistry,
 	canOpenLogFolder: Boolean = false,
 	canCheckForUpdates: Boolean = false,
 ): List<TopLevelMenu> {
@@ -88,7 +91,7 @@ internal fun buildAppMenu(
 		listOf(
 			fileMenu(keymap = keymap, recentFiles = recentFiles, canExport = canExport, canExportImage = canExportImage, canSave = canSave, dispatch = dispatch),
 			editMenu(keymap = keymap, canUndo = canUndo, canRedo = canRedo, dispatch = dispatch),
-			selectMenu(keymap = keymap, hasDocument = session != null, inObjectMode = inObjectMode, dispatch = dispatch),
+			selectMenu(keymap = keymap, commands = commands, hasDocument = session != null, inObjectMode = inObjectMode, dispatch = dispatch),
 			workspaceMenu(keymap = keymap, dispatch = dispatch),
 			helpMenu(keymap = keymap, dispatch = dispatch, canOpenLogFolder = canOpenLogFolder, canCheckForUpdates = canCheckForUpdates),
 		)

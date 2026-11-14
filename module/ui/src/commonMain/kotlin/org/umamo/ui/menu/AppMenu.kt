@@ -2,6 +2,8 @@ package org.umamo.ui.menu
 
 import androidx.compose.runtime.Composable
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.ui.action.CommandFamily
+import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.document.fileDisplayName
@@ -32,14 +34,12 @@ import org.umamo.ui.resources.menu_import
 import org.umamo.ui.resources.menu_import_artwork
 import org.umamo.ui.resources.menu_import_cmo3
 import org.umamo.ui.resources.menu_import_moc3
-import org.umamo.ui.resources.menu_invert_selection_of_type
 import org.umamo.ui.resources.menu_open_log_folder
 import org.umamo.ui.resources.menu_open_recent
 import org.umamo.ui.resources.menu_preferences
 import org.umamo.ui.resources.menu_quick_setup
 import org.umamo.ui.resources.menu_redo
 import org.umamo.ui.resources.menu_select
-import org.umamo.ui.resources.menu_select_all_of_type
 import org.umamo.ui.resources.menu_source_code
 import org.umamo.ui.resources.menu_undo
 import org.umamo.ui.resources.menu_web_site
@@ -49,7 +49,6 @@ import org.umamo.ui.resources.menu_workspace_export_this
 import org.umamo.ui.resources.menu_workspace_import
 import org.umamo.ui.resources.menu_workspace_reset
 import org.umamo.ui.resources.workspace_new
-import org.umamo.ui.workspace.commands.SELECTABLE_KIND_COMMANDS
 
 /**
  * Runs a command by id through the action registry, with the argument an argument-only command takes (a
@@ -173,38 +172,64 @@ fun editMenu(
 	)
 
 /**
+ * A submenu standing for a command family: the family's heading over one row per registered member, each under its
+ * label in the family.  The rows are whatever the registry holds, in its order, so the family's table is the one
+ * place that says which commands the submenu offers.
+ *
+ * @param CommandFamily   family   The family the submenu stands for.
+ * @param CommandRegistry commands The registry the family's members are listed from.
+ * @param Keymap          keymap   The keymap the accelerator hints are resolved against.
+ * @param MenuDispatch    dispatch Runs a command by id.
+ * @param Boolean         enabled  Whether the family's rows can be selected.
+ * @return MenuItem.Submenu The submenu, which cannot open while it has no row to offer.
+ */
+@Composable
+private fun familySubmenu(
+	family: CommandFamily,
+	commands: CommandRegistry,
+	keymap: Keymap,
+	dispatch: MenuDispatch,
+	enabled: Boolean,
+): MenuItem.Submenu {
+	val rows =
+		commands.inGroup(family).map { member ->
+			commandRow(member.rowLabel?.let { label -> stringResource(label) } ?: member.id, member.id, keymap, dispatch, enabled = enabled)
+		}
+
+	return MenuItem.Submenu(label = stringResource(family.heading), items = rows, enabled = enabled && rows.isNotEmpty())
+}
+
+/**
  * Builds the Select menu shared by every platform's menu bar: Select All and Invert, which act on elements in Edit and
- * Pose mode and on objects in Object mode, then the Object-mode by-kind pairs.  The tools that act on the area under
+ * Pose mode and on objects in Object mode, then the Object-mode by-kind families.  The tools that act on the area under
  * the pointer (Box, Circle, Select Linked) stay off it: from the menu bar, the pointer is on the bar.
  *
- * @param Keymap       keymap       The keymap the accelerator hints are resolved against.
- * @param Boolean      hasDocument  Whether a document is open (gates Select All and Invert).
- * @param Boolean      inObjectMode Whether the session is in Object mode (gates the by-kind submenus).
- * @param MenuDispatch dispatch     Runs a command by id.
+ * @param Keymap          keymap       The keymap the accelerator hints are resolved against.
+ * @param CommandRegistry commands     The registry the by-kind families are listed from.
+ * @param Boolean         hasDocument  Whether a document is open (gates Select All and Invert).
+ * @param Boolean         inObjectMode Whether the session is in Object mode (gates the by-kind submenus).
+ * @param MenuDispatch    dispatch     Runs a command by id.
  * @return TopLevelMenu The Select menu.
  */
 @Composable
 fun selectMenu(
 	keymap: Keymap,
+	commands: CommandRegistry,
 	hasDocument: Boolean,
 	inObjectMode: Boolean,
 	dispatch: MenuDispatch,
-): TopLevelMenu {
-	val selectAllOfKindRows = SELECTABLE_KIND_COMMANDS.map { pair -> commandRow(stringResource(pair.menuLabel), pair.selectAllId, keymap, dispatch, enabled = inObjectMode) }
-	val invertOfKindRows = SELECTABLE_KIND_COMMANDS.map { pair -> commandRow(stringResource(pair.menuLabel), pair.invertId, keymap, dispatch, enabled = inObjectMode) }
-
-	return TopLevelMenu(
+): TopLevelMenu =
+	TopLevelMenu(
 		label = stringResource(Res.string.menu_select),
 		items =
 			listOf(
 				commandRow(stringResource(Res.string.cmd_select_all), "select.all", keymap, dispatch, enabled = hasDocument),
 				commandRow(stringResource(Res.string.cmd_select_invert), "select.invert", keymap, dispatch, enabled = hasDocument),
 				MenuItem.Separator,
-				MenuItem.Submenu(label = stringResource(Res.string.menu_select_all_of_type), items = selectAllOfKindRows, enabled = inObjectMode),
-				MenuItem.Submenu(label = stringResource(Res.string.menu_invert_selection_of_type), items = invertOfKindRows, enabled = inObjectMode),
+				familySubmenu(CommandFamily.SelectAllOfKind, commands, keymap, dispatch, enabled = inObjectMode),
+				familySubmenu(CommandFamily.InvertSelectionOfKind, commands, keymap, dispatch, enabled = inObjectMode),
 			),
 	)
-}
 
 /**
  * Builds the Workspace menu shared by every platform's menu bar: tab navigation, New and Reset, and the

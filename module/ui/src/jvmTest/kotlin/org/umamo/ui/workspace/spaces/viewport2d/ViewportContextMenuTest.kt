@@ -217,6 +217,29 @@ class ViewportContextMenuTest {
 			assertEquals(0, popups(), "the menu closed behind the pick")
 		}
 
+	/**
+	 * Each by-kind submenu lists its family from the registry the shell registered into: every kind, by the kind
+	 * alone, since the submenu's own row already says what picking one does.
+	 */
+	@Test
+	fun eachByKindFamilyListsEveryKindByTheKindAlone() =
+		runComposeUiTest {
+			mount(commandFixtureSession(EditorMode.Object))
+
+			rightClickTheSurface()
+			hoverMenuRow("Select")
+
+			for (family in listOf("Select All of Type", "Invert Selection of Type")) {
+				hoverMenuRow(family)
+
+				for (kind in listOf("Parts", "Drawables", "Warp Deformers", "Rotation Deformers")) {
+					assertEquals(1, rowsReading(kind, pickable = true), "$family > $kind")
+				}
+
+				assertEquals(0, rowsReading("Select All Parts"), "$family shows no palette title")
+			}
+		}
+
 	@Test
 	fun poseModeOffersTheKeyingRows() =
 		runComposeUiTest {

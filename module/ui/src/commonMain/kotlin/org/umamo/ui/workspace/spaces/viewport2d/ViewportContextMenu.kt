@@ -8,6 +8,8 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.PieMenuKind
+import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.LocalCommands
@@ -15,10 +17,7 @@ import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.kit.menu.MenuItem
 import org.umamo.ui.resources.Res
-import org.umamo.ui.resources.menu_invert_selection_of_type
 import org.umamo.ui.resources.menu_select
-import org.umamo.ui.resources.menu_select_all_of_type
-import org.umamo.ui.workspace.commands.SELECTABLE_KIND_COMMANDS
 import org.umamo.ui.workspace.commands.pieMenuEntriesFor
 
 /*
@@ -28,21 +27,28 @@ import org.umamo.ui.workspace.commands.pieMenuEntriesFor
  * command's title and its accelerator from the keymap, and grays out when its command is unavailable - the row is
  * built from the command id alone, so it can never run one command and advertise another's chord.  A pie's choices
  * come in as a submenu under the title of the command that opens the pie, built from the same entry table the pie
- * draws, so a grayed chip is a grayed row.  The selection rows group under a Select submenu, which grays out only when
- * nothing under it can be picked.  Operations driven by the pointer's position (Rip, Vertex Slide, the object switch)
- * stay off it: from a menu, the pointer is on the menu.
+ * draws, so a grayed chip is a grayed row.  A command family comes in as a submenu under the family's heading, its rows
+ * listed from the registry, so the family's table is what says which commands the submenu offers.  The selection rows
+ * group under a Select submenu, which grays out only when nothing under it can be picked.  Operations driven by the
+ * pointer's position (Rip, Vertex Slide, the object switch) stay off it: from a menu, the pointer is on the menu.
  */
 
 /** One row of the viewport's context menu. */
 private sealed interface ViewportMenuRow {
 	/**
-	 * A command, by id.
+	 * A command, by id, under its title.
 	 *
 	 * @property String commandId The command.
-	 * @property StringResource? label A shorter label for a row under a submenu that already says what it does, or
-	 *   null for the command's title.
 	 */
-	data class Single(val commandId: String, val label: StringResource? = null) : ViewportMenuRow
+	data class Single(val commandId: String) : ViewportMenuRow
+
+	/**
+	 * A command family as a submenu under its heading: one row per registered member, each under its label in the
+	 * family.
+	 *
+	 * @property CommandFamily family The family.
+	 */
+	data class Family(val family: CommandFamily) : ViewportMenuRow
 
 	/**
 	 * A named group of rows as a submenu.
@@ -76,19 +82,13 @@ private fun selectSubmenu(extraRows: List<ViewportMenuRow>): ViewportMenuRow =
 		listOf(ViewportMenuRow.Single("select.all"), ViewportMenuRow.Single("select.invert")) + extraRows,
 	)
 
-/** Object mode's Select submenu, which adds the by-kind pairs. */
+/** Object mode's Select submenu, which adds the by-kind families. */
 private val OBJECT_SELECT_SUBMENU =
 	selectSubmenu(
 		listOf(
 			ViewportMenuRow.Separator,
-			ViewportMenuRow.Submenu(
-				Res.string.menu_select_all_of_type,
-				SELECTABLE_KIND_COMMANDS.map { pair -> ViewportMenuRow.Single(pair.selectAllId, pair.menuLabel) },
-			),
-			ViewportMenuRow.Submenu(
-				Res.string.menu_invert_selection_of_type,
-				SELECTABLE_KIND_COMMANDS.map { pair -> ViewportMenuRow.Single(pair.invertId, pair.menuLabel) },
-			),
+			ViewportMenuRow.Family(CommandFamily.SelectAllOfKind),
+			ViewportMenuRow.Family(CommandFamily.InvertSelectionOfKind),
 		),
 	)
 
@@ -209,14 +209,17 @@ private fun menuItemOf(
 ): MenuItem? =
 	when (row) {
 		is ViewportMenuRow.Single -> {
-			commands[row.commandId]?.let { command ->
-				MenuItem.Action(
-					label = (row.label ?: command.title)?.let { title -> stringResource(title) } ?: command.id,
-					onSelect = { commands.invoke(command.id) },
-					shortcut = acceleratorOf(keymap, command.id),
-					enabled = command.availability.isAvailable(),
-				)
-			}
+			commands[row.commandId]?.let { command -> commandItemOf(command, command.title, commands, keymap) }
+		}
+
+		is ViewportMenuRow.Family -> {
+			val items = commands.inGroup(row.family).map { member -> commandItemOf(member, member.rowLabel, commands, keymap) }
+
+			MenuItem.Submenu(
+				label = stringResource(row.family.heading),
+				items = items,
+				enabled = items.any { item -> item.enabled },
+			)
 		}
 
 		is ViewportMenuRow.Choices -> {
@@ -254,6 +257,29 @@ private fun menuItemOf(
 			MenuItem.Separator
 		}
 	}
+
+/**
+ * The menu item that runs [command], under [label].
+ *
+ * @param Command command The command the row stands for.
+ * @param StringResource? label The row's label, or null to show the command's id instead.
+ * @param CommandRegistry commands The registry the row dispatches through.
+ * @param Keymap keymap The keymap the accelerator is read from.
+ * @return MenuItem.Action The item.
+ */
+@Composable
+private fun commandItemOf(
+	command: Command,
+	label: StringResource?,
+	commands: CommandRegistry,
+	keymap: Keymap,
+): MenuItem.Action =
+	MenuItem.Action(
+		label = label?.let { resource -> stringResource(resource) } ?: command.id,
+		onSelect = { commands.invoke(command.id) },
+		shortcut = acceleratorOf(keymap, command.id),
+		enabled = command.availability.isAvailable(),
+	)
 
 /**
  * Whether this item, or a row somewhere under it, can be picked.
