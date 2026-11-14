@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 
 /**
@@ -24,7 +25,8 @@ internal fun meshGenerationCommands(
 	generate: ((String?) -> Unit)?,
 	generateQuad: ((String?) -> Unit)?,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.MeshGeneration,
 		Command(
 			"mesh.generateFromArt",
 			title = Res.string.cmd_mesh_generate_from_art,

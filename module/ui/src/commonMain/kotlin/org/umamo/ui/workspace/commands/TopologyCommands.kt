@@ -16,6 +16,7 @@ import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.SpaceScope
 
@@ -34,7 +35,8 @@ internal fun topologyCommands(
 	routing: CommandRouting,
 	availability: SessionAvailability,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.Topology,
 		Command("mesh.duplicate", title = Res.string.cmd_mesh_duplicate, availability = availability.hasDocument) {
 			val live = editorSession
 

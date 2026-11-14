@@ -12,6 +12,9 @@ import androidx.compose.runtime.staticCompositionLocalOf
  *
  * Insertion order is preserved (a LinkedHashMap) so the command palette can list commands in a
  * stable, registration order rather than a hash-shuffled one.
+ *
+ * It is also the one place a set of related commands is read from: [inGroup] lists a table or a family,
+ * so nothing that shows such a set keeps a list of its own.
  */
 class CommandRegistry {
 	private val commandsById = LinkedHashMap<String, Command>()
@@ -63,6 +66,29 @@ class CommandRegistry {
 	 * @return List the registered commands.
 	 */
 	fun all(): List<Command> = commandsById.values.toList()
+
+	/**
+	 * The registered commands within [group], in registration order - what a menu, a pie, or a header control
+	 * listing related commands reads, so the table that registers them decides which they are and in what order.
+	 *
+	 * Subscribes its reader to [revision], so a composable listing a group recomposes when the table changes
+	 * without keying on the revision itself.
+	 *
+	 * @param CommandGroup group The table, or the family inside one, to list.
+	 * @return List<Command> The group's registered commands; empty while none of them is registered.
+	 */
+	fun inGroup(group: CommandGroup): List<Command> {
+		observeTable()
+
+		return commandsById.values.filter { command -> command.group?.isWithin(group) == true }
+	}
+
+	/**
+	 * Reads [revision], which subscribes whatever is reading - a composition, a derived state - to the table.
+	 *
+	 * @return Int The revision read.
+	 */
+	private fun observeTable(): Int = revision
 
 	/**
 	 * Invokes the command bound to [id], passing [argument] to its handler.

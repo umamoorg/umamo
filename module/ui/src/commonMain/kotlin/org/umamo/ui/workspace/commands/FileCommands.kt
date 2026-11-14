@@ -5,6 +5,7 @@ import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 
 /*
@@ -56,7 +57,8 @@ internal fun fileCommands(
 	onOpenPath: (path: String) -> Unit,
 	onExit: () -> Unit,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.File,
 		Command("file.new", title = Res.string.cmd_file_new) { onNew() },
 		Command("file.open", title = Res.string.cmd_file_open) { onOpen() },
 		Command("file.save", title = Res.string.cmd_file_save, availability = CommandAvailability { canSave() }) { onSave() },
@@ -196,7 +198,8 @@ class ArtworkOperations(
  * @return List<Command> The commands to register.
  */
 internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> ArtworkOperations?): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.File,
 		// The one way artwork enters a document, from the File menu's Import row, the Sources space, and a
 		// drop on the window alike: a file's layers are ADDED to the open document as one undoable edit, the
 		// way importing an object into a Blender scene adds to it rather than replacing the scene.  With no
@@ -267,7 +270,8 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
  * @return List<Command> The commands to register.
  */
 internal fun fileImageExportCommands(routing: CommandRouting, exportImage: () -> ((viewportAreaId: String?) -> Unit)?): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.File,
 		Command(
 			"file.exportImage",
 			title = Res.string.cmd_export_image,
@@ -295,7 +299,8 @@ internal fun fileExportCommands(
 	onExportCmo3: () -> Unit,
 	onExportMoc3: () -> Unit,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.File,
 		Command(
 			"file.exportCmo3",
 			title = Res.string.cmd_export_cmo3,

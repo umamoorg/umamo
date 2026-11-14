@@ -2,6 +2,7 @@ package org.umamo.ui.workspace.commands
 
 import org.umamo.edit.EditorSession
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.operationstrip.OperationStripState
 
@@ -23,7 +24,8 @@ internal fun historyCommands(
 	availability: SessionAvailability,
 	operationStrip: OperationStripState,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.History,
 		Command("edit.undo", title = Res.string.cmd_undo, availability = availability.hasDocument) { editorSession?.undo() },
 		Command("edit.redo", title = Res.string.cmd_redo, availability = availability.hasDocument) { editorSession?.redo() },
 		Command("edit.adjustLastOperation", title = Res.string.cmd_adjust_last_operation, availability = availability.hasAdjustableOperation) {

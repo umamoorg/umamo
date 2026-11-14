@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.help.ProjectInfo
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.ShellOverlayState
@@ -31,7 +32,8 @@ internal fun chromeCommands(
 	workspaces: WorkspaceLayoutController,
 	openLink: (url: String) -> Unit,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.Chrome,
 		Command("palette.toggle", title = null) { overlays.paletteVisible = !overlays.paletteVisible },
 		// Cancels whichever kind of area drag is in flight - the two are separate mechanisms (a corner
 		// drag splits/joins, a divider drag re-ratios) and only ever one is live, so both are addressed

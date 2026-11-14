@@ -1,16 +1,21 @@
 package org.umamo.ui.action
 
+import androidx.compose.runtime.derivedStateOf
+import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.cmd_select_all_parts
+import org.umamo.ui.resources.menu_select_kind_parts
 import org.umamo.ui.workspace.SpaceScope
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
  * Verifies the action-registry dispatch contract: registered commands run with the forwarded
- * argument, unknown ids fail quietly (no throw), listing is in registration order, and an
- * unavailable command neither runs nor consumes its trigger.
+ * argument, unknown ids fail quietly (no throw), listing is in registration order - of the whole table
+ * and of one group in it - and an unavailable command neither runs nor consumes its trigger.
  */
 class CommandRegistryTest {
 	/**
@@ -120,6 +125,78 @@ class CommandRegistryTest {
 
 		registry.invoke("a")
 		assertEquals(afterUnregister, registry.revision, "and neither does invoking one")
+	}
+
+	/**
+	 * inGroup() lists a table's commands in registration order - a family's members among them - and leaves out
+	 * every other table's and the ones in no group at all.
+	 */
+	@Test
+	fun listsAGroupInRegistrationOrder() {
+		val registry = CommandRegistry()
+		registry.register(Command("select.first", title = null, group = CommandTable.Select, handler = {}))
+		registry.register(Command("overlay.only", title = null, group = CommandTable.Overlay, handler = {}))
+		registry.register(Command("select.member", title = null, group = CommandFamily.SelectAllOfKind, groupLabel = Res.string.menu_select_kind_parts, handler = {}))
+		registry.register(Command("ungrouped", title = null, handler = {}))
+		registry.register(Command("select.last", title = null, group = CommandTable.Select, handler = {}))
+
+		assertEquals(listOf("select.first", "select.member", "select.last"), registry.inGroup(CommandTable.Select).map { command -> command.id })
+		assertEquals(listOf("select.member"), registry.inGroup(CommandFamily.SelectAllOfKind).map { command -> command.id })
+		assertEquals(emptyList(), registry.inGroup(CommandFamily.InvertSelectionOfKind), "a group nothing is registered in lists nothing")
+
+		registry.unregister("select.member")
+
+		assertEquals(listOf("select.first", "select.last"), registry.inGroup(CommandTable.Select).map { command -> command.id })
+		assertEquals(emptyList(), registry.inGroup(CommandFamily.SelectAllOfKind))
+	}
+
+	/**
+	 * Listing a group subscribes the reader to the table, with no revision key of its own: the menu bar lists a
+	 * family before the shell's effects have registered it, and must come back when they do.  A derived state
+	 * re-evaluates only when something it read changed, so it stands in for a composition here.
+	 */
+	@Test
+	fun listingAGroupSubscribesToTheTable() {
+		val registry = CommandRegistry()
+		val listed = derivedStateOf { registry.inGroup(CommandTable.Select).map { command -> command.id } }
+		assertEquals(emptyList(), listed.value)
+
+		registry.register(Command("select.first", title = null, group = CommandTable.Select, handler = {}))
+		assertEquals(listOf("select.first"), listed.value, "a registration reaches a listing made before it")
+
+		registry.unregister("select.first")
+		assertEquals(emptyList(), listed.value, "and so does an unregistration")
+	}
+
+	/**
+	 * A group's label needs a group, and a family's member needs a label: a family is a list of rows, where a
+	 * table's own commands may go unlabeled.
+	 */
+	@Test
+	fun aFamilyMemberCarriesARowLabel() {
+		assertFailsWith<IllegalArgumentException> { Command("test.label", title = null, groupLabel = Res.string.menu_select_kind_parts, handler = {}) }
+		assertFailsWith<IllegalArgumentException> { Command("test.row", title = null, group = CommandFamily.SelectAllOfKind, handler = {}) }
+
+		val unlabeled = Command("test.table", title = null, group = CommandTable.Select, handler = {})
+		assertNull(unlabeled.rowLabel)
+
+		val titled = Command("test.titled", title = Res.string.cmd_select_all_parts, group = CommandFamily.SelectAllOfKind, handler = {})
+		assertEquals(Res.string.cmd_select_all_parts, titled.rowLabel, "with no label of its own the row shows the title")
+
+		val labeled = Command("test.labeled", title = Res.string.cmd_select_all_parts, group = CommandFamily.SelectAllOfKind, groupLabel = Res.string.menu_select_kind_parts, handler = {})
+		assertEquals(Res.string.menu_select_kind_parts, labeled.rowLabel)
+	}
+
+	/** A group is within itself and everything it sits inside, and its table is where that chain ends. */
+	@Test
+	fun aGroupIsWithinItsAncestors() {
+		assertTrue(CommandFamily.SelectAllOfKind.isWithin(CommandFamily.SelectAllOfKind))
+		assertTrue(CommandFamily.SelectAllOfKind.isWithin(CommandTable.Select))
+		assertFalse(CommandFamily.SelectAllOfKind.isWithin(CommandTable.Overlay))
+		assertFalse(CommandFamily.SelectAllOfKind.isWithin(CommandFamily.InvertSelectionOfKind))
+		assertFalse(CommandTable.Select.isWithin(CommandFamily.SelectAllOfKind), "a table is in none of its families")
+		assertEquals(CommandTable.Select, CommandFamily.SelectAllOfKind.table)
+		assertEquals(CommandTable.Select, CommandTable.Select.table)
 	}
 
 	/**

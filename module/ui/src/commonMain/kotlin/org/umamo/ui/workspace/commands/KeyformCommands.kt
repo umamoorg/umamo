@@ -19,6 +19,7 @@ import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.KeyformHover
 import org.umamo.ui.workspace.KeyformSheetViews
@@ -102,7 +103,8 @@ internal fun keyformCommands(
 			}
 		}
 
-	return listOf(
+	return commandTable(
+		CommandTable.Keyform,
 		Command(
 			"keyform.insert",
 			title = Res.string.cmd_keyform_insert,

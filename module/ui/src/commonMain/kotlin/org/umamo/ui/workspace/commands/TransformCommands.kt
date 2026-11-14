@@ -8,6 +8,7 @@ import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.edit.transform.beginUvOperator
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.SpaceScope
 
@@ -28,7 +29,8 @@ internal fun transformCommands(
 	routing: CommandRouting,
 	availability: SessionAvailability,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.Transform,
 		Command(
 			"mesh.grab",
 			title = Res.string.cmd_mesh_grab,

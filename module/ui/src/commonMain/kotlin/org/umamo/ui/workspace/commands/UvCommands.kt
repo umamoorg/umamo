@@ -11,6 +11,7 @@ import org.umamo.edit.atlas.placementSelectedTileIds
 import org.umamo.edit.atlas.setAtlasPins
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SpaceScope
@@ -93,7 +94,8 @@ internal fun uvCommands(
 		session.setAtlasPins(tileIds, pinned)
 	}
 
-	return listOf(
+	return commandTable(
+		CommandTable.Uv,
 		// Mirror UVs (the duplicated-and-flipped texture regions workflow, e.g. both eyes sampling one
 		// eye texture): axis-aligned reflections about the transform pivot, palette-discoverable and
 		// unbound by default - an interactive flip is already S + axis + drag through the pivot.

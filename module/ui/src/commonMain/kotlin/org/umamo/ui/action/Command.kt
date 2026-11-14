@@ -55,13 +55,29 @@ fun interface CommandAvailability {
  * @property CommandHint? hint What the status bar suggests the command under and when, or null for a
  *   command it never suggests.  A hinted command's [availability] must depend on the document and the
  *   mode alone - see [CommandHint] for why.
+ * @property CommandGroup? group The most specific group the command belongs to (a listing filter, never a dispatch
+ *   guard), or null for one built outside a table.  A table places itself on every command that names none, so a
+ *   table declares a group only for the members of a family.
+ * @property StringResource? groupLabel The label of the command's row under its family's heading, where the heading
+ *   already says what the family does ("Parts" under "Select All of Type"), or null to show the [title] there too.
  * @property CommandHandler handler The work to perform when invoked.
  */
-class Command(
+data class Command(
 	val id: String,
 	val title: StringResource?,
 	val availability: CommandAvailability = CommandAvailability.Always,
 	val spaces: SpaceScope = SpaceScope.Everywhere,
 	val hint: CommandHint? = null,
+	val group: CommandGroup? = null,
+	val groupLabel: StringResource? = null,
 	val handler: CommandHandler,
-)
+) {
+	init {
+		require(groupLabel == null || group != null) { "Command $id has a group label and no group to show it under" }
+		// A table's own commands may go unlabeled (the palette hides them); a family is a list of rows.
+		require(group == null || group is CommandTable || rowLabel != null) { "Command $id is a member of $group with no label for its row" }
+	}
+
+	/** The label of the command's row in a listing of its group: its [groupLabel], else its [title]. */
+	val rowLabel: StringResource? get() = groupLabel ?: title
+}

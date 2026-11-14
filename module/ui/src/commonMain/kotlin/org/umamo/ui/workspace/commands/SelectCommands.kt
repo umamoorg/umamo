@@ -15,7 +15,9 @@ import org.umamo.edit.setMeshSelectMode
 import org.umamo.edit.transform.beginBoxSelect
 import org.umamo.edit.transform.beginCircleSelect
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.SpaceKind
@@ -100,21 +102,35 @@ internal fun selectCommands(
 	availability: SessionAvailability,
 ): List<Command> {
 	// Select All of Type and Invert Selection of Type filter the OBJECT selection, so they apply in Object mode
-	// alone.  They route to no area, so they belong everywhere, and carry no chord in any preset.
+	// alone.  They route to no area, so they belong everywhere, and carry no chord in any preset.  Each pair's two
+	// commands are members of the two by-kind families, under the kind alone: the family's heading says the rest.
 	val selectAllOfKind =
 		SELECTABLE_KIND_COMMANDS.map { pair ->
-			Command(pair.selectAllId, title = pair.selectAllTitle, availability = availability.inObjectMode) {
+			Command(
+				pair.selectAllId,
+				title = pair.selectAllTitle,
+				availability = availability.inObjectMode,
+				group = CommandFamily.SelectAllOfKind,
+				groupLabel = pair.menuLabel,
+			) {
 				editorSession?.selectAllObjectsOfKind(pair.kind)
 			}
 		}
 	val invertOfKind =
 		SELECTABLE_KIND_COMMANDS.map { pair ->
-			Command(pair.invertId, title = pair.invertTitle, availability = availability.inObjectMode) {
+			Command(
+				pair.invertId,
+				title = pair.invertTitle,
+				availability = availability.inObjectMode,
+				group = CommandFamily.InvertSelectionOfKind,
+				groupLabel = pair.menuLabel,
+			) {
 				editorSession?.invertObjectSelectionOfKind(pair.kind)
 			}
 		}
 
-	return listOf(
+	return commandTable(
+		CommandTable.Select,
 		// The element modes' select modes (Blender 1 / 2 / 3).  The session guards them to no-op in Object mode,
 		// so the keymap can bind bare digits context-free; the availability tier additionally hides them
 		// from the palette there (there is no element domain to switch).

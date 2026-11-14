@@ -5,6 +5,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.transform.choiceKey
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 
 /** The localized palette title for each proportional-editing falloff curve. */
@@ -39,8 +40,20 @@ internal class ProportionalConnectedRequest(val connectedOnly: Boolean)
  * @param SessionAvailability availability The shared document-scoped availability tiers.
  * @return List<Command> The commands to register.
  */
-internal fun proportionalCommands(editorSession: EditorSession?, availability: SessionAvailability): List<Command> =
-	listOf(
+internal fun proportionalCommands(editorSession: EditorSession?, availability: SessionAvailability): List<Command> {
+	// One falloff command per curve, looped over the enum so a new falloff cannot be forgotten here -
+	// getValue throws on a curve with no title rather than silently registering an unlabelled command.
+	val falloffs =
+		ProportionalFalloff.entries.map { falloff ->
+			Command(
+				"mesh.proportional.falloff.${falloff.choiceKey}",
+				title = FALLOFF_TITLES.getValue(falloff),
+				availability = availability.inElementMode,
+			) { editorSession?.setProportionalFalloff(falloff) }
+		}
+
+	return commandTable(
+		CommandTable.Proportional,
 		Command("mesh.proportional.toggle", title = Res.string.cmd_mesh_proportional_toggle, availability = availability.inElementMode) {
 			editorSession?.toggleProportionalEdit()
 		},
@@ -55,13 +68,6 @@ internal fun proportionalCommands(editorSession: EditorSession?, availability: S
 				editorSession?.toggleProportionalConnected()
 			}
 		},
-	) +
-		// One falloff command per curve, looped over the enum so a new falloff cannot be forgotten here -
-		// getValue throws on a curve with no title rather than silently registering an unlabelled command.
-		ProportionalFalloff.entries.map { falloff ->
-			Command(
-				"mesh.proportional.falloff.${falloff.choiceKey}",
-				title = FALLOFF_TITLES.getValue(falloff),
-				availability = availability.inElementMode,
-			) { editorSession?.setProportionalFalloff(falloff) }
-		}
+		*falloffs.toTypedArray(),
+	)
+}

@@ -5,6 +5,7 @@ import org.umamo.edit.SelectionOps
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.model.EditorModeHandle
 import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.resources.*
@@ -32,7 +33,8 @@ internal fun modeCommands(selection: SelectionHandle?, editorMode: EditorModeHan
 	// nothing (and would push its Object-mode list past the strip's limit); the header's mode menu shows it.
 	val outsideEditMode = CommandAvailability { editorMode != null && editorMode.mode != EditorMode.Edit }
 
-	return listOf(
+	return commandTable(
+		CommandTable.Mode,
 		Command("select.clear", title = Res.string.cmd_select_clear, availability = hasSelection) { selection?.set(SelectionOps.clear()) },
 		Command(
 			"mode.toggleEdit",

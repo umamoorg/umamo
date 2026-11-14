@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.ConfirmRequest
 import org.umamo.ui.workspace.ShellOverlayState
@@ -26,7 +27,8 @@ internal fun workspaceCommands(
 	overlays: ShellOverlayState,
 	newWorkspaceBaseName: () -> String,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.Workspace,
 		Command("workspace.new", title = Res.string.workspace_new) { workspaces.create(newWorkspaceBaseName()) },
 		Command("workspace.reset", title = Res.string.cmd_workspace_reset) {
 			overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_reset_workspace, confirmLabel = Res.string.dialog_reset) { workspaces.resetActive() }
@@ -63,7 +65,8 @@ internal fun workspaceFileCommands(
 	onExportThis: () -> Unit,
 	onExportAll: () -> Unit,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.Workspace,
 		Command("workspace.import", title = Res.string.menu_workspace_import) { onImport() },
 		Command("workspace.exportThis", title = Res.string.menu_workspace_export_this) { onExportThis() },
 		Command("workspace.exportAll", title = Res.string.menu_workspace_export_all) { onExportAll() },

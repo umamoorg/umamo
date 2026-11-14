@@ -7,6 +7,7 @@ import org.umamo.edit.SnapKind
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.transform.snapToWorldGrid
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.workspace.AreaOverlayHub
@@ -33,7 +34,8 @@ internal fun snapCommands(
 	availability: SessionAvailability,
 	areaOverlays: AreaOverlayHub,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.Snap,
 		Command("transform.pivotPie", title = Res.string.cmd_transform_pivot_pie, availability = availability.hasDocument) {
 			editorSession?.openPieMenu(PieMenuKind.PivotMode)
 		},
