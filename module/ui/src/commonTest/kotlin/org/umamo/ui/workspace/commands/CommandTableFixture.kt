@@ -29,6 +29,7 @@ import org.umamo.ui.workspace.ViewportChromeState
 import org.umamo.ui.workspace.area.AreaDragController
 import org.umamo.ui.workspace.area.SplitterDragCancelController
 import org.umamo.ui.workspace.layout.WorkspaceLayoutController
+import org.umamo.ui.workspace.layout.WorkspaceNames
 import org.umamo.ui.workspace.layout.defaultLayout
 import org.umamo.ui.workspace.operationstrip.OperationStripState
 import org.umamo.ui.workspace.rowdrag.RowDragCancelController
@@ -157,6 +158,18 @@ internal fun inMemorySettings(): Settings {
 }
 
 /**
+ * The chrome workspace names are made from, in English, as the shell resolves it inside its locale key.
+ *
+ * @return WorkspaceNames The names.
+ */
+internal fun fixtureWorkspaceNames(): WorkspaceNames =
+	WorkspaceNames(
+		newBaseName = "Workspace",
+		copySuffix = "copy",
+		builtinTitles = mapOf("modelling" to "Modelling", "texture" to "Texture", "physics" to "Physics"),
+	)
+
+/**
  * Every command table the shell, the settings-backed shell, and the app register, in the shell's
  * registration order.
  *
@@ -212,7 +225,7 @@ private fun shellCommandTableFunctions(session: EditorSession? = null): List<Lis
 
 	return listOf(
 		chromeCommands(overlays, AreaDragController(), SplitterDragCancelController(), RowDragCancelController(), workspaces) {},
-		workspaceCommands(workspaces, overlays) { "Workspace" },
+		workspaceCommands(workspaces, overlays) { fixtureWorkspaceNames() },
 		documentCommands(overlays),
 		viewCommands(AreaCameraHub(), routing, viewportPresent = false),
 		overlayCommands(AreaOverlayHub(), routing, viewportPresent = false),

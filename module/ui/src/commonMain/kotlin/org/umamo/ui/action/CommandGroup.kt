@@ -216,6 +216,9 @@ enum class CommandSection(override val parent: CommandFamily, val ruled: Boolean
 	/** Making a workspace and resetting the active one. */
 	WorkspaceManage(CommandFamily.Workspace),
 
+	/** What is done to one workspace: the rows of a tab's own menu, which act on the active workspace from the bar. */
+	WorkspaceTab(CommandFamily.Workspace),
+
 	/** The layout's trips to and from a file. */
 	WorkspaceFiles(CommandFamily.Workspace),
 

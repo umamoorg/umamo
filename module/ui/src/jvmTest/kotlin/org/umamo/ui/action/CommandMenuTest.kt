@@ -343,6 +343,28 @@ class CommandMenuTest {
 	}
 
 	/**
+	 * An inline group can aim its rows at one thing among several: each row runs its command with that argument, and
+	 * shows no chord, since the chord runs the command with none - on a workspace's tab, that would be another tab.
+	 */
+	@Test
+	fun anInlineGroupsRowsRunWithItsArgumentAndShowNoChord() {
+		val received = ArrayList<Any?>()
+		val save = Command("file.save", title = null, group = CommandFamily.MergeTarget, groupLabel = Res.string.menu_file_save, handler = { argument -> received.add(argument) })
+		val registry = registryOf(save)
+		val keymap = defaultKeymap()
+		val aimed = commandMenuOf(listOf(CommandMenuRow.Members(CommandFamily.MergeTarget, argument = "bravo")), registry, keymap).single() as MenuItem.Action
+		val plain = commandMenuOf(listOf(CommandMenuRow.Members(CommandFamily.MergeTarget)), registry, keymap).single() as MenuItem.Action
+
+		assertNull(aimed.shortcut)
+		assertTrue(plain.shortcut != null, "the same row with no argument shows the chord")
+
+		aimed.onSelect()
+		plain.onSelect()
+
+		assertEquals(listOf<Any?>("bravo", null), received)
+	}
+
+	/**
 	 * A site that has to set something up for its command to read wraps the dispatch: the wrapper runs around the
 	 * command, once, and the row is otherwise the command's own.
 	 */

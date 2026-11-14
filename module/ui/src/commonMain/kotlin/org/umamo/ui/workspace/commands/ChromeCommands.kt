@@ -68,8 +68,8 @@ internal fun chromeCommands(
 		Command("help.sourceCode", title = Res.string.menu_source_code, group = CommandSection.HelpLinks) { openLink(ProjectInfo.SOURCE_CODE_URL) },
 		Command("help.webSite", title = Res.string.menu_web_site, group = CommandSection.HelpLinks) { openLink(ProjectInfo.WEB_SITE_URL) },
 		Command("help.documentation", title = Res.string.menu_documentation, group = CommandSection.HelpLinks) { openLink(ProjectInfo.DOCUMENTATION_URL) },
-		// Workspace navigation: titled so they surface in the palette and resolve a shortcut hint in the tab
-		// context menu.  The tab strip's Previous/Next rows dispatch the same ids, so menu and key share a path.
+		// Workspace navigation: titled so they surface in the palette, and the Workspace menu's first block, which a
+		// tab's own menu lists too.
 		Command("workspace.prev", title = Res.string.cmd_workspace_prev, group = CommandSection.WorkspaceSwitch) { workspaces.switchBy(-1) },
 		Command("workspace.next", title = Res.string.cmd_workspace_next, group = CommandSection.WorkspaceSwitch) { workspaces.switchBy(1) },
 	)

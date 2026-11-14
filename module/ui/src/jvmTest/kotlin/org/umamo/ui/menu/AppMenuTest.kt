@@ -152,7 +152,10 @@ class AppMenuTest {
 		assertEquals(listOf("Undo (off)", "Redo"), menuOutline(editMenu()).take(2), "and then one to take again")
 	}
 
-	/** The Workspace menu: moving between workspaces, making and resetting one, and the layout's trips to and from a file. */
+	/**
+	 * The Workspace menu: moving between workspaces, making and resetting one, what is done to the active one, and
+	 * the layout's trips to and from a file.  The third block is a tab's own menu, which goes by the verb alone.
+	 */
 	@Test
 	fun theWorkspaceMenuIsItsFamily() {
 		assertEquals(
@@ -162,6 +165,10 @@ class AppMenuTest {
 				"---",
 				"New Workspace",
 				"Reset Workspace",
+				"---",
+				"Rename",
+				"Duplicate",
+				"Delete",
 				"---",
 				"Import Workspace…",
 				"Export This Workspace…",
@@ -209,7 +216,18 @@ class AppMenuTest {
 					),
 				CommandFamily.Edit to listOf("edit.undo", "edit.redo", "edit.preferences"),
 				CommandFamily.Workspace to
-					listOf("workspace.prev", "workspace.next", "workspace.new", "workspace.reset", "workspace.import", "workspace.exportThis", "workspace.exportAll"),
+					listOf(
+						"workspace.prev",
+						"workspace.next",
+						"workspace.new",
+						"workspace.reset",
+						"workspace.rename",
+						"workspace.duplicate",
+						"workspace.delete",
+						"workspace.import",
+						"workspace.exportThis",
+						"workspace.exportAll",
+					),
 			)
 
 		for ((family, ids) in expected) {

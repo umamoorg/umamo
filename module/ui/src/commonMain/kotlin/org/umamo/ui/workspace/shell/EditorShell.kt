@@ -47,6 +47,7 @@ import org.umamo.ui.properties.LocalPropertyTabRegistry
 import org.umamo.ui.properties.PropertyTab
 import org.umamo.ui.properties.defaultPropertyTabRegistry
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.workspace_copy_suffix
 import org.umamo.ui.resources.workspace_new_name
 import org.umamo.ui.sidebar.LocalSidebarRegistry
 import org.umamo.ui.sidebar.SidebarRegistry
@@ -65,6 +66,7 @@ import org.umamo.ui.workspace.area.SPLIT_ARM_DISTANCE
 import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.layout.InterfaceLayout
 import org.umamo.ui.workspace.layout.WorkspaceLayoutController
+import org.umamo.ui.workspace.layout.WorkspaceNames
 import org.umamo.ui.workspace.layout.defaultLayout
 import org.umamo.ui.workspace.statusbar.StatusBar
 
@@ -206,8 +208,13 @@ fun EditorShell(
 		ProvideAppLocale(languageTag) {
 			// Resolved here, inside the locale key, so it follows a language switch; the workspace commands
 			// registered outside the key read it when they run.
-			val newWorkspaceBaseName = stringResource(Res.string.workspace_new_name)
-			SideEffect { controllers.newWorkspaceBaseName = newWorkspaceBaseName }
+			val workspaceNames =
+				WorkspaceNames(
+					newBaseName = stringResource(Res.string.workspace_new_name),
+					copySuffix = stringResource(Res.string.workspace_copy_suffix),
+					builtinTitles = builtinWorkspaceTitles(),
+				)
+			SideEffect { controllers.workspaceNames = workspaceNames }
 			UmamoTheme {
 				CompositionLocalProvider(
 					LocalCommands provides commandRegistry,
@@ -271,17 +278,11 @@ private fun ShellTabRow(appMenu: List<CommandFamily>, workspaces: WorkspaceLayou
 		WorkspaceTabs(
 			workspaces = workspaces.layout.workspaces,
 			activeId = workspaces.layout.activeWorkspaceId,
+			renamingId = workspaces.renamingWorkspaceId,
 			onSelect = { workspaceId -> workspaces.setActiveWorkspace(workspaceId) },
-			onCreate = { suggestedName -> workspaces.create(suggestedName) },
-			onDuplicate = { sourceId, suggestedName ->
-				workspaces.duplicate(
-					sourceId,
-					suggestedName,
-				)
-			},
-			onDelete = { targetId -> workspaces.delete(targetId) },
 			onReorder = { fromIndex, toIndex -> workspaces.reorder(fromIndex, toIndex) },
 			onRename = { workspaceId, newName -> workspaces.rename(workspaceId, newName) },
+			onRenameCancel = { workspaces.cancelRename() },
 			modifier = Modifier.weight(1f),
 		)
 	}

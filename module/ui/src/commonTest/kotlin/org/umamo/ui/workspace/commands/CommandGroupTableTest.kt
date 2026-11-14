@@ -75,7 +75,8 @@ class CommandGroupTableTest {
 				CommandFamily.FileExport to listOf(CommandSection.ExportPuppet, CommandSection.ExportImage),
 				CommandFamily.Edit to listOf(CommandSection.EditHistory, CommandSection.EditSettings),
 				CommandFamily.Select to listOf(CommandSection.SelectEverything, CommandSection.SelectByKind),
-				CommandFamily.Workspace to listOf(CommandSection.WorkspaceSwitch, CommandSection.WorkspaceManage, CommandSection.WorkspaceFiles),
+				CommandFamily.Workspace to
+					listOf(CommandSection.WorkspaceSwitch, CommandSection.WorkspaceManage, CommandSection.WorkspaceTab, CommandSection.WorkspaceFiles),
 				CommandFamily.Help to
 					listOf(CommandSection.HelpLinks, CommandSection.HelpSetup, CommandSection.HelpUpdates, CommandSection.HelpLogs, CommandSection.HelpAbout),
 				CommandFamily.Snap to listOf(CommandSection.SnapCursor, CommandSection.SnapSelection),
