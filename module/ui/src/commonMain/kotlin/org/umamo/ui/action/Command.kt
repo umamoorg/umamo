@@ -1,6 +1,7 @@
 package org.umamo.ui.action
 
 import org.jetbrains.compose.resources.StringResource
+import org.umamo.ui.theme.UmamoIcon
 import org.umamo.ui.workspace.SpaceScope
 
 /**
@@ -60,6 +61,8 @@ fun interface CommandAvailability {
  *   table declares a group only for the members of a family.
  * @property StringResource? groupLabel The label of the command's row under its family's heading, where the heading
  *   already says what the family does ("Parts" under "Select All of Type"), or null to show the [title] there too.
+ * @property UmamoIcon? icon The command's glyph wherever a pie slot, a menu row, or a chip stands for it, or null
+ *   for a command with none drawn.
  * @property CommandHandler handler The work to perform when invoked.
  */
 data class Command(
@@ -70,6 +73,7 @@ data class Command(
 	val hint: CommandHint? = null,
 	val group: CommandGroup? = null,
 	val groupLabel: StringResource? = null,
+	val icon: UmamoIcon? = null,
 	val handler: CommandHandler,
 ) {
 	init {

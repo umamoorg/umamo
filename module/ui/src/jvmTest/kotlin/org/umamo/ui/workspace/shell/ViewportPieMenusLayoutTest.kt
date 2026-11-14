@@ -23,8 +23,10 @@ import org.umamo.ui.kit.menu.PieMenuOverlay
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.workspace.commands.pieMenuEntriesFor
 import org.umamo.ui.workspace.commands.pieMenuTitleFor
+import org.umamo.ui.workspace.commands.shellCommandTables
 import kotlin.test.Test
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * Every viewport pie lays out its real labels apart: no two chips' text (digit through label) overlap,
@@ -37,9 +39,11 @@ class ViewportPieMenusLayoutTest {
 		var kind by mutableStateOf(PieMenuKind.entries.first())
 		var labels = emptyList<String>()
 		var title = ""
+		// A pie's chips are its command family as the registry lists it, so the rings come from the shell's own tables.
+		val commands = CommandRegistry().also { registry -> shellCommandTables().forEach { command -> registry.register(command) } }
 		runComposeUiTest {
 			setContent {
-				val entries = pieMenuEntriesFor(kind, CommandRegistry())
+				val entries = pieMenuEntriesFor(kind, commands)
 				labels = entries.map { entry -> stringResource(entry.label) }
 				title = stringResource(pieMenuTitleFor(kind))
 				UmamoTheme {
@@ -54,6 +58,7 @@ class ViewportPieMenusLayoutTest {
 			for (pieKind in PieMenuKind.entries) {
 				kind = pieKind
 				waitForIdle()
+				assertTrue(labels.size >= 2, "$pieKind: a ring of ${labels.size} chips lays nothing out against anything")
 				val titleBounds = boundsOf(title)
 				val chipSpans = labels.mapIndexed { slotIndex, label -> spanning(boundsOf("${slotIndex + 1}"), boundsOf(label)) }
 
