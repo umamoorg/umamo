@@ -4,11 +4,11 @@ import org.jetbrains.compose.resources.StringResource
 import org.umamo.ui.resources.*
 
 /**
- * A named set of commands the registry lists together ([CommandRegistry.inGroup]): a whole command table, or a
- * family a menu, a pie, or a header control shows as one list.
+ * A named set of commands the registry lists together ([CommandRegistry.inGroup]): a whole command table, a family
+ * a menu, a pie, or a header control shows as one list, or a section of such a family.
  *
- * A command names the most specific group it belongs to and the rest follows from [parent], so a member of a family
- * is also in the family's table without saying so.  Whatever lists related commands asks the registry for their
+ * A command names the most specific group it belongs to and the rest follows from [parent], so a member of a section
+ * is also in the section's family, and in that family's table, without saying so.  Whatever lists related commands asks the registry for their
  * group, which leaves the table that registers them as the one place deciding which they are and in what order.
  */
 sealed interface CommandGroup {
@@ -24,6 +24,7 @@ val CommandGroup.table: CommandTable
 		when (this) {
 			is CommandTable -> this
 			is CommandFamily -> parent
+			is CommandSection -> parent.parent
 		}
 
 /**
@@ -81,4 +82,40 @@ enum class CommandFamily(val heading: StringResource, override val parent: Comma
 
 	/** Invert Selection of Type: one member per selectable object kind. */
 	InvertSelectionOfKind(Res.string.menu_invert_selection_of_type, CommandTable.Select),
+
+	/** The transform pivots, one member per pivot. */
+	PivotMode(Res.string.pie_title_pivot, CommandTable.Snap),
+
+	/** The 2D viewport's world-space snaps: the cursor's, then the selection's. */
+	Snap(Res.string.pie_title_snap, CommandTable.Snap),
+
+	/** The UV editor's texture-space snaps: the selection's, then the cursor's. */
+	UvSnap(Res.string.pie_title_uv_snap, CommandTable.Uv),
+
+	/** Where a merge collapses the selected vertices to. */
+	MergeTarget(Res.string.pie_title_merge, CommandTable.Topology),
+
+	/** Which of the posed warps' tracks an insert keys. */
+	InsertKey(Res.string.pie_title_insert_key, CommandTable.Keyform),
+}
+
+/**
+ * A headless slice of a family: members a menu may set off from the rest of their family with a rule, where a pie
+ * draws the family as one ring.  A family that has sections is exactly its sections' members, so its commands name
+ * their section and never the family itself.
+ *
+ * @property CommandFamily parent The family the section is a slice of.
+ */
+enum class CommandSection(override val parent: CommandFamily) : CommandGroup {
+	/** The world-space snaps that move the 2D cursor. */
+	SnapCursor(CommandFamily.Snap),
+
+	/** The world-space snaps that move the selection. */
+	SnapSelection(CommandFamily.Snap),
+
+	/** The texture-space snaps that move the selection. */
+	UvSnapSelection(CommandFamily.UvSnap),
+
+	/** The texture-space snaps that move the UV editor's cursor. */
+	UvSnapCursor(CommandFamily.UvSnap),
 }

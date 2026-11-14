@@ -240,6 +240,57 @@ class ViewportContextMenuTest {
 			}
 		}
 
+	/**
+	 * A family a pie draws comes in under the title of the command that opens the pie, with the pie's own labels on
+	 * its rows - and never under the family's heading, which reads as the pie's title and not as a menu row.
+	 */
+	@Test
+	fun aPiesFamilyComesInUnderItsOpenersTitle() =
+		runComposeUiTest {
+			mount(posedBody())
+
+			rightClickTheSurface()
+			assertEquals(0, rowsReading("Insert Key"), "the key-type pie's title is no row")
+			hoverMenuRow("Insert Key by Type")
+
+			for (keyType in listOf("Lattice", "Opacity", "Colors", "All")) {
+				assertEquals(1, rowsReading(keyType), keyType)
+			}
+
+			assertEquals(1, rowsReading("Lattice", pickable = true), "a posed warp has a lattice to key")
+
+			assertEquals(0, rowsReading("Insert Lattice Key"), "the rows show no palette title")
+		}
+
+	/** The Snap submenu lists the world snaps in the order their table registers them: the cursor's, then the selection's. */
+	@Test
+	fun theSnapSubmenuListsTheWorldSnaps() =
+		runComposeUiTest {
+			mount(commandFixtureSession(EditorMode.Object))
+
+			rightClickTheSurface()
+			hoverMenuRow("Snap")
+
+			val snaps =
+				listOf(
+					"Cursor to World Origin",
+					"Cursor to Grid",
+					"Cursor to Selected",
+					"Cursor to Active",
+					"Selection to Grid",
+					"Selection to Cursor",
+					"Selection to Cursor (Keep Offset)",
+					"Selection to Active",
+				)
+
+			for (snap in snaps) {
+				assertEquals(1, rowsReading(snap), snap)
+			}
+
+			val tops = snaps.map { snap -> onNode(hasText(snap) and hasAnyAncestor(isPopup()), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.top }
+			assertEquals(tops.sorted(), tops, "top to bottom in the table's order")
+		}
+
 	@Test
 	fun poseModeOffersTheKeyingRows() =
 		runComposeUiTest {

@@ -3,6 +3,7 @@ package org.umamo.ui.workspace.commands
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
+import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandTable
 import org.umamo.ui.action.isWithin
 import org.umamo.ui.resources.Res
@@ -45,6 +46,34 @@ class CommandGroupTableTest {
 
 		for (family in CommandFamily.entries) {
 			assertTrue(registry.inGroup(family).isNotEmpty(), "no command names $family")
+		}
+
+		for (section in CommandSection.entries) {
+			assertTrue(registry.inGroup(section).isNotEmpty(), "no command names $section")
+		}
+	}
+
+	/**
+	 * A family with sections is its sections' members and nothing else, in the order its table registers them - a
+	 * command naming the family itself would sit in the pie's ring and in neither part of the menu.
+	 */
+	@Test
+	fun aSectionedFamilyIsExactlyItsSections() {
+		val registry = registryOverEveryTable()
+		val sectioned =
+			mapOf(
+				CommandFamily.Snap to listOf(CommandSection.SnapCursor, CommandSection.SnapSelection),
+				CommandFamily.UvSnap to listOf(CommandSection.UvSnapSelection, CommandSection.UvSnapCursor),
+			)
+		assertEquals(CommandSection.entries.map { section -> section.parent }.toSet(), sectioned.keys, "every sectioned family is pinned here")
+
+		for ((family, sections) in sectioned) {
+			assertEquals(CommandSection.entries.filter { section -> section.parent == family }.toSet(), sections.toSet(), "$family")
+			assertEquals(
+				sections.flatMap { section -> registry.inGroup(section) }.map { command -> command.id },
+				registry.inGroup(family).map { command -> command.id },
+				"$family lists its sections in this order",
+			)
 		}
 	}
 

@@ -7,7 +7,6 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
-import org.umamo.edit.PieMenuKind
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
@@ -18,19 +17,18 @@ import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.kit.menu.MenuItem
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.menu_select
-import org.umamo.ui.workspace.commands.pieMenuEntriesFor
 
 /*
  * The 2D viewport's context menu: what an idle right-click over the surface offers in each mode, as rows of existing
  * commands.  A context menu is contextual, so it holds the mode's operations and nothing of the area's (those stay on
  * the header, as in the UV editor).  Every row dispatches its command through the registry, reads its label from the
  * command's title and its accelerator from the keymap, and grays out when its command is unavailable - the row is
- * built from the command id alone, so it can never run one command and advertise another's chord.  A pie's choices
- * come in as a submenu under the title of the command that opens the pie, built from the same entry table the pie
- * draws, so a grayed chip is a grayed row.  A command family comes in as a submenu under the family's heading, its rows
- * listed from the registry, so the family's table is what says which commands the submenu offers.  The selection rows
- * group under a Select submenu, which grays out only when nothing under it can be picked.  Operations driven by the
- * pointer's position (Rip, Vertex Slide, the object switch) stay off it: from a menu, the pointer is on the menu.
+ * built from the command id alone, so it can never run one command and advertise another's chord.  A command family
+ * comes in as a submenu, its rows listed from the registry, so the family's table is what says which commands the
+ * submenu offers.  A family a pie draws goes under the title of the command that opens the pie, and since the pie lists
+ * the same family, a grayed chip is a grayed row.  The selection rows group under a Select submenu, which grays out
+ * only when nothing under it can be picked.  Operations driven by the pointer's position (Rip, Vertex Slide, the object
+ * switch) stay off it: from a menu, the pointer is on the menu.
  */
 
 /** One row of the viewport's context menu. */
@@ -43,12 +41,13 @@ private sealed interface ViewportMenuRow {
 	data class Single(val commandId: String) : ViewportMenuRow
 
 	/**
-	 * A command family as a submenu under its heading: one row per registered member, each under its label in the
-	 * family.
+	 * A command family as a submenu: one row per registered member, each under its label in the family.
 	 *
 	 * @property CommandFamily family The family.
+	 * @property String? openerId The command that opens the family as a pie, whose title then labels the submenu and
+	 *   without which the row is left out; null for a family nothing opens, which goes under its own heading.
 	 */
-	data class Family(val family: CommandFamily) : ViewportMenuRow
+	data class Family(val family: CommandFamily, val openerId: String? = null) : ViewportMenuRow
 
 	/**
 	 * A named group of rows as a submenu.
@@ -57,14 +56,6 @@ private sealed interface ViewportMenuRow {
 	 * @property List<ViewportMenuRow> rows The rows inside it.
 	 */
 	data class Submenu(val label: StringResource, val rows: List<ViewportMenuRow>) : ViewportMenuRow
-
-	/**
-	 * A pie's choices as a submenu, under the title of the command that opens it.
-	 *
-	 * @property String openerId The command that opens the pie.
-	 * @property PieMenuKind kind The pie.
-	 */
-	data class Choices(val openerId: String, val kind: PieMenuKind) : ViewportMenuRow
 
 	/** A rule between groups. */
 	data object Separator : ViewportMenuRow
@@ -105,7 +96,7 @@ private val OBJECT_ROWS =
 		ViewportMenuRow.Separator,
 		OBJECT_SELECT_SUBMENU,
 		ViewportMenuRow.Separator,
-		ViewportMenuRow.Choices("snap.pie", PieMenuKind.Snap),
+		ViewportMenuRow.Family(CommandFamily.Snap, openerId = "snap.pie"),
 		ViewportMenuRow.Separator,
 		ViewportMenuRow.Single("mesh.generateFromArt"),
 		ViewportMenuRow.Single("mesh.generateQuad"),
@@ -117,13 +108,13 @@ private val OBJECT_ROWS =
 /** Edit mode's rows: the topology operations, the element selection, the snaps, the art meshes, and the lattice resolution. */
 private val EDIT_ROWS =
 	listOf(
-		ViewportMenuRow.Choices("mesh.merge", PieMenuKind.MergeTarget),
+		ViewportMenuRow.Family(CommandFamily.MergeTarget, openerId = "mesh.merge"),
 		ViewportMenuRow.Single("mesh.connect"),
 		ViewportMenuRow.Single("mesh.duplicate"),
 		ViewportMenuRow.Separator,
 		selectSubmenu(listOf(ViewportMenuRow.Single("mesh.selectLinked"))),
 		ViewportMenuRow.Separator,
-		ViewportMenuRow.Choices("snap.pie", PieMenuKind.Snap),
+		ViewportMenuRow.Family(CommandFamily.Snap, openerId = "snap.pie"),
 		ViewportMenuRow.Separator,
 		ViewportMenuRow.Single("mesh.generateFromArt"),
 		ViewportMenuRow.Single("mesh.generateQuad"),
@@ -137,12 +128,12 @@ private val POSE_ROWS =
 	listOf(
 		ViewportMenuRow.Single("keyform.insert"),
 		ViewportMenuRow.Single("keyform.delete"),
-		ViewportMenuRow.Choices("keyform.insertPie", PieMenuKind.InsertKey),
+		ViewportMenuRow.Family(CommandFamily.InsertKey, openerId = "keyform.insertPie"),
 		ViewportMenuRow.Single("keyform.clearPoseEdits"),
 		ViewportMenuRow.Separator,
 		selectSubmenu(emptyList()),
 		ViewportMenuRow.Separator,
-		ViewportMenuRow.Choices("snap.pie", PieMenuKind.Snap),
+		ViewportMenuRow.Family(CommandFamily.Snap, openerId = "snap.pie"),
 		ViewportMenuRow.Separator,
 		ViewportMenuRow.Single("view.frameSelected"),
 	)
@@ -194,7 +185,7 @@ internal fun rememberViewportContextItems(session: EditorSession?): List<MenuIte
 }
 
 /**
- * The menu item standing for [row], or null when its command is not registered.
+ * The menu item standing for [row], or null when the command it is built on is not registered.
  *
  * @param ViewportMenuRow row The row.
  * @param CommandRegistry commands The registry the rows dispatch through.
@@ -213,32 +204,20 @@ private fun menuItemOf(
 		}
 
 		is ViewportMenuRow.Family -> {
-			val items = commands.inGroup(row.family).map { member -> commandItemOf(member, member.rowLabel, commands, keymap) }
+			val label =
+				if (row.openerId == null) {
+					stringResource(row.family.heading)
+				} else {
+					commands[row.openerId]?.let { opener -> opener.title?.let { title -> stringResource(title) } ?: opener.id }
+				}
 
-			MenuItem.Submenu(
-				label = stringResource(row.family.heading),
-				items = items,
-				enabled = items.any { item -> item.enabled },
-			)
-		}
-
-		is ViewportMenuRow.Choices -> {
-			commands[row.openerId]?.let { opener ->
-				val entries = pieMenuEntriesFor(row.kind, commands)
+			label?.let { submenuLabel ->
+				val items = commands.inGroup(row.family).map { member -> commandItemOf(member, member.rowLabel, commands, keymap) }
 
 				MenuItem.Submenu(
-					label = opener.title?.let { title -> stringResource(title) } ?: opener.id,
-					items =
-						entries.map { entry ->
-							MenuItem.Action(
-								label = stringResource(entry.label),
-								onSelect = { commands.invoke(entry.commandId, entry.argument) },
-								shortcut = acceleratorOf(keymap, entry.commandId),
-								enabled = entry.enabled,
-								icon = entry.icon,
-							)
-						},
-					enabled = entries.any { entry -> entry.enabled },
+					label = submenuLabel,
+					items = items,
+					enabled = items.any { item -> item.enabled },
 				)
 			}
 		}
@@ -259,7 +238,7 @@ private fun menuItemOf(
 	}
 
 /**
- * The menu item that runs [command], under [label].
+ * The menu item that runs [command], under [label] and beside the command's glyph when it has one.
  *
  * @param Command command The command the row stands for.
  * @param StringResource? label The row's label, or null to show the command's id instead.
@@ -279,6 +258,7 @@ private fun commandItemOf(
 		onSelect = { commands.invoke(command.id) },
 		shortcut = acceleratorOf(keymap, command.id),
 		enabled = command.availability.isAvailable(),
+		icon = command.icon,
 	)
 
 /**

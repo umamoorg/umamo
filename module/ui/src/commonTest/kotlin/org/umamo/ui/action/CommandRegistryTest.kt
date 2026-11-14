@@ -197,6 +197,12 @@ class CommandRegistryTest {
 		assertFalse(CommandTable.Select.isWithin(CommandFamily.SelectAllOfKind), "a table is in none of its families")
 		assertEquals(CommandTable.Select, CommandFamily.SelectAllOfKind.table)
 		assertEquals(CommandTable.Select, CommandTable.Select.table)
+
+		assertTrue(CommandSection.UvSnapCursor.isWithin(CommandFamily.UvSnap), "a section is in its family")
+		assertTrue(CommandSection.UvSnapCursor.isWithin(CommandTable.Uv), "and in the family's table")
+		assertFalse(CommandSection.UvSnapCursor.isWithin(CommandSection.UvSnapSelection))
+		assertFalse(CommandSection.UvSnapCursor.isWithin(CommandFamily.Snap))
+		assertEquals(CommandTable.Uv, CommandSection.UvSnapCursor.table)
 	}
 
 	/**
