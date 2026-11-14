@@ -2,6 +2,7 @@ package org.umamo.ui.workspace.commands
 
 import org.umamo.interop.ExportReport
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.model.repack.AtlasRepackReport
 import org.umamo.ui.resources.*
@@ -64,7 +65,8 @@ private fun dirtyDocumentRequest(prompt: DirtyDocumentPrompt, quitting: Boolean)
  * @return List<Command> The commands to register.
  */
 internal fun documentCommands(overlays: ShellOverlayState): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.Document,
 		Command("document.openFailed", title = null) { argument ->
 			(argument as? DocumentOpenFailure)?.let { failure -> overlays.openFailure = failure }
 		},

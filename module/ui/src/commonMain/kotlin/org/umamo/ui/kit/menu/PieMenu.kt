@@ -60,19 +60,20 @@ data class PieMenuEntry(
 	val icon: UmamoIcon? = null,
 )
 
-// Blender's slot order for up to eight pie entries: W, E, S, N, NW, NE, SW, SE - the first entries
-// land on the cardinal directions, so a four-entry pie reads as a clean compass.  Angles are radians
-// in screen space (y down).
+// The slot of each of up to eight pie entries, clockwise from West: W, NW, N, NE, E, SE, S, SW.  The entries'
+// numbers run round the ring in the order they are read, so the digit that picks an entry says where it sits, and
+// a pie with fewer than eight fills the same slots from West and leaves the rest of the ring open.  Angles are
+// radians in screen space (y down).
 private val PIE_SLOT_ANGLES =
 	floatArrayOf(
 		PI.toFloat(), // W
-		0f, // E
-		(PI / 2).toFloat(), // S
-		(-PI / 2).toFloat(), // N
 		(-3 * PI / 4).toFloat(), // NW
+		(-PI / 2).toFloat(), // N
 		(-PI / 4).toFloat(), // NE
-		(3 * PI / 4).toFloat(), // SW
+		0f, // E
 		(PI / 4).toFloat(), // SE
+		(PI / 2).toFloat(), // S
+		(3 * PI / 4).toFloat(), // SW
 	)
 
 /** The ring radius the entry chips anchor to: each chip's inner edge touches it (see [pieChipOffset]). */
@@ -162,7 +163,7 @@ internal fun clampPieCenterAxis(requested: Float, extentMin: Float, extentMax: F
  * measured sizes, and the direction pick, the wedges, the title, and the chips must all share the one
  * effective center or the pick math desyncs from the drawing.
  *
- * @param List<PieMenuEntry> entries The entries, in Blender slot order (W, E, S, N, NW, NE, SW, SE).
+ * @param List<PieMenuEntry> entries The entries, in slot order: clockwise from West (W, NW, N, NE, E, SE, S, SW).
  * @param Offset center The requested pie center in the host's local pixels (frozen at open by the
  *   host); the rendered center is this clamped inside the overlay so the pie never clips.
  * @param Function onDismiss Called after an invocation or a dismissing click.

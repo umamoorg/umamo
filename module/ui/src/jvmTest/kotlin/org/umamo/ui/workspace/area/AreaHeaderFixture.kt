@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -22,6 +21,7 @@ import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalSpaceRegistry
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.commands.shellCommandTables
 import org.umamo.ui.workspace.layout.LeafArea
 import org.umamo.ui.workspace.shell.defaultSpaceRegistry
 
@@ -39,7 +39,9 @@ internal const val HEADER_TEST_AREA_ID = "area-1"
  * By default no puppet and no session are provided, which is the no-document state every header already
  * handles - the viewport chips render disabled and the panel headers render nothing.  A puppet comes with a
  * session over it, as the app provides the two together, unless the case brings its own session (one already
- * in Edit mode, say).  The registry is empty unless the case registers the commands its controls dispatch.
+ * in Edit mode, say).  The registry holds the shell's command tables over that same session unless the case
+ * brings its own: the header's controls list what they offer from the registry and ask those commands which
+ * of them is current, so a registry over another session would show another session's state.
  * The scope is the test's to hold when it reads the per-area state a control writes.
  *
  * @param SpaceKind kind        The space whose header strip to mount.
@@ -48,7 +50,8 @@ internal const val HEADER_TEST_AREA_ID = "area-1"
  *   publishes a model, as an edit does.
  * @param AreaScope scope       The hosting area's scope, the one channel the header shares state through.
  * @param EditorSession? session The session to provide, or null for one over [puppet].
- * @param CommandRegistry commands The command registry the controls dispatch through.
+ * @param CommandRegistry? commands The command registry the controls list from and dispatch through, or null
+ *   for the shell's tables over the provided session.
  */
 @OptIn(ExperimentalTestApi::class)
 internal fun ComposeUiTest.setAreaHeader(
@@ -57,14 +60,15 @@ internal fun ComposeUiTest.setAreaHeader(
 	puppet: State<PuppetModel?> = mutableStateOf(null),
 	scope: AreaScope = AreaScope(HEADER_TEST_AREA_ID),
 	session: EditorSession? = null,
-	commands: CommandRegistry = CommandRegistry(),
+	commands: CommandRegistry? = null,
 ) {
+	val providedSession = session ?: puppet.value?.let { model -> EditorSession(model) }
+	val providedCommands = commands ?: CommandRegistry().also { registry -> shellCommandTables(providedSession).forEach { command -> registry.register(command) } }
 	setContent {
-		val providedSession = remember { session ?: puppet.value?.let { model -> EditorSession(model) } }
 		UmamoTheme {
 			CompositionLocalProvider(
 				LocalSpaceRegistry provides defaultSpaceRegistry(),
-				LocalCommands provides commands,
+				LocalCommands provides providedCommands,
 				LocalKeymap provides defaultKeymap(),
 				LocalPuppet provides puppet.value,
 				LocalEditorSession provides providedSession,

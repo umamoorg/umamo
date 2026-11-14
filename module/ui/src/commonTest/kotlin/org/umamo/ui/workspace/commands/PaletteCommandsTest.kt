@@ -5,6 +5,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.action.paletteCommands
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.cmd_select_all
@@ -44,10 +45,10 @@ class PaletteCommandsTest {
 	/** Editing a mesh in the 2D viewport, the palette offers the transforms and no texture-coordinate command. */
 	@Test
 	fun overAViewportInEditModeNoUvCommandIsListed() {
-		val listed = paletteCommands(tables(commandFixtureSession(EditorMode.Edit)), SpaceKind.Viewport2D).ids()
+		val listed = paletteCommands(tables(commandFixtureSession(EditorMode.Edit)), SpaceKind.Viewport2D)
 
-		assertTrue("mesh.grab" in listed, "the transforms belong to the viewport")
-		assertTrue(listed.none { id -> id.startsWith("uv.") }, "no uv command belongs there, but got $listed")
+		assertTrue("mesh.grab" in listed.ids(), "the transforms belong to the viewport")
+		assertEquals(emptyList(), listed.filter { command -> command.table == CommandTable.Uv }.ids(), "no command of the UV table belongs there")
 	}
 
 	/** Over the UV editor the same session lists them, so the case above is the scope at work and not the mode. */

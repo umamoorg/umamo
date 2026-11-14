@@ -39,6 +39,7 @@ import org.umamo.ui.model.artwork.ReloadEntry
 import org.umamo.ui.model.artwork.ReplaceArtworkRequest
 import org.umamo.ui.model.artwork.SourceSuggestionState
 import org.umamo.ui.model.artwork.SourceSuggestions
+import org.umamo.ui.model.artwork.canTakeArtwork
 import org.umamo.ui.model.artwork.refuseArtworkAdd
 import org.umamo.ui.model.artwork.runAddArtwork
 import org.umamo.ui.model.artwork.runMatchArtwork
@@ -128,6 +129,7 @@ internal class ArtworkController(
 			deleteArt = { request -> puppet.session.deleteTile(request.tileId, ignoreLayer = services.settings.getBoolean(IMPORT_DELETE_ART_IGNORES_LAYER_KEY) == true) },
 			ignoreLayer = { request -> puppet.session.setLayerIgnored(request.ref, request.ignored) },
 			canReload = { puppet.session.model.value.sources.any { source -> source.path?.let(::isFileSystemPath) == true } },
+			canAddArtwork = { canTakeArtwork(puppet.session.model.value) },
 		)
 
 	/**
@@ -183,7 +185,8 @@ internal class ArtworkController(
 	 *   picker opens; it is where the operation strip shows once the import lands.
 	 */
 	private fun importArtwork(request: ImportArtworkRequest?, areaId: String?) {
-		// Asked before the picker opens, so a document that cannot take art never waits on a file being read.
+		// The command does not apply to a document that cannot take art, so this is reached only if one is asked
+		// some other way.  Asked before the picker opens, so such a document never waits on a file being read.
 		if (refuseArtworkAdd(puppet.session)) {
 			return
 		}

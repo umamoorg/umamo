@@ -47,11 +47,14 @@ umamo_docblock_tags_mode = drift_only
 # name says what it pins, so test sources are not held to it.
 ktlint_umamo_function-docblock = disabled
 ktlint_umamo_no-print-and-return-gate = enabled
-# The architecture rules say where shipping code may build a command, name the main dispatcher, extend
-# the editor session, or import across a package boundary.  A test builds commands to drive a dispatcher
-# and reaches across packages to set its scene, so test sources are not held to them.
+# The architecture rules say where shipping code may build a command, keep a list of them, or look a
+# command's chord up, name the main dispatcher, extend the editor session, or import across a package
+# boundary.  A test builds commands to drive a dispatcher, reads a chord to say what a row should show, and
+# reaches across packages to set its scene, so test sources are not held to them.
 ktlint_umamo_import-boundary = disabled
 ktlint_umamo_no-command-outside-tables = disabled
+ktlint_umamo_no-command-table-export = disabled
+ktlint_umamo_no-hand-built-command-row = disabled
 ktlint_umamo_no-main-dispatcher = disabled
 ktlint_umamo_session-extension-placement = disabled
 

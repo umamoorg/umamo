@@ -40,15 +40,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.ui.action.CommandMenuRow
+import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.LocalCommands
-import org.umamo.ui.action.LocalKeymap
-import org.umamo.ui.action.formatAccelerator
+import org.umamo.ui.action.rememberCommandMenu
 import org.umamo.ui.kit.DoubleClickTracker
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.kit.container.Tab
 import org.umamo.ui.kit.menu.ContextMenuArea
-import org.umamo.ui.kit.menu.MenuItem
 import org.umamo.ui.kit.textentry.InlineRenameField
 import org.umamo.ui.kit.textentry.LocalInlineEditController
 import org.umamo.ui.resources.*
@@ -67,35 +67,50 @@ import org.umamo.ui.workspace.layout.Workspace
 private const val REORDER_HOLD_MILLIS = 100L
 
 /**
+ * A tab's own menu: what is done to that tab's workspace, each row aimed at it, then moving between workspaces.
+ *
+ * @param String workspaceId The tab's workspace.
+ * @return List<CommandMenuRow> The rows.
+ */
+private fun tabMenuRows(workspaceId: String): List<CommandMenuRow> =
+	listOf(
+		CommandMenuRow.Members(CommandSection.WorkspaceTab, argument = workspaceId),
+		CommandMenuRow.Separator,
+		CommandMenuRow.Members(CommandSection.WorkspaceSwitch),
+	)
+
+/**
  * The browser-style top tab strip: one tab per workspace plus a trailing "+" button, with a per-tab
- * context menu, inline rename, and drag-to-reorder.  A thin view: every mutation is reported to the
- * shell, which owns the layout.
+ * context menu, inline rename, and drag-to-reorder.  A thin view: the layout is the shell's, and the strip
+ * reports a selection, a reorder, and the name an inline edit settles on.
+ *
+ * What is done to a workspace goes through its command: the "+" button is New Workspace, a tab's menu is the
+ * workspace's Rename, Duplicate, and Delete aimed at that tab, and a double-click is Rename.  So the strip, the
+ * Workspace menu, the palette, and a key all run one thing, and the strip learns that a tab is being renamed
+ * from [renamingId] whichever of them asked.
  *
  * @param List workspaces The workspaces in tab order.
  * @param String activeId The currently active workspace id.
+ * @param String? renamingId The workspace whose tab shows the inline rename editor, or null while none does.
  * @param Function onSelect Reports the chosen workspace id.
- * @param Function onCreate Requests a new workspace, given a suggested (already-localized) base name.
- * @param Function onDuplicate Requests a copy of the workspace id, given a suggested name for the copy.
- * @param Function onDelete Requests deletion of the workspace id.
  * @param Function onReorder Requests moving the workspace at fromIndex to toIndex in tab order.
  * @param Function onRename Requests setting the workspace id's display name (from an inline edit).
+ * @param Function onRenameCancel Reports that the inline edit was abandoned.
  * @param Modifier modifier The layout modifier.
  */
 @Composable
 fun WorkspaceTabs(
 	workspaces: List<Workspace>,
 	activeId: String,
+	renamingId: String?,
 	onSelect: (String) -> Unit,
-	onCreate: (suggestedName: String) -> Unit,
-	onDuplicate: (workspaceId: String, suggestedName: String) -> Unit,
-	onDelete: (workspaceId: String) -> Unit,
 	onReorder: (fromIndex: Int, toIndex: Int) -> Unit,
 	onRename: (workspaceId: String, newName: String) -> Unit,
+	onRenameCancel: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val typography = LocalUmamoTypography.current
 	val commands = LocalCommands.current
-	val keymap = LocalKeymap.current
 	val activeIndex = workspaces.indexOfFirst { workspace -> workspace.id == activeId }.coerceAtLeast(0)
 
 	// Drag-to-reorder state.  The dragged tab translates with the pointer while its layout slot stays put;
@@ -108,21 +123,6 @@ fun WorkspaceTabs(
 	// a reorder shifts tabs under a stationary pointer, which Compose does not see as a hover change, so a
 	// tab hovered during the drag would otherwise stay highlighted until the pointer re-enters it.
 	var reorderGeneration by remember { mutableStateOf(0) }
-	// The workspace whose tab is being renamed in place (double-click or the context-menu Rename), or null.
-	var editingWorkspaceId by remember { mutableStateOf<String?>(null) }
-
-	// Localized chrome resolved once here: the context-menu onSelect lambdas run on a pointer event, not
-	// in composition, so they cannot call stringResource themselves - they capture these instead.
-	val newWorkspaceName = stringResource(Res.string.workspace_new_name)
-	val newWorkspaceLabel = stringResource(Res.string.workspace_new)
-	val copySuffix = stringResource(Res.string.workspace_copy_suffix)
-	val renameLabel = stringResource(Res.string.workspace_rename)
-	val duplicateLabel = stringResource(Res.string.workspace_duplicate)
-	val deleteLabel = stringResource(Res.string.workspace_delete)
-	val previousLabel = stringResource(Res.string.cmd_workspace_prev)
-	val nextLabel = stringResource(Res.string.cmd_workspace_next)
-	val previousShortcut = keymap.chordFor("workspace.prev")?.let { chord -> formatAccelerator(chord) }
-	val nextShortcut = keymap.chordFor("workspace.next")?.let { chord -> formatAccelerator(chord) }
 
 	// height(IntrinsicSize.Min) makes the strip exactly as tall as a Tab's font-metric-driven line
 	// box, so fillMaxHeight children (the "+" button) match the tabs to the pixel — a fixed dp size
@@ -135,40 +135,17 @@ fun WorkspaceTabs(
 			// custom-named tab that keeps its literal name.
 			val title = workspace.name ?: workspaceTitle(workspace.id)
 
-			if (editingWorkspaceId == workspace.id) {
+			if (renamingId == workspace.id) {
 				// The tab turns into an inline editor in place of its label.
 				WorkspaceTabEditor(
 					initialName = title,
-					onCommit = { newName ->
-						editingWorkspaceId = null
-						onRename(workspace.id, newName)
-					},
-					onCancel = { editingWorkspaceId = null },
+					onCommit = { newName -> onRename(workspace.id, newName) },
+					onCancel = onRenameCancel,
 				)
 			} else {
 				val isDragging = draggingIndex == index
-				val contextItems =
-					listOf(
-						MenuItem.Action(renameLabel, onSelect = { editingWorkspaceId = workspace.id }),
-						MenuItem.Action(duplicateLabel, onSelect = { onDuplicate(workspace.id, "$title $copySuffix") }),
-						// The strip never goes empty, so deleting the last workspace is offered as a disabled row.
-						MenuItem.Action(
-							deleteLabel,
-							onSelect = { onDelete(workspace.id) },
-							enabled = workspaces.size > 1,
-						),
-						MenuItem.Separator,
-						MenuItem.Action(
-							previousLabel,
-							onSelect = { commands.invoke("workspace.prev") },
-							shortcut = previousShortcut,
-						),
-						MenuItem.Action(
-							nextLabel,
-							onSelect = { commands.invoke("workspace.next") },
-							shortcut = nextShortcut,
-						),
-					)
+				// Read from the registry as the menu opens, so Delete is grayed on the last workspace by its own command.
+				val tabMenu = rememberCommandMenu(remember(workspace.id) { tabMenuRows(workspace.id) })
 				Box(
 					modifier =
 						Modifier
@@ -206,7 +183,7 @@ fun WorkspaceTabs(
 									// shared timing core rather than the singleOrDoubleClick modifier: the clickable consumes
 									// the press before a parent modifier would see it.
 									if (clickTracker.registerPress(down.uptimeMillis)) {
-										editingWorkspaceId = workspace.id
+										commands.invoke("workspace.rename", workspace.id)
 
 										return@awaitEachGesture
 									}
@@ -285,7 +262,7 @@ fun WorkspaceTabs(
 					// Keyed on reorderGeneration so a completed reorder rebuilds the tab (and its hover
 					// interaction source) from scratch - clearing any hover the layout shift left stale.
 					key(reorderGeneration) {
-						ContextMenuArea(items = contextItems) {
+						ContextMenuArea(itemsOnOpen = tabMenu) {
 							Tab(
 								selected = index == activeIndex,
 								onClick = { onSelect(workspace.id) },
@@ -301,7 +278,7 @@ fun WorkspaceTabs(
 				}
 			}
 		}
-		NewWorkspaceButton(contentDescription = newWorkspaceLabel, onClick = { onCreate(newWorkspaceName) })
+		NewWorkspaceButton(contentDescription = stringResource(Res.string.workspace_new), onClick = { commands.invoke("workspace.new") })
 	}
 }
 
@@ -399,6 +376,14 @@ internal fun reorderTargetIndex(fromIndex: Int, dragDeltaX: Float, centers: List
 	return targetIndex
 }
 
+/** The built-in workspaces' titles, by id.  A built-in has no stored name until it is renamed. */
+private val BUILTIN_WORKSPACE_TITLES =
+	mapOf(
+		"modelling" to Res.string.workspace_modelling,
+		"texture" to Res.string.workspace_texture,
+		"physics" to Res.string.workspace_physics,
+	)
+
 /**
  * Resolves a workspace id to its display title.  Built-in ids map to localized strings; any other id
  * (a user-created/renamed workspace whose name is user data, not chrome) shows verbatim.
@@ -407,10 +392,13 @@ internal fun reorderTargetIndex(fromIndex: Int, dragDeltaX: Float, centers: List
  * @return String The localized or literal title.
  */
 @Composable
-fun workspaceTitle(workspaceId: String): String =
-	when (workspaceId) {
-		"modelling" -> stringResource(Res.string.workspace_modelling)
-		"texture" -> stringResource(Res.string.workspace_texture)
-		"physics" -> stringResource(Res.string.workspace_physics)
-		else -> workspaceId
-	}
+fun workspaceTitle(workspaceId: String): String = BUILTIN_WORKSPACE_TITLES[workspaceId]?.let { title -> stringResource(title) } ?: workspaceId
+
+/**
+ * The built-in workspaces' titles in the current locale, by id, for the commands that name a workspace outside a
+ * composition.
+ *
+ * @return Map<String, String> The titles.
+ */
+@Composable
+internal fun builtinWorkspaceTitles(): Map<String, String> = BUILTIN_WORKSPACE_TITLES.mapValues { (_, title) -> stringResource(title) }

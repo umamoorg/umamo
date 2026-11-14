@@ -2,6 +2,8 @@ package org.umamo.ui.workspace.commands
 
 import org.umamo.edit.EditorSession
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandSection
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.operationstrip.OperationStripState
 
@@ -9,6 +11,9 @@ import org.umamo.ui.workspace.operationstrip.OperationStripState
  * The undo-history commands.  All three walk the session's snapshot stack or its adjustable record,
  * which is why they need no routing: history is per document, not per area, so where the pointer
  * is has no bearing on what they undo.
+ *
+ * Undo and Redo are the Edit menu's first block, and apply only while the stack has a step for them to
+ * take, which is what grays their rows.
  *
  * Adjust Last Operation (Blender's F9) toggles the operation settings strip open: the strip already
  * sits where the last operation ran, so opening it is all the command has to do.
@@ -23,9 +28,14 @@ internal fun historyCommands(
 	availability: SessionAvailability,
 	operationStrip: OperationStripState,
 ): List<Command> =
-	listOf(
-		Command("edit.undo", title = Res.string.cmd_undo, availability = availability.hasDocument) { editorSession?.undo() },
-		Command("edit.redo", title = Res.string.cmd_redo, availability = availability.hasDocument) { editorSession?.redo() },
+	commandTable(
+		CommandTable.History,
+		Command("edit.undo", title = Res.string.cmd_undo, availability = availability.canUndo, group = CommandSection.EditHistory, groupLabel = Res.string.menu_undo) {
+			editorSession?.undo()
+		},
+		Command("edit.redo", title = Res.string.cmd_redo, availability = availability.canRedo, group = CommandSection.EditHistory, groupLabel = Res.string.menu_redo) {
+			editorSession?.redo()
+		},
 		Command("edit.adjustLastOperation", title = Res.string.cmd_adjust_last_operation, availability = availability.hasAdjustableOperation) {
 			operationStrip.expanded = !operationStrip.expanded
 		},

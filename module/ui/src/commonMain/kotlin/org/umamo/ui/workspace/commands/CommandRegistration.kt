@@ -8,16 +8,30 @@ import org.umamo.edit.editsKeys
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandRegistry
+import org.umamo.ui.action.CommandTable
 
 /*
  * The machinery every command table in this package shares: how a group gets registered, and the
  * availability tiers the document-scoped groups all query.
  *
- * A table is a plain List<Command> built by a function that closes over the state its handlers need.
- * The shell registers each through registerAll inside a DisposableEffect keyed on exactly that state,
- * so a document swap or a renderer change re-registers the groups whose handlers went stale and leaves
- * the rest alone.
+ * A table is a plain List<Command> built by a function that closes over the state its handlers need,
+ * through commandTable, which names the table its commands belong to.  The shell registers each through
+ * registerAll inside a DisposableEffect keyed on exactly that state, so a document swap or a renderer
+ * change re-registers the groups whose handlers went stale and leaves the rest alone.
  */
+
+/**
+ * Builds a command table: [commands] in the order given, each placed in [table].
+ *
+ * The table is the one thing a command cannot say of itself, since a Command is built before it is handed here.
+ * The family or section a command is shown in is its own to name and is left as it is: a family draws its members
+ * from whichever tables hold them.
+ *
+ * @param CommandTable table The table the calling function builds.
+ * @param Command commands The table's commands, in registration order.
+ * @return List<Command> The commands, each within [table].
+ */
+internal fun commandTable(table: CommandTable, vararg commands: Command): List<Command> = commands.map { command -> command.copy(table = table) }
 
 /**
  * Registers every command in [commands] and returns the matching cleanup, so a DisposableEffect's
@@ -101,4 +115,10 @@ internal class SessionAvailability(session: EditorSession?) {
 
 	/** Applies while an operation may still be adjusted - the strip's F9 has something to open. */
 	val hasAdjustableOperation = CommandAvailability { session?.adjustableOperation?.value != null }
+
+	/** Applies while the undo stack has a step to take back. */
+	val canUndo = CommandAvailability { session?.canUndo?.value == true }
+
+	/** Applies while the undo stack has a step to take again. */
+	val canRedo = CommandAvailability { session?.canRedo?.value == true }
 }

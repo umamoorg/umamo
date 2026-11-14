@@ -55,6 +55,8 @@ import org.umamo.ui.workspace.ViewportHost
 import org.umamo.ui.workspace.area.AreaLeaf
 import org.umamo.ui.workspace.commands.commandFixtureSession
 import org.umamo.ui.workspace.commands.inMemorySettings
+import org.umamo.ui.workspace.commands.registerAll
+import org.umamo.ui.workspace.commands.shellCommandTables
 import org.umamo.ui.workspace.layout.LeafArea
 import org.umamo.ui.workspace.shell.defaultSpaceRegistry
 import org.umamo.ui.workspace.sidebar.SIDEBAR_DEFAULT_WIDTH
@@ -168,13 +170,14 @@ class ViewportChromePointerIsolationTest {
 	 *
 	 * @param RecordingViewportHost host The surface stand-in.
 	 * @param EditorSession session The session to provide.
-	 * @param CommandRegistry commands The registry the toolbar's buttons dispatch through.
+	 * @param CommandRegistry commands The registry the toolbar lists its tools from and dispatches through: the shell's
+	 *   tables over [session] unless a case hands in its own.
 	 */
 	@OptIn(ExperimentalTestApi::class)
 	private fun ComposeUiTest.mountBody(
 		host: RecordingViewportHost,
 		session: EditorSession = commandFixtureSession(EditorMode.Object),
-		commands: CommandRegistry = CommandRegistry(),
+		commands: CommandRegistry = CommandRegistry().also { registry -> registry.registerAll(shellCommandTables(session)) },
 	) {
 		val settings = inMemorySettings()
 		val sidebarRegistry = SidebarRegistry().also { registry -> registerBuiltInSidebar(registry) }
@@ -399,8 +402,9 @@ class ViewportChromePointerIsolationTest {
 			val host = RecordingViewportHost()
 			val session = commandFixtureSession(EditorMode.Object)
 			var grabs = 0
-			val commands = CommandRegistry()
-			commands.register(Command("mesh.grab", title = null) { grabs++ })
+			// The real tool, so the toolbar draws its button, with a handler that counts what reaches it.
+			val commands = CommandRegistry().also { registry -> registry.registerAll(shellCommandTables(session)) }
+			commands.register(checkNotNull(commands["mesh.grab"]).copy(handler = { grabs++ }))
 			session.armZoomRegion(AREA_ID)
 			mountBody(host, session, commands)
 			val grabButton = onNodeWithContentDescription("Grab Vertices").getUnclippedBoundsInRoot().center()

@@ -231,24 +231,32 @@ internal fun ModalOperatorBadge(
 }
 
 /**
- * The localized short name of a proportional falloff curve, for the modal status badge and the header's
- * falloff dropdown (the palette commands carry their own longer titles).
+ * The short name of a proportional falloff curve: the one mapping the modal status badge, the operation strip, and
+ * the falloff commands' labels among the curves all read (the palette commands carry their own longer titles).
+ *
+ * @param ProportionalFalloff falloff The falloff curve.
+ * @return StringResource The falloff name.
+ */
+internal fun falloffLabelResource(falloff: ProportionalFalloff): StringResource =
+	when (falloff) {
+		ProportionalFalloff.Smooth -> Res.string.falloff_smooth
+		ProportionalFalloff.Sphere -> Res.string.falloff_sphere
+		ProportionalFalloff.Root -> Res.string.falloff_root
+		ProportionalFalloff.InverseSquare -> Res.string.falloff_inverse_square
+		ProportionalFalloff.Sharp -> Res.string.falloff_sharp
+		ProportionalFalloff.Linear -> Res.string.falloff_linear
+		ProportionalFalloff.Constant -> Res.string.falloff_constant
+		ProportionalFalloff.Random -> Res.string.falloff_random
+	}
+
+/**
+ * The localized short name of a proportional falloff curve.
  *
  * @param ProportionalFalloff falloff The falloff curve.
  * @return String The localized falloff name.
  */
 @Composable
-internal fun falloffLabel(falloff: ProportionalFalloff): String =
-	when (falloff) {
-		ProportionalFalloff.Smooth -> stringResource(Res.string.falloff_smooth)
-		ProportionalFalloff.Sphere -> stringResource(Res.string.falloff_sphere)
-		ProportionalFalloff.Root -> stringResource(Res.string.falloff_root)
-		ProportionalFalloff.InverseSquare -> stringResource(Res.string.falloff_inverse_square)
-		ProportionalFalloff.Sharp -> stringResource(Res.string.falloff_sharp)
-		ProportionalFalloff.Linear -> stringResource(Res.string.falloff_linear)
-		ProportionalFalloff.Constant -> stringResource(Res.string.falloff_constant)
-		ProportionalFalloff.Random -> stringResource(Res.string.falloff_random)
-	}
+internal fun falloffLabel(falloff: ProportionalFalloff): String = stringResource(falloffLabelResource(falloff))
 
 /**
  * The localized name of a depth surface, for the depth inset's readout and the operation strip's Surface row.

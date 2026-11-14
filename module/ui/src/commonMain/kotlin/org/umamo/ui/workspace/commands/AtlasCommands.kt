@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 
 /**
@@ -22,7 +23,8 @@ internal fun atlasCommands(
 	routing: CommandRouting,
 	repack: ((String?) -> Unit)?,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.Atlas,
 		Command(
 			"document.repackAtlas",
 			title = Res.string.cmd_document_repack_atlas,

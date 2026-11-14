@@ -171,9 +171,11 @@ private fun MenuBarLabel(
 			// Non-focusable so the host window keeps focus and the bar keeps receiving hover (the
 			// sweep-to-switch above): a focusable popup would starve the labels of hover events.  The
 			// keyboard dismiss is owned by the bar / its host instead; outside-click dismissal still
-			// routes through onDismissRequest regardless of focusability.
+			// routes through onDismissRequest regardless of focusability.  The branch leaves the composition
+			// when the menu closes, so each opening builds the entries afresh.
+			val items = remember { menu.items() }
 			Menu(
-				items = menu.items,
+				items = items,
 				onDismissRequest = onDismiss,
 				positionProvider = BelowAnchorPositionProvider,
 				focusable = false,

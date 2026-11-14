@@ -7,11 +7,27 @@ import org.umamo.edit.SnapKind
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.transform.snapToWorldGrid
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandFamily
+import org.umamo.ui.action.CommandSection
+import org.umamo.ui.action.CommandState
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.workspace.AreaOverlayHub
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SpaceScope
+
+/**
+ * Reports whether [pivotMode] is the transform pivot.  With no document open the pivot reads as the median point, the
+ * one a session starts on, so the pivot control shows the same face before the first file opens.
+ *
+ * @param EditorSession? editorSession The open document's session, or null.
+ * @param TransformPivotMode pivotMode The pivot to report on.
+ * @return CommandState The state of the command that sets [pivotMode].
+ */
+private fun pivotState(editorSession: EditorSession?, pivotMode: TransformPivotMode): CommandState =
+	CommandState { (editorSession?.pivotMode?.value ?: TransformPivotMode.MedianPoint) == pivotMode }
 
 /**
  * The transform pivot modes (the Period pie / the palette) and the Shift+S snap operations over world
@@ -33,23 +49,52 @@ internal fun snapCommands(
 	availability: SessionAvailability,
 	areaOverlays: AreaOverlayHub,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.Snap,
 		Command("transform.pivotPie", title = Res.string.cmd_transform_pivot_pie, availability = availability.hasDocument) {
 			editorSession?.openPieMenu(PieMenuKind.PivotMode)
 		},
-		Command("transform.pivot.median", title = Res.string.cmd_transform_pivot_median, availability = availability.hasDocument) {
+		Command(
+			"transform.pivot.median",
+			title = Res.string.cmd_transform_pivot_median,
+			availability = availability.hasDocument,
+			group = CommandFamily.PivotMode,
+			icon = LocalUmamoIcons.pivotMedian,
+			state = pivotState(editorSession, TransformPivotMode.MedianPoint),
+		) {
 			editorSession?.setPivotMode(TransformPivotMode.MedianPoint)
 			editorSession?.closePieMenu()
 		},
-		Command("transform.pivot.individual", title = Res.string.cmd_transform_pivot_individual, availability = availability.hasDocument) {
+		Command(
+			"transform.pivot.individual",
+			title = Res.string.cmd_transform_pivot_individual,
+			availability = availability.hasDocument,
+			group = CommandFamily.PivotMode,
+			icon = LocalUmamoIcons.pivotIndividual,
+			state = pivotState(editorSession, TransformPivotMode.IndividualOrigins),
+		) {
 			editorSession?.setPivotMode(TransformPivotMode.IndividualOrigins)
 			editorSession?.closePieMenu()
 		},
-		Command("transform.pivot.active", title = Res.string.cmd_transform_pivot_active, availability = availability.hasDocument) {
+		Command(
+			"transform.pivot.active",
+			title = Res.string.cmd_transform_pivot_active,
+			availability = availability.hasDocument,
+			group = CommandFamily.PivotMode,
+			icon = LocalUmamoIcons.pivotActive,
+			state = pivotState(editorSession, TransformPivotMode.ActiveElement),
+		) {
 			editorSession?.setPivotMode(TransformPivotMode.ActiveElement)
 			editorSession?.closePieMenu()
 		},
-		Command("transform.pivot.cursor", title = Res.string.cmd_transform_pivot_cursor, availability = availability.hasDocument) {
+		Command(
+			"transform.pivot.cursor",
+			title = Res.string.cmd_transform_pivot_cursor,
+			availability = availability.hasDocument,
+			group = CommandFamily.PivotMode,
+			icon = LocalUmamoIcons.pivotCursor,
+			state = pivotState(editorSession, TransformPivotMode.Cursor),
+		) {
 			editorSession?.setPivotMode(TransformPivotMode.Cursor)
 			editorSession?.closePieMenu()
 		},
@@ -68,13 +113,26 @@ internal fun snapCommands(
 				}
 			}
 		},
-		Command("snap.cursorToWorldOrigin", title = Res.string.cmd_snap_cursor_world_origin, availability = availability.hasDocument) {
+		Command(
+			"snap.cursorToWorldOrigin",
+			title = Res.string.cmd_snap_cursor_world_origin,
+			availability = availability.hasDocument,
+			group = CommandSection.SnapCursor,
+			icon = LocalUmamoIcons.cursor,
+		) {
 			editorSession?.let { live ->
 				live.setCursor2d(live.model.value.worldOriginX, live.model.value.worldOriginZ)
 				live.closePieMenu()
 			}
 		},
-		Command("snap.cursorToGrid", title = Res.string.cmd_snap_cursor_grid, availability = availability.hasDocument, spaces = SpaceScope.Viewport2D) {
+		Command(
+			"snap.cursorToGrid",
+			title = Res.string.cmd_snap_cursor_grid,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.Viewport2D,
+			group = CommandSection.SnapCursor,
+			icon = LocalUmamoIcons.cursor,
+		) {
 			// The hovered 2D viewport's grid is the one the snap rounds to, since each area draws its own; over
 			// anything else the command does nothing (Blender's hovered-area rule, no fallback).
 			val areaId = routing.viewportArea()
@@ -89,27 +147,69 @@ internal fun snapCommands(
 				editorSession.closePieMenu()
 			}
 		},
-		Command("snap.cursorToSelected", title = Res.string.cmd_snap_cursor_selected, availability = availability.hasDocument, spaces = SpaceScope.Viewport2D) {
+		Command(
+			"snap.cursorToSelected",
+			title = Res.string.cmd_snap_cursor_selected,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.Viewport2D,
+			group = CommandSection.SnapCursor,
+			icon = LocalUmamoIcons.cursor,
+		) {
 			editorSession?.requestSnap(SnapKind.CursorToSelected, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.cursorToActive", title = Res.string.cmd_snap_cursor_active, availability = availability.hasDocument, spaces = SpaceScope.Viewport2D) {
+		Command(
+			"snap.cursorToActive",
+			title = Res.string.cmd_snap_cursor_active,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.Viewport2D,
+			group = CommandSection.SnapCursor,
+			icon = LocalUmamoIcons.cursor,
+		) {
 			editorSession?.requestSnap(SnapKind.CursorToActive, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToGrid", title = Res.string.cmd_snap_selection_grid, availability = availability.hasDocument, spaces = SpaceScope.Viewport2D) {
+		Command(
+			"snap.selectionToGrid",
+			title = Res.string.cmd_snap_selection_grid,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.Viewport2D,
+			group = CommandSection.SnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			editorSession?.requestSnap(SnapKind.SelectionToGrid, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToCursor", title = Res.string.cmd_snap_selection_cursor, availability = availability.hasDocument, spaces = SpaceScope.Viewport2D) {
+		Command(
+			"snap.selectionToCursor",
+			title = Res.string.cmd_snap_selection_cursor,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.Viewport2D,
+			group = CommandSection.SnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			editorSession?.requestSnap(SnapKind.SelectionToCursor, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToCursorOffset", title = Res.string.cmd_snap_selection_cursor_offset, availability = availability.hasDocument, spaces = SpaceScope.Viewport2D) {
+		Command(
+			"snap.selectionToCursorOffset",
+			title = Res.string.cmd_snap_selection_cursor_offset,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.Viewport2D,
+			group = CommandSection.SnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			editorSession?.requestSnap(SnapKind.SelectionToCursorOffset, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToActive", title = Res.string.cmd_snap_selection_active, availability = availability.hasDocument, spaces = SpaceScope.Viewport2D) {
+		Command(
+			"snap.selectionToActive",
+			title = Res.string.cmd_snap_selection_active,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.Viewport2D,
+			group = CommandSection.SnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			editorSession?.requestSnap(SnapKind.SelectionToActive, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},

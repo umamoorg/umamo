@@ -52,6 +52,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 /**
  * A stand-in for the render host whose surface is tagged, so a case can right-click it, and counts the presses that
@@ -215,6 +216,101 @@ class ViewportContextMenuTest {
 
 			assertEquals(setOf<SelectionTarget>(SelectionTarget.Deformer(DeformerId("w"))), session.selection.value.targets)
 			assertEquals(0, popups(), "the menu closed behind the pick")
+		}
+
+	/**
+	 * Each by-kind submenu lists its family from the registry the shell registered into: every kind, by the kind
+	 * alone, since the submenu's own row already says what picking one does.
+	 */
+	@Test
+	fun eachByKindFamilyListsEveryKindByTheKindAlone() =
+		runComposeUiTest {
+			mount(commandFixtureSession(EditorMode.Object))
+
+			rightClickTheSurface()
+			hoverMenuRow("Select")
+
+			for (family in listOf("Select All of Type", "Invert Selection of Type")) {
+				hoverMenuRow(family)
+
+				for (kind in listOf("Parts", "Drawables", "Warp Deformers", "Rotation Deformers")) {
+					assertEquals(1, rowsReading(kind, pickable = true), "$family > $kind")
+				}
+
+				assertEquals(0, rowsReading("Select All Parts"), "$family shows no palette title")
+			}
+		}
+
+	/**
+	 * A family a pie draws comes in under the title of the command that opens the pie, with the pie's own labels on
+	 * its rows - and never under the family's heading, which reads as the pie's title and not as a menu row.
+	 */
+	@Test
+	fun aPiesFamilyComesInUnderItsOpenersTitle() =
+		runComposeUiTest {
+			mount(posedBody())
+
+			rightClickTheSurface()
+			assertEquals(0, rowsReading("Insert Key"), "the key-type pie's title is no row")
+			hoverMenuRow("Insert Key by Type")
+
+			for (keyType in listOf("Lattice", "Opacity", "Colors", "All")) {
+				assertEquals(1, rowsReading(keyType), keyType)
+			}
+
+			assertEquals(1, rowsReading("Lattice", pickable = true), "a posed warp has a lattice to key")
+
+			assertEquals(0, rowsReading("Insert Lattice Key"), "the rows show no palette title")
+		}
+
+	/** The Snap submenu lists the world snaps in the order their table registers them: the cursor's, then the selection's. */
+	@Test
+	fun theSnapSubmenuListsTheWorldSnaps() =
+		runComposeUiTest {
+			mount(commandFixtureSession(EditorMode.Object))
+
+			rightClickTheSurface()
+			hoverMenuRow("Snap")
+
+			val snaps =
+				listOf(
+					"Cursor to World Origin",
+					"Cursor to Grid",
+					"Cursor to Selected",
+					"Cursor to Active",
+					"Selection to Grid",
+					"Selection to Cursor",
+					"Selection to Cursor (Keep Offset)",
+					"Selection to Active",
+				)
+
+			for (snap in snaps) {
+				assertEquals(1, rowsReading(snap), snap)
+			}
+
+			val tops = snaps.map { snap -> onNode(hasText(snap) and hasAnyAncestor(isPopup()), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.top }
+			assertEquals(tops.sorted(), tops, "top to bottom in the table's order")
+		}
+
+	/**
+	 * The Snap submenu sets the selection's snaps off from the cursor's with a rule: the family's two sections are
+	 * its two blocks, so the gap where one ends and the other begins is wider than the gap between two rows of one.
+	 */
+	@Test
+	fun theSnapSubmenuSetsTheSelectionsSnapsOffWithARule() =
+		runComposeUiTest {
+			mount(commandFixtureSession(EditorMode.Object))
+
+			rightClickTheSurface()
+			hoverMenuRow("Snap")
+
+			val top = { label: String -> onNode(hasText(label) and hasAnyAncestor(isPopup()), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.top }
+			val withinTheCursorsBlock = top("Cursor to Active") - top("Cursor to Selected")
+			val acrossTheRule = top("Selection to Grid") - top("Cursor to Active")
+			val withinTheSelectionsBlock = top("Selection to Cursor") - top("Selection to Grid")
+
+			assertEquals(withinTheCursorsBlock, withinTheSelectionsBlock, "rows of one block are evenly spaced")
+			assertTrue(acrossTheRule > withinTheCursorsBlock, "no rule between the cursor's snaps and the selection's: $acrossTheRule against $withinTheCursorsBlock")
 		}
 
 	@Test

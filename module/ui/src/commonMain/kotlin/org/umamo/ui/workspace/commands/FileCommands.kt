@@ -5,7 +5,13 @@ import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
+import org.umamo.ui.action.CommandChoice
+import org.umamo.ui.action.CommandChoices
+import org.umamo.ui.action.CommandSection
+import org.umamo.ui.action.CommandTable
+import org.umamo.ui.document.fileDisplayName
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoIcons
 
 /*
  * The document import / export commands.
@@ -22,6 +28,10 @@ import org.umamo.ui.resources.*
  *
  * Open / Save mean the native UMA document and nothing else; CMO3 and MOC3 are interop boundaries, so they
  * come and go through Import / Export.
+ *
+ * Together the tables here are the File menu.  Each command names the block of it, or of its Import or Export
+ * submenu, that it is a row of, under the short label the menu's heading leaves room for ("New" under File, "CMO3…"
+ * under Import); the palette, which has no heading over it, keeps the full title.
  */
 
 /**
@@ -42,6 +52,7 @@ import org.umamo.ui.resources.*
  * @param Function onImportCmo3 Runs the CMO3 import (picker, dirty-confirm, load).
  * @param Function onImportMoc3 Runs the MOC3 import.
  * @param Function onOpenPath Opens the file at a stored path or uri, by what the file is (dirty-confirm, load).
+ * @param Function recentFiles Reads the recent files' paths, most recent first, queried live: Open Recent's rows.
  * @param Function onExit Closes the application (dirty-confirm first).
  * @return List<Command> The commands to register.
  */
@@ -54,25 +65,45 @@ internal fun fileCommands(
 	onImportCmo3: () -> Unit,
 	onImportMoc3: () -> Unit,
 	onOpenPath: (path: String) -> Unit,
+	recentFiles: () -> List<String>,
 	onExit: () -> Unit,
 ): List<Command> =
-	listOf(
-		Command("file.new", title = Res.string.cmd_file_new) { onNew() },
-		Command("file.open", title = Res.string.cmd_file_open) { onOpen() },
-		Command("file.save", title = Res.string.cmd_file_save, availability = CommandAvailability { canSave() }) { onSave() },
-		Command("file.saveAs", title = Res.string.cmd_file_save_as, availability = CommandAvailability { canSave() }) { onSaveAs() },
-		Command("file.importCmo3", title = Res.string.cmd_import_cmo3) { onImportCmo3() },
-		// MOC3 comes in through its own row rather than one merged "import" filter, keeping the
-		// source-project / baked-runtime distinction visible in the UI.
-		Command("file.importMoc3", title = Res.string.cmd_import_moc3) { onImportMoc3() },
-		// No title, like the other argument-only commands: the Open Recent rows supply the path, and the
-		// palette has nothing to offer without one.  Anything that opens a file it was handed belongs on this
-		// id, since the way in is what carries the unsaved-changes gate.
-		Command("file.openPath", title = null) { argument ->
+	commandTable(
+		CommandTable.File,
+		Command("file.new", title = Res.string.cmd_file_new, group = CommandSection.FileDocument, groupLabel = Res.string.menu_file_new) { onNew() },
+		Command("file.open", title = Res.string.cmd_file_open, group = CommandSection.FileDocument, groupLabel = Res.string.menu_file_open) { onOpen() },
+		// No title, like the other argument-only commands: the palette has nothing to offer without a path.  In
+		// the File menu it is Open Recent, a row per recent file, each handing over its own path.  Anything that
+		// opens a file it was handed belongs on this id, since the way in is what carries the unsaved-changes gate.
+		Command(
+			"file.openPath",
+			title = null,
+			group = CommandSection.FileDocument,
+			groupLabel = Res.string.menu_open_recent,
+			choices = CommandChoices { recentFiles().map { path -> CommandChoice(fileDisplayName(path), path) } },
+		) { argument ->
 			val path = argument as? String ?: return@Command
 			onOpenPath(path)
 		},
-		Command("file.exit", title = Res.string.menu_exit) { onExit() },
+		Command(
+			"file.save",
+			title = Res.string.cmd_file_save,
+			availability = CommandAvailability { canSave() },
+			group = CommandSection.FileDocument,
+			groupLabel = Res.string.menu_file_save,
+		) { onSave() },
+		Command(
+			"file.saveAs",
+			title = Res.string.cmd_file_save_as,
+			availability = CommandAvailability { canSave() },
+			group = CommandSection.FileDocument,
+			groupLabel = Res.string.menu_file_save_as,
+		) { onSaveAs() },
+		Command("file.importCmo3", title = Res.string.cmd_import_cmo3, group = CommandSection.ImportPuppet, groupLabel = Res.string.menu_import_cmo3) { onImportCmo3() },
+		// MOC3 comes in through its own row rather than one merged "import" filter, keeping the
+		// source-project / baked-runtime distinction visible in the UI.
+		Command("file.importMoc3", title = Res.string.cmd_import_moc3, group = CommandSection.ImportPuppet, groupLabel = Res.string.menu_import_moc3) { onImportMoc3() },
+		Command("file.exit", title = Res.string.menu_exit, group = CommandSection.FileSession) { onExit() },
 	)
 
 /**
@@ -169,6 +200,8 @@ class ReloadScope(
  *   setting, marks its layer ignored with it).
  * @property Function ignoreLayer    Marks or clears the ignore on one layer, so a reload leaves it out or mints it again.
  * @property Function canReload      Whether any listed file could be re-read, queried live.
+ * @property Function canAddArtwork  Whether the open document can take added artwork, queried live: one whose
+ *   drawables render from baked atlas pages, as a puppet made from a MOC3 does, cannot.
  */
 class ArtworkOperations(
 	val importArtwork: (request: ImportArtworkRequest?, areaId: String?) -> Unit,
@@ -179,6 +212,7 @@ class ArtworkOperations(
 	val deleteArt: (request: DeleteArtRequest) -> Unit,
 	val ignoreLayer: (request: IgnoreLayerRequest) -> Unit,
 	val canReload: () -> Boolean,
+	val canAddArtwork: () -> Boolean,
 )
 
 /**
@@ -196,21 +230,27 @@ class ArtworkOperations(
  * @return List<Command> The commands to register.
  */
 internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> ArtworkOperations?): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.File,
 		// The one way artwork enters a document, from the File menu's Import row, the Sources space, and a
 		// drop on the window alike: a file's layers are ADDED to the open document as one undoable edit, the
 		// way importing an object into a Blender scene adds to it rather than replacing the scene.  With no
 		// payload it asks for a file; with one it takes the files it was handed, which is how a drop arrives on
-		// the same id - and so under the same availability gate and the same operation strip.
+		// the same id - and so under the same availability gate and the same operation strip.  It applies only
+		// to a document that can take artwork, which a puppet made from a MOC3 cannot.
 		Command(
 			"file.importArtwork",
 			title = Res.string.cmd_import_artwork,
-			availability = CommandAvailability { artwork() != null },
+			availability = CommandAvailability { artwork()?.canAddArtwork?.invoke() == true },
+			group = CommandSection.ImportArtwork,
+			groupLabel = Res.string.menu_import_artwork,
+			icon = LocalUmamoIcons.addFile,
 		) { argument -> artwork()?.importArtwork?.invoke(argument as? ImportArtworkRequest, routing.operationStripArea()) },
 		Command(
 			"document.reloadArtwork",
 			title = Res.string.cmd_document_reload_artwork,
 			availability = CommandAvailability { artwork()?.canReload?.invoke() == true },
+			icon = LocalUmamoIcons.refresh,
 		) { argument -> artwork()?.reloadArtwork?.invoke(routing.operationStripArea(), argument as? ReloadScope) },
 		Command(
 			"sources.relink",
@@ -224,6 +264,7 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 			"sources.matchAutomatically",
 			title = Res.string.cmd_sources_match_automatically,
 			availability = CommandAvailability { artwork() != null },
+			icon = LocalUmamoIcons.wand,
 		) { artwork()?.matchArtwork?.invoke(routing.operationStripArea()) },
 		Command(
 			"sources.replaceArtwork",
@@ -267,11 +308,14 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
  * @return List<Command> The commands to register.
  */
 internal fun fileImageExportCommands(routing: CommandRouting, exportImage: () -> ((viewportAreaId: String?) -> Unit)?): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.File,
 		Command(
 			"file.exportImage",
 			title = Res.string.cmd_export_image,
 			availability = CommandAvailability { exportImage() != null },
+			group = CommandSection.ExportImage,
+			groupLabel = Res.string.menu_export_image,
 		) { exportImage()?.invoke(routing.framedViewportArea()) },
 	)
 
@@ -295,15 +339,20 @@ internal fun fileExportCommands(
 	onExportCmo3: () -> Unit,
 	onExportMoc3: () -> Unit,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.File,
 		Command(
 			"file.exportCmo3",
 			title = Res.string.cmd_export_cmo3,
 			availability = CommandAvailability { canExport() },
+			group = CommandSection.ExportPuppet,
+			groupLabel = Res.string.menu_export_cmo3,
 		) { onExportCmo3() },
 		Command(
 			"file.exportMoc3",
 			title = Res.string.cmd_export_moc3,
 			availability = CommandAvailability { canExport() },
+			group = CommandSection.ExportPuppet,
+			groupLabel = Res.string.menu_export_moc3,
 		) { onExportMoc3() },
 	)

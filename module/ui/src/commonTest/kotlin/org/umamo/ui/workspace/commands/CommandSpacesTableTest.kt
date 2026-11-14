@@ -1,5 +1,6 @@
 package org.umamo.ui.workspace.commands
 
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SpaceScope
 import kotlin.test.Test
@@ -90,13 +91,13 @@ class CommandSpacesTableTest {
 	}
 
 	/**
-	 * Every texture-coordinate command is scoped.  The one leak this dimension exists to close is a uv.*
-	 * command listed over a 2D viewport, so a new one that forgets its scope fails here by name rather
+	 * Every texture-coordinate command is scoped.  The one leak this dimension exists to close is a command
+	 * of the UV table listed over a 2D viewport, so a new one that forgets its scope fails here by name rather
 	 * than waiting to be noticed in the palette.
 	 */
 	@Test
 	fun everyUvCommandIsScoped() {
-		val uvCommands = everyCommandTable().filter { command -> command.id.startsWith("uv.") }
+		val uvCommands = everyCommandTable().filter { command -> command.table == CommandTable.Uv }
 		assertTrue(uvCommands.isNotEmpty(), "the table must actually hold uv commands for this to mean anything")
 
 		for (command in uvCommands) {

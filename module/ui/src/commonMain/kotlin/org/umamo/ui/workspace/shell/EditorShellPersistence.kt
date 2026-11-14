@@ -19,9 +19,9 @@ import org.umamo.settings.Settings
 import org.umamo.storage.FileKitFilePicker
 import org.umamo.storage.FilePicker
 import org.umamo.ui.LocalSettings
+import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.rememberLiveKeymap
-import org.umamo.ui.kit.menu.TopLevelMenu
 import org.umamo.ui.l10n.rememberLocaleTag
 import org.umamo.ui.resources.*
 import org.umamo.ui.sidebar.SidebarRegistry
@@ -57,7 +57,8 @@ private const val PERSIST_DEBOUNCE_MS = 400L
  * @param Map spaceOverrides Per-kind space descriptors layered over the base registry.
  * @param CommandRegistry commandRegistry The action registry (the app may pre-register commands).
  * @param SidebarRegistry sidebarRegistry The tabs and panels every work-surface sidebar draws from.
- * @param List appMenu The application menu-bar contents, forwarded to the shell (empty renders no bar).
+ * @param List appMenu The application menu bar, one command family per menu, forwarded to the shell (empty renders
+ *   no bar).
  * @param ArtworkOperations? artwork The app's artwork orchestrations over the hovered area, forwarded
  *   to the shell; null (the default) when no open document can take artwork.
  * @param Function? exportImage Export Image over the 2D viewport area the shell resolves, forwarded to the
@@ -72,7 +73,7 @@ fun PersistentEditorShell(
 	spaceOverrides: Map<SpaceKind, SpaceDescriptor> = emptyMap(),
 	commandRegistry: CommandRegistry = remember { CommandRegistry() },
 	sidebarRegistry: SidebarRegistry = rememberSidebarRegistry(),
-	appMenu: List<TopLevelMenu> = emptyList(),
+	appMenu: List<CommandFamily> = emptyList(),
 	artwork: ArtworkOperations? = null,
 	exportImage: ((viewportAreaId: String?) -> Unit)? = null,
 	filePicker: FilePicker = remember { FileKitFilePicker() },

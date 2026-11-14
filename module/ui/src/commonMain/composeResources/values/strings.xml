@@ -54,8 +54,11 @@
 	<!-- Workspace navigation commands (action registry; palette + tab context menu). -->
 	<string name="cmd_workspace_prev">Previous Workspace</string>
 	<string name="cmd_workspace_next">Next Workspace</string>
-	<!-- Workspace management command (action registry; palette + the Workspace menu). -->
+	<!-- Workspace management commands (action registry; palette + the Workspace menu + a tab's own menu). -->
 	<string name="cmd_workspace_reset">Reset Workspace</string>
+	<string name="cmd_workspace_rename">Rename Workspace</string>
+	<string name="cmd_workspace_duplicate">Duplicate Workspace</string>
+	<string name="cmd_workspace_delete">Delete Workspace</string>
 
 	<!-- Editor space titles (the area header dropdown). -->
 	<string name="space_viewport2d">2D Viewport</string>
@@ -373,6 +376,10 @@
 	<string name="cmd_mode_edit">Edit Mode</string>
 	<string name="cmd_mode_toggle_pose">Toggle Pose Mode</string>
 	<string name="cmd_mode_pose">Pose Mode</string>
+	<string name="group_editor_mode">Mode</string>
+	<string name="group_uv_mirror">Mirror</string>
+	<string name="group_keyform_key">Keyframe</string>
+	<string name="group_viewport_tools">Tools</string>
 	<string name="cmd_mesh_grab">Grab Vertices</string>
 	<string name="cmd_mesh_scale">Scale Vertices</string>
 	<string name="cmd_mesh_rotate">Rotate Vertices</string>

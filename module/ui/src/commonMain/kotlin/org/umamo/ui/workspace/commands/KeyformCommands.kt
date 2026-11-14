@@ -18,7 +18,9 @@ import org.umamo.edit.keyform.removingKeys
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
+import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.KeyformHover
 import org.umamo.ui.workspace.KeyformSheetViews
@@ -85,6 +87,7 @@ internal fun keyformCommands(
 	 *
 	 * @param String id The command id.
 	 * @param StringResource title The palette title.
+	 * @param StringResource label The choice's label among the key types, where the heading already says Insert Key.
 	 * @param PoseKeyKind kind Which of each posed warp's tracks to key.
 	 * @param CommandAvailability available When the choice applies.
 	 * @return Command The command.
@@ -92,17 +95,19 @@ internal fun keyformCommands(
 	fun poseKeyCommand(
 		id: String,
 		title: StringResource,
+		label: StringResource,
 		kind: PoseKeyKind,
 		available: CommandAvailability,
 	): Command =
-		Command(id, title = title, availability = available) {
+		Command(id, title = title, availability = available, group = CommandFamily.InsertKey, groupLabel = label) {
 			editorSession?.let { session ->
 				session.posedKeyTracks(kind)?.let { tracks -> session.captureKeysOnTracks(tracks, null, KeyformAim.Pose) }
 				session.closePieMenu()
 			}
 		}
 
-	return listOf(
+	return commandTable(
+		CommandTable.Keyform,
 		Command(
 			"keyform.insert",
 			title = Res.string.cmd_keyform_insert,
@@ -110,6 +115,8 @@ internal fun keyformCommands(
 			spaces = SpaceScope.KeyableSurfaces,
 			// Suggested over a 2D viewport in Pose mode alone, the one mode it keys there in.
 			hint = CommandHint(Res.string.status_bind_insert_key, suggestedOver = { if (editorSession?.mode?.value == EditorMode.Pose) SpaceScope.KeyableSurfaces else KEYED_PANELS }),
+			// With Delete below, the pair a keyable row's menu, a sheet lane's, and the Pose rows all list.
+			group = CommandFamily.KeyformKey,
 		) {
 			editorSession?.let { session ->
 				keyAtPointer(session, routing, hoveredKeyable, { tracks -> session.captureKeysOnTracks(tracks, null, KeyformAim.Pose) }) { hover ->
@@ -125,6 +132,7 @@ internal fun keyformCommands(
 			availability = availability.canEditKeys,
 			spaces = SpaceScope.KeyableSurfaces,
 			hint = CommandHint(Res.string.status_bind_delete_key, suggestedOver = { KEYED_PANELS }),
+			group = CommandFamily.KeyformKey,
 		) {
 			editorSession?.let { session ->
 				keyAtPointer(session, routing, hoveredKeyable, { tracks -> session.removeKeysOnTracks(tracks, null, KeyformAim.Pose) }) { hover ->
@@ -147,17 +155,18 @@ internal fun keyformCommands(
 				editorSession?.openPieMenu(PieMenuKind.InsertKey)
 			}
 		},
-		poseKeyCommand("keyform.insert.lattice", Res.string.cmd_keyform_insert_lattice, PoseKeyKind.Lattice, availability.inPoseMode),
-		poseKeyCommand("keyform.insert.opacity", Res.string.cmd_keyform_insert_opacity, PoseKeyKind.Opacity, availability.inPoseMode),
+		poseKeyCommand("keyform.insert.lattice", Res.string.cmd_keyform_insert_lattice, Res.string.pie_insert_key_lattice, PoseKeyKind.Lattice, availability.inPoseMode),
+		poseKeyCommand("keyform.insert.opacity", Res.string.cmd_keyform_insert_opacity, Res.string.pie_insert_key_opacity, PoseKeyKind.Opacity, availability.inPoseMode),
 		poseKeyCommand(
 			"keyform.insert.colors",
 			Res.string.cmd_keyform_insert_colors,
+			Res.string.pie_insert_key_colors,
 			PoseKeyKind.Colors,
 			CommandAvailability {
 				editorSession?.mode?.value == EditorMode.Pose && editorSession.model.value.runtimeTarget.keyableColorChannels().isNotEmpty()
 			},
 		),
-		poseKeyCommand("keyform.insert.all", Res.string.cmd_keyform_insert_all, PoseKeyKind.All, availability.inPoseMode),
+		poseKeyCommand("keyform.insert.all", Res.string.cmd_keyform_insert_all, Res.string.pie_insert_key_all, PoseKeyKind.All, availability.inPoseMode),
 		Command(
 			"keyform.clearPoseEdits",
 			title = Res.string.cmd_keyform_clear_pose_edits,

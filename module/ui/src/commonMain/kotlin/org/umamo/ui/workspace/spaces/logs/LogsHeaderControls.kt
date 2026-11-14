@@ -8,7 +8,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.storage.UmamoLog
-import org.umamo.ui.action.LocalCommands
+import org.umamo.ui.action.CommandIconButton
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.button.IconButtonAppearance
 import org.umamo.ui.kit.container.OverflowRowScope
@@ -21,8 +21,8 @@ import org.umamo.ui.theme.LocalUmamoShapes
  * it to a file.  The log exists from startup, independent of any open puppet, so the controls are always live.
  *
  * Copy stays an inline handler because the clipboard is a composition-local reachable here and no shortcut
- * or menu needs it.  Export is the registry command logs.export because the shell that mounts this header
- * holds the FilePicker the write goes through.  The two ride one item so the pair collapses together.
+ * or menu needs it.  Export is the registry command logs.export's own button, because the shell that mounts this
+ * header holds the FilePicker the write goes through.  The two ride one item so the pair collapses together.
  */
 internal fun OverflowRowScope.logsHeaderControls() {
 	flexibleSpace()
@@ -31,7 +31,6 @@ internal fun OverflowRowScope.logsHeaderControls() {
 		// replacement needs a platform-built ClipEntry and a coroutine scope - overkill for a one-shot button.
 		@Suppress("DEPRECATION")
 		val clipboard = LocalClipboardManager.current
-		val commands = LocalCommands.current
 		Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
 			IconButton(
 				icon = LocalUmamoIcons.copy,
@@ -42,12 +41,7 @@ internal fun OverflowRowScope.logsHeaderControls() {
 				contentDescription = stringResource(Res.string.logs_copy),
 				appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
 			)
-			IconButton(
-				icon = LocalUmamoIcons.floppy,
-				onClick = { commands.invoke("logs.export") },
-				contentDescription = stringResource(Res.string.logs_export),
-				appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
-			)
+			CommandIconButton("logs.export", appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small))
 		}
 	}
 }

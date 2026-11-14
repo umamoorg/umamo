@@ -10,8 +10,12 @@ import org.umamo.edit.UvSnapRequest
 import org.umamo.edit.atlas.placementSelectedTileIds
 import org.umamo.edit.atlas.setAtlasPins
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandSection
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SpaceScope
 
@@ -93,35 +97,100 @@ internal fun uvCommands(
 		session.setAtlasPins(tileIds, pinned)
 	}
 
-	return listOf(
+	return commandTable(
+		CommandTable.Uv,
 		// Mirror UVs (the duplicated-and-flipped texture regions workflow, e.g. both eyes sampling one
 		// eye texture): axis-aligned reflections about the transform pivot, palette-discoverable and
-		// unbound by default - an interactive flip is already S + axis + drag through the pivot.
-		Command("uv.mirrorU", title = Res.string.cmd_uv_mirror_u, availability = availability.inEditMode, spaces = SpaceScope.UvEditor) {
+		// unbound by default - an interactive flip is already S + axis + drag through the pivot.  The pair is a
+		// family the UV editor's context menu lists, each under its axis.
+		Command(
+			"uv.mirrorU",
+			title = Res.string.cmd_uv_mirror_u,
+			availability = availability.inEditMode,
+			spaces = SpaceScope.UvEditor,
+			group = CommandFamily.UvMirror,
+			groupLabel = Res.string.menu_uv_mirror_x,
+		) {
 			requestUvMirror(mirrorU = true)
 		},
-		Command("uv.mirrorV", title = Res.string.cmd_uv_mirror_v, availability = availability.inEditMode, spaces = SpaceScope.UvEditor) {
+		Command(
+			"uv.mirrorV",
+			title = Res.string.cmd_uv_mirror_v,
+			availability = availability.inEditMode,
+			spaces = SpaceScope.UvEditor,
+			group = CommandFamily.UvMirror,
+			groupLabel = Res.string.menu_uv_mirror_y,
+		) {
 			requestUvMirror(mirrorU = false)
 		},
-		Command("uv.snap.selectionToPixels", title = Res.string.cmd_uv_snap_selection_pixels, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
+		Command(
+			"uv.snap.selectionToPixels",
+			title = Res.string.cmd_uv_snap_selection_pixels,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+			group = CommandSection.UvSnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			requestUvSnap(UvSnapKind.SelectionToPixels)
 		},
-		Command("uv.snap.selectionToCursor", title = Res.string.cmd_uv_snap_selection_cursor, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
+		Command(
+			"uv.snap.selectionToCursor",
+			title = Res.string.cmd_uv_snap_selection_cursor,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+			group = CommandSection.UvSnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			requestUvSnap(UvSnapKind.SelectionToCursor)
 		},
-		Command("uv.snap.selectionToCursorOffset", title = Res.string.cmd_uv_snap_selection_cursor_offset, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
+		Command(
+			"uv.snap.selectionToCursorOffset",
+			title = Res.string.cmd_uv_snap_selection_cursor_offset,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+			group = CommandSection.UvSnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			requestUvSnap(UvSnapKind.SelectionToCursorOffset)
 		},
-		Command("uv.snap.selectionToGrid", title = Res.string.cmd_uv_snap_selection_grid, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
+		Command(
+			"uv.snap.selectionToGrid",
+			title = Res.string.cmd_uv_snap_selection_grid,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+			group = CommandSection.UvSnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			requestUvSnap(UvSnapKind.SelectionToGrid)
 		},
-		Command("uv.snap.cursorToPixels", title = Res.string.cmd_uv_snap_cursor_pixels, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
+		Command(
+			"uv.snap.cursorToPixels",
+			title = Res.string.cmd_uv_snap_cursor_pixels,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+			group = CommandSection.UvSnapCursor,
+			icon = LocalUmamoIcons.pivotCursor,
+		) {
 			requestUvSnap(UvSnapKind.CursorToPixels)
 		},
-		Command("uv.snap.cursorToSelected", title = Res.string.cmd_uv_snap_cursor_selected, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
+		Command(
+			"uv.snap.cursorToSelected",
+			title = Res.string.cmd_uv_snap_cursor_selected,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+			group = CommandSection.UvSnapCursor,
+			icon = LocalUmamoIcons.pivotCursor,
+		) {
 			requestUvSnap(UvSnapKind.CursorToSelected)
 		},
-		Command("uv.snap.cursorToGrid", title = Res.string.cmd_uv_snap_cursor_grid, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
+		Command(
+			"uv.snap.cursorToGrid",
+			title = Res.string.cmd_uv_snap_cursor_grid,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+			group = CommandSection.UvSnapCursor,
+			icon = LocalUmamoIcons.pivotCursor,
+		) {
 			requestUvSnap(UvSnapKind.CursorToGrid)
 		},
 		// Texture page switching (the header selector's palette path): retargets the hovered UV

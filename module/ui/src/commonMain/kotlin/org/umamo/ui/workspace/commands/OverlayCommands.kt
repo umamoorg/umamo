@@ -2,6 +2,7 @@ package org.umamo.ui.workspace.commands
 
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.OverlaySurface
 import org.umamo.ui.viewport.ViewportOverlayState
@@ -43,7 +44,8 @@ internal fun overlayCommands(areaOverlays: AreaOverlayHub, routing: CommandRouti
 	 */
 	fun hovered2DOverlays(): ViewportOverlayState? = hoveredOverlays()?.takeIf { state -> state.surface == OverlaySurface.Viewport2D }
 
-	return listOf(
+	return commandTable(
+		CommandTable.Overlay,
 		// The Show Overlays master (Blender's Shift+Alt+Z): every overlay of the area at once, each row's own
 		// flag kept for when it comes back.
 		Command("view.overlay.all", title = Res.string.cmd_view_overlay_all, availability = hasViewport, spaces = SpaceScope.WorkSurfaces) {

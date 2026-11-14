@@ -11,6 +11,7 @@ import org.umamo.edit.structure.visibilityOf
 import org.umamo.edit.structure.withSelectionVisibility
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.resources.*
 
@@ -29,7 +30,8 @@ internal fun objectCommands(
 	selection: SelectionHandle?,
 	availability: SessionAvailability,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.Object,
 		// The first real model mutation: flips the selected parts'/drawables' eyeball as one undo step.
 		// Suggested in Object mode alone: in Edit mode the key hides the very drawable being edited, which
 		// runs but is not worth advertising beside the mesh tools.

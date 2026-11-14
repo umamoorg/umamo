@@ -19,8 +19,8 @@ val MENU_SEARCH_ROWS_MAX_HEIGHT: Dp = 320.dp
  * The label is a plain String rather than a StringResource because menus mix localized chrome ("Open")
  * with user data (a recent-file name, a space title) that has no StringResource; the call site resolves
  * the chrome and supplies the data.  An [Action] carries an onSelect lambda rather than a command id
- * because not every item is command-bound (the area selector emits an AreaCommand, a recent-file row
- * passes its path); command binding layers on top (the app menu's commandRow).
+ * because not every item is command-bound (the area selector emits an AreaCommand, a parameter row
+ * edits its parameter); command binding layers on top (commandMenuItem, beside the command registry).
  */
 sealed interface MenuItem {
 	/**
@@ -94,13 +94,17 @@ sealed interface MenuItem {
 }
 
 /**
- * One top-level menu-bar entry: a [label] (File, Help, …) that opens [items] as a [Menu] dropped
- * beneath it.
+ * One top-level menu-bar entry: a [label] (File, Help, …) that opens a [Menu] dropped beneath it.
+ *
+ * The entries are built each time the menu opens rather than held, because the bar stays composed for the
+ * whole session while what its rows read - whether there is anything to undo, whether the document can be
+ * saved - changes under it without recomposing it.  [items] is plain code, so localized labels are resolved
+ * in composition beforehand and captured.
  *
  * @property String label The menu-bar label.
- * @property List items The menu opened beneath the label.
+ * @property Function items Builds the menu opened beneath the label; called as it opens.
  */
 data class TopLevelMenu(
 	val label: String,
-	val items: List<MenuItem>,
+	val items: () -> List<MenuItem>,
 )
