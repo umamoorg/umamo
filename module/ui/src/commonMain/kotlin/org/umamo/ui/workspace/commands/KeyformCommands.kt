@@ -115,6 +115,8 @@ internal fun keyformCommands(
 			spaces = SpaceScope.KeyableSurfaces,
 			// Suggested over a 2D viewport in Pose mode alone, the one mode it keys there in.
 			hint = CommandHint(Res.string.status_bind_insert_key, suggestedOver = { if (editorSession?.mode?.value == EditorMode.Pose) SpaceScope.KeyableSurfaces else KEYED_PANELS }),
+			// With Delete below, the pair a keyable row's menu, a sheet lane's, and the Pose rows all list.
+			group = CommandFamily.KeyformKey,
 		) {
 			editorSession?.let { session ->
 				keyAtPointer(session, routing, hoveredKeyable, { tracks -> session.captureKeysOnTracks(tracks, null, KeyformAim.Pose) }) { hover ->
@@ -130,6 +132,7 @@ internal fun keyformCommands(
 			availability = availability.canEditKeys,
 			spaces = SpaceScope.KeyableSurfaces,
 			hint = CommandHint(Res.string.status_bind_delete_key, suggestedOver = { KEYED_PANELS }),
+			group = CommandFamily.KeyformKey,
 		) {
 			editorSession?.let { session ->
 				keyAtPointer(session, routing, hoveredKeyable, { tracks -> session.removeKeysOnTracks(tracks, null, KeyformAim.Pose) }) { hover ->

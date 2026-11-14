@@ -6,8 +6,8 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import org.umamo.ui.kit.menu.MenuItem
 
 /*
- * The fixtures the menu tests share: a command family built into its menu the way the shell's bar builds it, and
- * the menu read back as text.
+ * The fixtures the menu tests share: a command family, or an arrangement of rows, built into its menu the way the
+ * surface showing it builds it, and the menu read back as text.
  */
 
 /**
@@ -52,6 +52,48 @@ internal fun familyMenuOf(
 	commands: CommandRegistry,
 	keymap: Keymap = Keymap(emptyMap()),
 ): List<MenuItem> = familyMenuBuilderOf(family, commands, keymap)()
+
+/**
+ * The builder of an arranged menu over [commands], composed once the way a surface holds it, then called each time
+ * the menu opens.
+ *
+ * @param List<CommandMenuRow> rows The menu's rows.
+ * @param CommandRegistry commands The registry the menu is read from and dispatches through.
+ * @param Keymap keymap The keymap the accelerators are read from; unbound unless a case binds one.
+ * @return Function The builder.
+ */
+@OptIn(ExperimentalTestApi::class)
+internal fun commandMenuBuilderOf(
+	rows: List<CommandMenuRow>,
+	commands: CommandRegistry,
+	keymap: Keymap = Keymap(emptyMap()),
+): () -> List<MenuItem> {
+	var builder: (() -> List<MenuItem>)? = null
+	runComposeUiTest {
+		setContent {
+			CompositionLocalProvider(LocalCommands provides commands, LocalKeymap provides keymap) {
+				builder = rememberCommandMenu(rows)
+			}
+		}
+		waitForIdle()
+	}
+
+	return checkNotNull(builder) { "the menu was never composed" }
+}
+
+/**
+ * An arranged menu over [commands] as it is when opened now.
+ *
+ * @param List<CommandMenuRow> rows The menu's rows.
+ * @param CommandRegistry commands The registry the menu is read from and dispatches through.
+ * @param Keymap keymap The keymap the accelerators are read from; unbound unless a case binds one.
+ * @return List<MenuItem> The menu's entries.
+ */
+internal fun commandMenuOf(
+	rows: List<CommandMenuRow>,
+	commands: CommandRegistry,
+	keymap: Keymap = Keymap(emptyMap()),
+): List<MenuItem> = commandMenuBuilderOf(rows, commands, keymap)()
 
 /**
  * A menu as lines of text, top to bottom: a row by its label, a submenu by its label and a trailing arrow with its

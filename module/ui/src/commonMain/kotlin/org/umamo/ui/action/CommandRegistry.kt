@@ -55,10 +55,17 @@ class CommandRegistry {
 	/**
 	 * Looks up a command by id without invoking it (e.g. to read its title for a menu).
 	 *
+	 * Subscribes its reader to [revision], as [inGroup] does: a row or a button standing for one command is composed
+	 * before the shell's effects have registered it, and has to come back when they do.
+	 *
 	 * @param String id The command id.
 	 * @return Command? The command, or null if none is registered.
 	 */
-	operator fun get(id: String): Command? = commandsById[id]
+	operator fun get(id: String): Command? {
+		observeTable()
+
+		return commandsById[id]
+	}
 
 	/**
 	 * Every registered command in registration order - the source for the command palette listing.

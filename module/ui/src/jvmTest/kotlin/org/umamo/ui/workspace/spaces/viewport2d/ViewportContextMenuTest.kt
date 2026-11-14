@@ -52,6 +52,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 /**
  * A stand-in for the render host whose surface is tagged, so a case can right-click it, and counts the presses that
@@ -289,6 +290,27 @@ class ViewportContextMenuTest {
 
 			val tops = snaps.map { snap -> onNode(hasText(snap) and hasAnyAncestor(isPopup()), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.top }
 			assertEquals(tops.sorted(), tops, "top to bottom in the table's order")
+		}
+
+	/**
+	 * The Snap submenu sets the selection's snaps off from the cursor's with a rule: the family's two sections are
+	 * its two blocks, so the gap where one ends and the other begins is wider than the gap between two rows of one.
+	 */
+	@Test
+	fun theSnapSubmenuSetsTheSelectionsSnapsOffWithARule() =
+		runComposeUiTest {
+			mount(commandFixtureSession(EditorMode.Object))
+
+			rightClickTheSurface()
+			hoverMenuRow("Snap")
+
+			val top = { label: String -> onNode(hasText(label) and hasAnyAncestor(isPopup()), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.top }
+			val withinTheCursorsBlock = top("Cursor to Active") - top("Cursor to Selected")
+			val acrossTheRule = top("Selection to Grid") - top("Cursor to Active")
+			val withinTheSelectionsBlock = top("Selection to Cursor") - top("Selection to Grid")
+
+			assertEquals(withinTheCursorsBlock, withinTheSelectionsBlock, "rows of one block are evenly spaced")
+			assertTrue(acrossTheRule > withinTheCursorsBlock, "no rule between the cursor's snaps and the selection's: $acrossTheRule against $withinTheCursorsBlock")
 		}
 
 	@Test

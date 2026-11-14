@@ -38,11 +38,10 @@ import org.umamo.edit.transform.sourceLayerEditFrame
 import org.umamo.render.puppet.OverlayColor
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.atlasBindingForTile
-import org.umamo.ui.action.LocalCommands
-import org.umamo.ui.action.LocalKeymap
-import org.umamo.ui.action.formatAccelerator
+import org.umamo.ui.action.CommandFamily
+import org.umamo.ui.action.CommandMenuRow
+import org.umamo.ui.action.rememberCommandMenu
 import org.umamo.ui.kit.menu.ContextMenuArea
-import org.umamo.ui.kit.menu.MenuItem
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalPuppetRenderSync
@@ -50,10 +49,6 @@ import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSourceArtRasters
 import org.umamo.ui.resources.Res
-import org.umamo.ui.resources.cmd_mesh_generate_from_art
-import org.umamo.ui.resources.cmd_mesh_generate_quad
-import org.umamo.ui.resources.menu_uv_mirror_x
-import org.umamo.ui.resources.menu_uv_mirror_y
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.viewport.ApplicationGridMirror
 import org.umamo.ui.viewport.AreaOverlaysPublisher
@@ -95,6 +90,18 @@ import org.umamo.ui.workspace.spaces.PlaceholderSpace
  * with its page and layer resolution (UvEditorViewState.kt).  The overlays and gestures the body mounts
  * are org.umamo.ui.viewport.uv.
  */
+
+/**
+ * The UV editor's context menu: the two mirrors, each under its axis, then the art meshes.  It holds UV operations
+ * alone; what belongs to the area stays on the header.
+ */
+internal val UV_CONTEXT_ROWS: List<CommandMenuRow> =
+	listOf(
+		CommandMenuRow.Members(CommandFamily.UvMirror),
+		CommandMenuRow.Separator,
+		CommandMenuRow.Single("mesh.generateFromArt"),
+		CommandMenuRow.Single("mesh.generateQuad"),
+	)
 
 /**
  * The UV editor space: the shown surface - an atlas page, or the source layer the art was authored on -
@@ -423,41 +430,9 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// The UV viewport's own contextual menu: right-click anywhere in the viewport for UV operations.  A
 	// context menu is contextual - this holds ONLY UV ops, not area actions.  Nested in the content below,
 	// it overrides the AreaLeaf area menu within the viewport (the same precedence the outliner's row menu
-	// has over the area menu); the area context stays on the header.  Mirror X / Mirror Y dispatch the
-	// existing uv.mirror* commands through the registry (never a hardcoded handler); rebuilt on mode change
-	// (mode is observed above), so the rows enable and disable with Edit / Object mode.  Generate Mesh from
-	// Art and Generate Quad Mesh follow, in either mode, each enabled exactly when its command is.
-	val commands = LocalCommands.current
-	val keymap = LocalKeymap.current
-	val mirrorEnabled = mode == EditorMode.Edit
-	val generateMeshEnabled = commands["mesh.generateFromArt"]?.availability?.isAvailable() == true
-	val generateQuadEnabled = commands["mesh.generateQuad"]?.availability?.isAvailable() == true
-	val uvContextItems =
-		listOf(
-			MenuItem.Action(
-				label = stringResource(Res.string.menu_uv_mirror_x),
-				onSelect = { commands.invoke("uv.mirrorU") },
-				enabled = mirrorEnabled,
-			),
-			MenuItem.Action(
-				label = stringResource(Res.string.menu_uv_mirror_y),
-				onSelect = { commands.invoke("uv.mirrorV") },
-				enabled = mirrorEnabled,
-			),
-			MenuItem.Separator,
-			MenuItem.Action(
-				label = stringResource(Res.string.cmd_mesh_generate_from_art),
-				onSelect = { commands.invoke("mesh.generateFromArt") },
-				shortcut = keymap.chordFor("mesh.generateFromArt")?.let { chord -> formatAccelerator(chord) },
-				enabled = generateMeshEnabled,
-			),
-			MenuItem.Action(
-				label = stringResource(Res.string.cmd_mesh_generate_quad),
-				onSelect = { commands.invoke("mesh.generateQuad") },
-				shortcut = keymap.chordFor("mesh.generateQuad")?.let { chord -> formatAccelerator(chord) },
-				enabled = generateQuadEnabled,
-			),
-		)
+	// has over the area menu); the area context stays on the header.  Each row is read from its command as
+	// the menu opens, so the mirrors gray outside Edit mode and the generate rows with their own gates.
+	val uvContextMenu = rememberCommandMenu(UV_CONTEXT_ROWS)
 
 	val uiColors = LocalUmamoColors.current
 	BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -466,7 +441,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 		LaunchedEffect(widthPx, heightPx) {
 			service.resize(scope.areaId, widthPx, heightPx)
 		}
-		ContextMenuArea(items = uvContextItems, modifier = Modifier.fillMaxSize()) {
+		ContextMenuArea(itemsOnOpen = uvContextMenu, modifier = Modifier.fillMaxSize()) {
 			Box(
 				modifier =
 					Modifier
