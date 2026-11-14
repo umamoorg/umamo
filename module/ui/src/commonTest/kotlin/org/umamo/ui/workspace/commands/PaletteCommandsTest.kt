@@ -6,7 +6,6 @@ import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandHint
 import org.umamo.ui.action.CommandTable
-import org.umamo.ui.action.isWithin
 import org.umamo.ui.action.paletteCommands
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.cmd_select_all
@@ -49,7 +48,7 @@ class PaletteCommandsTest {
 		val listed = paletteCommands(tables(commandFixtureSession(EditorMode.Edit)), SpaceKind.Viewport2D)
 
 		assertTrue("mesh.grab" in listed.ids(), "the transforms belong to the viewport")
-		assertEquals(emptyList(), listed.filter { command -> command.group?.isWithin(CommandTable.Uv) == true }.ids(), "no command of the UV table belongs there")
+		assertEquals(emptyList(), listed.filter { command -> command.table == CommandTable.Uv }.ids(), "no command of the UV table belongs there")
 	}
 
 	/** Over the UV editor the same session lists them, so the case above is the scope at work and not the mode. */

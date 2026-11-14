@@ -17,6 +17,7 @@ import org.umamo.edit.transform.beginCircleSelect
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandState
 import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
@@ -171,15 +172,16 @@ internal fun selectCommands(
 			editorSession?.setMeshSelectMode(MeshSelectMode.Face)
 		},
 		// Select All / Invert dispatch by mode so one binding (A / Ctrl+I) serves both: elements in Edit and Pose
-		// mode, whole selectable entities in Object mode.  Each session method no-ops in the wrong mode.
-		Command("select.all", title = Res.string.cmd_select_all, availability = availability.hasDocument) {
+		// mode, whole selectable entities in Object mode.  Each session method no-ops in the wrong mode.  The two are
+		// the Select menu's first block, ahead of the by-kind submenus.
+		Command("select.all", title = Res.string.cmd_select_all, availability = availability.hasDocument, group = CommandSection.SelectEverything) {
 			if (editorSession?.mode?.value?.editsElements == true) {
 				editorSession.selectAllMeshElements()
 			} else {
 				editorSession?.selectAllObjects()
 			}
 		},
-		Command("select.invert", title = Res.string.cmd_select_invert, availability = availability.hasDocument) {
+		Command("select.invert", title = Res.string.cmd_select_invert, availability = availability.hasDocument, group = CommandSection.SelectEverything) {
 			if (editorSession?.mode?.value?.editsElements == true) {
 				editorSession.invertMeshSelection()
 			} else {

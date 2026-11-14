@@ -24,7 +24,7 @@ import org.umamo.ui.resources.menu_select
  * the header, as in the UV editor).  Every row dispatches its command through the registry, reads its label from the
  * command's title and its accelerator from the keymap, and grays out when its command is unavailable - the row is
  * built from the command id alone, so it can never run one command and advertise another's chord.  A command family
- * comes in as a submenu, its rows listed from the registry, so the family's table is what says which commands the
+ * comes in as a submenu, its rows listed from the registry, so the command tables are what say which commands the
  * submenu offers.  A family a pie draws goes under the title of the command that opens the pie, and since the pie lists
  * the same family, a grayed chip is a grayed row.  The selection rows group under a Select submenu, which grays out
  * only when nothing under it can be picked.  Operations driven by the pointer's position (Rip, Vertex Slide, the object
