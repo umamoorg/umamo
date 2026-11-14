@@ -10,6 +10,7 @@ Umamo is early alpha.
 * Keymap, UI: Hide Unselected(Shift+H) and Unhide All(Alt+H)
 * Pose Mode: 3D Depth Rotation - The ability to set the Y axis depth forwards or backwards to set the Y origin of a warp lattice rotation.
 * Pose Mode: 3D Depth Rotation - The ability to change the lattice surface shape between flat, cylinder, or sphere.  This allows creating rounded rotation poses easily.
+* UI: New Select menu and context menu with Select All of Type and Invert Selection of Type.
 
 ### Changed
 
