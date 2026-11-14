@@ -173,7 +173,7 @@ fun editMenu(
 
 /**
  * A submenu standing for a command family: the family's heading over one row per registered member, each under its
- * label in the family.  The rows are whatever the registry holds, in its order, so the family's table is the one
+ * label in the family.  The rows are whatever the registry holds, in its order, so the command tables are the one
  * place that says which commands the submenu offers.
  *
  * @param CommandFamily   family   The family the submenu stands for.

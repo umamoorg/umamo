@@ -9,7 +9,6 @@ import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.CommandTable
-import org.umamo.ui.action.table
 
 /*
  * The machinery every command table in this package shares: how a group gets registered, and the
@@ -22,27 +21,17 @@ import org.umamo.ui.action.table
  */
 
 /**
- * Builds a command table: [commands] in the order given, every one of them within [table].
+ * Builds a command table: [commands] in the order given, each placed in [table].
  *
- * A command that names no group takes the table as its group.  One that names a family keeps it, since the
- * family already places it in a table - which has to be this one: a family listed from the registry holds
- * exactly what its own table registers.
+ * The table is the one thing a command cannot say of itself, since a Command is built before it is handed here.
+ * The family or section a command is shown in is its own to name and is left as it is: a family draws its members
+ * from whichever tables hold them.
  *
  * @param CommandTable table The table the calling function builds.
  * @param Command commands The table's commands, in registration order.
  * @return List<Command> The commands, each within [table].
  */
-internal fun commandTable(table: CommandTable, vararg commands: Command): List<Command> =
-	commands.map { command ->
-		val group = command.group
-
-		if (group == null) {
-			command.copy(group = table)
-		} else {
-			require(group.table == table) { "Command ${command.id} names $group, which belongs to the ${group.table} table, from the $table table" }
-			command
-		}
-	}
+internal fun commandTable(table: CommandTable, vararg commands: Command): List<Command> = commands.map { command -> command.copy(table = table) }
 
 /**
  * Registers every command in [commands] and returns the matching cleanup, so a DisposableEffect's

@@ -15,7 +15,8 @@ import kotlin.test.assertTrue
 /**
  * Verifies the action-registry dispatch contract: registered commands run with the forwarded
  * argument, unknown ids fail quietly (no throw), listing is in registration order - of the whole table
- * and of one group in it - and an unavailable command neither runs nor consumes its trigger.
+ * and of one group in it, a family going section by section - and an unavailable command neither runs nor
+ * consumes its trigger.
  */
 class CommandRegistryTest {
 	/**
@@ -129,16 +130,16 @@ class CommandRegistryTest {
 
 	/**
 	 * inGroup() lists a table's commands in registration order - a family's members among them - and leaves out
-	 * every other table's and the ones in no group at all.
+	 * every other table's and the ones in no table at all.
 	 */
 	@Test
 	fun listsAGroupInRegistrationOrder() {
 		val registry = CommandRegistry()
-		registry.register(Command("select.first", title = null, group = CommandTable.Select, handler = {}))
-		registry.register(Command("overlay.only", title = null, group = CommandTable.Overlay, handler = {}))
-		registry.register(Command("select.member", title = null, group = CommandFamily.SelectAllOfKind, groupLabel = Res.string.menu_select_kind_parts, handler = {}))
+		registry.register(Command("select.first", title = null, table = CommandTable.Select, handler = {}))
+		registry.register(Command("overlay.only", title = null, table = CommandTable.Overlay, handler = {}))
+		registry.register(Command("select.member", title = null, table = CommandTable.Select, group = CommandFamily.SelectAllOfKind, groupLabel = Res.string.menu_select_kind_parts, handler = {}))
 		registry.register(Command("ungrouped", title = null, handler = {}))
-		registry.register(Command("select.last", title = null, group = CommandTable.Select, handler = {}))
+		registry.register(Command("select.last", title = null, table = CommandTable.Select, handler = {}))
 
 		assertEquals(listOf("select.first", "select.member", "select.last"), registry.inGroup(CommandTable.Select).map { command -> command.id })
 		assertEquals(listOf("select.member"), registry.inGroup(CommandFamily.SelectAllOfKind).map { command -> command.id })
@@ -150,6 +151,60 @@ class CommandRegistryTest {
 		assertEquals(emptyList(), registry.inGroup(CommandFamily.SelectAllOfKind))
 	}
 
+	/** A family is listed from whichever tables hold its members: the table a command is in says nothing of where it is shown. */
+	@Test
+	fun aFamilyDrawsItsMembersFromEveryTable() {
+		val registry = CommandRegistry()
+		registry.register(Command("select.member", title = null, table = CommandTable.Select, group = CommandFamily.MergeTarget, groupLabel = Res.string.menu_select_kind_parts, handler = {}))
+		registry.register(Command("overlay.member", title = null, table = CommandTable.Overlay, group = CommandFamily.MergeTarget, groupLabel = Res.string.menu_select_kind_parts, handler = {}))
+
+		assertEquals(listOf("select.member", "overlay.member"), registry.inGroup(CommandFamily.MergeTarget).map { command -> command.id })
+		assertEquals(listOf("overlay.member"), registry.inGroup(CommandTable.Overlay).map { command -> command.id }, "and each is still its own table's")
+	}
+
+	/**
+	 * A family lists its sections in the order they are declared, whichever was registered first, and each section in
+	 * registration order.  Its tables register at different times - and again, at the tail, on a document swap - so
+	 * a family in plain registration order would rearrange itself.
+	 */
+	@Test
+	fun aFamilyListsItsSectionsInDeclaredOrder() {
+		val registry = CommandRegistry()
+		val registered =
+			listOf(
+				"selection.first" to CommandSection.SnapSelection,
+				"cursor.first" to CommandSection.SnapCursor,
+				"selection.second" to CommandSection.SnapSelection,
+				"cursor.second" to CommandSection.SnapCursor,
+			)
+
+		for ((id, section) in registered) {
+			registry.register(Command(id, title = null, group = section, groupLabel = Res.string.menu_select_kind_parts, handler = {}))
+		}
+
+		assertEquals(listOf("cursor.first", "cursor.second", "selection.first", "selection.second"), registry.inGroup(CommandFamily.Snap).map { command -> command.id })
+		assertEquals(listOf("selection.first", "selection.second"), registry.inGroup(CommandSection.SnapSelection).map { command -> command.id }, "a section keeps registration order")
+	}
+
+	/**
+	 * A family that sits inside a section is a submenu in that block: the outer family lists its members where the
+	 * section stands, the section holds them, and they are not the section's own rows.
+	 */
+	@Test
+	fun aFamilyInsideASectionIsListedWithThatSection() {
+		val registry = CommandRegistry()
+		registry.register(Command("kind.parts", title = null, group = CommandFamily.SelectAllOfKind, groupLabel = Res.string.menu_select_kind_parts, handler = {}))
+		registry.register(Command("select.all", title = Res.string.cmd_select_all_parts, group = CommandSection.SelectEverything, handler = {}))
+		registry.register(Command("kind.inverted", title = null, group = CommandFamily.InvertSelectionOfKind, groupLabel = Res.string.menu_select_kind_parts, handler = {}))
+
+		assertEquals(listOf("select.all", "kind.parts", "kind.inverted"), registry.inGroup(CommandFamily.Select).map { command -> command.id }, "the first block, then the submenus' block")
+		assertEquals(listOf("kind.parts", "kind.inverted"), registry.inGroup(CommandSection.SelectByKind).map { command -> command.id })
+		assertEquals(emptyList(), registry.membersOf(CommandSection.SelectByKind), "a submenu's rows are its own, not the block's")
+		assertEquals(listOf("select.all"), registry.membersOf(CommandSection.SelectEverything).map { command -> command.id })
+		assertEquals(listOf("kind.parts"), registry.membersOf(CommandFamily.SelectAllOfKind).map { command -> command.id })
+		assertEquals(emptyList(), registry.membersOf(CommandFamily.Select), "a sectioned family has no row outside its sections")
+	}
+
 	/**
 	 * Listing a group subscribes the reader to the table, with no revision key of its own: the menu bar lists a
 	 * family before the shell's effects have registered it, and must come back when they do.  A derived state
@@ -159,25 +214,29 @@ class CommandRegistryTest {
 	fun listingAGroupSubscribesToTheTable() {
 		val registry = CommandRegistry()
 		val listed = derivedStateOf { registry.inGroup(CommandTable.Select).map { command -> command.id } }
+		val members = derivedStateOf { registry.membersOf(CommandSection.SelectEverything).map { command -> command.id } }
 		assertEquals(emptyList(), listed.value)
+		assertEquals(emptyList(), members.value)
 
-		registry.register(Command("select.first", title = null, group = CommandTable.Select, handler = {}))
+		registry.register(Command("select.first", title = Res.string.cmd_select_all_parts, table = CommandTable.Select, group = CommandSection.SelectEverything, handler = {}))
 		assertEquals(listOf("select.first"), listed.value, "a registration reaches a listing made before it")
+		assertEquals(listOf("select.first"), members.value, "and a listing of a group's own rows")
 
 		registry.unregister("select.first")
 		assertEquals(emptyList(), listed.value, "and so does an unregistration")
+		assertEquals(emptyList(), members.value)
 	}
 
 	/**
 	 * A group's label needs a group, and a family's member needs a label: a family is a list of rows, where a
-	 * table's own commands may go unlabeled.
+	 * command no family shows may go unlabeled.
 	 */
 	@Test
 	fun aFamilyMemberCarriesARowLabel() {
 		assertFailsWith<IllegalArgumentException> { Command("test.label", title = null, groupLabel = Res.string.menu_select_kind_parts, handler = {}) }
 		assertFailsWith<IllegalArgumentException> { Command("test.row", title = null, group = CommandFamily.SelectAllOfKind, handler = {}) }
 
-		val unlabeled = Command("test.table", title = null, group = CommandTable.Select, handler = {})
+		val unlabeled = Command("test.table", title = null, table = CommandTable.Select, handler = {})
 		assertNull(unlabeled.rowLabel)
 
 		val titled = Command("test.titled", title = Res.string.cmd_select_all_parts, group = CommandFamily.SelectAllOfKind, handler = {})
@@ -208,22 +267,36 @@ class CommandRegistryTest {
 		assertFalse(Command("test.stateless", title = null, handler = {}).isOn())
 	}
 
-	/** A group is within itself and everything it sits inside, and its table is where that chain ends. */
+	/**
+	 * A listing is within itself and everything it sits inside: a section in its family, a submenu in the section it
+	 * sits in and so in the menu above.  A table stands apart from all of them.
+	 */
 	@Test
 	fun aGroupIsWithinItsAncestors() {
 		assertTrue(CommandFamily.SelectAllOfKind.isWithin(CommandFamily.SelectAllOfKind))
-		assertTrue(CommandFamily.SelectAllOfKind.isWithin(CommandTable.Select))
-		assertFalse(CommandFamily.SelectAllOfKind.isWithin(CommandTable.Overlay))
 		assertFalse(CommandFamily.SelectAllOfKind.isWithin(CommandFamily.InvertSelectionOfKind))
-		assertFalse(CommandTable.Select.isWithin(CommandFamily.SelectAllOfKind), "a table is in none of its families")
-		assertEquals(CommandTable.Select, CommandFamily.SelectAllOfKind.table)
-		assertEquals(CommandTable.Select, CommandTable.Select.table)
+		assertTrue(CommandFamily.SelectAllOfKind.isWithin(CommandSection.SelectByKind), "a submenu is in the block it sits in")
+		assertTrue(CommandFamily.SelectAllOfKind.isWithin(CommandFamily.Select), "and in the menu that block is a slice of")
+		assertFalse(CommandFamily.SelectAllOfKind.isWithin(CommandSection.SelectEverything))
+		assertFalse(CommandFamily.Select.isWithin(CommandFamily.SelectAllOfKind), "a menu is not inside its own submenu")
+		assertNull(CommandFamily.Select.parent, "a root sits inside nothing")
 
 		assertTrue(CommandSection.UvSnapCursor.isWithin(CommandFamily.UvSnap), "a section is in its family")
-		assertTrue(CommandSection.UvSnapCursor.isWithin(CommandTable.Uv), "and in the family's table")
 		assertFalse(CommandSection.UvSnapCursor.isWithin(CommandSection.UvSnapSelection))
 		assertFalse(CommandSection.UvSnapCursor.isWithin(CommandFamily.Snap))
-		assertEquals(CommandTable.Uv, CommandSection.UvSnapCursor.table)
+
+		assertFalse(CommandFamily.SelectAllOfKind.isWithin(CommandTable.Select), "a family is in no table: its members are")
+		assertFalse(CommandTable.Select.isWithin(CommandFamily.Select))
+		assertTrue(CommandTable.Select.isWithin(CommandTable.Select))
+	}
+
+	/** The block of a family a listing is shown in is the family's own section, however far down the listing sits. */
+	@Test
+	fun aListingKnowsItsSectionOfAFamily() {
+		assertEquals(CommandSection.SelectByKind, CommandFamily.SelectAllOfKind.sectionIn(CommandFamily.Select))
+		assertEquals(CommandSection.SelectEverything, CommandSection.SelectEverything.sectionIn(CommandFamily.Select))
+		assertNull(CommandFamily.Select.sectionIn(CommandFamily.Select), "a family is in none of its own sections")
+		assertNull(CommandSection.SnapCursor.sectionIn(CommandFamily.Select), "nor is a section of another family")
 	}
 
 	/**

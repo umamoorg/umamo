@@ -22,7 +22,7 @@ fun pieFamilyOf(kind: PieMenuKind): CommandFamily =
 	}
 
 /**
- * The entry ring for one pie kind: its family's registered members in registration order, which the ring lays out in
+ * The entry ring for one pie kind: its family's registered members in the family's order, which the ring lays out in
  * Blender slot order (W, E, S, N, then the diagonals), each enabled exactly when its command is available.  Shared by
  * the shell-level pie host's rendering (ShellCursorOverlays.kt) and the shell's 1..N digit shortcuts, so the picked
  * ordinal always matches the drawn number; the 2D viewport's context menu lists the same family, so a grayed chip is

@@ -1,7 +1,6 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.ui.action.CommandTable
-import org.umamo.ui.action.isWithin
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SpaceScope
 import kotlin.test.Test
@@ -98,7 +97,7 @@ class CommandSpacesTableTest {
 	 */
 	@Test
 	fun everyUvCommandIsScoped() {
-		val uvCommands = everyCommandTable().filter { command -> command.group?.isWithin(CommandTable.Uv) == true }
+		val uvCommands = everyCommandTable().filter { command -> command.table == CommandTable.Uv }
 		assertTrue(uvCommands.isNotEmpty(), "the table must actually hold uv commands for this to mean anything")
 
 		for (command in uvCommands) {

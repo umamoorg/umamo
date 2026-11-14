@@ -55,8 +55,8 @@ import org.umamo.ui.workspace.commands.ProportionalConnectedRequest
  * one exception is the proportional panel's size row, a value no command carries, which each header
  * routes to its own surface's radius.
  *
- * A control that offers a set of commands lists their family from the registry, so the family's table is what
- * decides its members, their order, their labels and glyphs, and which of them is current: nothing here names a
+ * A control that offers a set of commands lists their family from the registry, so the command tables are what
+ * decide its members, their order, their labels and glyphs, and which of them is current: nothing here names a
  * command of a family, and the pies and menus listing the same family cannot come to disagree with these.
  */
 
