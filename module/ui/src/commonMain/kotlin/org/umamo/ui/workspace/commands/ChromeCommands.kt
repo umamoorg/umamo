@@ -24,7 +24,7 @@ import org.umamo.ui.workspace.rowdrag.RowDragCancelController
  * @param AreaDragController dragController The area CORNER drag state area.dragCancel aborts.
  * @param SplitterDragCancelController splitterDragCancel The divider-drag seam area.dragCancel also aborts;
  *   that drag's session lives in SplitContainer's own state, so it can only be reached through this.
- * @param RowDragCancelController rowDragCancel The panel row-drag seam row.dragCancel invokes.
+ * @param RowDragCancelController rowDragCancel The row-drag seam row.dragCancel invokes.
  * @param WorkspaceLayoutController workspaces The layout state workspace.prev/next shift.
  * @param Function openLink Opens a project URL through the platform's handler.
  * @return List<Command> The commands to register.
@@ -47,8 +47,7 @@ internal fun chromeCommands(
 			dragController.cancelDrag()
 			splitterDragCancel.cancel?.invoke()
 		},
-		// The panel row-drag cancel (outliner / parameters rows), dispatched from the shell's Escape
-		// precedence (mirroring area.dragCancel).
+		// The panel row-drag cancel dispatched from the shell's Escape precedence (mirroring area.dragCancel).
 		Command("row.dragCancel", title = null) { rowDragCancel.cancel?.invoke() },
 		// The preferences window opens through the registry like everything else, so the Edit menu, the
 		// Ctrl/Cmd+, binding, and the command palette all reach it through the one dispatch point.  Titled,

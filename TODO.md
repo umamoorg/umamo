@@ -134,15 +134,8 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 	* Snap to key on the parameter scrubber, either by the context menu or a snapping option.  The keyform sheet can do this right by clicking on a parameter pip.
 		* I'm leaning towards a snapping option in the area header, but the header is a bit crowded right now.
 
-## Menus
-* Clicking again should close instead of reopen the menu.
-
 ## Tooltips
 * Consider swapping to BasicTooltipBox in the future to get rip of the desktop and Android split of TooltipArea.  BasicTooltipBox is more recent as of writing this, July 2026, is being actively iterated against.
-
-## Workspace Tabs
-* Improvements
-	* Visual feedback of the tabs moving out of the way when reordering them.
 
 ## Keymap
 * Keymappings will need to become area contextual.  For example: P is pin in the UV editor area.  Once the Separate operation(Into multiple drawables) exist, if we want to match Blender's P shortcut for that then it has to become contextual per area.

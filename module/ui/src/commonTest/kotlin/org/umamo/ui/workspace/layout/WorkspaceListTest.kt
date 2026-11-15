@@ -1,6 +1,8 @@
 package org.umamo.ui.workspace.layout
 
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.shell.reorderDragRange
+import org.umamo.ui.workspace.shell.reorderSlideOffset
 import org.umamo.ui.workspace.shell.reorderTargetIndex
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -158,5 +160,59 @@ class WorkspaceListTest {
 	fun reorderTargetIndexWithUnmeasuredCenterIsNoOp() {
 		val centers = listOf<Float?>(null, null)
 		assertEquals(0, reorderTargetIndex(fromIndex = 0, dragDeltaX = 500f, centers = centers))
+	}
+
+	/** A drag to the right slides the tabs it passed one dragged-tab width left, and no others. */
+	@Test
+	fun reorderSlideOffsetMovesPassedTabsLeftOnARightwardDrag() {
+		val offsets = (0 until 5).map { slotIndex -> reorderSlideOffset(slotIndex, fromIndex = 1, targetIndex = 3, draggedWidth = 80f) }
+		assertEquals(listOf(0f, 0f, -80f, -80f, 0f), offsets)
+	}
+
+	/** A drag to the left slides the tabs it passed one dragged-tab width right, and no others. */
+	@Test
+	fun reorderSlideOffsetMovesPassedTabsRightOnALeftwardDrag() {
+		val offsets = (0 until 5).map { slotIndex -> reorderSlideOffset(slotIndex, fromIndex = 3, targetIndex = 1, draggedWidth = 80f) }
+		assertEquals(listOf(0f, 80f, 80f, 0f, 0f), offsets)
+	}
+
+	/** A drag predicted to land where it started moves nothing. */
+	@Test
+	fun reorderSlideOffsetIsZeroWhenTheTargetIsTheStart() {
+		val offsets = (0 until 3).map { slotIndex -> reorderSlideOffset(slotIndex, fromIndex = 1, targetIndex = 1, draggedWidth = 80f) }
+		assertEquals(listOf(0f, 0f, 0f), offsets)
+	}
+
+	/** A dragged tab travels from the strip's left end to its right end, and no further. */
+	@Test
+	fun reorderDragRangeSpansTheStrip() {
+		// Three 100-wide slots covering 0..300.
+		val centers = listOf(50f, 150f, 250f)
+		val widths = listOf(100f, 100f, 100f)
+		assertEquals(0f..200f, reorderDragRange(fromIndex = 0, centers = centers, widths = widths))
+		assertEquals(-100f..100f, reorderDragRange(fromIndex = 1, centers = centers, widths = widths))
+		assertEquals(-200f..0f, reorderDragRange(fromIndex = 2, centers = centers, widths = widths))
+	}
+
+	/** The range follows each slot's own width: the held tab's right edge stops at the last slot's right edge. */
+	@Test
+	fun reorderDragRangeUsesEachSlotsWidth() {
+		// Slots 0..80, 80..180, 180..280.
+		val centers = listOf(40f, 130f, 230f)
+		val widths = listOf(80f, 100f, 100f)
+		assertEquals(0f..200f, reorderDragRange(fromIndex = 0, centers = centers, widths = widths))
+		assertEquals(-180f..0f, reorderDragRange(fromIndex = 2, centers = centers, widths = widths))
+	}
+
+	/** A lone tab has nowhere to go. */
+	@Test
+	fun reorderDragRangeOfALoneTabIsZero() {
+		assertEquals(0f..0f, reorderDragRange(fromIndex = 0, centers = listOf(50f), widths = listOf(100f)))
+	}
+
+	/** An unmeasured end slot leaves the range unknown. */
+	@Test
+	fun reorderDragRangeWithAnUnmeasuredEndIsNull() {
+		assertNull(reorderDragRange(fromIndex = 0, centers = listOf(50f, null), widths = listOf(100f, null)))
 	}
 }
