@@ -185,7 +185,6 @@ See format planning document: docs/plan/uma-format.md
 	* For Example: properties_field_base_angle - "base_angle" -> Expanded out to `properties_field_base_angle` and `properties_field_base_angle_description`.
 	* There are plenty of places in the code base that are passing the values around like this at the moment.  Difficulty: .* import level maybe?  I need to read up on the Kotlin compiler optimization to determine if this will be an issue.
 	* operatorParameterDescriptionRes also is the start of something of what I am thinking, but hardcoded.
-* Remove default parameter colors on MeshOverlayPalette.  They are not needed.
 
 ## Settings
 * Keybinding - input.keybinding (Includes keyboard, mouse, and pen buttons.)
