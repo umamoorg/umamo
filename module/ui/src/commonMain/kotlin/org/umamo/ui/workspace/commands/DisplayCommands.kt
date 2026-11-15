@@ -3,6 +3,7 @@ package org.umamo.ui.workspace.commands
 import org.umamo.edit.EditorSession
 import org.umamo.edit.property.setSourceLayerDisplay
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 
 /**
@@ -21,7 +22,8 @@ import org.umamo.ui.resources.*
  * @return List<Command> The commands to register.
  */
 internal fun displayCommands(editorSession: EditorSession?, availability: SessionAvailability): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.Display,
 		Command(
 			"document.toggleSourceArtworkDisplay",
 			title = Res.string.cmd_document_toggle_source_artwork,

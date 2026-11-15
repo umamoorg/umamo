@@ -70,13 +70,13 @@ data class MeshOverlayPalette(
 	val faceIdle: OverlayColor,
 	val faceSelected: OverlayColor,
 	val faceActive: OverlayColor,
-	val warning: OverlayColor = OverlayColor.fromArgb(0xFFFF5A5AL),
-	val pinnedPlacement: OverlayColor = OverlayColor.fromArgb(0xFFB266FFL),
-	val latticeIdle: OverlayColor = OverlayColor.fromArgb(0x80404040L),
-	val latticeSelected: OverlayColor = OverlayColor.fromArgb(0xFF338CFFL),
-	val latticeActive: OverlayColor = OverlayColor.fromArgb(0xFF7DE400L),
-	val latticePending: OverlayColor = OverlayColor.fromArgb(0xFFDF8431L),
-	val latticeHover: OverlayColor = OverlayColor.fromArgb(0xFFFF00ECL),
+	val warning: OverlayColor,
+	val pinnedPlacement: OverlayColor,
+	val latticeIdle: OverlayColor,
+	val latticeSelected: OverlayColor,
+	val latticeActive: OverlayColor,
+	val latticePending: OverlayColor,
+	val latticeHover: OverlayColor,
 ) {
 	companion object {
 		/** The settings defaults, so a renderer draws something sensible before the UI pushes a palette. */
@@ -91,6 +91,13 @@ data class MeshOverlayPalette(
 				faceIdle = OverlayColor.fromArgb(0x22000000L),
 				faceSelected = OverlayColor.fromArgb(0x66FF7A00L),
 				faceActive = OverlayColor.fromArgb(0xFF7DE400L),
+				warning = OverlayColor.fromArgb(0xFFFF5A5AL),
+				pinnedPlacement = OverlayColor.fromArgb(0xFFB266FFL),
+				latticeIdle = OverlayColor.fromArgb(0x80404040L),
+				latticeSelected = OverlayColor.fromArgb(0xFF338CFFL),
+				latticeActive = OverlayColor.fromArgb(0xFF7DE400L),
+				latticePending = OverlayColor.fromArgb(0xFFDF8431L),
+				latticeHover = OverlayColor.fromArgb(0xFFFF00ECL),
 			)
 	}
 }

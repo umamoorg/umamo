@@ -1,7 +1,6 @@
 package org.umamo.ui.kit.menu
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -29,6 +28,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.BelowAnchorPositionProvider
 import org.umamo.ui.kit.Text
+import org.umamo.ui.kit.popupAnchorClickable
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
@@ -126,7 +126,7 @@ fun MenuBar(menus: List<TopLevelMenu>, modifier: Modifier = Modifier) {
  * @param TopLevelMenu menu The menu this label opens.
  * @param Boolean menuOpen Whether this label's menu is currently open.
  * @param Boolean anyMenuOpen Whether some label on the bar is open (enables hover-to-switch).
- * @param Function onToggle Toggles this label's menu open/closed (on click).
+ * @param Function onToggle Toggles this label's menu open/closed on click.  See [popupAnchorClickable].
  * @param Function onHoverSwitch Switches the open menu to this label (on hover while another is open).
  * @param Function onDismiss Closes the open menu (outside click / Esc / selection).
  */
@@ -152,7 +152,7 @@ private fun MenuBarLabel(
 		Row(
 			modifier =
 				Modifier
-					.clickable(interactionSource = interaction, indication = null, onClick = onToggle)
+					.popupAnchorClickable(expanded = menuOpen, interactionSource = interaction, indication = null, onClick = onToggle)
 					.background(
 						color = if (menuOpen || hovered) colors.accent else Color.Transparent,
 						shape = LocalUmamoShapes.current.medium,
@@ -171,9 +171,11 @@ private fun MenuBarLabel(
 			// Non-focusable so the host window keeps focus and the bar keeps receiving hover (the
 			// sweep-to-switch above): a focusable popup would starve the labels of hover events.  The
 			// keyboard dismiss is owned by the bar / its host instead; outside-click dismissal still
-			// routes through onDismissRequest regardless of focusability.
+			// routes through onDismissRequest regardless of focusability.  The branch leaves the composition
+			// when the menu closes, so each opening builds the entries afresh.
+			val items = remember { menu.items() }
 			Menu(
-				items = menu.items,
+				items = items,
 				onDismissRequest = onDismiss,
 				positionProvider = BelowAnchorPositionProvider,
 				focusable = false,

@@ -16,6 +16,7 @@ import org.umamo.edit.SnapKind
 import org.umamo.edit.SnapRequest
 import org.umamo.edit.UvMirrorRequest
 import org.umamo.edit.selectAllMeshElements
+import org.umamo.edit.structure.toggleVisibility
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -150,6 +151,32 @@ class CommandDispatchTest {
 			assertFalse(availableById.getValue("keyform.clearPoseEdits"), "keyform.clearPoseEdits with nothing held in $mode mode")
 			assertTrue(availableById.getValue("keyform.frameAll"), "keyform.frameAll in $mode mode")
 		}
+	}
+
+	/**
+	 * Hide Unselected and Unhide All are Object mode's alone, so Shift+H and Alt+H fall through in Edit and Pose
+	 * mode; in Object mode Unhide All reaches the session and turns a hidden drawable's eye back on.
+	 */
+	@Test
+	fun theHideCommandsRunInObjectModeAlone() {
+		for (mode in EditorMode.entries) {
+			val session = session(mode)
+			assertEquals(mode, session.mode.value, "the session must really be in $mode mode")
+			val availableById = objectCommands(session, null, SessionAvailability(session)).associate { command -> command.id to command.availability.isAvailable() }
+
+			for (id in listOf("object.hideUnselected", "object.unhideAll")) {
+				assertEquals(mode == EditorMode.Object, availableById.getValue(id), "$id in $mode mode")
+			}
+		}
+
+		val session = session(EditorMode.Object)
+		val drawable = SelectionTarget.Drawable(session.model.value.drawables.first().id)
+		session.toggleVisibility(drawable)
+		assertFalse(session.model.value.drawables.first().isVisible)
+
+		objectCommands(session, null, SessionAvailability(session)).run("object.unhideAll")
+
+		assertTrue(session.model.value.drawables.first().isVisible)
 	}
 
 	/**

@@ -33,7 +33,7 @@ import org.umamo.ui.workspace.rowdrag.RowDragCancelController
  * @property SelectionHandle? selection The object-selection handle, or null with no document.
  * @property AreaDragController dragController The area corner-drag state; an in-flight drag defers Escape to area.dragCancel.
  * @property SplitterDragCancelController splitterDragCancel The divider-drag seam; an in-flight divider drag claims Escape.
- * @property RowDragCancelController rowDragCancel The panel row-drag seam; an in-flight row drag claims Escape.
+ * @property RowDragCancelController rowDragCancel The row-drag seam; an in-flight drag claims Escape.
  * @property ScrubCancelController scrubCancel The number-field scrub seam; an in-flight scrub claims Escape.
  * @property RelationPickController relationPick The relation-pick seam; an armed eyedropper claims Escape.
  * @property KeyformSheetViews keyformSheets The open keyform sheets; an armed marquee claims Escape.

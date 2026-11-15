@@ -365,11 +365,11 @@
 	<string name="history_unknown">Éditer</string>
 	<string name="history_selection">Sélectionner</string>
 	<string name="history_mode">Changer de Mode</string>
-	<string name="history_part_visibility">Changer la visibilité d'une partie</string>
+	<string name="history_visibility_part">Changer la visibilité d'une partie</string>
 	<string name="history_part_rename">Rennomer la partie</string>
 	<string name="history_part_selectable">Changer la sélectionnabilité d'une partie</string>
 	<string name="history_part_move">Bouger la partie</string>
-	<string name="history_drawable_visibility">Changer la visibilité d'un mesh</string>
+	<string name="history_visibility_drawable">Changer la visibilité d'un mesh</string>
 	<string name="history_drawable_rename">Rennomer le Mesh</string>
 	<string name="history_drawable_selectable">Changer la séléectionnabilité d'un mesh</string>
 	<string name="history_drawable_move">Bouger le mesh</string>

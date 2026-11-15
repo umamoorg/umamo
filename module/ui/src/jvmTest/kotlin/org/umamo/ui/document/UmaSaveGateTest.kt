@@ -15,11 +15,11 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.umamo.edit.Cursor2d
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterChange
-import org.umamo.edit.PartChange
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformPivotMode
+import org.umamo.edit.VisibilityChange
 import org.umamo.edit.structure.withPartVisibility
 import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.png.PngCodec
@@ -88,7 +88,7 @@ class UmaSaveGateTest {
 	 */
 	private fun hideFirstPart(session: EditorSession): PartId {
 		val partId = assertNotNull(session.model.value.parts.firstOrNull()?.id, "the sample has a part to edit")
-		session.mutate(PartChange.SetVisibility(partId, false)) { model -> model.withPartVisibility(partId, false) }
+		session.mutate(VisibilityChange.Part(partId, false)) { model -> model.withPartVisibility(partId, false) }
 		assertTrue(session.dirty.value, "the edit dirtied the document")
 
 		return partId
@@ -385,7 +385,7 @@ class UmaSaveGateTest {
 			val outcome = writeUmaDocument(document, UmaModel.create(umamoWriterInfo()), snapshot, AtlasPageBinding(document.puppet.atlas, document.textures), JsonObject(emptyMap()), PlatformFile(target))
 			assertIs<UmaWriteOutcome.Written>(outcome)
 			// The edit that lands while the file is being written.
-			session.mutate(PartChange.SetVisibility(hidden, true)) { model -> model.withPartVisibility(hidden, true) }
+			session.mutate(VisibilityChange.Part(hidden, true)) { model -> model.withPartVisibility(hidden, true) }
 			session.markSaved(snapshot)
 
 			assertTrue(session.dirty.value, "what is on screen is not what is on disk")

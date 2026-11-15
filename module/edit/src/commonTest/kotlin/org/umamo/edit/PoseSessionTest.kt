@@ -103,6 +103,11 @@ class PoseSessionTest {
 		session.selectAllObjects()
 		session.invertObjectSelection()
 
+		for (kind in SelectableKind.entries) {
+			session.selectAllObjectsOfKind(kind)
+			session.invertObjectSelectionOfKind(kind)
+		}
+
 		assertEquals(selectionBefore, session.selection.value)
 	}
 

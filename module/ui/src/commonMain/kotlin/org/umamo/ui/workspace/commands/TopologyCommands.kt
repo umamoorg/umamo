@@ -16,6 +16,8 @@ import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
+import org.umamo.ui.action.CommandFamily
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.SpaceScope
 
@@ -34,7 +36,8 @@ internal fun topologyCommands(
 	routing: CommandRouting,
 	availability: SessionAvailability,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.Topology,
 		Command("mesh.duplicate", title = Res.string.cmd_mesh_duplicate, availability = availability.hasDocument) {
 			val live = editorSession
 
@@ -62,15 +65,15 @@ internal fun topologyCommands(
 		// The merge is a model edit that needs no area to run; the area it takes is where its operation
 		// settings strip shows (the hovered work surface, else the last one touched), since the merge pie
 		// or the palette may have been opened over a panel.
-		Command("mesh.merge.atCenter", title = Res.string.cmd_mesh_merge_at_center, availability = availability.inEditMode) {
+		Command("mesh.merge.atCenter", title = Res.string.cmd_mesh_merge_at_center, availability = availability.inEditMode, group = CommandFamily.MergeTarget) {
 			editorSession?.mergeSelectedVertices(MergeTarget.AtCenter, routing.operationStripArea())
 			editorSession?.closePieMenu()
 		},
-		Command("mesh.merge.atFirst", title = Res.string.cmd_mesh_merge_at_first, availability = availability.inEditMode) {
+		Command("mesh.merge.atFirst", title = Res.string.cmd_mesh_merge_at_first, availability = availability.inEditMode, group = CommandFamily.MergeTarget) {
 			editorSession?.mergeSelectedVertices(MergeTarget.AtFirst, routing.operationStripArea())
 			editorSession?.closePieMenu()
 		},
-		Command("mesh.merge.atLast", title = Res.string.cmd_mesh_merge_at_last, availability = availability.inEditMode) {
+		Command("mesh.merge.atLast", title = Res.string.cmd_mesh_merge_at_last, availability = availability.inEditMode, group = CommandFamily.MergeTarget) {
 			editorSession?.mergeSelectedVertices(MergeTarget.AtLast, routing.operationStripArea())
 			editorSession?.closePieMenu()
 		},

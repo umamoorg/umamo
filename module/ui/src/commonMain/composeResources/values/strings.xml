@@ -54,8 +54,11 @@
 	<!-- Workspace navigation commands (action registry; palette + tab context menu). -->
 	<string name="cmd_workspace_prev">Previous Workspace</string>
 	<string name="cmd_workspace_next">Next Workspace</string>
-	<!-- Workspace management command (action registry; palette + the Workspace menu). -->
+	<!-- Workspace management commands (action registry; palette + the Workspace menu + a tab's own menu). -->
 	<string name="cmd_workspace_reset">Reset Workspace</string>
+	<string name="cmd_workspace_rename">Rename Workspace</string>
+	<string name="cmd_workspace_duplicate">Duplicate Workspace</string>
+	<string name="cmd_workspace_delete">Delete Workspace</string>
 
 	<!-- Editor space titles (the area header dropdown). -->
 	<string name="space_viewport2d">2D Viewport</string>
@@ -118,6 +121,16 @@
 	<string name="menu_undo">Undo</string>
 	<string name="menu_redo">Redo</string>
 	<string name="menu_preferences">Settings…</string>
+
+	<!-- Select menu, and the viewport context menu's Select submenu.  The kind rows sit under a submenu that already
+	  says what they do, so they read as the bare kind. -->
+	<string name="menu_select">Select</string>
+	<string name="menu_select_all_of_type">Select All of Type</string>
+	<string name="menu_invert_selection_of_type">Invert Selection of Type</string>
+	<string name="menu_select_kind_parts">Parts</string>
+	<string name="menu_select_kind_drawables">Drawables</string>
+	<string name="menu_select_kind_warps">Warp Deformers</string>
+	<string name="menu_select_kind_rotations">Rotation Deformers</string>
 
 	<!-- Workspace menu (workspace management; the tab strip covers create/duplicate/rename/reorder). -->
 	<string name="menu_workspace">Workspace</string>
@@ -350,11 +363,23 @@
 	<string name="cmd_select_clear">Clear Selection</string>
 	<string name="cmd_select_all">Select All</string>
 	<string name="cmd_select_invert">Invert Selection</string>
+	<string name="cmd_select_all_parts">Select All Parts</string>
+	<string name="cmd_select_all_drawables">Select All Drawables</string>
+	<string name="cmd_select_all_warps">Select All Warp Deformers</string>
+	<string name="cmd_select_all_rotations">Select All Rotation Deformers</string>
+	<string name="cmd_select_invert_parts">Invert Part Selection</string>
+	<string name="cmd_select_invert_drawables">Invert Drawable Selection</string>
+	<string name="cmd_select_invert_warps">Invert Warp Deformer Selection</string>
+	<string name="cmd_select_invert_rotations">Invert Rotation Deformer Selection</string>
 	<string name="cmd_mode_toggle_edit">Toggle Edit Mode</string>
 	<string name="cmd_mode_object">Object Mode</string>
 	<string name="cmd_mode_edit">Edit Mode</string>
 	<string name="cmd_mode_toggle_pose">Toggle Pose Mode</string>
 	<string name="cmd_mode_pose">Pose Mode</string>
+	<string name="group_editor_mode">Mode</string>
+	<string name="group_uv_mirror">Mirror</string>
+	<string name="group_keyform_key">Keyframe</string>
+	<string name="group_viewport_tools">Tools</string>
 	<string name="cmd_mesh_grab">Grab Vertices</string>
 	<string name="cmd_mesh_scale">Scale Vertices</string>
 	<string name="cmd_mesh_rotate">Rotate Vertices</string>
@@ -396,6 +421,8 @@
 	<string name="cmd_redo">Redo</string>
 	<string name="cmd_adjust_last_operation">Adjust Last Operation</string>
 	<string name="cmd_toggle_visibility">Toggle Visibility</string>
+	<string name="cmd_hide_unselected">Hide Unselected</string>
+	<string name="cmd_unhide_all">Unhide All</string>
 
 	<!-- Command palette. -->
 	<string name="search_hint">Search</string>
@@ -419,14 +446,16 @@
 	<string name="history_unknown">Edit</string>
 	<string name="history_selection">Select</string>
 	<string name="history_mode">Change Mode</string>
-	<string name="history_part_visibility">Toggle Part Visibility</string>
+	<string name="history_visibility_part">Toggle Part Visibility</string>
 	<string name="history_part_rename">Rename Part</string>
 	<string name="history_part_selectable">Toggle Part Selectability</string>
 	<string name="history_part_move">Move Part</string>
-	<string name="history_drawable_visibility">Toggle Mesh Visibility</string>
+	<string name="history_visibility_drawable">Toggle Mesh Visibility</string>
 	<string name="history_drawable_rename">Rename Mesh</string>
 	<string name="history_drawable_selectable">Toggle Mesh Selectability</string>
 	<string name="history_drawable_move">Move Mesh</string>
+	<string name="history_visibility_hide_unselected">Hide Unselected</string>
+	<string name="history_visibility_unhide_all">Unhide All</string>
 	<string name="history_deformer_rename">Rename Deformer</string>
 	<string name="history_deformer_selectable">Toggle Deformer Selectability</string>
 	<string name="history_deformer_move">Move Deformer</string>

@@ -10,7 +10,7 @@ import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.Parameter
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
-import org.umamo.ui.action.formatAccelerator
+import org.umamo.ui.action.commandMenuItem
 import org.umamo.ui.kit.menu.MenuItem
 import org.umamo.ui.tracks.TrackLaneHit
 import org.umamo.ui.tracks.TrackRow
@@ -59,15 +59,16 @@ internal fun labelMenuItemsFor(
  * The entries of a lane's menu: Delete on a mark (every key a summary mark stands for), Insert on empty
  * track, and nothing on a row with no track ref.
  *
- * Each single-key item dispatches through the registry rather than calling the session, so the menu can
- * never drift from the shortcut it advertises.  The popup owns the pointer by the time an item fires, so the
- * clicked spot is re-published as the hover for the command's dispatch-time read and cleared right after.
+ * Each single-key item is its command's own row, built from the command, so the menu can never drift from the
+ * shortcut it advertises or from when the command applies.  The popup owns the pointer by the time an item fires,
+ * so the clicked spot is re-published as the hover for the command's dispatch-time read and cleared right after.
  *
  * @param TrackLaneHit hit Where on the lane the menu was opened.
  * @param Parameter parameter The section's parameter.
  * @param KeyformSheetProjection projection The section's projection, which maps the row back to its track.
  * @param EditorSession? session The editing session, or null with none, which offers nothing.
- * @param Boolean keysEditable Whether the mode lets keys change; false grays out every entry.
+ * @param Boolean keysEditable Whether the mode lets keys change; false grays out the summary's entry, which is not a
+ *   command's row and so has no command to ask.
  * @param KeyableHover? keyableHover The shell's keyable hover, which the command reads, or null outside a shell.
  * @param CommandRegistry commands The registry the entries dispatch through.
  * @param Keymap keymap The keymap, for the shortcut each entry advertises.
@@ -118,50 +119,51 @@ internal fun laneMenuItemsFor(
 		}
 
 		hitMark != null -> {
-			listOf(
-				MenuItem.Action(
-					label = labels.deleteKey,
-					onSelect = {
-						// The row key rides the hover, so the removal reconciles the key selection itself - see
-						// EditorSession.removeKeyOnTrack.  Without it, deleting a selected mark would leave its
-						// ref on the ordinal the removal freed, which is the neighbor: the mark to the right
-						// would light up as selected and the next Delete would take it.
-						keyableHover?.enter(
-							KeyformHover(track, hit.value, hitMark.keyIndex, parameter.id, hit.row.key),
-						)
-						commands.invoke("keyform.delete")
-						keyableHover?.exit(track)
-					},
-					shortcut = keymap.chordFor("keyform.delete")?.let { chord -> formatAccelerator(chord) },
-					enabled = keysEditable,
-				),
-			)
+			// The row key rides the hover, so the removal reconciles the key selection itself - see
+			// EditorSession.removeKeyOnTrack.  Without it, deleting a selected mark would leave its ref on the
+			// ordinal the removal freed, which is the neighbor: the mark to the right would light up as selected
+			// and the next Delete would take it.
+			val hover = KeyformHover(track, hit.value, hitMark.keyIndex, parameter.id, hit.row.key)
+
+			listOfNotNull(keyRowOver(hover, "keyform.delete", labels.deleteKey, keyableHover, commands, keymap))
 		}
 
 		else -> {
-			listOf(
-				MenuItem.Action(
-					label = labels.insertKey,
-					onSelect = {
-						keyableHover?.enter(
-							KeyformHover(
-								track,
-								hit.value,
-								keyIndex = null,
-								parameterId = parameter.id,
-								rowKey = hit.row.key,
-							),
-						)
-						commands.invoke("keyform.insert")
-						keyableHover?.exit(track)
-					},
-					shortcut = keymap.chordFor("keyform.insert")?.let { chord -> formatAccelerator(chord) },
-					enabled = keysEditable,
-				),
-			)
+			val hover = KeyformHover(track, hit.value, keyIndex = null, parameterId = parameter.id, rowKey = hit.row.key)
+
+			listOfNotNull(keyRowOver(hover, "keyform.insert", labels.insertKey, keyableHover, commands, keymap))
 		}
 	}
 }
+
+/**
+ * The row of one key command aimed at [hover]: the command's own row - its chord, and grayed whenever it does not
+ * apply - with the spot the menu was opened over published as the hover around the dispatch, and cleared right
+ * after.
+ *
+ * @param KeyformHover hover The spot the menu was opened over, as the command reads it.
+ * @param String commandId The key command.
+ * @param String label The row's label.
+ * @param KeyableHover? keyableHover The shell's keyable hover, which the command reads, or null outside a shell.
+ * @param CommandRegistry commands The registry the row dispatches through.
+ * @param Keymap keymap The keymap, for the shortcut the row advertises.
+ * @return MenuItem? The row, or null while the command is not registered.
+ */
+private fun keyRowOver(
+	hover: KeyformHover,
+	commandId: String,
+	label: String,
+	keyableHover: KeyableHover?,
+	commands: CommandRegistry,
+	keymap: Keymap,
+): MenuItem? =
+	commands[commandId]?.let { command ->
+		commandMenuItem(command, label, commands, keymap) { dispatch ->
+			keyableHover?.enter(hover)
+			dispatch()
+			keyableHover?.exit(hover.track)
+		}
+	}
 
 /**
  * The selection target a keyform owner names, or null when it names nothing selectable.

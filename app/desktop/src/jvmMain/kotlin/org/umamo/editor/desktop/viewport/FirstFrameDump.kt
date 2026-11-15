@@ -6,6 +6,9 @@ import org.umamo.render.device.RenderTarget
 import org.umamo.storage.UmamoLog
 import java.io.File
 
+/** The environment variable that names the developer dump's PNG path. */
+internal const val DUMP_PNG_VARIABLE = "UMAMO_DUMP_PNG"
+
 /**
  * The UMAMO_DUMP_PNG developer dump: the first frame the engine resolves is written as a PNG to the path
  * the variable names, once per engine, and nothing happens while it is unset.  Encoding and the file
@@ -16,7 +19,7 @@ import java.io.File
 internal class FirstFrameDump {
 	// The path to dump to, or null when the variable is unset.  Read once: a process's environment is
 	// fixed at launch, so the per-frame check is one null test.
-	private val dumpPath: String? = System.getenv("UMAMO_DUMP_PNG")
+	private val dumpPath: String? = System.getenv(DUMP_PNG_VARIABLE)
 
 	private var dumped = false
 

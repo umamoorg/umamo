@@ -228,11 +228,11 @@
 	<string name="history_unknown">편집</string>
 	<string name="history_selection">선택</string>
 	<string name="history_mode">모드 변경</string>
-	<string name="history_part_visibility">파트 표시/숨기기 전환</string>
+	<string name="history_visibility_part">파트 표시/숨기기 전환</string>
 	<string name="history_part_rename">파트 이름 변경</string>
 	<string name="history_part_selectable">파트 선택 가능/불가능 전환</string>
 	<string name="history_part_move">파트 이동</string>
-	<string name="history_drawable_visibility">메쉬 표시/숨기기 전환</string>
+	<string name="history_visibility_drawable">메쉬 표시/숨기기 전환</string>
 	<string name="history_drawable_rename">메쉬 이름 변경</string>
 	<string name="history_drawable_selectable">메쉬 선택 가능/불가능 전환</string>
 	<string name="history_drawable_move">메쉬 이동</string>

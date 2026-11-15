@@ -12,25 +12,25 @@ import androidx.compose.ui.test.isPopup
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import org.umamo.edit.TransformPivotMode
+import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.viewport.viewport2d.gizmoEditSession
-import org.umamo.ui.workspace.AreaOverlayHub
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.area.setAreaHeader
-import org.umamo.ui.workspace.commands.CommandRouting
-import org.umamo.ui.workspace.commands.SessionAvailability
-import org.umamo.ui.workspace.commands.snapCommands
+import org.umamo.ui.workspace.commands.shellCommandTables
 import org.umamo.ui.workspace.spaces.parameters.clickDescribed
 import org.umamo.ui.workspace.spaces.parameters.clickMenuEntry
 import org.umamo.ui.workspace.spaces.parameters.popupShows
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
  * The transform pivot control on the 2D viewport's REAL header strip, with the real pivot commands: the chip
  * wears the current pivot's glyph and no label, the panel opens under its Transform Pivot Point heading with
- * one option per pivot and the current one lit, and a pick sets the pivot while the panel stays open.
+ * one option per pivot and the current one lit, and a pick sets the pivot while the panel stays open.  The
+ * options are the pivot family as the registry lists it.
  */
 @OptIn(ExperimentalTestApi::class)
 class PivotHeaderControlTest {
@@ -39,11 +39,7 @@ class PivotHeaderControlTest {
 	fun thePanelHeadsItsOptionsAndAPickSetsThePivot() =
 		runComposeUiTest {
 			val session = gizmoEditSession()
-			val commands = CommandRegistry()
-			snapCommands(session, CommandRouting { null }, SessionAvailability(session), AreaOverlayHub())
-				.filter { command -> command.id.startsWith("transform.pivot.") }
-				.forEach { command -> commands.register(command) }
-			setAreaHeader(kind = SpaceKind.Viewport2D, headerWidth = 1200.dp, puppet = mutableStateOf(session.model.value), session = session, commands = commands)
+			setAreaHeader(kind = SpaceKind.Viewport2D, headerWidth = 1200.dp, puppet = mutableStateOf(session.model.value), session = session)
 			assertTrue(onAllNodes(hasText(MEDIAN)).fetchSemanticsNodes().isEmpty(), "the chip names no pivot: its glyph says which")
 
 			clickDescribed(TITLE)
@@ -61,6 +57,42 @@ class PivotHeaderControlTest {
 			assertTrue(popupShows(MEDIAN), "and the panel stays open")
 			option(ACTIVE).assertIsSelected()
 			option(MEDIAN).assertIsNotSelected()
+		}
+
+	/** A pivot set anywhere else - the Period pie, the palette - is the one the open panel lights. */
+	@Test
+	fun aPivotSetElsewhereIsTheOneThePanelLights() =
+		runComposeUiTest {
+			val session = gizmoEditSession()
+			setAreaHeader(kind = SpaceKind.Viewport2D, headerWidth = 1200.dp, puppet = mutableStateOf(session.model.value), session = session)
+			clickDescribed(TITLE)
+			option(MEDIAN).assertIsSelected()
+
+			runOnIdle { session.setPivotMode(TransformPivotMode.Cursor) }
+			waitForIdle()
+
+			option(CURSOR).assertIsSelected()
+			option(MEDIAN).assertIsNotSelected()
+		}
+
+	/** The panel offers the pivots the registry lists and no others: the pivot family's table is its one source. */
+	@Test
+	fun thePanelOffersWhatThePivotFamilyHolds() =
+		runComposeUiTest {
+			val session = gizmoEditSession()
+			val commands = CommandRegistry()
+			shellCommandTables(session)
+				.filter { command -> command.group == CommandFamily.PivotMode }
+				.take(2)
+				.forEach { pivot -> commands.register(pivot) }
+			setAreaHeader(kind = SpaceKind.Viewport2D, headerWidth = 1200.dp, puppet = mutableStateOf(session.model.value), session = session, commands = commands)
+
+			clickDescribed(TITLE)
+
+			assertTrue(popupShows(MEDIAN))
+			assertTrue(popupShows(INDIVIDUAL))
+			assertFalse(popupShows(ACTIVE), "a pivot no table registered has no option")
+			assertFalse(popupShows(CURSOR))
 		}
 
 	/**

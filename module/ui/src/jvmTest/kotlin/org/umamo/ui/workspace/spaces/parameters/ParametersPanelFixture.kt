@@ -594,6 +594,7 @@ internal class ParametersPanelHarness(
 				}
 			},
 			canReload = { true },
+			canAddArtwork = { true },
 		)
 
 	/** The size the keyform sheet is laid out at, when one is mounted. */

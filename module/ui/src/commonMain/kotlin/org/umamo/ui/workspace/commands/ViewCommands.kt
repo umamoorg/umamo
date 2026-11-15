@@ -3,6 +3,7 @@ package org.umamo.ui.workspace.commands
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandRegistry
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.CameraController
 import org.umamo.ui.workspace.AreaCameraHub
@@ -37,7 +38,8 @@ internal fun viewCommands(cameras: AreaCameraHub, routing: CommandRouting, viewp
 	 */
 	fun hoveredCamera(): CameraController? = routing.hovered()?.areaId?.let { areaId -> cameras.forArea(areaId) }
 
-	return listOf(
+	return commandTable(
+		CommandTable.View,
 		Command("view.fit", title = Res.string.cmd_view_fit, availability = hasViewport, spaces = SpaceScope.WorkSurfaces) {
 			hoveredCamera()?.fit()
 		},
@@ -83,7 +85,8 @@ internal fun viewCommands(cameras: AreaCameraHub, routing: CommandRouting, viewp
  * @return List<Command> The commands to register.
  */
 internal fun frameCommands(commandRegistry: CommandRegistry, routing: CommandRouting): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.View,
 		Command(
 			"frame.all",
 			title = Res.string.cmd_frame_all,

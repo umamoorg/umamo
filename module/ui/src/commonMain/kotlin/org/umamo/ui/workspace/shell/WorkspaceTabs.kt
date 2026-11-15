@@ -1,5 +1,7 @@
 package org.umamo.ui.workspace.shell
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,6 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
@@ -40,15 +44,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.ui.action.CommandMenuRow
+import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.LocalCommands
-import org.umamo.ui.action.LocalKeymap
-import org.umamo.ui.action.formatAccelerator
+import org.umamo.ui.action.rememberCommandMenu
 import org.umamo.ui.kit.DoubleClickTracker
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.kit.container.Tab
 import org.umamo.ui.kit.menu.ContextMenuArea
-import org.umamo.ui.kit.menu.MenuItem
 import org.umamo.ui.kit.textentry.InlineRenameField
 import org.umamo.ui.kit.textentry.LocalInlineEditController
 import org.umamo.ui.resources.*
@@ -58,6 +62,7 @@ import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.drawIcon
 import org.umamo.ui.workspace.layout.Workspace
+import org.umamo.ui.workspace.rowdrag.LocalRowDragCancel
 
 /**
  * How long the pointer must rest on a tab before a drag reorders it.  Below this, a press is a tap
@@ -66,63 +71,117 @@ import org.umamo.ui.workspace.layout.Workspace
  */
 private const val REORDER_HOLD_MILLIS = 100L
 
+/** How long a tab takes to slide aside, or back, when a drag's predicted destination crosses it. */
+private const val TAB_SLIDE_MILLIS = 120
+
+/**
+ * Where an in-flight tab drag would land: what the neighbors slide aside for, and what the release applies.
+ *
+ * @property Int fromIndex The dragged tab's index.
+ * @property Int targetIndex The predicted destination index, from [reorderTargetIndex].
+ * @property Float draggedWidth The dragged tab's slot width in pixels, the distance a passed neighbor slides.
+ * @property ClosedFloatingPointRange travel The offsets the dragged tab may be drawn at, from [reorderDragRange].
+ */
+private data class TabReorderPreview(
+	val fromIndex: Int,
+	val targetIndex: Int,
+	val draggedWidth: Float,
+	val travel: ClosedFloatingPointRange<Float>,
+)
+
+/**
+ * A tab's own menu: what is done to that tab's workspace, each row aimed at it, then moving between workspaces.
+ *
+ * @param String workspaceId The tab's workspace.
+ * @return List<CommandMenuRow> The rows.
+ */
+private fun tabMenuRows(workspaceId: String): List<CommandMenuRow> =
+	listOf(
+		CommandMenuRow.Members(CommandSection.WorkspaceTab, argument = workspaceId),
+		CommandMenuRow.Separator,
+		CommandMenuRow.Members(CommandSection.WorkspaceSwitch),
+	)
+
 /**
  * The browser-style top tab strip: one tab per workspace plus a trailing "+" button, with a per-tab
- * context menu, inline rename, and drag-to-reorder.  A thin view: every mutation is reported to the
- * shell, which owns the layout.
+ * context menu, inline rename, and drag-to-reorder.  A thin view: the layout is the shell's, and the strip
+ * reports a selection, a reorder, and the name an inline edit settles on.
+ *
+ * What is done to a workspace goes through its command: the "+" button is New Workspace, a tab's menu is the
+ * workspace's Rename, Duplicate, and Delete aimed at that tab, and a double-click is Rename.  So the strip, the
+ * Workspace menu, the palette, and a key all run one thing, and the strip learns that a tab is being renamed
+ * from [renamingId] whichever of them asked.
  *
  * @param List workspaces The workspaces in tab order.
  * @param String activeId The currently active workspace id.
+ * @param String? renamingId The workspace whose tab shows the inline rename editor, or null while none does.
  * @param Function onSelect Reports the chosen workspace id.
- * @param Function onCreate Requests a new workspace, given a suggested (already-localized) base name.
- * @param Function onDuplicate Requests a copy of the workspace id, given a suggested name for the copy.
- * @param Function onDelete Requests deletion of the workspace id.
  * @param Function onReorder Requests moving the workspace at fromIndex to toIndex in tab order.
  * @param Function onRename Requests setting the workspace id's display name (from an inline edit).
+ * @param Function onRenameCancel Reports that the inline edit was abandoned.
  * @param Modifier modifier The layout modifier.
  */
 @Composable
 fun WorkspaceTabs(
 	workspaces: List<Workspace>,
 	activeId: String,
+	renamingId: String?,
 	onSelect: (String) -> Unit,
-	onCreate: (suggestedName: String) -> Unit,
-	onDuplicate: (workspaceId: String, suggestedName: String) -> Unit,
-	onDelete: (workspaceId: String) -> Unit,
 	onReorder: (fromIndex: Int, toIndex: Int) -> Unit,
 	onRename: (workspaceId: String, newName: String) -> Unit,
+	onRenameCancel: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val typography = LocalUmamoTypography.current
 	val commands = LocalCommands.current
-	val keymap = LocalKeymap.current
 	val activeIndex = workspaces.indexOfFirst { workspace -> workspace.id == activeId }.coerceAtLeast(0)
 
-	// Drag-to-reorder state.  The dragged tab translates with the pointer while its layout slot stays put;
-	// on release the projected center decides the destination index.  Tab centers are measured in root
-	// space (a common frame for all tabs) so the projected-center comparison is consistent.
+	// Drag-to-reorder state.
 	var draggingIndex by remember { mutableStateOf<Int?>(null) }
 	var dragDeltaX by remember { mutableStateOf(0f) }
 	val tabCenters = remember { mutableStateMapOf<Int, Float>() }
+	val tabWidths = remember { mutableStateMapOf<Int, Float>() }
+	val workspaceCount = workspaces.size
+	// Derived, so the strip composes when the predicted destination changes, never on a plain pointer move.
+	// The release reads it too, so the gap on screen is where the tab lands.  Keyed like the tab gesture
+	// (workspaces.size is one of its keys), so a running gesture never holds a stale instance.
+	val reorderPreview by remember(workspaceCount) {
+		derivedStateOf {
+			val fromIndex = draggingIndex ?: return@derivedStateOf null
+			val centers = (0 until workspaceCount).map { tabIndex -> tabCenters[tabIndex] }
+			val widths = (0 until workspaceCount).map { tabIndex -> tabWidths[tabIndex] }
+			val draggedWidth = widths.getOrNull(fromIndex) ?: return@derivedStateOf null
+			val travel = reorderDragRange(fromIndex, centers, widths) ?: return@derivedStateOf null
+
+			// The destination reads the pointer's whole drag, not the clamped one the tab is drawn at: a held tab
+			// wider than the end tab, pinned at the strip's end, has its center short of that tab's center.
+			TabReorderPreview(fromIndex, reorderTargetIndex(fromIndex, dragDeltaX, centers), draggedWidth, travel)
+		}
+	}
+	// Parked on the shell's drag-cancel seam while a drag is in flight, so Escape puts the held tab back
+	// without reordering, ahead of the shell's clear-selection arm.
+	val dragCancelSeam = LocalRowDragCancel.current
+	val dragInFlight = draggingIndex != null
+	DisposableEffect(dragCancelSeam, dragInFlight) {
+		val cancelDrag: () -> Unit = {
+			draggingIndex = null
+			dragDeltaX = 0f
+		}
+
+		if (dragInFlight) {
+			dragCancelSeam.cancel = cancelDrag
+		}
+
+		onDispose {
+			if (dragCancelSeam.cancel === cancelDrag) {
+				dragCancelSeam.cancel = null
+			}
+		}
+	}
 	// Bumped when a drag finishes, to force-rebuild each tab's hover interaction source (see the key below):
 	// a reorder shifts tabs under a stationary pointer, which Compose does not see as a hover change, so a
 	// tab hovered during the drag would otherwise stay highlighted until the pointer re-enters it.
 	var reorderGeneration by remember { mutableStateOf(0) }
-	// The workspace whose tab is being renamed in place (double-click or the context-menu Rename), or null.
-	var editingWorkspaceId by remember { mutableStateOf<String?>(null) }
-
-	// Localized chrome resolved once here: the context-menu onSelect lambdas run on a pointer event, not
-	// in composition, so they cannot call stringResource themselves - they capture these instead.
-	val newWorkspaceName = stringResource(Res.string.workspace_new_name)
-	val newWorkspaceLabel = stringResource(Res.string.workspace_new)
-	val copySuffix = stringResource(Res.string.workspace_copy_suffix)
-	val renameLabel = stringResource(Res.string.workspace_rename)
-	val duplicateLabel = stringResource(Res.string.workspace_duplicate)
-	val deleteLabel = stringResource(Res.string.workspace_delete)
-	val previousLabel = stringResource(Res.string.cmd_workspace_prev)
-	val nextLabel = stringResource(Res.string.cmd_workspace_next)
-	val previousShortcut = keymap.chordFor("workspace.prev")?.let { chord -> formatAccelerator(chord) }
-	val nextShortcut = keymap.chordFor("workspace.next")?.let { chord -> formatAccelerator(chord) }
 
 	// height(IntrinsicSize.Min) makes the strip exactly as tall as a Tab's font-metric-driven line
 	// box, so fillMaxHeight children (the "+" button) match the tabs to the pixel — a fixed dp size
@@ -135,53 +194,28 @@ fun WorkspaceTabs(
 			// custom-named tab that keeps its literal name.
 			val title = workspace.name ?: workspaceTitle(workspace.id)
 
-			if (editingWorkspaceId == workspace.id) {
+			if (renamingId == workspace.id) {
 				// The tab turns into an inline editor in place of its label.
 				WorkspaceTabEditor(
 					initialName = title,
-					onCommit = { newName ->
-						editingWorkspaceId = null
-						onRename(workspace.id, newName)
-					},
-					onCancel = { editingWorkspaceId = null },
+					onCommit = { newName -> onRename(workspace.id, newName) },
+					onCancel = onRenameCancel,
 				)
 			} else {
 				val isDragging = draggingIndex == index
-				val contextItems =
-					listOf(
-						MenuItem.Action(renameLabel, onSelect = { editingWorkspaceId = workspace.id }),
-						MenuItem.Action(duplicateLabel, onSelect = { onDuplicate(workspace.id, "$title $copySuffix") }),
-						// The strip never goes empty, so deleting the last workspace is offered as a disabled row.
-						MenuItem.Action(
-							deleteLabel,
-							onSelect = { onDelete(workspace.id) },
-							enabled = workspaces.size > 1,
-						),
-						MenuItem.Separator,
-						MenuItem.Action(
-							previousLabel,
-							onSelect = { commands.invoke("workspace.prev") },
-							shortcut = previousShortcut,
-						),
-						MenuItem.Action(
-							nextLabel,
-							onSelect = { commands.invoke("workspace.next") },
-							shortcut = nextShortcut,
-						),
-					)
+				// Read from the registry as the menu opens, so Delete is grayed on the last workspace by its own command.
+				val tabMenu = rememberCommandMenu(remember(workspace.id) { tabMenuRows(workspace.id) })
 				Box(
 					modifier =
 						Modifier
-							// Measured on the static slot (the Box), not the translated Tab, so the slot center is
-							// stable while the tab visual is dragged across it.  The center is resolved in the parent
-							// (Row) space - a frame shared by every tab - so the drag's projected-center comparison is
-							// consistent across tabs.
+							// Measured on the static slot (the Box).
 							.onGloballyPositioned { coordinates ->
 								val parent = coordinates.parentLayoutCoordinates
 
 								if (parent != null) {
 									tabCenters[index] =
 										parent.localPositionOf(coordinates, Offset(coordinates.size.width / 2f, 0f)).x
+									tabWidths[index] = coordinates.size.width.toFloat()
 								}
 							}
 							// Raise the dragged tab above its neighbors so it draws (and is hit-tested) on top.
@@ -206,7 +240,7 @@ fun WorkspaceTabs(
 									// shared timing core rather than the singleOrDoubleClick modifier: the clickable consumes
 									// the press before a parent modifier would see it.
 									if (clickTracker.registerPress(down.uptimeMillis)) {
-										editingWorkspaceId = workspace.id
+										commands.invoke("workspace.rename", workspace.id)
 
 										return@awaitEachGesture
 									}
@@ -238,46 +272,48 @@ fun WorkspaceTabs(
 									// Held past the window: arm the reorder, engaging once the pointer actually moves.
 									var engaged = false
 
-									while (true) {
-										val event = awaitPointerEvent()
-										val change =
-											event.changes.firstOrNull { pointer -> pointer.id == down.id } ?: break
+									try {
+										while (true) {
+											val event = awaitPointerEvent()
+											val change =
+												event.changes.firstOrNull { pointer -> pointer.id == down.id } ?: break
 
-										if (!change.pressed) {
-											break
-										}
+											if (!change.pressed) {
+												break
+											}
 
-										if (!engaged && change.positionChange().getDistanceSquared() > 0f) {
-											engaged = true
-											draggingIndex = index
-											dragDeltaX = 0f
-										}
+											if (!engaged && change.positionChange().getDistanceSquared() > 0f) {
+												engaged = true
+												draggingIndex = index
+												dragDeltaX = 0f
+											}
 
-										if (engaged) {
-											dragDeltaX += change.positionChange().x
-											change.consume()
-										}
-									}
+											// A drag cancelled by Escape leaves the drag index null.
+											if (engaged && draggingIndex == index) {
+												dragDeltaX += change.positionChange().x
+											}
 
-									if (engaged) {
-										val fromIndex = draggingIndex
-
-										if (fromIndex != null) {
-											val centers =
-												(0 until workspaces.size).map { tabIndex -> tabCenters[tabIndex] }
-											val toIndex = reorderTargetIndex(fromIndex, dragDeltaX, centers)
-
-											if (toIndex != fromIndex) {
-												onReorder(fromIndex, toIndex)
+											if (engaged) {
+												change.consume()
 											}
 										}
 
-										draggingIndex = null
-										dragDeltaX = 0f
-										// A drag's press must not pair with a later click as a double-click.
-										clickTracker.reset()
-										// Rebuild the tab visuals so no tab keeps a hover left stale by the layout shift.
-										reorderGeneration++
+										val preview = reorderPreview
+
+										if (engaged && preview != null && preview.targetIndex != preview.fromIndex) {
+											onReorder(preview.fromIndex, preview.targetIndex)
+										}
+									} finally {
+										// Runs for a release and for a gesture cancelled under the drag (its slot's keys
+										// changed), so no tab is left displaced.
+										if (engaged) {
+											draggingIndex = null
+											dragDeltaX = 0f
+											// A drag's press must not pair with a later click as a double-click.
+											clickTracker.reset()
+											// Rebuild the tab visuals so no tab keeps a hover left stale by the layout shift.
+											reorderGeneration++
+										}
 									}
 								}
 							},
@@ -285,13 +321,29 @@ fun WorkspaceTabs(
 					// Keyed on reorderGeneration so a completed reorder rebuilds the tab (and its hover
 					// interaction source) from scratch - clearing any hover the layout shift left stale.
 					key(reorderGeneration) {
-						ContextMenuArea(items = contextItems) {
+						// Inside the generation key: slots compose by position, so an animator kept across a reorder
+						// would hold the previous occupant's offset and draw the new one a tab-width off while it eased
+						// back.  The drop bumps the generation with the reorder, so every slot starts again at rest.
+						val slideOffset by animateFloatAsState(
+							targetValue =
+								reorderPreview?.let { preview ->
+									reorderSlideOffset(index, preview.fromIndex, preview.targetIndex, preview.draggedWidth)
+								} ?: 0f,
+							animationSpec = tween(TAB_SLIDE_MILLIS),
+						)
+						ContextMenuArea(itemsOnOpen = tabMenu) {
 							Tab(
 								selected = index == activeIndex,
 								onClick = { onSelect(workspace.id) },
 								modifier =
 									Modifier.graphicsLayer {
-										translationX = if (isDragging) dragDeltaX else 0f
+										// The held tab stops at the strip's ends, however far the pointer goes.
+										translationX =
+											if (isDragging) {
+												reorderPreview?.let { preview -> dragDeltaX.coerceIn(preview.travel) } ?: dragDeltaX
+											} else {
+												slideOffset
+											}
 										alpha = if (isDragging) 0.85f else 1f
 									},
 								label = { Text(title, style = typography.labelMedium) },
@@ -301,7 +353,7 @@ fun WorkspaceTabs(
 				}
 			}
 		}
-		NewWorkspaceButton(contentDescription = newWorkspaceLabel, onClick = { onCreate(newWorkspaceName) })
+		NewWorkspaceButton(contentDescription = stringResource(Res.string.workspace_new), onClick = { commands.invoke("workspace.new") })
 	}
 }
 
@@ -400,6 +452,56 @@ internal fun reorderTargetIndex(fromIndex: Int, dragDeltaX: Float, centers: List
 }
 
 /**
+ * How far a tab slides aside while another is dragged, so the gap opens where a release would land: each tab
+ * between the dragged tab's slot and its destination moves one dragged-tab width toward the slot it leaves.
+ *
+ * @param Int slotIndex The sliding tab's index.
+ * @param Int fromIndex The dragged tab's index.
+ * @param Int targetIndex The dragged tab's predicted destination index.
+ * @param Float draggedWidth The dragged tab's slot width in pixels.
+ * @return Float The horizontal offset in pixels; zero for the dragged tab and for every tab outside that span.
+ */
+internal fun reorderSlideOffset(slotIndex: Int, fromIndex: Int, targetIndex: Int, draggedWidth: Float): Float =
+	when {
+		targetIndex > fromIndex && slotIndex in (fromIndex + 1)..targetIndex -> -draggedWidth
+		targetIndex < fromIndex && slotIndex in targetIndex until fromIndex -> draggedWidth
+		else -> 0f
+	}
+
+/**
+ * The offsets a dragged tab may be drawn at, so it never leaves the strip: from its left edge meeting the first
+ * slot's left edge to its right edge meeting the last slot's right edge.
+ *
+ * @param Int fromIndex The dragged tab's index.
+ * @param List centers The per-index measured slot centers (null where not yet measured).
+ * @param List widths The per-index measured slot widths (null where not yet measured).
+ * @return ClosedFloatingPointRange? The allowed horizontal offsets in pixels, or null when the dragged, first, or last
+ *   slot is not measured yet or the measurements disagree.
+ */
+internal fun reorderDragRange(fromIndex: Int, centers: List<Float?>, widths: List<Float?>): ClosedFloatingPointRange<Float>? {
+	val heldCenter = centers.getOrNull(fromIndex) ?: return null
+	val heldWidth = widths.getOrNull(fromIndex) ?: return null
+	val firstCenter = centers.firstOrNull() ?: return null
+	val firstWidth = widths.firstOrNull() ?: return null
+	val lastCenter = centers.lastOrNull() ?: return null
+	val lastWidth = widths.lastOrNull() ?: return null
+	val heldLeft = heldCenter - heldWidth / 2f
+	val leftmost = firstCenter - firstWidth / 2f - heldLeft
+	val rightmost = lastCenter + lastWidth / 2f - heldLeft - heldWidth
+
+	// Slots measured in different passes (one mid-relayout) can cross; an empty range would throw in coerceIn.
+	return if (leftmost <= rightmost) leftmost..rightmost else null
+}
+
+/** The built-in workspaces' titles, by id.  A built-in has no stored name until it is renamed. */
+private val BUILTIN_WORKSPACE_TITLES =
+	mapOf(
+		"modelling" to Res.string.workspace_modelling,
+		"texture" to Res.string.workspace_texture,
+		"physics" to Res.string.workspace_physics,
+	)
+
+/**
  * Resolves a workspace id to its display title.  Built-in ids map to localized strings; any other id
  * (a user-created/renamed workspace whose name is user data, not chrome) shows verbatim.
  *
@@ -407,10 +509,13 @@ internal fun reorderTargetIndex(fromIndex: Int, dragDeltaX: Float, centers: List
  * @return String The localized or literal title.
  */
 @Composable
-fun workspaceTitle(workspaceId: String): String =
-	when (workspaceId) {
-		"modelling" -> stringResource(Res.string.workspace_modelling)
-		"texture" -> stringResource(Res.string.workspace_texture)
-		"physics" -> stringResource(Res.string.workspace_physics)
-		else -> workspaceId
-	}
+fun workspaceTitle(workspaceId: String): String = BUILTIN_WORKSPACE_TITLES[workspaceId]?.let { title -> stringResource(title) } ?: workspaceId
+
+/**
+ * The built-in workspaces' titles in the current locale, by id, for the commands that name a workspace outside a
+ * composition.
+ *
+ * @return Map<String, String> The titles.
+ */
+@Composable
+internal fun builtinWorkspaceTitles(): Map<String, String> = BUILTIN_WORKSPACE_TITLES.mapValues { (_, title) -> stringResource(title) }

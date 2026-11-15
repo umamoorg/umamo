@@ -58,8 +58,8 @@ public class NoCommandOutsideTablesRule :
 	private companion object {
 		/** The command class. */
 		const val COMMAND_CLASS = "org.umamo.ui.action.Command"
-
-		/** The package the command tables live in, one file per domain. */
-		const val COMMAND_TABLES_PACKAGE = "org.umamo.ui.workspace.commands"
 	}
 }
+
+/** The package the command tables live in, one file per domain: where a command is built, and whose data stays its own. */
+internal const val COMMAND_TABLES_PACKAGE = "org.umamo.ui.workspace.commands"

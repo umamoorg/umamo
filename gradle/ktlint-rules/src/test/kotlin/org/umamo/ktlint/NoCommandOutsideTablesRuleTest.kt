@@ -34,7 +34,7 @@ class NoCommandOutsideTablesRuleTest {
 
 			import org.umamo.ui.action.Command
 
-			internal val meshCommands = listOf(Command("mesh.subdivide"), Command("mesh.merge"))
+			internal fun meshCommands() = listOf(Command("mesh.subdivide"), Command("mesh.merge"))
 			""".trimIndent()
 
 		assertEquals(emptyList(), reported(code))

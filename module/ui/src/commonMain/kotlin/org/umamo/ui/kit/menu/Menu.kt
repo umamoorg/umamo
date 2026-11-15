@@ -135,9 +135,16 @@ fun Menu(
  * @param List items The entries to render.
  * @param Function dismissRoot Closes the entire menu tree.
  * @param Modifier modifier Modifier for the column.
+ * @param List enclosingFlyoutHovers The hover sources of the flyouts this panel sits inside, empty for a
+ *   root menu.  Each flyout this panel opens reports its hover to them too.
  */
 @Composable
-private fun MenuPanel(items: List<MenuItem>, dismissRoot: () -> Unit, modifier: Modifier = Modifier) {
+private fun MenuPanel(
+	items: List<MenuItem>,
+	dismissRoot: () -> Unit,
+	modifier: Modifier = Modifier,
+	enclosingFlyoutHovers: List<MutableInteractionSource> = emptyList(),
+) {
 	val colors = LocalUmamoColors.current
 	val density = LocalDensity.current
 	var openSubmenuIndex by remember { mutableStateOf<Int?>(null) }
@@ -215,6 +222,7 @@ private fun MenuPanel(items: List<MenuItem>, dismissRoot: () -> Unit, modifier: 
 												}
 											},
 											dismissRoot = dismissRoot,
+											enclosingFlyoutHovers = enclosingFlyoutHovers,
 										)
 									}
 
@@ -351,6 +359,8 @@ private fun MenuSeparatorRow() {
  * @param Function onRequestOpen Asks the panel to open this row's flyout (closing any sibling's).
  * @param Function onRequestClose Asks the panel to close this row's flyout.
  * @param Function dismissRoot Closes the entire menu tree (forwarded to the flyout).
+ * @param List enclosingFlyoutHovers The hover sources of the flyouts this row sits inside, which this row's
+ *   flyout also reports its hover to.
  */
 @Composable
 private fun MenuSubmenuRow(
@@ -360,6 +370,7 @@ private fun MenuSubmenuRow(
 	onRequestOpen: () -> Unit,
 	onRequestClose: () -> Unit,
 	dismissRoot: () -> Unit,
+	enclosingFlyoutHovers: List<MutableInteractionSource>,
 ) {
 	val colors = LocalUmamoColors.current
 	val typography = LocalUmamoTypography.current
@@ -432,13 +443,17 @@ private fun MenuSubmenuRow(
 		}
 
 		if (expanded) {
+			// A nested flyout is its own popup, outside its parent flyout's bounds, so the parent alone never
+			// sees the pointer resting on it.  Each flyout therefore reports hover to every enclosing flyout as
+			// well as its own, and a pointer anywhere down the chain holds each ancestor open.
+			val flyoutHovers = enclosingFlyoutHovers + flyoutInteraction
 			Popup(
 				popupPositionProvider = SubmenuPositionProvider,
 				onDismissRequest = dismissRoot,
 				properties = PopupProperties(focusable = false),
 			) {
-				Box(modifier = Modifier.hoverable(flyoutInteraction)) {
-					MenuPanel(items = item.items, dismissRoot = dismissRoot)
+				Box(modifier = flyoutHovers.fold<MutableInteractionSource, Modifier>(Modifier) { chain, source -> chain.hoverable(source) }) {
+					MenuPanel(items = item.items, dismissRoot = dismissRoot, enclosingFlyoutHovers = flyoutHovers)
 				}
 			}
 		}

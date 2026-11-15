@@ -16,8 +16,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
  * the user is merely resizing a panel.
  *
  * Nested splits mean many SplitContainers may be composed at once, but one pointer means at most one
- * drag in flight, so a single shared slot serves them all.  Unlike the row-drag seam the owner clears
- * it by identity, because a sibling container recomposing must not blank the dragging one's callback.
+ * drag in flight, so a single shared slot serves them all.  The owner clears it by identity, as the
+ * row-drag seam's owners do, because a sibling container recomposing must not blank the dragging one's callback.
  * Holds null whenever no divider drag is in flight.
  *
  * @property Function cancel Cancels the in-flight divider drag, or null when none is in flight.

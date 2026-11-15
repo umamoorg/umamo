@@ -50,6 +50,7 @@ import org.umamo.ui.workspace.commands.CommandRouting
 import org.umamo.ui.workspace.hostsOperationStrip
 import org.umamo.ui.workspace.layout.InterfaceLayout
 import org.umamo.ui.workspace.layout.WorkspaceLayoutController
+import org.umamo.ui.workspace.layout.WorkspaceNames
 import org.umamo.ui.workspace.layout.firstLeafOrNull
 import org.umamo.ui.workspace.operationstrip.LocalOperationStrip
 import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
@@ -217,11 +218,11 @@ internal class ShellControllers(
 	val operationStrip = OperationStripState()
 
 	/**
-	 * The localized base name new and imported workspaces are named from (deduped) - the same string the "+"
-	 * button passes to onCreate, so the menu's New Workspace and the tab strip agree.  The shell resolves it
-	 * inside its locale key after every language switch, and the workspace commands read it when they run.
+	 * The localized chrome workspace names are made from: the base name of a new one, and what a copy's name adds
+	 * to its original's title.  The shell resolves it inside its locale key after every language switch, and the
+	 * workspace commands read it when they run.
 	 */
-	var newWorkspaceBaseName: String = ""
+	var workspaceNames: WorkspaceNames = WorkspaceNames.Unresolved
 
 	/**
 	 * The composition locals these controllers back, for the shell to provide over its whole content.

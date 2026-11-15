@@ -105,7 +105,7 @@ class StatusHintTableTest {
 	 */
 	@Test
 	fun eachModeSuggestsItsOwnListOverAViewport() {
-		val transforms = listOf(Res.string.status_bind_grab, Res.string.status_bind_scale, Res.string.status_bind_rotate)
+		val transforms = listOf(Res.string.status_bind_grab, Res.string.status_bind_rotate, Res.string.status_bind_scale)
 		val objectHints = statusHintsFor(everyCommandTable(commandFixtureSession(EditorMode.Object)), defaultKeymap(), SpaceKind.Viewport2D)
 		val editHints = statusHintsFor(everyCommandTable(commandFixtureSession(EditorMode.Edit)), defaultKeymap(), SpaceKind.Viewport2D)
 		val poseHints = statusHintsFor(everyCommandTable(commandFixtureSession(EditorMode.Pose)), defaultKeymap(), SpaceKind.Viewport2D)

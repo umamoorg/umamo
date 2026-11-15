@@ -7,12 +7,22 @@ Umamo is early alpha.
 (Unreleased changes)
 
 ### Added
+* Keymap, UI: Hide Unselected(Shift+H) and Unhide All(Alt+H)
 * Pose Mode: 3D Depth Rotation - The ability to set the Y axis depth forwards or backwards to set the Y origin of a warp lattice rotation.
 * Pose Mode: 3D Depth Rotation - The ability to change the lattice surface shape between flat, cylinder, or sphere.  This allows creating rounded rotation poses easily.
+* UI: New Select menu and context menu with Select All of Type and Invert Selection of Type.
+* UI: The command palette now shows each command's icon beside its name.
 
 ### Changed
+* UI: Menu bar entries and command buttons are now grayed out exactly when their command is unavailable, such as Import -> Artwork with a MOC3 open.
+* UI: Pie menus now place their choices clockwise from West in numerical order.  This is so that the numberic input choice stays in the same place on every pie menu to build up visual memory.
+* UI: The Snap pie and the 2D Viewport context menu's Snap submenu now list the snaps in the same order as the header's Snap menu.
+* UI: Undo and Redo are no longer listed in the command palette while there is nothing to undo or redo.
+* UI: Rename Workspace, Duplicate Workspace, and Delete Workspace are now in the Command Registry.
 
 ### Fixed
+* Keymap: PrimaryModifer+Q(Ctrl+Q on Linux, Cmd+Q on MacOS) now closes the application.
+* File: Opening the application with a supplied file no longer fails to show a notice if the file is damaged.
 
 ## 0.5.0 - 2026-11-07
 

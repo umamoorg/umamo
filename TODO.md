@@ -142,26 +142,11 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 	* Snap to key on the parameter scrubber, either by the context menu or a snapping option.  The keyform sheet can do this right by clicking on a parameter pip.
 		* I'm leaning towards a snapping option in the area header, but the header is a bit crowded right now.
 
-## Menus
-* Clicking again should close instead of reopen the menu.
-
 ## Tooltips
 * Consider swapping to BasicTooltipBox in the future to get rip of the desktop and Android split of TooltipArea.  BasicTooltipBox is more recent as of writing this, July 2026, is being actively iterated against.
 
-## Workspace Tabs
-* Improvements
-	* Visual feedback of the tabs moving out of the way when reordering them.
-
 ## Keymap
 * Keymappings will need to become area contextual.  For example: P is pin in the UV editor area.  Once the Separate operation(Into multiple drawables) exist, if we want to match Blender's P shortcut for that then it has to become contextual per area.
-
-## Selection
-* Select All of Type
-* Invert Selection of Type
-* Select by...
-	* Mask By (Select the drawables that mask this drawable.)
-	* Mask Of (Select the drawables that this drawable masks.)
-	* Warp/Rotation Deformer Of/By
 
 ## Format
 
@@ -208,7 +193,6 @@ See format planning document: docs/plan/uma-format.md
 	* For Example: properties_field_base_angle - "base_angle" -> Expanded out to `properties_field_base_angle` and `properties_field_base_angle_description`.
 	* There are plenty of places in the code base that are passing the values around like this at the moment.  Difficulty: .* import level maybe?  I need to read up on the Kotlin compiler optimization to determine if this will be an issue.
 	* operatorParameterDescriptionRes also is the start of something of what I am thinking, but hardcoded.
-* Remove default parameter colors on MeshOverlayPalette.  They are not needed.
 
 ## Settings
 * Keybinding - input.keybinding (Includes keyboard, mouse, and pen buttons.)
@@ -245,12 +229,7 @@ See format planning document: docs/plan/uma-format.md
 
 ## MacOS
 * Zoom with the touchpad on my 2014 Macbook Pro is glitchy.  It will jump around and even go the wrong direction.
-* Can't quit from the native menu or CMD+Q.
 * Attempting to open a second file does not open a second application instance and claims that it can't open UMA file types.
-
-## Linux
-* Can't quit with CTRL+Q or ALT+F4.
-* Opening the application with a file argument, with an older 0.4.0 file, results in the application loading, but not showing the damaged file warning.  This is probably the same on other distributions as well.
 
 ## CDI3.json
 * Change Drawables to ArtMesh.

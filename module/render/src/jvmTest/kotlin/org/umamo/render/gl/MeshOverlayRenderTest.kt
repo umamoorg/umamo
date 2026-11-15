@@ -65,7 +65,7 @@ class MeshOverlayRenderTest {
 	// Opaque dot and edge colors so a covered pixel reads the color itself; translucent face fills so the
 	// fill test pins the premultiplied blend over the art.
 	private val palette =
-		MeshOverlayPalette(
+		MeshOverlayPalette.Classic.copy(
 			vertexIdle = red,
 			vertexSelected = green,
 			vertexActive = blue,

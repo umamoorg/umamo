@@ -69,7 +69,7 @@ class EditorSessionTest {
 		assertFalse(session.dirty.value)
 		assertFalse(session.canUndo.value)
 
-		session.mutate(PartChange.SetVisibility(PartId("a"), false)) { it.withPartVisibility(PartId("a"), false) }
+		session.mutate(VisibilityChange.Part(PartId("a"), false)) { it.withPartVisibility(PartId("a"), false) }
 
 		assertTrue(session.dirty.value)
 		assertTrue(session.canUndo.value)
@@ -115,11 +115,11 @@ class EditorSessionTest {
 	@Test
 	fun editAfterUndoDiscardsRedo() {
 		val session = EditorSession(model())
-		session.mutate(PartChange.SetVisibility(PartId("a"), false)) { it.withPartVisibility(PartId("a"), false) }
+		session.mutate(VisibilityChange.Part(PartId("a"), false)) { it.withPartVisibility(PartId("a"), false) }
 		session.undo()
 		assertTrue(session.canRedo.value)
 
-		session.mutate(PartChange.SetVisibility(PartId("b"), false)) { it.withPartVisibility(PartId("b"), false) }
+		session.mutate(VisibilityChange.Part(PartId("b"), false)) { it.withPartVisibility(PartId("b"), false) }
 		assertFalse(session.canRedo.value)
 	}
 
@@ -130,7 +130,7 @@ class EditorSessionTest {
 	@Test
 	fun markSavedMovesDirtyBaseline() {
 		val session = EditorSession(model())
-		session.mutate(PartChange.SetVisibility(PartId("a"), false)) { it.withPartVisibility(PartId("a"), false) }
+		session.mutate(VisibilityChange.Part(PartId("a"), false)) { it.withPartVisibility(PartId("a"), false) }
 		assertTrue(session.dirty.value)
 
 		session.markSaved()
@@ -149,7 +149,7 @@ class EditorSessionTest {
 	@Test
 	fun markSavedOfASnapshotLeavesALaterEditDirty() {
 		val session = EditorSession(model())
-		session.mutate(PartChange.SetVisibility(PartId("a"), false)) { it.withPartVisibility(PartId("a"), false) }
+		session.mutate(VisibilityChange.Part(PartId("a"), false)) { it.withPartVisibility(PartId("a"), false) }
 		val snapshot = session.model.value
 		session.mutate(PartChange.Rename(PartId("b"), "B2")) { it.withPartName(PartId("b"), "B2") }
 
@@ -171,17 +171,17 @@ class EditorSessionTest {
 	@Test
 	fun historyViewProjectsStackAndJumpToLeapsAcrossSteps() {
 		val session = EditorSession(model())
-		session.mutate(PartChange.SetVisibility(PartId("a"), false)) { it.withPartVisibility(PartId("a"), false) }
+		session.mutate(VisibilityChange.Part(PartId("a"), false)) { it.withPartVisibility(PartId("a"), false) }
 		session.mutate(PartChange.Rename(PartId("b"), "B2")) { it.withPartName(PartId("b"), "B2") }
 		session.markSaved()
-		session.mutate(PartChange.SetVisibility(PartId("b"), false)) { it.withPartVisibility(PartId("b"), false) }
+		session.mutate(VisibilityChange.Part(PartId("b"), false)) { it.withPartVisibility(PartId("b"), false) }
 
 		val view = session.historyView.value
 		// Seed (null label) plus three edits, cursor on the newest.
 		assertEquals(4, view.steps.size)
 		assertEquals(3, view.cursor)
 		assertNull(view.steps[0].labelKey)
-		assertEquals("change.part.visibility", view.steps[1].labelKey)
+		assertEquals("change.visibility.part", view.steps[1].labelKey)
 		assertEquals("change.part.rename", view.steps[2].labelKey)
 		// Exactly one row is the saved baseline — the rename step that was current at markSaved.
 		assertEquals(listOf(2), view.steps.indices.filter { view.steps[it].saved })
@@ -637,7 +637,7 @@ class EditorSessionTest {
 	@Test
 	fun anUndoTakesBothStrokePreviewsDown() {
 		val session = EditorSession(model())
-		session.mutate(PartChange.SetVisibility(PartId("a"), false)) { it.withPartVisibility(PartId("a"), false) }
+		session.mutate(VisibilityChange.Part(PartId("a"), false)) { it.withPartVisibility(PartId("a"), false) }
 		session.setPreviewSelection(setOf(DrawableId("d")))
 		session.setMeshPreviewSelection(MeshSelection.editingDrawables(listOf(DrawableId("d"))))
 

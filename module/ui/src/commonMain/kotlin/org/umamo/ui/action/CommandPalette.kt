@@ -1,16 +1,19 @@
 package org.umamo.ui.action
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -42,10 +45,18 @@ import org.umamo.ui.resources.search_hint
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.theme.drawIcon
+
+/** A row's glyph size: the size a menu draws the same command's glyph at. */
+private val PALETTE_ICON_SIZE = 16.dp
+
+/** The gap between a row's glyph slot and its label, the menus' own. */
+private val PALETTE_ICON_LABEL_GAP = 8.dp
 
 /**
  * The searchable command overlay: a scrim over the shell with a search field and a filtered list of the
- * registered [Command]s, each shown with its bound accelerator and invokable by click or by keyboard.
+ * registered [Command]s, each shown with its glyph and its bound accelerator and invokable by click or by
+ * keyboard.
  *
  * It is keyboard-first: Up/Down move the highlight, Enter invokes it, and Escape or a scrim click dismisses.
  * The shell yields every non-Escape key to this overlay while it is open.
@@ -68,7 +79,7 @@ fun CommandPalette(commands: List<Command>, onDismiss: () -> Unit, onInvoke: (Co
 	val listState = rememberLazyListState()
 
 	// Labels need stringResource (a composable), so resolve them here; filtering is then plain Kotlin.  The
-	// list is small (~a dozen commands) so resolving every label each recomposition is cheap.
+	// list is a few hundred short labels at most, so resolving every one each recomposition is cheap.
 	val labeled =
 		commands.map { command ->
 			command to (command.title?.let { title -> stringResource(title) } ?: command.id)
@@ -186,10 +197,20 @@ fun CommandPalette(commands: List<Command>, onDismiss: () -> Unit, onInvoke: (Co
 									.padding(horizontal = 4.dp, vertical = 4.dp),
 							verticalAlignment = Alignment.CenterVertically,
 						) {
+							val rowColor = if (isSelected) colors.selectionText else colors.text
+							// The command's glyph, in a slot every row keeps: most commands have none drawn, and the
+							// labels of those that do must not step out of the column the rest share.
+							val rowIcon = command.icon
+							Canvas(modifier = Modifier.size(PALETTE_ICON_SIZE)) {
+								if (rowIcon != null) {
+									drawIcon(rowIcon, rowColor)
+								}
+							}
+							Spacer(modifier = Modifier.width(PALETTE_ICON_LABEL_GAP))
 							Text(
 								text = label,
 								style = typography.bodyMedium,
-								color = if (isSelected) colors.selectionText else colors.text,
+								color = rowColor,
 								modifier = Modifier.weight(1f),
 							)
 							// The command's bound accelerator (canonical chord), dimmed; omitted when unbound.

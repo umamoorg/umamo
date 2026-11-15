@@ -388,7 +388,19 @@ class PuppetSnapshotRenderTest {
 		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 		// An opaque red vertex dot on every corner of the quad; its top-left corner, world (20, 80), is pixel (120, 20).
 		val red = OverlayColor(1f, 0f, 0f, 1f)
-		renderer.setMeshOverlayPalette(MeshOverlayPalette(red, red, red, red, red, red, red, red, red))
+		renderer.setMeshOverlayPalette(
+			MeshOverlayPalette.Classic.copy(
+				vertexIdle = red,
+				vertexSelected = red,
+				vertexActive = red,
+				edgeIdle = red,
+				edgeSelected = red,
+				edgeActive = red,
+				faceIdle = red,
+				faceSelected = red,
+				faceActive = red,
+			),
+		)
 		renderer.setMeshOverlay(
 			MeshOverlay(
 				MeshOverlayKind.Edit,

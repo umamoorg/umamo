@@ -280,10 +280,7 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 				true
 			}
 
-			// An in-flight panel row drag (outliner / parameters / sources) owns Escape: cancel it (through the
-			// registry, mirroring area.dragCancel) before the clear-selection branch below - the press
-			// that started the drag already selected the row, so that branch would otherwise swallow
-			// Escape and deselect the dragged rows while the drag kept going.
+			// An in-flight drag of a panel or tab owns Escape.
 			isEscapeDown && rowDragCancel.cancel != null -> {
 				commandRegistry.invoke("row.dragCancel")
 				true

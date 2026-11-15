@@ -1,25 +1,92 @@
 package org.umamo.ui.workspace.commands
 
+import org.jetbrains.compose.resources.StringResource
+import org.umamo.edit.ActiveSelectTool
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelectMode
+import org.umamo.edit.SelectableKind
 import org.umamo.edit.editsElements
 import org.umamo.edit.invertMeshSelection
 import org.umamo.edit.invertObjectSelection
+import org.umamo.edit.invertObjectSelectionOfKind
 import org.umamo.edit.selectAllMeshElements
 import org.umamo.edit.selectAllObjects
+import org.umamo.edit.selectAllObjectsOfKind
 import org.umamo.edit.setMeshSelectMode
 import org.umamo.edit.transform.beginBoxSelect
 import org.umamo.edit.transform.beginCircleSelect
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandSection
+import org.umamo.ui.action.CommandState
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SpaceScope
 
 /**
- * The selection commands: the element domains of Edit and Pose mode, select all / invert, the Box and
- * Circle marquee tools, and the pointer-driven Select Linked pair.
+ * One object kind's Select All of Type and Invert Selection of Type pair, which the table builds the two by-kind
+ * families' members from.  Whatever lists those commands reads the families from the registry.
+ *
+ * @property SelectableKind kind The kind the pair filters to.
+ * @property String selectAllId The Select All of Type command.
+ * @property String invertId The Invert Selection of Type command.
+ * @property StringResource selectAllTitle The select command's palette title, which names the kind.
+ * @property StringResource invertTitle The invert command's palette title, which names the kind.
+ * @property StringResource kindLabel The kind alone, each member's label under its family's heading.
+ */
+private class SelectableKindCommands(
+	val kind: SelectableKind,
+	val selectAllId: String,
+	val invertId: String,
+	val selectAllTitle: StringResource,
+	val invertTitle: StringResource,
+	val kindLabel: StringResource,
+)
+
+/** The by-kind pairs, in the order their families list them. */
+private val selectableKindCommands: List<SelectableKindCommands> =
+	listOf(
+		SelectableKindCommands(
+			SelectableKind.Part,
+			selectAllId = "select.all.parts",
+			invertId = "select.invert.parts",
+			selectAllTitle = Res.string.cmd_select_all_parts,
+			invertTitle = Res.string.cmd_select_invert_parts,
+			kindLabel = Res.string.menu_select_kind_parts,
+		),
+		SelectableKindCommands(
+			SelectableKind.Drawable,
+			selectAllId = "select.all.drawables",
+			invertId = "select.invert.drawables",
+			selectAllTitle = Res.string.cmd_select_all_drawables,
+			invertTitle = Res.string.cmd_select_invert_drawables,
+			kindLabel = Res.string.menu_select_kind_drawables,
+		),
+		SelectableKindCommands(
+			SelectableKind.WarpDeformer,
+			selectAllId = "select.all.warps",
+			invertId = "select.invert.warps",
+			selectAllTitle = Res.string.cmd_select_all_warps,
+			invertTitle = Res.string.cmd_select_invert_warps,
+			kindLabel = Res.string.menu_select_kind_warps,
+		),
+		SelectableKindCommands(
+			SelectableKind.RotationDeformer,
+			selectAllId = "select.all.rotations",
+			invertId = "select.invert.rotations",
+			selectAllTitle = Res.string.cmd_select_all_rotations,
+			invertTitle = Res.string.cmd_select_invert_rotations,
+			kindLabel = Res.string.menu_select_kind_rotations,
+		),
+	)
+
+/**
+ * The selection commands: the element domains of Edit and Pose mode, select all / invert and their by-kind
+ * Object-mode pairs, the Box and Circle marquee tools, and the pointer-driven Select Linked pair.
  *
  * Several of these dispatch by mode so one binding serves both - elements in Edit and Pose mode, whole
  * entities in Object mode - and the session methods no-op in the wrong mode, so the keymap binds them
@@ -37,16 +104,49 @@ internal fun selectCommands(
 	routing: CommandRouting,
 	keyformSheets: KeyformSheetViews,
 	availability: SessionAvailability,
-): List<Command> =
-	listOf(
+): List<Command> {
+	// Select All of Type and Invert Selection of Type filter the OBJECT selection, so they apply in Object mode
+	// alone.  They route to no area, so they belong everywhere, and carry no chord in any preset.  Each pair's two
+	// commands are members of the two by-kind families, under the kind alone: the family's heading says the rest.
+	val selectAllOfKind =
+		selectableKindCommands.map { pair ->
+			Command(
+				pair.selectAllId,
+				title = pair.selectAllTitle,
+				availability = availability.inObjectMode,
+				group = CommandFamily.SelectAllOfKind,
+				groupLabel = pair.kindLabel,
+			) {
+				editorSession?.selectAllObjectsOfKind(pair.kind)
+			}
+		}
+	val invertOfKind =
+		selectableKindCommands.map { pair ->
+			Command(
+				pair.invertId,
+				title = pair.invertTitle,
+				availability = availability.inObjectMode,
+				group = CommandFamily.InvertSelectionOfKind,
+				groupLabel = pair.kindLabel,
+			) {
+				editorSession?.invertObjectSelectionOfKind(pair.kind)
+			}
+		}
+
+	return commandTable(
+		CommandTable.Select,
 		// The element modes' select modes (Blender 1 / 2 / 3).  The session guards them to no-op in Object mode,
 		// so the keymap can bind bare digits context-free; the availability tier additionally hides them
-		// from the palette there (there is no element domain to switch).
+		// from the palette there (there is no element domain to switch).  Each is in effect while its domain is
+		// the mesh selection's, which is what the header's select-mode buttons light.
 		Command(
 			"mesh.selectMode.vertex",
 			title = Res.string.cmd_mesh_select_mode_vertex,
 			availability = availability.inElementMode,
 			hint = CommandHint(Res.string.status_select_mode),
+			group = CommandFamily.SelectMode,
+			icon = LocalUmamoIcons.meshSelectVertex,
+			state = CommandState { editorSession?.meshSelection?.value?.selectMode == MeshSelectMode.Vertex },
 		) {
 			editorSession?.setMeshSelectMode(MeshSelectMode.Vertex)
 		},
@@ -55,6 +155,9 @@ internal fun selectCommands(
 			title = Res.string.cmd_mesh_select_mode_edge,
 			availability = availability.inElementMode,
 			hint = CommandHint(Res.string.status_select_mode),
+			group = CommandFamily.SelectMode,
+			icon = LocalUmamoIcons.meshSelectEdge,
+			state = CommandState { editorSession?.meshSelection?.value?.selectMode == MeshSelectMode.Edge },
 		) {
 			editorSession?.setMeshSelectMode(MeshSelectMode.Edge)
 		},
@@ -63,25 +166,31 @@ internal fun selectCommands(
 			title = Res.string.cmd_mesh_select_mode_face,
 			availability = availability.inElementMode,
 			hint = CommandHint(Res.string.status_select_mode),
+			group = CommandFamily.SelectMode,
+			icon = LocalUmamoIcons.meshSelectFace,
+			state = CommandState { editorSession?.meshSelection?.value?.selectMode == MeshSelectMode.Face },
 		) {
 			editorSession?.setMeshSelectMode(MeshSelectMode.Face)
 		},
 		// Select All / Invert dispatch by mode so one binding (A / Ctrl+I) serves both: elements in Edit and Pose
-		// mode, whole selectable entities in Object mode.  Each session method no-ops in the wrong mode.
-		Command("select.all", title = Res.string.cmd_select_all, availability = availability.hasDocument) {
+		// mode, whole selectable entities in Object mode.  Each session method no-ops in the wrong mode.  The two are
+		// the Select menu's first block, ahead of the by-kind submenus.
+		Command("select.all", title = Res.string.cmd_select_all, availability = availability.hasDocument, group = CommandSection.SelectEverything) {
 			if (editorSession?.mode?.value?.editsElements == true) {
 				editorSession.selectAllMeshElements()
 			} else {
 				editorSession?.selectAllObjects()
 			}
 		},
-		Command("select.invert", title = Res.string.cmd_select_invert, availability = availability.hasDocument) {
+		Command("select.invert", title = Res.string.cmd_select_invert, availability = availability.hasDocument, group = CommandSection.SelectEverything) {
 			if (editorSession?.mode?.value?.editsElements == true) {
 				editorSession.invertMeshSelection()
 			} else {
 				editorSession?.invertObjectSelection()
 			}
 		},
+		*selectAllOfKind.toTypedArray(),
+		*invertOfKind.toTypedArray(),
 		// Box (Blender B) and Circle (Blender C) select tools latch on the session; the arming surface's
 		// overlay drives the gesture (every mode in the viewport; Edit mode in the UV editor, whose
 		// overlay only composes there).  The circle grow / shrink commands (numpad +/-) apply only
@@ -90,11 +199,15 @@ internal fun selectCommands(
 		// for the same chord: a hovered keyform sheet arms its own marquee, a hovered viewport (or UV
 		// editor in Edit mode) arms the session's tool, and anything else arms nothing.  Resolved at
 		// dispatch time like every other hovered-surface command.
+		// With Circle below, the toolbar's select tools: each wears its tool glyph and is lit while it is armed.
 		Command(
 			"mesh.boxSelect",
 			title = Res.string.cmd_mesh_box_select,
 			availability = availability.hasDocument,
 			spaces = SpaceScope.WorkSurfacesAndSheet,
+			group = CommandSection.ToolSelect,
+			icon = LocalUmamoIcons.toolBoxSelect,
+			state = CommandState { editorSession?.activeSelectTool?.value is ActiveSelectTool.BoxArmed },
 		) {
 			// Only reach for a sheet when the pointer actually names one.  The registry's lookup falls back
 			// to the lone open sheet when handed no area, so asking it unconditionally would hijack B in the
@@ -110,7 +223,15 @@ internal fun selectCommands(
 		// No sheet branch here, unlike Box Select: the keyform sheet has no circle brush to arm, so C over a
 		// sheet arms nothing at all - selectToolArea answers only for a viewport or an Edit-mode UV editor,
 		// and arming a viewport the pointer has left is worse than doing nothing.
-		Command("mesh.circleSelect", title = Res.string.cmd_mesh_circle_select, availability = availability.hasDocument, spaces = SpaceScope.WorkSurfaces) {
+		Command(
+			"mesh.circleSelect",
+			title = Res.string.cmd_mesh_circle_select,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.WorkSurfaces,
+			group = CommandSection.ToolSelect,
+			icon = LocalUmamoIcons.toolCircleSelect,
+			state = CommandState { editorSession?.activeSelectTool?.value is ActiveSelectTool.Circle },
+		) {
 			routing.selectToolArea(editorSession)?.let { areaId -> editorSession?.beginCircleSelect(areaId) }
 		},
 		Command("mesh.circleSelect.grow", title = Res.string.cmd_mesh_circle_grow, availability = availability.circleToolLive) {
@@ -133,3 +254,4 @@ internal fun selectCommands(
 			editorSession?.requestSwitchObjectUnderCursor(routing.viewportArea())
 		},
 	)
+}

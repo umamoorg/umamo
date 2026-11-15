@@ -144,7 +144,7 @@ class KeymapTest {
 
 	/**
 	 * Every preset reaches the document commands a rigger starts from, under the accelerators every other
-	 * application uses for them: New, Open, Save, and Save As on their usual keys, the artwork import
+	 * application uses for them: New, Open, Save, Save As, and Quit on their usual keys, the artwork import
 	 * - which ADDS to the open document - keeping the chord it has always had so a rebind saved against that
 	 * id still resolves, and Import CMO3 with no chord at all, since an import is not an open.
 	 */
@@ -157,6 +157,7 @@ class KeymapTest {
 			assertEquals("file.save", specs["primary+KeyS"], "$presetId: Ctrl+S saves")
 			assertEquals("file.saveAs", specs["primary+shift+KeyS"], "$presetId: Ctrl+Shift+S saves as")
 			assertEquals("file.importArtwork", specs["primary+shift+KeyO"], "$presetId: Ctrl+Shift+O imports artwork")
+			assertEquals("file.exit", specs["primary+KeyQ"], "$presetId: Ctrl+Q quits")
 			assertFalse(specs.containsValue("file.importCmo3"), "$presetId: Import CMO3 has no chord")
 		}
 	}
@@ -240,6 +241,26 @@ class KeymapTest {
 		val cubism = Keymap.fromSpecs(keymapPresetSpecs("cubism"))
 		assertNull(cubism.commandFor(chord))
 		assertNull(cubism.chordFor("view.overlay.all"))
+	}
+
+	/**
+	 * Shift+H hides the unselected objects and Alt+H unhides all of them in the default and blender presets,
+	 * beside H's toggle, and both stay unbound in the cubism preset, which binds no H at all.
+	 */
+	@Test
+	fun hideChordsBindInDefaultAndBlenderButNotCubism() {
+		val hideUnselected = KeyChord(keyName = "KeyH", shift = true)
+		val unhideAll = KeyChord(keyName = "KeyH", alt = true)
+
+		for (presetId in listOf("default", "blender")) {
+			val keymap = Keymap.fromSpecs(keymapPresetSpecs(presetId))
+			assertEquals("object.hideUnselected", keymap.commandFor(hideUnselected), "Shift+H in $presetId")
+			assertEquals("object.unhideAll", keymap.commandFor(unhideAll), "Alt+H in $presetId")
+		}
+
+		val cubism = Keymap.fromSpecs(keymapPresetSpecs("cubism"))
+		assertNull(cubism.chordFor("object.hideUnselected"))
+		assertNull(cubism.chordFor("object.unhideAll"))
 	}
 
 	/**

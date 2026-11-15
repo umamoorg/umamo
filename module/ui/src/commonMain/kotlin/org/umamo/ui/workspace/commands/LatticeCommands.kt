@@ -4,6 +4,7 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
 import org.umamo.ui.transform.canCreateWarp
 import org.umamo.ui.transform.createWarpAdjustable
@@ -24,7 +25,8 @@ internal fun latticeCommands(
 	routing: CommandRouting,
 	availability: SessionAvailability,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.Lattice,
 		Command(
 			"lattice.subdivide",
 			title = Res.string.cmd_lattice_subdivide,

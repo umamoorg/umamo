@@ -87,7 +87,7 @@ class UvOverlayRenderTest {
 	// Opaque dot and edge colors unlike every page quadrant, the surround, and the border; translucent
 	// face fills so the fill case pins the premultiplied blend over the page.
 	private val palette =
-		MeshOverlayPalette(
+		MeshOverlayPalette.Classic.copy(
 			vertexIdle = yellow,
 			vertexSelected = cyan,
 			vertexActive = magenta,

@@ -41,12 +41,16 @@ val LocalRowDragCancel = staticCompositionLocalOf { RowDragCancelController() }
 fun RowDragController<*>.parkCancelOnSeam() {
 	val seam = LocalRowDragCancel.current
 	DisposableEffect(isDragging) {
+		val cancelDrag: () -> Unit = { cancel() }
+
 		if (isDragging) {
-			seam.cancel = { cancel() }
+			seam.cancel = cancelDrag
 		}
 
 		onDispose {
-			seam.cancel = null
+			if (seam.cancel === cancelDrag) {
+				seam.cancel = null
+			}
 		}
 	}
 }

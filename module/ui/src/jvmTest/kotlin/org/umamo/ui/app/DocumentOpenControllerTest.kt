@@ -11,6 +11,7 @@ import org.umamo.ui.document.BlankDocument
 import org.umamo.ui.document.DocumentLoad
 import org.umamo.ui.document.DocumentOpenError
 import org.umamo.ui.document.DocumentOpenFailure
+import org.umamo.ui.document.UmaDocument
 import org.umamo.ui.document.emptyDocumentBytes
 import org.umamo.ui.document.loadDocument
 import org.umamo.ui.document.newBlankDocument
@@ -22,6 +23,8 @@ import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.alert_document_read_only
 import org.umamo.ui.workspace.AlertRequest
 import org.umamo.ui.workspace.commands.DirtyDocumentPrompt
+import java.io.File
+import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -108,6 +111,50 @@ class DocumentOpenControllerTest {
 			fixture.settle()
 			// The path does not exist, so the load fails - which is the proof it was attempted at all.
 			assertEquals(1, fixture.argumentsOf("document.openFailed").size, "and then the load runs")
+		}
+
+	/**
+	 * A file named on the command line opens through [DocumentOpenController.openStoredPath] over the empty
+	 * document the editor starts in, so it raises the same read-only alert File > Open does.
+	 */
+	@Test
+	fun aReadOnlyFileHandedOverAtLaunchSaysSo() =
+		runTest {
+			val fixture = AppControllerFixture(this)
+			val open = controllerOver(fixture)
+			fixture.context = AppControllerFixture.contextFor(newBlankDocument())
+			val file = File(Files.createTempDirectory("launch-open").toFile(), "rig.uma")
+			file.writeBytes(umaBytesWithUnknownRequiredEntry())
+
+			open.openStoredPath(file.absolutePath)
+			fixture.settle()
+
+			assertTrue(fixture.argumentsOf("document.confirmReplace").isEmpty(), "the empty document the editor starts in is replaced without asking")
+			assertIs<UmaDocument>(fixture.opened.single(), "the file opens")
+			val alert = assertIs<AlertRequest>(fixture.argumentsOf("document.alert").single())
+			assertEquals(Res.string.alert_document_read_only, alert.message)
+			assertEquals("rig.uma", alert.arguments.first(), "naming the file")
+			assertEquals(listOf(file.absolutePath), fixture.settings.recentFiles(), "and it is a recent file")
+		}
+
+	/**
+	 * A command-line file that will not read raises the failure alert and leaves the empty document open.
+	 */
+	@Test
+	fun aDamagedFileHandedOverAtLaunchRaisesTheFailureAlert() =
+		runTest {
+			val fixture = AppControllerFixture(this)
+			val open = controllerOver(fixture)
+			fixture.context = AppControllerFixture.contextFor(newBlankDocument())
+			val file = File(Files.createTempDirectory("launch-open").toFile(), "rig.uma")
+			file.writeBytes("not a uma archive".encodeToByteArray())
+
+			open.openStoredPath(file.absolutePath)
+			fixture.settle()
+
+			val failure = assertIs<DocumentOpenFailure>(fixture.argumentsOf("document.openFailed").single(), "the rigger is told why nothing opened")
+			assertEquals("rig.uma", failure.displayName)
+			assertTrue(fixture.opened.isEmpty(), "and the empty document stays")
 		}
 
 	@Test

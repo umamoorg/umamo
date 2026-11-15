@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isPopup
@@ -33,6 +34,7 @@ import org.umamo.edit.ParameterSelection
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.settings.Settings
 import org.umamo.storage.OkioAppStorage
 import org.umamo.ui.LocalSettings
@@ -50,6 +52,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 /**
  * A stand-in for the render host whose surface is tagged, so a case can right-click it, and counts the presses that
@@ -140,6 +143,26 @@ class ViewportContextMenuTest {
 	/** The number of open popups. */
 	private fun ComposeUiTest.popups(): Int = onAllNodes(isPopup()).fetchSemanticsNodes().size
 
+	/**
+	 * Rests the pointer on the menu row reading [label], which is what opens a submenu's flyout on the desktop.
+	 *
+	 * @param String label The row's text.
+	 */
+	private fun ComposeUiTest.hoverMenuRow(label: String) {
+		onNode(hasText(label) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performMouseInput { moveTo(center) }
+		waitForIdle()
+	}
+
+	/**
+	 * Clicks the menu row reading [label].
+	 *
+	 * @param String label The row's text.
+	 */
+	private fun ComposeUiTest.clickMenuRow(label: String) {
+		onNode(hasText(label) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performMouseInput { click(center) }
+		waitForIdle()
+	}
+
 	@Test
 	fun objectModeOffersItsOwnRowsInsteadOfTheAreaMenu() =
 		runComposeUiTest {
@@ -150,6 +173,8 @@ class ViewportContextMenuTest {
 			assertEquals(1, popups())
 			assertEquals(1, rowsReading("Duplicate"))
 			assertEquals(1, rowsReading("Toggle Visibility"))
+			assertEquals(1, rowsReading("Hide Unselected"))
+			assertEquals(1, rowsReading("Unhide All"))
 			assertEquals(1, rowsReading("Snap"))
 			assertEquals(1, rowsReading("Frame Selected"))
 			assertEquals(0, rowsReading("Subdivide Lattice"))
@@ -167,9 +192,125 @@ class ViewportContextMenuTest {
 
 			assertEquals(1, rowsReading("Merge Vertices"))
 			assertEquals(1, rowsReading("Connect Vertices"))
-			assertEquals(1, rowsReading("Select Linked"))
 			assertEquals(1, rowsReading("Subdivide Lattice"))
 			assertEquals(0, rowsReading("Toggle Visibility"))
+
+			hoverMenuRow("Select")
+
+			assertEquals(1, rowsReading("Select All", pickable = true))
+			assertEquals(1, rowsReading("Select Linked"))
+			assertEquals(0, rowsReading("Select All of Type"), "the by-kind pairs are Object mode's")
+		}
+
+	@Test
+	fun selectAllOfTypeSelectsThatKindAlone() =
+		runComposeUiTest {
+			val session = commandFixtureSession(EditorMode.Object)
+			mount(session)
+			runOnIdle { session.setSelection(Selection()) }
+
+			rightClickTheSurface()
+			hoverMenuRow("Select")
+			hoverMenuRow("Select All of Type")
+			clickMenuRow("Warp Deformers")
+
+			assertEquals(setOf<SelectionTarget>(SelectionTarget.Deformer(DeformerId("w"))), session.selection.value.targets)
+			assertEquals(0, popups(), "the menu closed behind the pick")
+		}
+
+	/**
+	 * Each by-kind submenu lists its family from the registry the shell registered into: every kind, by the kind
+	 * alone, since the submenu's own row already says what picking one does.
+	 */
+	@Test
+	fun eachByKindFamilyListsEveryKindByTheKindAlone() =
+		runComposeUiTest {
+			mount(commandFixtureSession(EditorMode.Object))
+
+			rightClickTheSurface()
+			hoverMenuRow("Select")
+
+			for (family in listOf("Select All of Type", "Invert Selection of Type")) {
+				hoverMenuRow(family)
+
+				for (kind in listOf("Parts", "Drawables", "Warp Deformers", "Rotation Deformers")) {
+					assertEquals(1, rowsReading(kind, pickable = true), "$family > $kind")
+				}
+
+				assertEquals(0, rowsReading("Select All Parts"), "$family shows no palette title")
+			}
+		}
+
+	/**
+	 * A family a pie draws comes in under the title of the command that opens the pie, with the pie's own labels on
+	 * its rows - and never under the family's heading, which reads as the pie's title and not as a menu row.
+	 */
+	@Test
+	fun aPiesFamilyComesInUnderItsOpenersTitle() =
+		runComposeUiTest {
+			mount(posedBody())
+
+			rightClickTheSurface()
+			assertEquals(0, rowsReading("Insert Key"), "the key-type pie's title is no row")
+			hoverMenuRow("Insert Key by Type")
+
+			for (keyType in listOf("Lattice", "Opacity", "Colors", "All")) {
+				assertEquals(1, rowsReading(keyType), keyType)
+			}
+
+			assertEquals(1, rowsReading("Lattice", pickable = true), "a posed warp has a lattice to key")
+
+			assertEquals(0, rowsReading("Insert Lattice Key"), "the rows show no palette title")
+		}
+
+	/** The Snap submenu lists the world snaps in the order their table registers them: the cursor's, then the selection's. */
+	@Test
+	fun theSnapSubmenuListsTheWorldSnaps() =
+		runComposeUiTest {
+			mount(commandFixtureSession(EditorMode.Object))
+
+			rightClickTheSurface()
+			hoverMenuRow("Snap")
+
+			val snaps =
+				listOf(
+					"Cursor to World Origin",
+					"Cursor to Grid",
+					"Cursor to Selected",
+					"Cursor to Active",
+					"Selection to Grid",
+					"Selection to Cursor",
+					"Selection to Cursor (Keep Offset)",
+					"Selection to Active",
+				)
+
+			for (snap in snaps) {
+				assertEquals(1, rowsReading(snap), snap)
+			}
+
+			val tops = snaps.map { snap -> onNode(hasText(snap) and hasAnyAncestor(isPopup()), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.top }
+			assertEquals(tops.sorted(), tops, "top to bottom in the table's order")
+		}
+
+	/**
+	 * The Snap submenu sets the selection's snaps off from the cursor's with a rule: the family's two sections are
+	 * its two blocks, so the gap where one ends and the other begins is wider than the gap between two rows of one.
+	 */
+	@Test
+	fun theSnapSubmenuSetsTheSelectionsSnapsOffWithARule() =
+		runComposeUiTest {
+			mount(commandFixtureSession(EditorMode.Object))
+
+			rightClickTheSurface()
+			hoverMenuRow("Snap")
+
+			val top = { label: String -> onNode(hasText(label) and hasAnyAncestor(isPopup()), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.top }
+			val withinTheCursorsBlock = top("Cursor to Active") - top("Cursor to Selected")
+			val acrossTheRule = top("Selection to Grid") - top("Cursor to Active")
+			val withinTheSelectionsBlock = top("Selection to Cursor") - top("Selection to Grid")
+
+			assertEquals(withinTheCursorsBlock, withinTheSelectionsBlock, "rows of one block are evenly spaced")
+			assertTrue(acrossTheRule > withinTheCursorsBlock, "no rule between the cursor's snaps and the selection's: $acrossTheRule against $withinTheCursorsBlock")
 		}
 
 	@Test

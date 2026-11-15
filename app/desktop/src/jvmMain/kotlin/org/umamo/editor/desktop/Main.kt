@@ -15,6 +15,7 @@ import io.github.vinceglb.filekit.FileKit
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.editor.desktop.viewport.DUMP_PNG_VARIABLE
 import org.umamo.editor.desktop.viewport.OffscreenPuppetService
 import org.umamo.format.FileRole
 import org.umamo.format.FormatRegistry
@@ -48,8 +49,13 @@ import org.umamo.ui.theme.ProvideAppThemeFromSettings
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.viewport.LiveParams
 import java.awt.Desktop
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.system.exitProcess
+
+/** The environment variable that poses the developer dump's first frame (see [applyDumpParamOverrides]). */
+internal const val DUMP_PARAMS_VARIABLE = "UMAMO_DUMP_PARAMS"
 
 /**
  * Applies the `UMAMO_DUMP_PARAMS` environment override (e.g. `ParamAngleX=30,ParamAngleY=-10`) to the
@@ -59,7 +65,7 @@ import kotlin.system.exitProcess
  * @param LiveParams liveParams The initial document's parameter hand-off to rewrite.
  */
 private fun applyDumpParamOverrides(liveParams: LiveParams) {
-	val spec = System.getenv("UMAMO_DUMP_PARAMS") ?: return
+	val spec = System.getenv(DUMP_PARAMS_VARIABLE) ?: return
 	val values = liveParams.values.toMutableMap()
 	spec.split(",").forEach { pair ->
 		val parts = pair.split("=")
@@ -73,7 +79,17 @@ private fun applyDumpParamOverrides(liveParams: LiveParams) {
 }
 
 /**
- * Loads the initial document from a `.cmo3`/`.moc3` path and applies the dump-param overrides.
+ * Whether this launch is a developer's first-frame dump: the PNG dump or its pose override is asked for.
+ * A dump launch loads its document before the window opens, so the first frame it writes is the model and
+ * not the empty document every other launch starts in.
+ *
+ * @param Map environment The process environment.
+ * @return Boolean True when either dump variable is set.
+ */
+internal fun isFirstFrameDumpLaunch(environment: Map<String, String>): Boolean = DUMP_PNG_VARIABLE in environment || DUMP_PARAMS_VARIABLE in environment
+
+/**
+ * Loads a first-frame dump launch's document and applies the dump-param overrides.
  *
  * A function rather than inline code in [main] on purpose: main's frame lives for the whole run
  * (application {} blocks), and an interpreted frame keeps every local reachable - a document held
@@ -83,14 +99,12 @@ private fun applyDumpParamOverrides(liveParams: LiveParams) {
  * @param String? initialPath The argv / -Dumamo.testCmo3 path, or null for none.
  * @return Document? The loaded document, or null when there is no path or the load fails.
  */
-private fun loadInitialDocument(initialPath: String?): Document? {
+private fun loadDumpDocument(initialPath: String?): Document? {
 	val path = initialPath ?: return null
-	// A failed initial load falls back to an empty shell (the failure is in the log); the in-app
-	// alert only covers interactive opens, since the shell is not up yet to show it here.
+	// A failed load falls back to the empty document with the failure in the log.  The shell is not up yet to
+	// show an alert, and a dump launch has nobody to read one.
 	val document = (runBlocking { loadDocument(platformFileFromSavedPath(path)) } as? DocumentLoad.Loaded)?.document
-	// The dump-params override applies only to the initially-opened document - it exists for the
-	// headless first-frame dump, which always opens via argv / -Dumamo.testCmo3.  PuppetDocument
-	// covers both CMO3 and MOC3 documents, so a .moc3 argv dump poses correctly too.
+	// PuppetDocument covers both CMO3 and MOC3 documents, so a .moc3 dump poses correctly too.
 	(document as? PuppetDocument)?.let { applyDumpParamOverrides(it.liveParams) }
 
 	return document
@@ -133,8 +147,9 @@ private fun windowTitleFor(document: Document?, savedPath: String?, readOnly: Bo
 internal fun isOpenableDocumentPath(path: String): Boolean = FormatRegistry.kindForFileName(path)?.role == FileRole.Document
 
 /**
- * Desktop entrypoint: opens a single editor window over the storage/settings foundation, into the document
- * a `.uma`, `.cmo3`, or `.moc3` argument or `-Dumamo.testCmo3` names, else a new, empty one.
+ * Desktop entrypoint: opens a single editor window over the storage/settings foundation, on a new, empty
+ * document.  The document a `.uma`, `.cmo3`, or `.moc3` argument or `-Dumamo.testCmo3` names then opens into it
+ * the way a recent file does, alerts included.
  *
  * Settings load synchronously here so the window state is ready before the window opens and the window is
  * unconditional - `application {}` exits if it ever has zero windows, which an async settings gate would
@@ -179,7 +194,9 @@ fun main(args: Array<String>) {
 	// Pick the first document argument; loadDocument then does the real magic-byte detection once the file
 	// is actually read (a .moc3 routes to the sidecar-discovering loader).  This is how Windows and Linux hand
 	// over a double-clicked file.
-	val initialPath = args.firstOrNull(::isOpenableDocumentPath) ?: System.getProperty("umamo.testCmo3")
+	val initialPath =
+		args.firstOrNull(::isOpenableDocumentPath)
+			?: System.getProperty("umamo.testCmo3")?.takeIf { previewPath -> File(previewPath).isFile }
 	// macOS hands a double-clicked file over as an open-file event instead, at launch and for as long as the
 	// app runs.  Installed before the window exists: a cold launch's event can arrive before the first
 	// composition, and the requests wait in their buffer until the shell collects them.
@@ -191,13 +208,17 @@ fun main(args: Array<String>) {
 		}
 	}
 
-	// Synchronous load, like the settings below: the window opens with the document already in hand.
+	val firstFrameDump = isFirstFrameDumpLaunch(System.getenv())
+
+	if (initialPath != null && !firstFrameDump) {
+		openRequests.request(initialPath)
+	}
+
 	// The document reaches the first composition through a one-shot holder rather than a plain local:
 	// the application closure lives for the whole run, so a direct capture would keep the first
 	// document reachable after the user opens something else.  remember empties the holder on first
 	// composition; only the path string stays behind for the recent-files record.
-	// A failed or absent argv load still opens a document - the new, empty one the editor starts in.
-	val initialDocumentHolder = AtomicReference(loadInitialDocument(initialPath) ?: newBlankDocument())
+	val initialDocumentHolder = AtomicReference((if (firstFrameDump) loadDumpDocument(initialPath) else null) ?: newBlankDocument())
 	val initialDocumentPath = initialDocumentHolder.get()?.path
 	// A first run also seeds the system's language here, so the window - and the Quick Setup modal it opens
 	// with - is already in that language.
@@ -217,11 +238,18 @@ fun main(args: Array<String>) {
 		var savedPath by remember { mutableStateOf<String?>(null) }
 		var readOnly by remember { mutableStateOf(false) }
 		val windowState = remember { settings.savedWindowState() }
-		// A file opened from the command line is a real "open" - record it in recent files too.
+		// A dump launch's file was opened before the window, so it is recorded here; every other file the
+		// command line names is recorded by the open that loads it.
 		LaunchedEffect(Unit) { initialDocumentPath?.let { settings.addRecentFile(it) } }
+
+		val quitting = remember { AtomicBoolean(false) }
 
 		/** Saves the window geometry, logs the quit, and exits the application. */
 		fun closeApp() {
+			if (!quitting.compareAndSet(false, true)) {
+				return
+			}
+
 			settings.saveWindowState(windowState)
 			// A session log that ends here was a clean quit; one that ends anywhere else was not.
 			UmamoLog.info("quit")
@@ -238,9 +266,11 @@ fun main(args: Array<String>) {
 
 			if (quitHandlerSupported) {
 				Desktop.getDesktop().setQuitHandler { _, response ->
+					UmamoLog.info("quit requested: macOS quit handler")
 					response.cancelQuit()
 					exitGuard.request { closeApp() }
 				}
+				UmamoLog.info("macOS quit handler installed")
 			}
 
 			onDispose {
@@ -250,7 +280,10 @@ fun main(args: Array<String>) {
 			}
 		}
 		Window(
-			onCloseRequest = { exitGuard.request { closeApp() } },
+			onCloseRequest = {
+				UmamoLog.info("quit requested: window close")
+				exitGuard.request { closeApp() }
+			},
 			state = windowState,
 			// Window + taskbar/dock icon.  painterResource decodes the bundled app_icon PNG (the same
 			// mascot the packaged installer icons derive from); regenerate via docs/design/appicon/generate.sh.

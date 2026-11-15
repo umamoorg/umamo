@@ -43,7 +43,7 @@ fun <T> SelectField(
 	val density = LocalDensity.current
 	DropdownChip(
 		expanded = expanded,
-		onExpandRequest = { expanded = !expanded },
+		onExpandRequest = { expanded = true },
 		contentDescription = label(selected),
 		modifier = modifier.onSizeChanged { size -> anchorWidth = with(density) { size.width.toDp() } },
 		icon = icon?.invoke(selected),

@@ -99,13 +99,13 @@ internal fun Viewport2DBody(scope: AreaScope) {
 	// The floating chrome stops the pointer reaching the surface, except while one of this area's gestures
 	// owns it: a G started over the surface keeps following the pointer across the drawer.
 	val gestureOwnsPointer = rememberGestureOwnsAreaPointer(session, scope.areaId)
-	val contextItems = rememberViewportContextItems(session)
+	val contextMenu = rememberViewportContextMenu(session)
 	val anyGestureLive = rememberAnyGestureLive(session)
 	// The host seam takes only the area id, so the area's overlay visibility reaches its cursor and HUD overlays
 	// through the local.
 	CompositionLocalProvider(LocalAreaOverlays provides viewState.overlays) {
 		Box(modifier = Modifier.fillMaxSize()) {
-			ContextMenuArea(items = contextItems, modifier = Modifier.fillMaxSize(), suppressed = anyGestureLive || contextItems.isEmpty()) {
+			ContextMenuArea(itemsOnOpen = contextMenu ?: { emptyList() }, modifier = Modifier.fillMaxSize(), suppressed = anyGestureLive || contextMenu == null) {
 				if (host != null) {
 					host.Viewport2D(scope.areaId, Modifier.fillMaxSize())
 				} else {

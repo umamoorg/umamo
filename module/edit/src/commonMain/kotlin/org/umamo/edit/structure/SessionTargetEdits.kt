@@ -6,6 +6,7 @@ import org.umamo.edit.DrawableChange
 import org.umamo.edit.EditorSession
 import org.umamo.edit.PartChange
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.VisibilityChange
 import org.umamo.edit.subtreeTargets
 
 /*
@@ -14,7 +15,8 @@ import org.umamo.edit.subtreeTargets
  * outliner restriction icon) flip a whole outliner subtree in one step.  These dispatch the right
  * Change + transform per target kind so call sites (the outliner's per-row eye and inline rename) stay a
  * thin one-liner.  The selection-wide visibility toggle stays separate (see withSelectionVisibility) —
- * that one flips the whole selection.
+ * that one flips the whole selection.  Hide Unselected and Unhide All act on the whole document, each as
+ * one step.
  */
 
 /**
@@ -28,11 +30,11 @@ fun EditorSession.toggleVisibility(target: SelectionTarget) {
 
 	when (target) {
 		is SelectionTarget.Part -> {
-			mutate(PartChange.SetVisibility(target.id, newVisible)) { model -> model.withPartVisibility(target.id, newVisible) }
+			mutate(VisibilityChange.Part(target.id, newVisible)) { model -> model.withPartVisibility(target.id, newVisible) }
 		}
 
 		is SelectionTarget.Drawable -> {
-			mutate(DrawableChange.SetVisibility(target.id, newVisible)) { model -> model.withDrawableVisibility(target.id, newVisible) }
+			mutate(VisibilityChange.Drawable(target.id, newVisible)) { model -> model.withDrawableVisibility(target.id, newVisible) }
 		}
 
 		is SelectionTarget.Deformer -> {
@@ -115,14 +117,42 @@ fun EditorSession.toggleSelectableSubtree(target: SelectionTarget) {
  */
 fun EditorSession.toggleVisibilitySubtree(target: SelectionTarget) {
 	val newVisible = !model.value.visibilityOf(target)
-	val change: Change =
+	val change: VisibilityChange =
 		when (target) {
-			is SelectionTarget.Part -> PartChange.SetVisibility(target.id, newVisible)
+			is SelectionTarget.Part -> VisibilityChange.Part(target.id, newVisible)
 
-			is SelectionTarget.Drawable -> DrawableChange.SetVisibility(target.id, newVisible)
+			is SelectionTarget.Drawable -> VisibilityChange.Drawable(target.id, newVisible)
 
 			// A deformer has no visibility flag; nothing to toggle.
 			is SelectionTarget.Deformer -> return
 		}
 	mutate(change) { model -> model.withSelectionVisibility(model.subtreeTargets(target).toSet(), newVisible) }
+}
+
+/**
+ * Hides everything outside the current selection as one undo step, each unselected branch at its topmost part
+ * or drawable (see unselectedBranches).  An empty selection, or one that no longer resolves, records nothing.
+ */
+fun EditorSession.hideUnselected() {
+	val branches = model.value.unselectedBranches(selection.value.targets)
+
+	if (branches.isEmpty()) {
+		return
+	}
+
+	mutate(VisibilityChange.HideUnselected(branches)) { model -> model.withSelectionVisibility(branches.toSet(), false) }
+}
+
+/**
+ * Turns on every part's and drawable's eye as one undo step, leaving the selection alone.  Nothing hidden
+ * records nothing.
+ */
+fun EditorSession.unhideAll() {
+	val hidden = model.value.hiddenTargets()
+
+	if (hidden.isEmpty()) {
+		return
+	}
+
+	mutate(VisibilityChange.UnhideAll(hidden)) { model -> model.withSelectionVisibility(hidden.toSet(), true) }
 }

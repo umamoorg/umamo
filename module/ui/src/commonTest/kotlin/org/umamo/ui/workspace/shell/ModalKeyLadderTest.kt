@@ -28,6 +28,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.KeyChord
 import org.umamo.ui.action.Keymap
@@ -54,7 +55,7 @@ import org.umamo.ui.workspace.ShellOverlayState
 import org.umamo.ui.workspace.area.AreaCorner
 import org.umamo.ui.workspace.area.AreaDragController
 import org.umamo.ui.workspace.area.SplitterDragCancelController
-import org.umamo.ui.workspace.commands.pieMenuEntriesFor
+import org.umamo.ui.workspace.commands.shellCommandTables
 import org.umamo.ui.workspace.export.ExportOptionsRequest
 import org.umamo.ui.workspace.rowdrag.RowDragCancelController
 import kotlin.test.Test
@@ -896,13 +897,18 @@ class ModalKeyLadderTest {
 	fun aPieMenuDigitPicksItsEntryAndClosesTheRing() {
 		val session = session(EditorMode.Object)
 		session.openPieMenu(PieMenuKind.PivotMode)
-		val first = pieMenuEntriesFor(PieMenuKind.PivotMode, CommandRegistry()).first()
-		val registry = RecordingRegistry(first.commandId)
-		val state = ShellModalState(editorSession = session, commandRegistry = registry.registry)
+		// The ring is the pivot family as the registry lists it, so the stand-ins are the family's own members with
+		// recording handlers: a bare command of the same id would be in no family, and so in no ring.
+		val picked = mutableListOf<String>()
+		val registry = CommandRegistry()
+		shellCommandTables(session)
+			.filter { command -> command.group == CommandFamily.PivotMode }
+			.forEach { member -> registry.register(member.copy(handler = { picked += member.id })) }
+		val state = ShellModalState(editorSession = session, commandRegistry = registry)
 
 		assertTrue(press(Key.One, state))
 
-		assertTrue(registry.invoked, "digit 1 picks the first chip, matching the ordinal it draws")
+		assertEquals(listOf("transform.pivot.median"), picked, "digit 1 picks the first chip, matching the ordinal it draws")
 		assertNull(session.activePieMenu.value, "and the ring closes behind the pick")
 	}
 
