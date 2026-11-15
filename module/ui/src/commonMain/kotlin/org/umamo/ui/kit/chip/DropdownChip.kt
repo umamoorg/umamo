@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.kit.button.accentControlFill
+import org.umamo.ui.kit.popupAnchorClickable
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
@@ -87,7 +88,7 @@ enum class DropdownChipStyle {
  * stay-open Popup).
  *
  * @param Boolean   expanded           Whether the chip's dropdown is open (drives the accent state).
- * @param Function  onExpandRequest    Invoked on click to open the dropdown.
+ * @param Function  onExpandRequest    Invoked on click to open the dropdown.  See [popupAnchorClickable].
  * @param String    contentDescription The accessible label (the face may be icon-only).
  * @param Modifier  modifier           The layout modifier.
  * @param UmamoIcon icon               Optional leading 16.dp glyph.
@@ -245,7 +246,7 @@ private fun PlainChipFace(
 					// and on close the keyboard must return to the shell root, not to a chip that transient
 					// chrome (the operation settings strip) may dispose on the next edit.
 					.focusProperties { canFocus = false }
-					.clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onExpandRequest)
+					.popupAnchorClickable(expanded = expanded, interactionSource = interaction, indication = null, enabled = enabled, onClick = onExpandRequest)
 					.border(width = 1.dp, color = borderColor, shape = shapes.small)
 					.background(backgroundColor, shape = shapes.small)
 					.padding(facePadding)
@@ -417,7 +418,7 @@ private fun SplitChipFace(
 					Modifier
 						.fillMaxHeight()
 						.background(expandFill)
-						.clickable(interactionSource = expandInteraction, indication = null, enabled = enabled, onClick = onExpandRequest)
+						.popupAnchorClickable(expanded = expanded, interactionSource = expandInteraction, indication = null, enabled = enabled, onClick = onExpandRequest)
 						.padding(facePadding)
 						.semantics { this.contentDescription = contentDescription },
 				verticalAlignment = Alignment.CenterVertically,

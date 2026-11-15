@@ -1,8 +1,8 @@
 package org.umamo.ui.kit.field
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +45,7 @@ import org.umamo.ui.kit.BelowAnchorPositionProvider
 import org.umamo.ui.kit.Surface
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.menu.TextEditContextMenuArea
+import org.umamo.ui.kit.popupAnchorClickable
 import org.umamo.ui.kit.textentry.LocalInlineEditController
 import org.umamo.ui.kit.textentry.textEntrySurface
 import org.umamo.ui.theme.LocalUmamoColors
@@ -125,10 +126,7 @@ fun HexColorField(
 						.clip(shapes.small)
 						.background(swatchColor)
 						.border(1.dp, swatchBorderColor, shapes.small)
-						// Opens only.  It must NOT toggle: an outside-click dismiss fires first and closes the
-						// popover, and this click would then immediately reopen it, so the swatch could never
-						// be used to close.  Closing is the popup's own job (click-away or Escape).
-						.clickable { pickerOpen = true },
+						.popupAnchorClickable(expanded = pickerOpen, interactionSource = null, indication = LocalIndication.current) { pickerOpen = true },
 			)
 
 			if (pickerOpen) {
