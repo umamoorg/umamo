@@ -1191,6 +1191,23 @@ internal fun ComposeUiTest.pressKey(key: Key) {
 }
 
 /**
+ * Holds Ctrl down, or lets it go, for the pointer gestures that follow.
+ *
+ * @param Boolean held Whether Ctrl ends up held.
+ */
+@OptIn(ExperimentalTestApi::class)
+internal fun ComposeUiTest.setCtrlHeld(held: Boolean) {
+	onNodeWithTag(PANEL_ROOT_TAG).performKeyInput {
+		if (held) {
+			keyDown(Key.CtrlLeft)
+		} else {
+			keyUp(Key.CtrlLeft)
+		}
+	}
+	waitForIdle()
+}
+
+/**
  * Sends the chord the fixture binds, standing in for undo and the rest of the keymap.
  */
 @OptIn(ExperimentalTestApi::class)

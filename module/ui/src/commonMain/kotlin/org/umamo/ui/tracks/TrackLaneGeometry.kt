@@ -65,3 +65,19 @@ internal fun pickTolerance(axis: TrackAxis, laneWidth: Int, markRadius: Float): 
 
 	return if (usable <= 0f) 0f else abs(axis.span) * (markRadius * 1.5f / usable)
 }
+
+/**
+ * How near a snap target a held-Ctrl drag must come to latch onto it, in DOMAIN units, so the reach stays a
+ * constant number of pixels however wide the panel is or however far the window is zoomed.
+ *
+ * @param TrackAxis axis The domain.
+ * @param Int laneWidth The lane's pixel width.
+ * @param Float markRadius The half-extent of a mark, in pixels.
+ * @param Float snapRadius The snap reach, in pixels.
+ * @return Float The tolerance, in domain units.
+ */
+internal fun snapTolerance(axis: TrackAxis, laneWidth: Int, markRadius: Float, snapRadius: Float): Float {
+	val usable = laneWidth - markRadius * 2f
+
+	return if (usable <= 0f) 0f else abs(axis.span) * (snapRadius / usable)
+}

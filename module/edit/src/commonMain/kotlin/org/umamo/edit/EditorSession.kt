@@ -902,12 +902,22 @@ class EditorSession private constructor(
 	 * STAGE, EDIT, CONFIRM - every caller runs all three.  The edit may record nothing (a drag clamped to zero,
 	 * a scrub that ended where it began), and a stage that reached no snapshot is a selection change undo cannot
 	 * see, so the gesture ends with [setKeySelection] on the same selection, which records a step only when the
-	 * edit's push did not carry it.  Staging without confirming is a bug, not a shortcut.
+	 * edit's push did not carry it.  A gesture torn down before its end confirms nothing and ends with
+	 * [abandonStagedKeySelection] instead.  Staging without confirming or abandoning is a bug, not a shortcut.
 	 *
 	 * @param Set<TrackKeyRef> keySelection The new key selection.
 	 */
 	fun stageKeySelection(keySelection: Set<TrackKeyRef>) {
 		mutableKeySelection.value = keySelection
+	}
+
+	/**
+	 * Puts the live key selection back on the one history holds, ending a gesture that staged a selection and was
+	 * then cancelled, so the stage cannot outlive the gesture as a selection change undo never saw.  Records
+	 * nothing.
+	 */
+	fun abandonStagedKeySelection() {
+		mutableKeySelection.value = history.current.keySelection
 	}
 
 	/**

@@ -248,4 +248,79 @@ class ParametersScrubInteractionTest {
 			assertEquals(2f, harness.committed(PanelIds.bodyX))
 			assertEquals(cursorBefore, harness.historyCursor)
 		}
+
+	/** A Ctrl scrub that ends near a key commits exactly the key. */
+	@Test
+	fun aCtrlScrubNearAKeyCommitsTheKey() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val slider = sliderBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
+
+			setCtrlHeld(true)
+			drag(slider.at(0.3f), listOf(slider.at(0.45f), slider.at(0.51f)))
+			setCtrlHeld(false)
+
+			assertEquals(0f, harness.committed(PanelIds.bodyX), "Body X is keyed at 0, a hair from where the drag ended")
+		}
+
+	/** The same scrub without Ctrl lands where the pointer let go. */
+	@Test
+	fun withoutCtrlAScrubIgnoresTheKeys() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val slider = sliderBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
+
+			drag(slider.at(0.3f), listOf(slider.at(0.45f), slider.at(0.51f)))
+
+			assertTrue(harness.committed(PanelIds.bodyX) != 0f, "no snap without Ctrl")
+		}
+
+	/** Far from every key, a Ctrl scrub follows the pointer. */
+	@Test
+	fun aCtrlScrubFarFromAKeyMovesFreely() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val slider = sliderBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
+
+			setCtrlHeld(true)
+			drag(slider.at(0.3f), listOf(slider.at(0.6f), slider.at(0.8f)))
+			setCtrlHeld(false)
+
+			assertNear(6f, harness.committed(PanelIds.bodyX), "out of reach of the key at 0")
+		}
+
+	/** Ctrl pressed after the scrub began still snaps: the way a drag picks up Ctrl on macOS. */
+	@Test
+	fun ctrlJoiningAScrubUnderWaySnaps() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val slider = sliderBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
+
+			pressAndMove(slider.at(0.3f), listOf(slider.at(0.4f)))
+			setCtrlHeld(true)
+			moveOn(listOf(slider.at(0.51f)))
+			releasePress()
+			setCtrlHeld(false)
+
+			assertEquals(0f, harness.committed(PanelIds.bodyX))
+		}
+
+	/** A Ctrl tap near a key lands on it. */
+	@Test
+	fun aCtrlTapNearAKeyLandsOnIt() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val slider = sliderBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
+
+			setCtrlHeld(true)
+			clickAt(slider.at(0.51f))
+			setCtrlHeld(false)
+
+			assertEquals(0f, harness.committed(PanelIds.bodyX))
+		}
 }

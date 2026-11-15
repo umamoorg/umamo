@@ -65,6 +65,9 @@ private val SLOT_WIDTH: Dp = 16.dp
  * @param Function? labelMenuItems Builds the label cell's context-menu items.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit.
  * @param Function? onLaneBounds Reports the lane's window bounds.
+ * @param Function? snapTargets The domain values a held-Ctrl drag latches onto, asked once per press.
+ * @param Function? onTrackScrubCancel Invoked when an empty-track press is torn down before its release.
+ * @param Function? onMarkDragCancel Invoked when a mark drag is torn down before its release.
  * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
  */
 @Composable
@@ -85,6 +88,9 @@ internal fun TrackSheetRow(
 	labelMenuItems: ((TrackRow) -> List<MenuItem>)?,
 	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)?,
 	onLaneBounds: ((TrackRow, Rect) -> Unit)?,
+	snapTargets: ((TrackRow, TrackKeyMark?) -> List<Float>)?,
+	onTrackScrubCancel: ((TrackRow) -> Unit)?,
+	onMarkDragCancel: ((TrackRow, TrackKeyMark) -> Unit)?,
 	markRadius: Dp,
 ) {
 	val colors = LocalUmamoColors.current
@@ -124,6 +130,9 @@ internal fun TrackSheetRow(
 			laneMenuItems = laneMenuItems,
 			onLaneHover = onLaneHover,
 			onLaneBounds = onLaneBounds,
+			snapTargets = snapTargets,
+			onTrackScrubCancel = onTrackScrubCancel,
+			onMarkDragCancel = onMarkDragCancel,
 			markRadius = markRadius,
 		)
 	}

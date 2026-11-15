@@ -48,6 +48,9 @@ import org.umamo.ui.theme.LocalUmamoColors
  * @param Function? laneMenuItems Builds the lane's context-menu items.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit.
  * @param Function? onLaneBounds Reports the lane's window bounds.
+ * @param Function? snapTargets The domain values a held-Ctrl drag latches onto, asked once per press.
+ * @param Function? onTrackScrubCancel Invoked when an empty-track press is torn down before its release.
+ * @param Function? onMarkDragCancel Invoked when a mark drag is torn down before its release.
  * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
  */
 @Composable
@@ -67,6 +70,9 @@ internal fun TrackLane(
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)? = null,
 	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)? = null,
 	onLaneBounds: ((TrackRow, Rect) -> Unit)? = null,
+	snapTargets: ((TrackRow, TrackKeyMark?) -> List<Float>)? = null,
+	onTrackScrubCancel: ((TrackRow) -> Unit)? = null,
+	onMarkDragCancel: ((TrackRow, TrackKeyMark) -> Unit)? = null,
 	markRadius: Dp,
 ) {
 	val colors = LocalUmamoColors.current
@@ -84,6 +90,9 @@ internal fun TrackLane(
 				onMarkDrag = onMarkDrag,
 				onMarkDragEnd = onMarkDragEnd,
 				onLaneHover = onLaneHover,
+				snapTargets = snapTargets,
+				onTrackScrubCancel = onTrackScrubCancel,
+				onMarkDragCancel = onMarkDragCancel,
 			),
 		)
 	// The row rides along on the exit report, so a receiver can ignore an exit for a row it is no longer

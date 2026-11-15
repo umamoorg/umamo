@@ -7,7 +7,9 @@ Umamo is early alpha.
 (Unreleased changes)
 
 ### Added
+* Keyform Sheet: Hold control while scrubbing the play head or a key to snap to keys or the play head.
 * Keymap, UI: Hide Unselected(Shift+H) and Unhide All(Alt+H)
+* Parameters: Hold control while scrubbing the slider to snap to a key.
 * Pose Mode: 3D Depth Rotation - The ability to set the Y axis depth forwards or backwards to set the Y origin of a warp lattice rotation.
 * Pose Mode: 3D Depth Rotation - The ability to change the lattice surface shape between flat, cylinder, or sphere.  This allows creating rounded rotation poses easily.
 * UI: New Select menu and context menu with Select All of Type and Invert Selection of Type.
@@ -21,6 +23,7 @@ Umamo is early alpha.
 * UI: Rename Workspace, Duplicate Workspace, and Delete Workspace are now in the Command Registry.
 
 ### Fixed
+* Keyform Sheet: Zooming or panning the sheet in the middle of a scrub or a key drag no longer leaves the pose, the selection, or the dragged keys out of place.
 * Keymap: PrimaryModifer+Q(Ctrl+Q on Linux, Cmd+Q on MacOS) now closes the application.
 * File: Opening the application with a supplied file no longer fails to show a notice if the file is damaged.
 

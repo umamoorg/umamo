@@ -4,11 +4,13 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.TrackKeyRef
 import org.umamo.edit.keyform.dragTrackKeysKeepingSelection
 import org.umamo.edit.keyform.limitedDragFraction
+import org.umamo.runtime.eval.EPS_KEY
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.tracks.TrackKeyMark
 import org.umamo.ui.tracks.TrackRow
+import kotlin.math.abs
 
 /*
  * The sheet's side of the key selection: what a click does to it, how its refs resolve to the keys the edit
@@ -89,6 +91,84 @@ internal fun groupDragFraction(
 	val span = maxOf(parameter.max, parameter.min) - minOf(parameter.max, parameter.min)
 
 	return if (span > 0f) (at - mark.position) / span else null
+}
+
+/**
+ * The values a held-Ctrl scrub of empty track latches onto: every key the section's tracks hold, the same
+ * keys the parameter slider snaps to.
+ *
+ * @param List rows The section's root rows.
+ * @param Set groupRowKeys The group rows' keys.
+ * @return List The key positions.
+ */
+internal fun scrubSnapTargets(rows: List<TrackRow>, groupRowKeys: Set<String>): List<Float> =
+	ArrayList<Float>().also { positions -> collectMarkPositions(rows, groupRowKeys, { _, _ -> true }, positions) }
+
+/**
+ * The values a held-Ctrl drag of a mark latches onto: the keys on other rows, so keys line up across tracks,
+ * and the playhead, so a key can be moved to the pose on screen.
+ *
+ * Nothing the drag carries along is a target, since it moves with the hand.  Nor is anything that would land
+ * the dragged key on a key its own track keeps in place: the grid nudges such a key a hair aside, which would
+ * leave two keys that look like one.  The playhead is left out when it sits where the dragged mark starts, as
+ * it does after a click on that mark, or the start would hold the mark like a key.
+ *
+ * @param List rows The section's root rows.
+ * @param Set groupRowKeys The group rows' keys.
+ * @param ParameterId parameterId The section's parameter, which is part of a key's identity.
+ * @param Collection draggedKeys The keys the dragged mark stands for.
+ * @param Set moving The key selection the drag works on (see [selectionDraggedWith]).
+ * @param Float startPosition Where the dragged mark sits before the drag.
+ * @param Float? playhead The playhead's value, or null with none.
+ * @return List The positions to latch onto.
+ */
+internal fun markDragSnapTargets(
+	rows: List<TrackRow>,
+	groupRowKeys: Set<String>,
+	parameterId: ParameterId,
+	draggedKeys: Collection<TrackKeyRef>,
+	moving: Set<TrackKeyRef>,
+	startPosition: Float,
+	playhead: Float?,
+): List<Float> {
+	val draggedRows = draggedKeys.mapTo(HashSet()) { key -> key.rowKey }
+	val stays = { row: TrackRow, mark: TrackKeyMark -> TrackKeyRef(parameterId, row.key, mark.keyIndex) !in moving }
+	val blocked = ArrayList<Float>()
+	collectMarkPositions(rows, groupRowKeys, { row, mark -> row.key in draggedRows && stays(row, mark) }, blocked)
+	val candidates = ArrayList<Float>()
+	collectMarkPositions(rows, groupRowKeys, { row, mark -> row.key !in draggedRows && stays(row, mark) }, candidates)
+
+	if (playhead != null && abs(playhead - startPosition) > EPS_KEY) {
+		candidates.add(playhead)
+	}
+
+	return candidates.filter { candidate -> blocked.none { held -> abs(held - candidate) <= EPS_KEY } }
+}
+
+/**
+ * Adds the position of every mark [include] accepts on [rows] and their whole subtrees to [into].
+ *
+ * Group rows are skipped: they carry no keys of their own, and their summaries only repeat their children's.
+ * The children are walked whether or not their group is expanded, since a folded key is still a key.
+ *
+ * @param List rows The rows to walk.
+ * @param Set groupRowKeys The group rows' keys.
+ * @param Function include Whether a mark on a row counts.
+ * @param MutableList into The positions found so far.
+ */
+private fun collectMarkPositions(
+	rows: List<TrackRow>,
+	groupRowKeys: Set<String>,
+	include: (TrackRow, TrackKeyMark) -> Boolean,
+	into: MutableList<Float>,
+) {
+	for (row in rows) {
+		if (row.key !in groupRowKeys) {
+			row.marks.filter { mark -> include(row, mark) }.mapTo(into) { mark -> mark.position }
+		}
+
+		collectMarkPositions(row.children, groupRowKeys, include, into)
+	}
 }
 
 /**

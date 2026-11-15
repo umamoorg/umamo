@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -13,9 +14,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.LocalUmamoColors
+import kotlin.math.abs
 
 /** The thumb dot's radius; the thumb travels inset by this from each end so it never spills past the control. */
 private val SLIDER_THUMB_RADIUS = 5.dp
@@ -49,7 +53,8 @@ data class SliderKeyMark(
  * A flat, draggable slider: a thin track + fill + small thumb on a [Canvas], set by tap or drag anywhere on
  * the control.  A fixed-height control; pass a width via [modifier] (e.g. `Modifier.fillMaxWidth()`).
  * [onValueChangeFinished] fires once per gesture, so a caller can treat a whole drag as one undo step while
- * [onValueChange] still previews each frame.
+ * [onValueChange] still previews each frame.  While Ctrl is held, a tap or drag near a key mark latches onto
+ * it (see [snapToNearestWithin]).
  *
  * @param Float    value                 The current value.
  * @param Function onValueChange         Called with the new value on each tap / drag frame (the preview).
@@ -57,7 +62,8 @@ data class SliderKeyMark(
  * @param Function onValueChangeFinished Called once when the gesture ends (tap, drag release, or cancel).
  * @param ClosedFloatingPointRange valueRange The min..max range.
  * @param List keyMarks Parameter keys to mark on the track, each with its shape (circle grid key / square
- *   blend-shape key), so the user can see and scrub onto a key.  Empty by default.
+ *   blend-shape key), so the user can see and scrub onto a key, and the values a held-Ctrl scrub snaps to.
+ *   Empty by default.
  * @param SliderKeyShape thumbShape The thumb's shape (Circle for a key-form parameter, Square for a
  *   blend-shape parameter); defaults to Circle.
  */
@@ -83,25 +89,47 @@ fun Slider(
 	// always drives the current row, never the one that first occupied the slot.
 	val currentOnValueChange by rememberUpdatedState(onValueChange)
 	val currentOnValueChangeFinished by rememberUpdatedState(onValueChangeFinished)
+	val snapValues = remember(keyMarks) { keyMarks.map { mark -> mark.value } }
+	val currentSnapValues by rememberUpdatedState(snapValues)
+	val ctrlLatch = remember { SliderCtrlLatch() }
 	Canvas(
 		modifier =
 			modifier
 				.height(18.dp)
+				// Ctrl is read off every event rather than sampled at the press: snapping is a live toggle, and on
+				// macOS, where Ctrl+click is the right click, Ctrl joins a drag already under way.  The tap and
+				// drag detectors below hide the event's modifiers, so this watches the INITIAL pass, which runs
+				// for the whole event before their main pass does, and they read the latch current.
+				.pointerInput(Unit) {
+					awaitPointerEventScope {
+						while (true) {
+							ctrlLatch.held = awaitPointerEvent(PointerEventPass.Initial).keyboardModifiers.isCtrlPressed
+						}
+					}
+				}
 				.pointerInput(valueRange) {
 					val thumbRadius = SLIDER_THUMB_RADIUS.toPx()
+					val snapRadius = KEY_SNAP_RADIUS.toPx()
 					detectTapGestures { offset ->
-						currentOnValueChange(valueAt(offset.x, size.width.toFloat(), thumbRadius, valueRange))
+						val snapTargets = if (ctrlLatch.held) currentSnapValues else emptyList()
+						currentOnValueChange(
+							sliderValueAt(offset.x, size.width.toFloat(), thumbRadius, valueRange, snapTargets, snapRadius),
+						)
 						currentOnValueChangeFinished()
 					}
 				}
 				.pointerInput(valueRange) {
 					val thumbRadius = SLIDER_THUMB_RADIUS.toPx()
+					val snapRadius = KEY_SNAP_RADIUS.toPx()
 					detectDragGestures(
 						onDragEnd = { currentOnValueChangeFinished() },
 						onDragCancel = { currentOnValueChangeFinished() },
 					) { change, _ ->
 						change.consume()
-						currentOnValueChange(valueAt(change.position.x, size.width.toFloat(), thumbRadius, valueRange))
+						val snapTargets = if (ctrlLatch.held) currentSnapValues else emptyList()
+						currentOnValueChange(
+							sliderValueAt(change.position.x, size.width.toFloat(), thumbRadius, valueRange, snapTargets, snapRadius),
+						)
 					}
 				},
 	) {
@@ -162,6 +190,51 @@ private fun DrawScope.drawSliderShape(shape: SliderKeyShape, color: Color, cente
 			)
 		}
 	}
+}
+
+/**
+ * Whether Ctrl was held on the latest pointer event over a slider.  A plain holder rather than snapshot state:
+ * only the gesture handlers read it, and nothing draws from it, so a change must not recompose the slider.
+ */
+private class SliderCtrlLatch {
+	/** Ctrl as of the latest pointer event. */
+	var held: Boolean = false
+}
+
+/**
+ * The value a slider press or drag at [x] sets: the pointer's place on the track, latched onto the nearest of
+ * [snapTargets] within [snapRadius] pixels of it, and kept inside [range].
+ *
+ * @param Float x The pointer x within the control.
+ * @param Float width The control's full width.
+ * @param Float inset The thumb radius the travel band is inset by at each end.
+ * @param ClosedFloatingPointRange range The value range to map onto.
+ * @param List snapTargets The values to latch onto, empty when Ctrl is not held.
+ * @param Float snapRadius How near a target the pointer must be to latch, in pixels.
+ * @return Float The value at [x], snapped.
+ */
+private fun sliderValueAt(
+	x: Float,
+	width: Float,
+	inset: Float,
+	range: ClosedFloatingPointRange<Float>,
+	snapTargets: List<Float>,
+	snapRadius: Float,
+): Float {
+	val raw = valueAt(x, width, inset, range)
+
+	if (snapTargets.isEmpty()) {
+		return raw
+	}
+
+	val usableWidth = (width - 2f * inset).takeIf { it > 0f } ?: 1f
+	val tolerance = abs(range.endInclusive - range.start) * snapRadius / usableWidth
+	// A key can sit outside the range on a malformed import, so the snap is clamped again.  The minOf / maxOf
+	// form tolerates a reversed range, where coerceIn would throw mid-gesture.
+	val low = minOf(range.start, range.endInclusive)
+	val high = maxOf(range.start, range.endInclusive)
+
+	return snapToNearestWithin(raw, snapTargets, tolerance).coerceIn(low, high)
 }
 
 /**
