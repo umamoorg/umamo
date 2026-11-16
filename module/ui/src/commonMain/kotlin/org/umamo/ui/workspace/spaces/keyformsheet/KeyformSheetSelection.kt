@@ -108,11 +108,6 @@ internal fun scrubSnapTargets(rows: List<TrackRow>, groupRowKeys: Set<String>): 
  * The values a held-Ctrl drag of a mark latches onto: the keys on other rows, so keys line up across tracks,
  * and the playhead, so a key can be moved to the pose on screen.
  *
- * Nothing the drag carries along is a target, since it moves with the hand.  Nor is anything that would land
- * the dragged key on a key its own track keeps in place: the grid nudges such a key a hair aside, which would
- * leave two keys that look like one.  The playhead is left out when it sits where the dragged mark starts, as
- * it does after a click on that mark, or the start would hold the mark like a key.
- *
  * @param List rows The section's root rows.
  * @param Set groupRowKeys The group rows' keys.
  * @param ParameterId parameterId The section's parameter, which is part of a key's identity.

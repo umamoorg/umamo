@@ -69,7 +69,7 @@ private val SLOT_WIDTH: Dp = 16.dp
  * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
  */
 @Composable
-internal fun TrackSheetRow(
+internal fun trackSheetRow(
 	line: TrackRowLine,
 	axis: TrackAxis,
 	playhead: Float?,
@@ -92,16 +92,9 @@ internal fun TrackSheetRow(
 	val colors = LocalUmamoColors.current
 	val toneBackground = toneBackgroundOf(line.row.tone)
 	// A collapsed GROUP summarizes its whole subtree, so folding a rig away still shows where its keys are.
-	// Expanded, it shows only its own marks - the children are on screen carrying theirs.  A leaf is
-	// neither: it shows its own marks, unfiltered and at their own ordinals.  (Routing a leaf through the
-	// summary too would drop any non-editable mark it carries and renumber the rest to a summary ordinal -
-	// wrong for a track that owns its keys directly rather than standing in for a whole subtree's.)
-	val marks =
-		remember(line.row, line.expandable, line.expanded) {
-			if (line.expandable && !line.expanded) summarizedMarks(line.row) else line.row.marks
-		}
+	val marks = remember(line.row, line.expandable, line.expanded) { shownMarks(line) }
 	Row(modifier = Modifier.fillMaxWidth().height(TRACK_ROW_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
-		TrackRowLabel(
+		trackRowLabel(
 			line = line,
 			decor = decor,
 			width = labelColumnWidth,
@@ -147,7 +140,7 @@ internal fun TrackSheetRow(
  * @param Function? menuItems Builds this row's label context menu; null (or an empty list) shows none.
  */
 @Composable
-private fun TrackRowLabel(
+private fun trackRowLabel(
 	line: TrackRowLine,
 	decor: TrackRowDecor,
 	width: Dp,
@@ -186,7 +179,7 @@ private fun TrackRowLabel(
 		verticalAlignment = Alignment.CenterVertically,
 	) {
 		if (line.expandable && onToggleExpanded != null) {
-			ExpandChevron(expanded = line.expanded, onClick = { onToggleExpanded(line.row) })
+			expandChevron(expanded = line.expanded, onClick = { onToggleExpanded(line.row) })
 		} else {
 			Spacer(modifier = Modifier.width(SLOT_WIDTH))
 		}
@@ -241,7 +234,7 @@ private fun TrackRowLabel(
  * @param Function onClick Invoked on click.
  */
 @Composable
-private fun ExpandChevron(expanded: Boolean, onClick: () -> Unit) {
+private fun expandChevron(expanded: Boolean, onClick: () -> Unit) {
 	val colors = LocalUmamoColors.current
 	// NOT focusable: a row can be disposed by the very edit its chevron is next to, and a disposed focus
 	// owner leaves Compose with none, killing every keyboard shortcut.

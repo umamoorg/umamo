@@ -332,7 +332,20 @@ fun flattenTrackRows(rows: List<TrackRow>, expandedKeys: Set<String>): List<Trac
 }
 
 /**
- * Every mark under [row] and its whole subtree, deduplicated by position and shape.
+ * The marks [line]'s lane draws: a collapsed group's summary, or the row's own marks.
+ *
+ * Expanded, a group shows only its own marks, since its children are on screen carrying theirs.  A leaf
+ * shows its own marks unfiltered and at their own ordinals: routing it through the summary would drop any
+ * non-editable mark it carries and renumber the rest.  Anything that hit-tests a lane by what is on screen
+ * reads its marks here, so it agrees with the draw.
+ *
+ * @param TrackRowLine line The displayed row.
+ * @return List<TrackKeyMark> The marks on its lane.
+ */
+fun shownMarks(line: TrackRowLine): List<TrackKeyMark> = if (line.expandable && !line.expanded) summarizedMarks(line.row) else line.row.marks
+
+/**
+ * Every editable mark under [row] and its whole subtree, one per position.
  *
  * What a collapsed group row draws, so folding a subtree away still shows WHERE its keys are rather than
  * hiding them entirely - the summary behaviour Blender's dope sheet has at every level.

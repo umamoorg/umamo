@@ -171,7 +171,7 @@ fun TrackSheet(
 
 		for (line in lines) {
 			key(line.row.key) {
-				TrackSheetRow(
+				trackSheetRow(
 					line = line,
 					axis = axis,
 					playhead = playhead,
