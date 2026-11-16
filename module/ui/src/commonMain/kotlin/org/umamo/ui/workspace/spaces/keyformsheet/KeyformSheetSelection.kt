@@ -9,6 +9,7 @@ import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.tracks.TrackKeyMark
+import org.umamo.ui.tracks.TrackMarkSelection
 import org.umamo.ui.tracks.TrackRow
 import kotlin.math.abs
 
@@ -167,10 +168,10 @@ private fun collectMarkPositions(
 }
 
 /**
- * This row and its whole subtree with each mark's selected flag resolved against [selectedKeys].
+ * This row and its whole subtree with each mark's selection resolved against [selectedKeys].
  *
  * Recursive because selection is per-track but the tree is what gets rendered, and a child's marks have to
- * carry the flag whether or not its parent happens to be expanded.
+ * carry it whether or not its parent happens to be expanded.
  *
  * @param ParameterId parameterId The section's parameter, which is part of a key's identity.
  * @param Set<TrackKeyRef> selectedKeys The current selection.
@@ -180,14 +181,8 @@ internal fun TrackRow.withSelection(parameterId: ParameterId, selectedKeys: Set<
 	copy(
 		marks =
 			marks.map { mark ->
-				mark.copy(
-					selected =
-						TrackKeyRef(
-							parameterId,
-							key,
-							mark.keyIndex,
-						) in selectedKeys,
-				)
+				val selected = TrackKeyRef(parameterId, key, mark.keyIndex) in selectedKeys
+				mark.copy(selection = if (selected) TrackMarkSelection.Selected else TrackMarkSelection.Unselected)
 			},
 		children = children.map { child -> child.withSelection(parameterId, selectedKeys) },
 	)
