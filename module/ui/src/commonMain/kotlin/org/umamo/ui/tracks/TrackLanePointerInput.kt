@@ -21,15 +21,6 @@ import kotlin.math.abs
  * The lane's owner callbacks, bundled so the pointer loops read every one of them through ONE latest-state
  * holder at event time.
  *
- * Read through a holder rather than keying the gesture loops on them, and that is load-bearing rather than
- * tidy: a pointerInput RESTARTS when a key changes, and these change identity the moment the SELECTION does.
- * Keying on them would let an owner that clears the selection on the press (exactly what pressing empty
- * track does) tear its own gesture down mid-stroke: the drag would freeze at the press point with no
- * release ever arriving, so nothing would commit.  The axis reaches the gesture loop the same way, for the same
- * reason: a zoom or pan mid-stroke changes it, and the stroke carries on in the moved window rather than
- * dying.  A plain class rather than a data class: lambda equality is meaningless, and the holder is rebuilt
- * every recomposition anyway.
- *
  * @property Function? onMarkClick Invoked when a click lands on a mark, with whether Shift was held.
  * @property Function? onTrackScrub Invoked as an empty-track drag moves, with the gesture's Shift state.
  * @property Function? onTrackScrubEnd Invoked when an empty-track drag is released.

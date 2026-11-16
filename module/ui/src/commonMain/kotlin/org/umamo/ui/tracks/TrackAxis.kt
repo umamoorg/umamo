@@ -205,7 +205,7 @@ enum class TrackKeyShape {
  * @property Int keyIndex The mark's ordinal within its row's track.
  * @property Float position The mark's domain value (a parameter value, a frame, …).
  * @property TrackKeyShape shape How to draw it.
- * @property Boolean selected Whether it is part of the current key selection.
+ * @property TrackMarkSelection selection How much of what it stands for is in the current key selection.
  * @property Boolean editable Whether it may be selected, dragged, or removed; an owner's read-only kind of
  *   key may not, which is why [summarizedMarks] leaves it out of a group's summary rather than folding it in.
  */
@@ -213,9 +213,22 @@ data class TrackKeyMark(
 	val keyIndex: Int,
 	val position: Float,
 	val shape: TrackKeyShape = TrackKeyShape.Circle,
-	val selected: Boolean = false,
+	val selection: TrackMarkSelection = TrackMarkSelection.Unselected,
 	val editable: Boolean = true,
 )
+
+/**
+ * How much of what a mark stands for is in the current key selection.
+ *
+ * A plain mark stands for one key, so it is one of the two ends.  A summary mark stands for every key
+ * stacked at its position, and [PartlySelected] is what it shows when only some of them are, since either
+ * end would misreport what an edit of the selection is about to act on.
+ */
+enum class TrackMarkSelection {
+	Unselected,
+	PartlySelected,
+	Selected,
+}
 
 /**
  * The domain window a mark may be dragged within: the axis, end to end.
@@ -332,7 +345,20 @@ fun flattenTrackRows(rows: List<TrackRow>, expandedKeys: Set<String>): List<Trac
 }
 
 /**
- * Every mark under [row] and its whole subtree, deduplicated by position and shape.
+ * The marks [line]'s lane draws: a collapsed group's summary, or the row's own marks.
+ *
+ * Expanded, a group shows only its own marks, since its children are on screen carrying theirs.  A leaf
+ * shows its own marks unfiltered and at their own ordinals: routing it through the summary would drop any
+ * non-editable mark it carries and renumber the rest.  Anything that hit-tests a lane by what is on screen
+ * reads its marks here, so it agrees with the draw.
+ *
+ * @param TrackRowLine line The displayed row.
+ * @return List<TrackKeyMark> The marks on its lane.
+ */
+fun shownMarks(line: TrackRowLine): List<TrackKeyMark> = if (line.expandable && !line.expanded) summarizedMarks(line.row) else line.row.marks
+
+/**
+ * Every editable mark under [row] and its whole subtree, one per position.
  *
  * What a collapsed group row draws, so folding a subtree away still shows WHERE its keys are rather than
  * hiding them entirely - the summary behaviour Blender's dope sheet has at every level.
@@ -353,7 +379,10 @@ fun summarizedMarks(row: TrackRow): List<TrackKeyMark> {
 			// Only an EDITABLE child key can be summarized: a summary mark is a handle on the keys beneath
 			// it, so one standing partly on keys nothing can move would move only some of what it shows.
 			if (mark.editable) {
-				byPosition.getOrPut(mark.position) { mark }
+				// The first mark at a position lends the summary its shape, but the selection is every
+				// mark's there, so the summary reads the same whichever track comes first.
+				val held = byPosition[mark.position]
+				byPosition[mark.position] = held?.copy(selection = combinedSelection(held.selection, mark.selection)) ?: mark
 			}
 		}
 
@@ -368,6 +397,16 @@ fun summarizedMarks(row: TrackRow): List<TrackKeyMark> {
 		mark.copy(keyIndex = ordinal)
 	}
 }
+
+/**
+ * The selection of a summary mark standing for marks of [first] and [second] selection.
+ *
+ * @param TrackMarkSelection first The selection of what the summary already stands for.
+ * @param TrackMarkSelection second The selection of the mark joining it.
+ * @return TrackMarkSelection Either end when both agree on it, else partly selected.
+ */
+private fun combinedSelection(first: TrackMarkSelection, second: TrackMarkSelection): TrackMarkSelection =
+	if (first == second) first else TrackMarkSelection.PartlySelected
 
 /**
  * The mark nearest [domainValue] within [tolerance], or null - the shared hit test for clicking a mark.

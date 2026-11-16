@@ -87,7 +87,7 @@ internal fun trackSheetFixtureRows(): List<TrackRow> =
 					TrackRow(
 						key = FixtureRows.ANGLE,
 						label = "Angle",
-						marks = listOf(TrackKeyMark(0, -10f, selected = true), TrackKeyMark(1, 20f)),
+						marks = listOf(TrackKeyMark(0, -10f, selection = TrackMarkSelection.Selected), TrackKeyMark(1, 20f)),
 					),
 				),
 		),

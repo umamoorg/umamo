@@ -178,6 +178,46 @@ class TrackAxisTest {
 	}
 
 	/**
+	 * A summary mark's selection is every stacked mark's, whichever track comes first.
+	 *
+	 * One selected key under a summary that stands for two makes it partly selected, in either track order.
+	 */
+	@Test
+	fun summarySelectionCoversTheWholeStack() {
+		/**
+		 * The selection of the one summary mark over two tracks keyed at 0.
+		 *
+		 * @param TrackMarkSelection first The first track's key's selection.
+		 * @param TrackMarkSelection second The second track's key's selection.
+		 * @return TrackMarkSelection The summary's.
+		 */
+		fun summaryOf(first: TrackMarkSelection, second: TrackMarkSelection): TrackMarkSelection {
+			val row =
+				TrackRow(
+					key = "owner",
+					label = "Owner",
+					children =
+						listOf(
+							TrackRow(key = "a", label = "A", marks = listOf(TrackKeyMark(0, 0f, selection = first))),
+							TrackRow(key = "b", label = "B", marks = listOf(TrackKeyMark(0, 0f, selection = second))),
+						),
+				)
+
+			return summarizedMarks(row).single().selection
+		}
+
+		assertEquals(TrackMarkSelection.PartlySelected, summaryOf(TrackMarkSelection.Selected, TrackMarkSelection.Unselected), "first selected")
+		assertEquals(TrackMarkSelection.PartlySelected, summaryOf(TrackMarkSelection.Unselected, TrackMarkSelection.Selected), "second selected")
+		assertEquals(TrackMarkSelection.Selected, summaryOf(TrackMarkSelection.Selected, TrackMarkSelection.Selected), "both selected")
+		assertEquals(TrackMarkSelection.Unselected, summaryOf(TrackMarkSelection.Unselected, TrackMarkSelection.Unselected), "neither")
+		assertEquals(
+			TrackMarkSelection.PartlySelected,
+			summaryOf(TrackMarkSelection.PartlySelected, TrackMarkSelection.Selected),
+			"a partly-selected mark under it keeps it partly selected",
+		)
+	}
+
+	/**
 	 * A drag is bounded by the AXIS, not by neighbouring marks.
 	 *
 	 * Neighbours stopped being walls when keys gained the ability to cross: the grid re-sorts and permutes
