@@ -133,10 +133,6 @@ data class TrackLaneHit(
  * @param Function? onLaneBounds Reports each lane's window bounds, so a region gesture can resolve rows.
  * @param Function? snapTargets The domain values a drag latches onto while Ctrl is held, asked once per press
  *   with the row and the mark pressed (null for empty track).
- * @param Function? onTrackScrubCancel Invoked with the row, in place of [onTrackScrubEnd], when an empty-track
- *   press is torn down before its release, so the owner can take back what the scrub previewed.
- * @param Function? onMarkDragCancel Invoked with the row and the dragged mark, in place of [onMarkDragEnd], when
- *   a mark drag is torn down before its release.
  * @param Dp markRadius Half-extent of a drawn mark, and the inset applied at both ends of the track region.
  */
 @Composable
@@ -161,8 +157,6 @@ fun TrackSheet(
 	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)? = null,
 	onLaneBounds: ((TrackRow, Rect) -> Unit)? = null,
 	snapTargets: ((TrackRow, TrackKeyMark?) -> List<Float>)? = null,
-	onTrackScrubCancel: ((TrackRow) -> Unit)? = null,
-	onMarkDragCancel: ((TrackRow, TrackKeyMark) -> Unit)? = null,
 	markRadius: Dp = TRACK_MARK_RADIUS,
 ) {
 	val lines = remember(rows, expandedKeys) { flattenTrackRows(rows, expandedKeys) }
@@ -195,8 +189,6 @@ fun TrackSheet(
 					onLaneHover = onLaneHover,
 					onLaneBounds = onLaneBounds,
 					snapTargets = snapTargets,
-					onTrackScrubCancel = onTrackScrubCancel,
-					onMarkDragCancel = onMarkDragCancel,
 					markRadius = markRadius,
 				)
 			}

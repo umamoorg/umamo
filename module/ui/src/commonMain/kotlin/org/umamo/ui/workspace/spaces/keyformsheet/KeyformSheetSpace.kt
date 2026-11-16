@@ -288,7 +288,6 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 								onSelectedKeysChange = setSelectedKeys,
 								onStageSelectedKeys = stageSelectedKeys,
 								onDragSelectedKeys = dragSelectedKeys,
-								onCancelKeyDrag = { viewState.dragPreviewFraction = null },
 								keysEditable = keysEditable,
 								// The preview fraction is of the parameter's RANGE; a lane draws in its own domain units, so
 								// each section converts with its own span - which is what keeps a linked pad's two axes moving

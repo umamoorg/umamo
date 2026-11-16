@@ -25,9 +25,10 @@ import kotlin.math.abs
  * tidy: a pointerInput RESTARTS when a key changes, and these change identity the moment the SELECTION does.
  * Keying on them would let an owner that clears the selection on the press (exactly what pressing empty
  * track does) tear its own gesture down mid-stroke: the drag would freeze at the press point with no
- * release ever arriving, so nothing would commit.  Only the pixel-to-domain mapping keys the loops, because
- * that genuinely invalidates a stroke in progress.  A plain class rather than a data class: lambda
- * equality is meaningless, and the holder is rebuilt every recomposition anyway.
+ * release ever arriving, so nothing would commit.  The axis reaches the gesture loop the same way, for the same
+ * reason: a zoom or pan mid-stroke changes it, and the stroke carries on in the moved window rather than
+ * dying.  A plain class rather than a data class: lambda equality is meaningless, and the holder is rebuilt
+ * every recomposition anyway.
  *
  * @property Function? onMarkClick Invoked when a click lands on a mark, with whether Shift was held.
  * @property Function? onTrackScrub Invoked as an empty-track drag moves, with the gesture's Shift state.
@@ -38,8 +39,6 @@ import kotlin.math.abs
  * @property Function? onLaneHover Reports the live hit under the pointer, or null on exit.
  * @property Function? snapTargets The domain values a held-Ctrl drag latches onto, asked once per press with
  *   the mark under it (null for empty track); null never snaps.
- * @property Function? onTrackScrubCancel Invoked when an empty-track press is torn down before its release.
- * @property Function? onMarkDragCancel Invoked when a mark drag is torn down before its release.
  */
 internal class TrackLaneCallbacks(
 	val onMarkClick: ((TrackRow, TrackKeyMark, Boolean) -> Unit)?,
@@ -49,8 +48,6 @@ internal class TrackLaneCallbacks(
 	val onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)?,
 	val onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)?,
 	val snapTargets: ((TrackRow, TrackKeyMark?) -> List<Float>)? = null,
-	val onTrackScrubCancel: ((TrackRow) -> Unit)? = null,
-	val onMarkDragCancel: ((TrackRow, TrackKeyMark) -> Unit)? = null,
 )
 
 /**
@@ -114,12 +111,10 @@ internal suspend fun PointerInputScope.trackLaneHoverLoop(
  * The lane's tap / scrub / drag loop: one gesture at a time, resolved from the raw pointer stream into a
  * click on a mark, a drag of a mark, or a scrub of empty track, with the owner told at the press, on every
  * move past the slop, and at the release.  A lane with no mark-drag release handler never drags a mark: the press
- * stays a click, rather than drawing a drag at the pointer that can land nowhere and snaps back.  A gesture torn
- * down before its release is reported as cancelled instead, so the owner can undo what the press and the moves
- * previewed.
+ * stays a click, rather than drawing a drag at the pointer that can land nowhere and snaps back.
  *
  * @param TrackRow row The lane's row.
- * @param TrackAxis axis The domain.
+ * @param State<TrackAxis> axis The domain, read per event so a zoom or pan mid-stroke does not end it.
  * @param Float markRadiusPx Half-extent of a mark and the lane's end inset, in pixels.
  * @param Float touchSlop How far a press must travel before it is a drag rather than a click.
  * @param State<List<TrackKeyMark>> editableMarks The marks a press may land on, read at the press.
@@ -128,7 +123,7 @@ internal suspend fun PointerInputScope.trackLaneHoverLoop(
  */
 internal suspend fun PointerInputScope.trackLaneGestureLoop(
 	row: TrackRow,
-	axis: TrackAxis,
+	axis: State<TrackAxis>,
 	markRadiusPx: Float,
 	touchSlop: Float,
 	editableMarks: State<List<TrackKeyMark>>,
@@ -157,7 +152,9 @@ internal suspend fun PointerInputScope.trackLaneGestureLoop(
 		// released between press and release would otherwise silently change an extend-click into a
 		// replace-click.
 		val additive = currentEvent.keyboardModifiers.isShiftPressed
-		val pressedValue = domainAt(down.position.x, axis, size.width, markRadiusPx)
+		// The press resolves against the window it landed in.
+		val pressAxis = axis.value
+		val pressedValue = domainAt(down.position.x, pressAxis, size.width, markRadiusPx)
 		// Summary marks ARE addressable (summarizedMarks keeps them editable and renumbers them to a summary
 		// ordinal), so a press on one starts a drag like any other; it is the owner that maps that ordinal
 		// back to the whole set of child keys beneath it.  Only a non-editable mark falls through to the
@@ -165,21 +162,16 @@ internal suspend fun PointerInputScope.trackLaneGestureLoop(
 		// Sampled once at the press, so the marks a stroke hit-tests against cannot shift under it - the
 		// drag is manipulating the mark it started on, whatever the list does meanwhile.
 		val hitMark =
-			nearestMark(editableMarks.value, pressedValue, pickTolerance(axis, size.width, markRadiusPx))
+			nearestMark(editableMarks.value, pressedValue, pickTolerance(pressAxis, size.width, markRadiusPx))
 		// Sampled at the press like the mark, so what a drag can latch onto cannot change under it.  CTRL,
 		// unlike Shift, is read off every event: snapping is a live toggle rather than part of what the
 		// gesture meant, and on macOS, where Ctrl+click is the right click, Ctrl joins a drag already under way.
 		val snapTargets = callbacks.value.snapTargets?.invoke(row, hitMark).orEmpty()
-		val snapReach = snapTolerance(axis, size.width, markRadiusPx, KEY_SNAP_RADIUS.toPx())
+		val snapRadiusPx = KEY_SNAP_RADIUS.toPx()
 		// Sampled at the press like Shift: whether the mark under it can move is part of what the gesture
 		// meant when it began.  An empty-track press always may, since its drag is the scrub.
 		val pressMayDrag = hitMark == null || callbacks.value.onMarkDragEnd != null
 		var dragging = false
-		var releaseValue = pressedValue
-		// The window a mark drag may move within: the axis, end to end.  Read once per gesture so the bound
-		// cannot drift under the stroke; the axis is a key of this loop, so a changed axis restarts the
-		// gesture rather than moving the wall.
-		val dragBounds = dragBoundsOf(axis)
 		// A press on empty track scrubs immediately, so the playhead lands under the pointer on the way
 		// down rather than only on release - the affordance a timeline ruler has, applied across the whole
 		// track region.
@@ -188,98 +180,75 @@ internal suspend fun PointerInputScope.trackLaneGestureLoop(
 		// not merely odd: the axis is the whole range the owner can show, so a playhead past its end would
 		// land on nothing.  The clamp is the same one the pointer position is drawn with, so the playhead
 		// stops where the pointer stops.
-		val scrubBounds = minOf(axis.start, axis.end)..maxOf(axis.start, axis.end)
-
-		// A changed axis, row, or mark radius restarts this loop (they are its keys), and a lane leaving the
-		// composition ends it, both by cancelling it mid-gesture: no release arrives, so no end callback runs.  The
-		// finally is what keeps the drawn drag mark and the owner's previews from outliving a gesture torn down
-		// that way.
-		var released = false
-
-		try {
+		var releaseValue =
 			if (hitMark == null) {
 				val ctrlHeld = currentEvent.keyboardModifiers.isCtrlPressed
-				releaseValue = snapped(pressedValue, snapTargets, snapReach, ctrlHeld).coerceIn(scrubBounds)
-				callbacks.value.onTrackScrub?.invoke(row, releaseValue, additive)
+				snapped(pressedValue, snapTargets, snapTolerance(pressAxis, size.width, markRadiusPx, snapRadiusPx), ctrlHeld)
+					.coerceIn(dragBoundsOf(pressAxis))
+			} else {
+				pressedValue
 			}
 
-			while (true) {
-				val event = awaitPointerEvent()
-				val change = event.changes.firstOrNull { candidate -> candidate.id == down.id } ?: break
+		if (hitMark == null) {
+			callbacks.value.onTrackScrub?.invoke(row, releaseValue, additive)
+		}
 
-				if (!change.pressed) {
-					break
+		while (true) {
+			val event = awaitPointerEvent()
+			val change = event.changes.firstOrNull { candidate -> candidate.id == down.id } ?: break
+
+			if (!change.pressed) {
+				break
+			}
+
+			if (change.positionChange().x != 0f || change.positionChange().y != 0f) {
+				if (!dragging && pressMayDrag && abs(change.position.x - down.position.x) > touchSlop) {
+					dragging = true
+
+					if (hitMark != null) {
+						drag.mark = hitMark
+					}
 				}
 
-				if (change.positionChange().x != 0f || change.positionChange().y != 0f) {
-					if (!dragging && pressMayDrag && abs(change.position.x - down.position.x) > touchSlop) {
-						dragging = true
+				if (dragging) {
+					// The window as it is NOW: a zoom or pan mid-stroke moves it, and the drag carries on within
+					// the moved window, its walls included, rather than ending.
+					val moveAxis = axis.value
+					// Snapped BEFORE the clamp, so a target just past the visible window cannot carry the
+					// mark or the playhead outside it.
+					val pointerValue =
+						snapped(
+							domainAt(change.position.x, moveAxis, size.width, markRadiusPx),
+							snapTargets,
+							snapTolerance(moveAxis, size.width, markRadiusPx, snapRadiusPx),
+							event.keyboardModifiers.isCtrlPressed,
+						)
+					// Clamped to the axis as it moves rather than on release: a mark that follows the pointer past
+					// its bound and then snaps back reads as a rejected edit, where stopping at the wall reads as
+					// the wall being there.  A scrub moves the playhead, which the same clamp keeps on the axis.
+					releaseValue = pointerValue.coerceIn(dragBoundsOf(moveAxis))
 
-						if (hitMark != null) {
-							drag.mark = hitMark
-						}
+					if (hitMark == null) {
+						callbacks.value.onTrackScrub?.invoke(row, releaseValue, additive)
+					} else {
+						drag.value = releaseValue
+						// Reported every move, not only on release: an owner previewing a group drag needs
+						// the live value, and it is the owner - not the lane - that knows what travels with it.
+						callbacks.value.onMarkDrag?.invoke(row, hitMark, releaseValue)
 					}
 
-					if (dragging) {
-						// Snapped BEFORE the clamp, so a target just past the visible window cannot carry the
-						// mark or the playhead outside it.
-						val pointerValue =
-							snapped(
-								domainAt(change.position.x, axis, size.width, markRadiusPx),
-								snapTargets,
-								snapReach,
-								event.keyboardModifiers.isCtrlPressed,
-							)
-						// A MARK drag is clamped as it moves rather than on release: one that follows the
-						// pointer past its bound and then snaps back reads as a rejected edit, where stopping
-						// at the wall reads as the wall being there.  An empty-track scrub has no wall of its
-						// own - it moves the playhead, clamped only to the axis.
-						releaseValue =
-							if (hitMark == null) {
-								pointerValue.coerceIn(scrubBounds)
-							} else {
-								pointerValue.coerceIn(dragBounds)
-							}
-
-						if (hitMark == null) {
-							callbacks.value.onTrackScrub?.invoke(row, releaseValue, additive)
-						} else {
-							drag.value = releaseValue
-							// Reported every move, not only on release: an owner previewing a group drag needs
-							// the live value, and it is the owner - not the lane - that knows what travels with it.
-							callbacks.value.onMarkDrag?.invoke(row, hitMark, releaseValue)
-						}
-
-						change.consume()
-					}
-				}
-			}
-
-			when {
-				hitMark != null && dragging -> callbacks.value.onMarkDragEnd?.invoke(row, hitMark, releaseValue)
-				hitMark != null -> callbacks.value.onMarkClick?.invoke(row, hitMark, additive)
-				else -> callbacks.value.onTrackScrubEnd?.invoke(row, releaseValue)
-			}
-
-			released = true
-		} finally {
-			drag.mark = null
-
-			if (!released) {
-				when {
-					hitMark == null -> {
-						callbacks.value.onTrackScrubCancel?.invoke(row)
-					}
-
-					hitMark != null && dragging -> {
-						callbacks.value.onMarkDragCancel?.invoke(row, hitMark)
-					}
-
-					// A press on a mark that never moved past the slop showed nothing, so there is nothing to undo.
-					else -> {}
+					change.consume()
 				}
 			}
 		}
+
+		when {
+			hitMark != null && dragging -> callbacks.value.onMarkDragEnd?.invoke(row, hitMark, releaseValue)
+			hitMark != null -> callbacks.value.onMarkClick?.invoke(row, hitMark, additive)
+			else -> callbacks.value.onTrackScrubEnd?.invoke(row, releaseValue)
+		}
+
+		drag.mark = null
 	}
 }
 

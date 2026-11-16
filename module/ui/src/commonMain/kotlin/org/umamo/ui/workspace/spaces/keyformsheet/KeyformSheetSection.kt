@@ -94,8 +94,6 @@ internal fun SectionHeader(name: String, collapsed: Boolean, onToggle: () -> Uni
  * @param Function onDragSelectedKeys Previews (commit = false) or applies (commit = true) a drag of the
  *   WHOLE selection by a fraction of each key's parameter range.  Only the sheet can do this - the
  *   selection spans sections and a section sees only its own projection.
- * @param Function onCancelKeyDrag Drops the in-flight preview of a whole-selection drag, for a drag torn down
- *   before its release.
  * @param Boolean keysEditable Whether the mode lets keys change (EditorMode.editsKeys).  When it does not, a mark
  *   only selects - the lane gets no drag handlers, so it leaves its marks in place - and the lane menu's rows
  *   are grayed out.
@@ -117,7 +115,6 @@ internal fun KeyformSheetSection(
 	onSelectedKeysChange: (Set<TrackKeyRef>) -> Unit,
 	onStageSelectedKeys: (Set<TrackKeyRef>) -> Unit,
 	onDragSelectedKeys: (Float, Boolean) -> Unit,
-	onCancelKeyDrag: () -> Unit,
 	keysEditable: Boolean,
 	selectedMarkDragDelta: () -> Float?,
 	onLaneBounds: (TrackRow, Rect) -> Unit,
@@ -290,18 +287,6 @@ internal fun KeyformSheetSection(
 					keyableHover?.enter(KeyformHover(track, hit.value, hit.mark?.keyIndex, parameter.id, row.key))
 				}
 			}
-		},
-		// A gesture torn down before its release (the window zoomed or panned under it) takes back what it showed:
-		// the pose returns to the one the session holds, the group preview goes, and the selection the gesture
-		// staged gives way to the one history holds.  Not gated on keysEditable like the drag itself, since a drag
-		// begun before a switch into Edit mode still has its stage to abandon.
-		onTrackScrubCancel = { _ ->
-			session?.let { current -> liveParams?.preview(parameter.id, current.pose.value[parameter.id] ?: parameter.default) }
-			session?.abandonStagedKeySelection()
-		},
-		onMarkDragCancel = { _, _ ->
-			onCancelKeyDrag()
-			session?.abandonStagedKeySelection()
 		},
 		// Ctrl latches a scrub onto the parameter's keys, and a key drag onto other rows' keys and the playhead.
 		// Asked at the press, with the same selection the drag itself derives, so the targets leave out exactly

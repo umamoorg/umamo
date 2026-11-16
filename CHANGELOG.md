@@ -23,7 +23,7 @@ Umamo is early alpha.
 * UI: Rename Workspace, Duplicate Workspace, and Delete Workspace are now in the Command Registry.
 
 ### Fixed
-* Keyform Sheet: Zooming or panning the sheet in the middle of a scrub or a key drag no longer leaves the pose, the selection, or the dragged keys out of place.
+* Keyform Sheet: Zooming or panning the sheet in the middle of a scrub or a key drag no longer drops the gesture.
 * Keymap: PrimaryModifer+Q(Ctrl+Q on Linux, Cmd+Q on MacOS) now closes the application.
 * File: Opening the application with a supplied file no longer fails to show a notice if the file is damaged.
 

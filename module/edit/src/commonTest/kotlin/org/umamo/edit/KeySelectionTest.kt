@@ -179,21 +179,6 @@ class KeySelectionTest {
 		assertFalse(editorSession.canUndo.value, "so the confirm added no second step")
 	}
 
-	/** An abandoned stage puts back the selection history holds, and records nothing. */
-	@Test
-	fun anAbandonedStageRestoresTheRecordedSelection() {
-		val editorSession = session()
-		editorSession.setKeySelection(setOf(keyAt(0)))
-
-		editorSession.stageKeySelection(setOf(keyAt(2)))
-		editorSession.abandonStagedKeySelection()
-
-		assertEquals(setOf(keyAt(0)), editorSession.keySelection.value, "the stage is gone")
-		editorSession.undo()
-		assertTrue(editorSession.keySelection.value.isEmpty(), "and the only step is the selection before it")
-		assertFalse(editorSession.canUndo.value)
-	}
-
 	/** The label key of the live history step - what the History panel would show for it. */
 	private fun EditorSession.liveStepLabelKey(): String? = historyView.value.let { view -> view.steps[view.cursor].labelKey }
 }
