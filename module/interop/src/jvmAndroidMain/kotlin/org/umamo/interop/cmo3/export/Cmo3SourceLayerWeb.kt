@@ -274,7 +274,7 @@ internal object Cmo3SourceLayerWeb {
 		image: SourceImageInput,
 		atlases: List<CTextureAtlas>,
 		textures: List<GTexture2D>,
-		names: Cmo3ImageChainBuilder.Cmo3FreshChainNames,
+		names: Cmo3FreshChainNames,
 		pngEntries: MutableList<Cmo3FreshFile.PngEntry>,
 		nowMillis: Long,
 	): Written {
@@ -337,7 +337,7 @@ internal object Cmo3SourceLayerWeb {
 				)
 			childrenByPath.getValue(layerInput.groupPath).add(layer)
 			layerEntryList.add(layer)
-			val modelImage = Cmo3ImageChainBuilder.modelImageOver(layerInput.name, layeredImage, layer, resource, raster, layerPlacement(layerInput.canvasLeft, layerInput.canvasTop), group, names, pngEntries, nowMillis)
+			val modelImage = Cmo3ModelImageWeb.modelImageOver(layerInput.name, layeredImage, layer, resource, raster, layerPlacement(layerInput.canvasLeft, layerInput.canvasTop), group, names, pngEntries, nowMillis)
 			groupModelImages.add(modelImage)
 			val tilePlacement = layerInput.placement
 
@@ -347,7 +347,7 @@ internal object Cmo3SourceLayerWeb {
 				// drawable.  Its coordinates are stored in the raster's cache frame by the reconcile, which
 				// reads that frame off the texture (Cmo3TextureFrames).
 				if (layerInput.drawableIds.isNotEmpty()) {
-					val texture = Cmo3ImageChainBuilder.rasterTexture(layerInput.name, resource)
+					val texture = Cmo3PageWeb.rasterTexture(layerInput.name, resource)
 					rasterTextures.add(texture)
 
 					for (drawableId in layerInput.drawableIds) {
@@ -376,11 +376,11 @@ internal object Cmo3SourceLayerWeb {
 			val canvasAffine = floatArrayOf(1f, 0f, layerInput.canvasLeft.toFloat(), 0f, 1f, layerInput.canvasTop.toFloat())
 			val entryHalf = atlasLocalToCanvasFor(canvasAffine, tilePlacement) ?: continue
 			checkNotNull(mutableGraphListOf(atlas.modelImages)) { "pageAtlas builds a list" }.add(
-				Cmo3ImageChainBuilder.packedEntry(
+				Cmo3PageWeb.packedEntry(
 					atlas = atlas,
 					modelImageGuid = modelImage.guid,
 					atlasLocalToCanvas = affineOf(entryHalf),
-					packing = Cmo3ImageChainBuilder.writePacking(GTransform2(), tilePlacement),
+					packing = Cmo3PageWeb.writePacking(GTransform2(), tilePlacement),
 				),
 			)
 
@@ -441,7 +441,7 @@ internal object Cmo3SourceLayerWeb {
 		lastModified: Long?,
 		width: Int,
 		height: Int,
-		names: Cmo3ImageChainBuilder.Cmo3FreshChainNames,
+		names: Cmo3FreshChainNames,
 		nowMillis: Long,
 	): MintedLayeredImage {
 		val layeredImage = CLayeredImage()
@@ -543,7 +543,7 @@ internal object Cmo3SourceLayerWeb {
 		raster: RasterImage,
 		layeredImage: CLayeredImage,
 		folder: CLayerGroup,
-		names: Cmo3ImageChainBuilder.Cmo3FreshChainNames,
+		names: Cmo3FreshChainNames,
 		pngEntries: MutableList<Cmo3FreshFile.PngEntry>,
 	): CLayer =
 		CLayer().apply {
@@ -611,7 +611,7 @@ internal object Cmo3SourceLayerWeb {
 	 * @param Cmo3FreshChainNames names        The document's shared blend and options.
 	 * @return CLayerGroup The group.
 	 */
-	internal fun layerGroup(name: String, layeredImage: CLayeredImage, children: CArrayList<Any?>, names: Cmo3ImageChainBuilder.Cmo3FreshChainNames): CLayerGroup =
+	internal fun layerGroup(name: String, layeredImage: CLayeredImage, children: CArrayList<Any?>, names: Cmo3FreshChainNames): CLayerGroup =
 		CLayerGroup().apply {
 			// CMO3: CLayerGroup - a folder of the decomposed file; ACLayerGroup field _children.
 			this.name = name

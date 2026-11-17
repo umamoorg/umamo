@@ -33,7 +33,7 @@ import kotlin.math.roundToInt
  * art: every tile with a raster and an inventory row becomes a layer of its file's layered image
  * ([Cmo3SourceLayerWeb]), so the export is the shape the editor writes for its own PSD import and
  * reopens with the same layer identities.  A MOC3-origin document has none of that: a .moc3
- * carries only the packed pages, so [Cmo3ImageChainBuilder] fabricates a source document by slicing
+ * carries only the packed pages, so [Cmo3PageCropWeb] fabricates a source document by slicing
  * the packed atlas back apart, every layer in that output is a slice of a baked page rather than the
  * artwork the rig was drawn from, and the report leads with MissingSourceArt for as long as any
  * drawable's art came out of a page.

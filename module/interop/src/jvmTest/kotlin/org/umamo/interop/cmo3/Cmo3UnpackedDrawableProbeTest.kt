@@ -16,7 +16,7 @@ import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CAffine
-import org.umamo.interop.cmo3.export.Cmo3ImageChainBuilder
+import org.umamo.interop.cmo3.export.Cmo3PageWeb
 import org.umamo.testkit.skipTest
 import java.io.File
 import java.util.Collections
@@ -80,10 +80,10 @@ class Cmo3UnpackedDrawableProbeTest {
 	 * @param CAffine affine The affine.
 	 * @param Int     width  The image width in pixels.
 	 * @param Int     height The image height in pixels.
-	 * @return Boolean True when it matches `Cmo3ImageChainBuilder.paddedFrameAffine(width, height)`.
+	 * @return Boolean True when it matches `Cmo3PageWeb.paddedFrameAffine(width, height)`.
 	 */
 	private fun isPaddingScale(affine: CAffine, width: Int, height: Int): Boolean {
-		val expected = Cmo3ImageChainBuilder.paddedFrameAffine(width, height)
+		val expected = Cmo3PageWeb.paddedFrameAffine(width, height)
 		val tolerance = 4 * Math.ulp(1f)
 
 		return kotlin.math.abs(affine.m00 - expected.m00) <= tolerance &&

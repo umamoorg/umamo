@@ -32,7 +32,7 @@ import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.cmo3.export.Cmo3Conversion
 import org.umamo.interop.cmo3.export.Cmo3Export
 import org.umamo.interop.cmo3.export.Cmo3Icons
-import org.umamo.interop.cmo3.export.Cmo3ImageChainBuilder
+import org.umamo.interop.cmo3.export.Cmo3PageWeb
 import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.cmo3.import.cmo3AtlasIngest
 import org.umamo.interop.cmo3.import.cmo3SourceArtOf
@@ -323,7 +323,7 @@ class Cmo3RetainedLayerWebTest {
 				.first { modelImage -> uuidOf(modelImage.guid) == hairTile.id.raw }
 		val copyPath = retained.nextImageFileBufPath()
 		val copyPng = PngCodec.write(RasterImage(32, 32, ByteArray(32 * 32 * 4) { 0x22 }))
-		val copy = Cmo3ImageChainBuilder.pageImageResource(copyPath, 32, 32, copyPng.size)
+		val copy = Cmo3PageWeb.pageImageResource(copyPath, 32, 32, copyPng.size)
 		retained.addLayerPng(copy, copyPng)
 		val manager = hairImage.cachedImageManager as CCachedImageManager
 		manager.cachedImages =
@@ -348,11 +348,11 @@ class Cmo3RetainedLayerWebTest {
 			)
 		val hairMesh = meshesOf(root).first { mesh -> idStrOf(mesh.id) == "Hair" }
 		hairMesh.texture =
-			Cmo3ImageChainBuilder.pageTexture("Hair", copy).apply {
-				transformImageResource01toLogical01 = Cmo3ImageChainBuilder.paddedFrameAffine(4, 4)
+			Cmo3PageWeb.pageTexture("Hair", copy).apply {
+				transformImageResource01toLogical01 = Cmo3PageWeb.paddedFrameAffine(4, 4)
 				mipmapLevel = 32
 			}
-		val scale = Cmo3ImageChainBuilder.paddedFrameAffine(4, 4)
+		val scale = Cmo3PageWeb.paddedFrameAffine(4, 4)
 		hairMesh.uvs = FloatArray(hairArtUvs.size) { componentIndex -> hairArtUvs[componentIndex] * if (componentIndex % 2 == 0) scale.m00 else scale.m11 }
 
 		return Cmo3.read(Cmo3.write(retained)) to copyPath
@@ -396,7 +396,7 @@ class Cmo3RetainedLayerWebTest {
 		assertSame(hairImage._filteredImage, texture.srcImageResource, "the hair samples its model image's new raster, not the copy")
 		val scale = texture.transformImageResource01toLogical01 as CAffine
 		assertEquals(listOf(6f / 64f, 0f, 0f, 0f, 6f / 64f, 0f), listOf(scale.m00, scale.m01, scale.m02, scale.m10, scale.m11, scale.m12), "with the new size's cache scale")
-		assertEquals(Cmo3ImageChainBuilder.FULL_RESOLUTION_MIPMAP_LEVEL, texture.mipmapLevel)
+		assertEquals(Cmo3PageWeb.FULL_RESOLUTION_MIPMAP_LEVEL, texture.mipmapLevel)
 		// A packed drawable over its raster stores the raster's frame: the edited page coordinates off the
 		// reloaded 6px tile's placement.
 		val storedAfter = hairMesh.uvs as FloatArray

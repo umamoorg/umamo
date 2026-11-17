@@ -62,8 +62,6 @@ import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.composeAffine
-import org.umamo.runtime.model.inversePlacementAffine
 import org.umamo.runtime.model.isOriginAtCanvasCenter
 import org.umamo.runtime.model.lineageRoot
 import org.umamo.runtime.model.storedToArtAffineForTile
@@ -852,7 +850,7 @@ internal class Cmo3PropertyLowering(
 		// CMO3: ModelImageEntry field materialLocalToAtlasTransform - written into the entry's EXISTING
 		// GTransform2 when it has one, so the element keeps its instance.
 		val transform = (entry.materialLocalToAtlasTransform as? GTransform2) ?: GTransform2()
-		entry.materialLocalToAtlasTransform = Cmo3ImageChainBuilder.writePacking(transform, placement)
+		entry.materialLocalToAtlasTransform = Cmo3PageWeb.writePacking(transform, placement)
 		editor.ensureChildSlot(entry, "ModelImageEntry", "materialLocalToAtlasTransform", "atlasLocalToCanvasTransform")
 
 		// CMO3: ModelImageEntry field atlasLocalToCanvasTransform - the other half of the composition.
@@ -1596,22 +1594,4 @@ internal class Cmo3PropertyLowering(
 		assign(fresh)
 		editor.ensureChildSlot(owner, tag, property, beforeProperty)
 	}
-}
-
-/**
- * The atlas-to-canvas half a packed entry carries at [placement]: the tile's full canvas placement
- * composed with the placement's inverse, so the entry pair keeps composing to
- * CModelImage._materialLocalToCanvasTransform.
- *
- * One helper shared by the entry lowering and the drawable region-input rewrite, so the two values
- * the corpus keeps equal stay bit-identical when both are written.
- *
- * @param FloatArray     canvasAffine The tile's canvas placement, all six components.
- * @param AtlasPlacement placement    Where the art sits on its page.
- * @return FloatArray? The composed 2x3 affine, or null when the placement is degenerate.
- */
-internal fun atlasLocalToCanvasFor(canvasAffine: FloatArray, placement: AtlasPlacement): FloatArray? {
-	val inverse = inversePlacementAffine(placement) ?: return null
-
-	return composeAffine(canvasAffine, inverse)
 }
