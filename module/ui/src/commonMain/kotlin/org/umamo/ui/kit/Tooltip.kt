@@ -1,6 +1,9 @@
 package org.umamo.ui.kit
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
@@ -9,6 +12,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
@@ -45,8 +49,8 @@ expect fun Tooltip(text: String, accelerator: String? = null, modifier: Modifier
  * as a tooltip (the near-cursor notice and the relation-pick badge position one through [modifier]), so no
  * hand-rolled card drifts out of step with it.
  *
- * The [accelerator] rides the card's trailing edge in the muted tone the menu rows use for a chord, so a
- * key reads the same wherever it is shown - beside a menu row's label, or beside a control's name.
+ * The [accelerator] rides the card as a keycap - the chip the keybindings editor shows a chord in - so a
+ * key reads as a key wherever it is shown, and not as another word on the end of the label.
  *
  * @param String   text       The tooltip label.
  * @param String?  accelerator The key that runs the control, or null for none.
@@ -72,7 +76,7 @@ internal fun TooltipCard(text: String, accelerator: String? = null, modifier: Mo
 					style = LocalUmamoTypography.current.labelMedium,
 					color = colors.text,
 					// fill = false so the label keeps its intrinsic width where it fits and wraps only where it
-					// must; the accelerator keeps its own, at the card's trailing edge either way.
+					// must; the keycap keeps its own width either way.
 					modifier = Modifier.weight(1f, fill = false),
 				)
 			}
@@ -82,11 +86,22 @@ internal fun TooltipCard(text: String, accelerator: String? = null, modifier: Mo
 					Spacer(modifier = Modifier.width(TOOLTIP_ACCELERATOR_GAP))
 				}
 
-				Text(
-					text = accelerator,
-					style = LocalUmamoTypography.current.labelSmall,
-					color = colors.textMuted,
-				)
+				// A keycap, the same chip the keybindings editor shows a chord in, so a key reads as a key
+				// rather than as another word.
+				Box(
+					modifier =
+						Modifier
+							.clip(LocalUmamoShapes.current.small)
+							.background(colors.controlBackground)
+							.border(BorderStroke(1.dp, colors.controlBorder), LocalUmamoShapes.current.small)
+							.padding(horizontal = 4.dp, vertical = 1.dp),
+				) {
+					Text(
+						text = accelerator,
+						style = LocalUmamoTypography.current.labelMedium,
+						color = colors.text,
+					)
+				}
 			}
 		}
 	}
