@@ -43,6 +43,9 @@ import org.umamo.ui.theme.drawIcon
  * @param UmamoIcon            icon               The glyph to draw.
  * @param Function             onClick            Click callback.
  * @param String               contentDescription The accessible label (the face is only a glyph).
+ * @param String?              accelerator        The key that runs the control, shown beside the label in the
+ *   tooltip; null for a control with no key.  Kept out of [contentDescription] on purpose, so a screen
+ *   reader reads the control's name and not its shortcut.
  * @param Modifier             modifier           Layout modifier.
  * @param IconButtonAppearance appearance         Flat glyph, or a Filled elevation chip (background plus corners).
  * @param DpSize               size               The button's box, square by default; 26x20 for header controls.
@@ -58,6 +61,7 @@ fun IconButton(
 	icon: UmamoIcon,
 	onClick: () -> Unit,
 	contentDescription: String,
+	accelerator: String? = null,
 	modifier: Modifier = Modifier,
 	appearance: IconButtonAppearance = IconButtonAppearance.Flat,
 	size: DpSize = DpSize(20.dp, 20.dp),
@@ -112,7 +116,7 @@ fun IconButton(
 	// The caller's layout modifier rides on the tooltip wrapper (the outermost node) so alignment and
 	// weight still resolve against the parent; the fixed-size face sits inside it.  contentDescription
 	// doubles as the hover label - it is the human name of the control either way.
-	Tooltip(text = contentDescription, modifier = modifier) {
+	Tooltip(text = contentDescription, accelerator = accelerator, modifier = modifier) {
 		Box(modifier = faceModifier, contentAlignment = Alignment.Center) {
 			// requiredSize, not size: size coerces to the box's constraints, which silently caps glyphSize at
 			// the smaller of the two and lets a starved parent shrink the glyph away entirely.

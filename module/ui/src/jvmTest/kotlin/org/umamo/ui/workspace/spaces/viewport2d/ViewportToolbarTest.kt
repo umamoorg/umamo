@@ -19,6 +19,8 @@ import org.umamo.edit.transform.beginBoxSelect
 import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.LocalCommands
+import org.umamo.ui.action.LocalKeymap
+import org.umamo.ui.action.defaultKeymap
 import org.umamo.ui.action.recordingRegistryOf
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.theme.UmamoTheme
@@ -47,7 +49,7 @@ class ViewportToolbarTest {
 	) {
 		setContent {
 			UmamoTheme {
-				CompositionLocalProvider(LocalCommands provides commands, LocalEditorSession provides session) {
+				CompositionLocalProvider(LocalCommands provides commands, LocalKeymap provides defaultKeymap(), LocalEditorSession provides session) {
 					ViewportToolbarOverlay()
 				}
 			}

@@ -54,13 +54,14 @@ private object CursorClearTooltipPlacement : TooltipPlacement {
  * the cursor and clear of it.  A blank label attaches nothing (the content is wrapped only to carry
  * [modifier]), so callers can pass an unconditional description.
  *
- * @param String   text     The tooltip label; blank attaches no tooltip.
- * @param Modifier modifier The layout modifier, applied to the wrapper.
- * @param Function content  The control the tooltip describes.
+ * @param String   text       The tooltip label; blank attaches no tooltip.
+ * @param String?  accelerator The key that runs the control, shown beside the label; null for none.
+ * @param Modifier modifier   The layout modifier, applied to the wrapper.
+ * @param Function content    The control the tooltip describes.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-actual fun Tooltip(text: String, modifier: Modifier, content: @Composable () -> Unit) {
+actual fun Tooltip(text: String, accelerator: String?, modifier: Modifier, content: @Composable () -> Unit) {
 	if (text.isBlank()) {
 		Box(modifier = modifier) {
 			content()
@@ -70,7 +71,7 @@ actual fun Tooltip(text: String, modifier: Modifier, content: @Composable () -> 
 	}
 
 	TooltipArea(
-		tooltip = { TooltipCard(text) },
+		tooltip = { TooltipCard(text, accelerator) },
 		modifier = modifier,
 		delayMillis = TOOLTIP_DELAY_MILLIS,
 		tooltipPlacement = CursorClearTooltipPlacement,
