@@ -51,8 +51,8 @@ private object CursorClearTooltipPlacement : TooltipPlacement {
 
 /**
  * Desktop tooltip: [TooltipArea] reveals the label after a mouse-dwell over the content, placed beside
- * the cursor and clear of it.  A blank label attaches nothing (the content is wrapped only to carry
- * [modifier]), so callers can pass an unconditional description.
+ * the cursor and clear of it.  A blank label with no accelerator attaches nothing (the content is wrapped
+ * only to carry [modifier]), so callers can pass an unconditional description.
  *
  * @param String   text       The tooltip label; blank attaches no tooltip.
  * @param String?  accelerator The key that runs the control, shown beside the label; null for none.
@@ -62,7 +62,7 @@ private object CursorClearTooltipPlacement : TooltipPlacement {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 actual fun Tooltip(text: String, accelerator: String?, modifier: Modifier, content: @Composable () -> Unit) {
-	if (text.isBlank()) {
+	if (text.isBlank() && accelerator == null) {
 		Box(modifier = modifier) {
 			content()
 		}

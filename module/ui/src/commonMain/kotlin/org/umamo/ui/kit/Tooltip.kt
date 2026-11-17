@@ -66,17 +66,22 @@ internal fun TooltipCard(text: String, accelerator: String? = null, modifier: Mo
 			modifier = Modifier.widthIn(max = TOOLTIP_MAX_WIDTH).padding(horizontal = 8.dp, vertical = 4.dp),
 			verticalAlignment = Alignment.CenterVertically,
 		) {
-			Text(
-				text = text,
-				style = LocalUmamoTypography.current.labelMedium,
-				color = colors.text,
-				// fill = false so the label keeps its intrinsic width where it fits and wraps only where it
-				// must; the accelerator keeps its own, at the card's trailing edge either way.
-				modifier = Modifier.weight(1f, fill = false),
-			)
+			if (text.isNotBlank()) {
+				Text(
+					text = text,
+					style = LocalUmamoTypography.current.labelMedium,
+					color = colors.text,
+					// fill = false so the label keeps its intrinsic width where it fits and wraps only where it
+					// must; the accelerator keeps its own, at the card's trailing edge either way.
+					modifier = Modifier.weight(1f, fill = false),
+				)
+			}
 
 			if (accelerator != null) {
-				Spacer(modifier = Modifier.width(TOOLTIP_ACCELERATOR_GAP))
+				if (text.isNotBlank()) {
+					Spacer(modifier = Modifier.width(TOOLTIP_ACCELERATOR_GAP))
+				}
+
 				Text(
 					text = accelerator,
 					style = LocalUmamoTypography.current.labelSmall,
