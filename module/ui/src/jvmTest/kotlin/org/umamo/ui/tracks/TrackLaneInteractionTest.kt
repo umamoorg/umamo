@@ -87,7 +87,7 @@ class TrackLaneInteractionTest {
 										label = "Opacity",
 										marks =
 											listOf(-30f, 0f, 30f).mapIndexed { keyIndex, position ->
-												TrackKeyMark(keyIndex, position, selected = keyIndex == selectedKeyIndex)
+												TrackKeyMark(keyIndex, position, selection = if (keyIndex == selectedKeyIndex) TrackMarkSelection.Selected else TrackMarkSelection.Unselected)
 											},
 									),
 								),

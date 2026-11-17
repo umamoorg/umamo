@@ -5,7 +5,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.DrawStyle
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import org.umamo.ui.theme.UmamoColors
 
 /**
@@ -32,19 +35,44 @@ internal fun DrawScope.drawPlayhead(value: Float, axis: TrackAxis, color: Color,
  * @param Float radius The mark's radius, in pixels.
  * @param Color fill The fill color.
  * @param Color outline The outline color.
+ * @param Color? splitFill The top-left half's fill, or null for none.
  */
-private fun DrawScope.drawMark(shape: TrackKeyShape, center: Offset, radius: Float, fill: Color, outline: Color) {
+private fun DrawScope.drawMark(shape: TrackKeyShape, center: Offset, radius: Float, fill: Color, outline: Color, splitFill: Color? = null) {
+	drawMarkShape(shape, center, radius, fill, Fill)
+
+	if (splitFill != null) {
+		// Over the whole fill rather than beside a half of it, so the diagonal has no seam of background
+		// where two antialiased edges would meet.
+		val topLeftHalf =
+			Path().apply {
+				moveTo(center.x - radius, center.y - radius)
+				lineTo(center.x + radius, center.y - radius)
+				lineTo(center.x - radius, center.y + radius)
+				close()
+			}
+		clipPath(topLeftHalf) { drawMarkShape(shape, center, radius, splitFill, Fill) }
+	}
+
+	drawMarkShape(shape, center, radius, outline, Stroke(width = 1f))
+}
+
+/**
+ * Draws [shape] centered on [center] in one color, filled or stroked.
+ *
+ * @param TrackKeyShape shape The mark's shape.
+ * @param Offset center The mark's center.
+ * @param Float radius The mark's radius, in pixels.
+ * @param Color color The color.
+ * @param DrawStyle style The fill or the stroke.
+ */
+private fun DrawScope.drawMarkShape(shape: TrackKeyShape, center: Offset, radius: Float, color: Color, style: DrawStyle) {
 	when (shape) {
 		TrackKeyShape.Circle -> {
-			drawCircle(fill, radius, center)
-			drawCircle(outline, radius, center, style = Stroke(width = 1f))
+			drawCircle(color, radius, center, style = style)
 		}
 
 		TrackKeyShape.Square -> {
-			val topLeft = Offset(center.x - radius, center.y - radius)
-			val size = Size(radius * 2, radius * 2)
-			drawRect(fill, topLeft, size)
-			drawRect(outline, topLeft, size, style = Stroke(width = 1f))
+			drawRect(color, Offset(center.x - radius, center.y - radius), Size(radius * 2, radius * 2), style = style)
 		}
 
 		TrackKeyShape.Diamond -> {
@@ -56,10 +84,30 @@ private fun DrawScope.drawMark(shape: TrackKeyShape, center: Offset, radius: Flo
 					lineTo(center.x - radius, center.y)
 					close()
 				}
-			drawPath(path, fill)
-			drawPath(path, outline, style = Stroke(width = 1f))
+			drawPath(path, color, style = style)
 		}
 	}
+}
+
+/**
+ * Draws [mark] at [position] in the colors its state calls for.
+ *
+ * @param TrackKeyMark mark The mark.
+ * @param Float position Where to draw it, in domain units.
+ * @param TrackAxis axis The domain.
+ * @param Float markRadiusPx Half-extent of a mark and the lane's end inset, in pixels.
+ * @param UmamoColors colors The theme's colors.
+ */
+private fun DrawScope.drawLaneMark(mark: TrackKeyMark, position: Float, axis: TrackAxis, markRadiusPx: Float, colors: UmamoColors) {
+	val x = laneX(axis.fractionOf(position), size.width, markRadiusPx)
+	val fill =
+		when {
+			!mark.editable -> colors.textDisabled
+			mark.selection == TrackMarkSelection.Selected -> colors.accent
+			else -> colors.controlGlyph
+		}
+	val splitFill = colors.accent.takeIf { mark.editable && mark.selection == TrackMarkSelection.PartlySelected }
+	drawMark(mark.shape, Offset(x, size.height * 0.5f), markRadiusPx, fill, colors.panelBackground, splitFill)
 }
 
 /**
@@ -77,7 +125,8 @@ private fun DrawScope.drawMark(shape: TrackKeyShape, center: Offset, radius: Flo
  * @param UmamoColors colors The theme's colors.
  * @param TrackKeyMark? draggedMark The mark under the hand, or null when no mark drag is in flight.
  * @param Float draggedValue Where the dragged mark is drawn, in domain units.
- * @param Float? groupDelta The in-flight group-drag offset on every selected mark, or null for none.
+ * @param Float? groupDelta The in-flight group-drag offset on every selected mark and on the selected part of
+ *   every partly-selected one, or null for none.
  * @param Float? pendingAt Where the row holds an edit not yet keyed, or null for none.
  */
 internal fun DrawScope.drawTrackLane(
@@ -101,6 +150,15 @@ internal fun DrawScope.drawTrackLane(
 	playhead?.let { value -> drawPlayhead(value, axis, colors.accent, markRadiusPx) }
 
 	for (mark in marks) {
+		// A partly-selected mark comes apart in a group drag: what the drag carries draws selected at the
+		// offset, and what it leaves draws unselected in place.  Not at a standstill, where nothing has left.
+		if (groupDelta != null && groupDelta != 0f && mark.selection == TrackMarkSelection.PartlySelected) {
+			drawLaneMark(mark.copy(selection = TrackMarkSelection.Unselected), mark.position, axis, markRadiusPx, colors)
+			drawLaneMark(mark.copy(selection = TrackMarkSelection.Selected), mark.position + groupDelta, axis, markRadiusPx, colors)
+
+			continue
+		}
+
 		// A mark being dragged draws at the pointer, not at its stored position, so the gesture reads as
 		// direct manipulation rather than as a jump on release.  A GROUP drag shifts every selected mark
 		// by the owner's offset instead - including the one under the hand, which is why that case is
@@ -109,18 +167,11 @@ internal fun DrawScope.drawTrackLane(
 		// also why a group drag clamped to a standstill is a 0f offset and not a null one.
 		val drawnPosition =
 			when {
-				groupDelta != null && mark.selected -> mark.position + groupDelta
+				groupDelta != null && mark.selection == TrackMarkSelection.Selected -> mark.position + groupDelta
 				mark.keyIndex == draggedMark?.keyIndex -> draggedValue
 				else -> mark.position
 			}
-		val x = laneX(axis.fractionOf(drawnPosition), size.width, markRadiusPx)
-		val fill =
-			when {
-				!mark.editable -> colors.textDisabled
-				mark.selected -> colors.accent
-				else -> colors.controlGlyph
-			}
-		drawMark(mark.shape, Offset(x, size.height * 0.5f), markRadiusPx, fill, colors.panelBackground)
+		drawLaneMark(mark, drawnPosition, axis, markRadiusPx, colors)
 	}
 
 	// Over the marks and hollow, so a key already at the same place shows through the ring.

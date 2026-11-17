@@ -12,6 +12,8 @@ import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.Part
+import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.tracks.TrackWindow
 import kotlin.test.Test
@@ -71,8 +73,46 @@ class KeyformSheetMarqueeTest {
 				),
 		)
 
+	/**
+	 * A grid keyed on [angleX] at [keys], every cell at 0.
+	 *
+	 * @param FloatArray keys The key positions.
+	 * @return KeyformGrid The grid.
+	 */
+	private fun scalarGrid(vararg keys: Float): KeyformGrid<ChannelValue> =
+		KeyformGrid(
+			listOf(KeyformAxis(angleX, keys)),
+			keys.indices.map { keyIndex -> KeyformCell<ChannelValue>(intArrayOf(keyIndex), ChannelValue.Scalar(0f)) },
+		)
+
+	/** A part keying opacity at -10, 0 and 10 and draw order at 0 and 10, so two of its summary marks stand for two keys. */
+	private fun twoTrackModel(): PuppetModel =
+		PuppetModel(
+			parameters = listOf(parameter),
+			parts =
+				listOf(
+					Part(
+						PartId("p"),
+						"Part",
+						emptyList(),
+						channelGrids =
+							ChannelGrids(
+								mapOf(
+									FormChannel.OPACITY to scalarGrid(-10f, 0f, 10f),
+									FormChannel.DRAW_ORDER to scalarGrid(0f, 10f),
+								),
+							),
+					),
+				),
+			deformers = emptyList(),
+			drawables = emptyList(),
+			rootChildren = emptyList(),
+			rootPartId = null,
+		)
+
 	private val trackRowKey = "glue:a:b/GLUE_INTENSITY"
 	private val groupRowKey = "glue:a:b"
+	private val partRowKey = "part:p"
 
 	/** A 100px-wide lane at the window origin, the shape the marquee resolves against. */
 	private val laneRect = Rect(0f, 0f, 100f, 20f)
@@ -101,11 +141,11 @@ class KeyformSheetMarqueeTest {
 	}
 
 	/**
-	 * A collapsed group's child keys are NOT selectable, even though their lane bounds are still on record.
+	 * A collapsed group's child lanes are NOT selectable, even though their bounds are still on record.
 	 *
 	 * laneBounds is never pruned - a lane that leaves composition simply stops reporting - so a collapsed
-	 * group's children keep their last rectangles forever.  Walking the tree blind kept hitting them, and a
-	 * following Delete then edited tracks the user could not see.
+	 * group's children keep their last rectangles forever.  Their keys are reachable only through the
+	 * summary the group row draws, where the user can see them.
 	 */
 	@Test
 	fun collapsedRowsAreNotSelectable() {
@@ -124,5 +164,42 @@ class KeyformSheetMarqueeTest {
 		val foldedSection =
 			keysWithin(wholeLane, listOf(parameter to projection), bounds, markRadiusPx = 4f, window = TrackWindow.Full, expandedKeys = setOf(groupRowKey), collapsedParameters = setOf(angleX))
 		assertTrue(foldedSection.isEmpty(), "a folded section is not on screen at all")
+	}
+
+	/** A box over a collapsed group's summary mark selects every key stacked under it, the way a click on it does. */
+	@Test
+	fun aCollapsedGroupsSummarySelectsItsWholeStack() {
+		val projection = keyformSheetRows(twoTrackModel(), angleX, labels())
+		val bounds = mapOf(partRowKey to laneRect)
+		// The middle of the lane, where the summary mark at 0 is drawn.
+		val middle = Rect(40f, 0f, 60f, 20f)
+
+		val enclosed =
+			keysWithin(middle, listOf(parameter to projection), bounds, markRadiusPx = 4f, window = TrackWindow.Full, expandedKeys = emptySet(), collapsedParameters = emptySet())
+		assertEquals(
+			setOf(TrackKeyRef(angleX, "$partRowKey/OPACITY", 1), TrackKeyRef(angleX, "$partRowKey/DRAW_ORDER", 0)),
+			enclosed,
+			"the summary at 0 stands for the opacity and draw order keys there",
+		)
+		assertEquals(
+			projection.keysOfMark(angleX, partRowKey, 1).toSet(),
+			enclosed,
+			"the box selects what a click on the same summary mark does",
+		)
+
+		val wholeLane =
+			keysWithin(laneRect, listOf(parameter to projection), bounds, markRadiusPx = 4f, window = TrackWindow.Full, expandedKeys = emptySet(), collapsedParameters = emptySet())
+		assertEquals(5, wholeLane.size, "every summary across the lane, each with its whole stack")
+	}
+
+	/** An expanded group row draws no summary, so a box over it selects nothing; its keys are on the child lanes. */
+	@Test
+	fun anExpandedGroupRowHasNoSummaryToSelect() {
+		val projection = keyformSheetRows(twoTrackModel(), angleX, labels())
+		val bounds = mapOf(partRowKey to laneRect)
+
+		val enclosed =
+			keysWithin(laneRect, listOf(parameter to projection), bounds, markRadiusPx = 4f, window = TrackWindow.Full, expandedKeys = setOf(partRowKey), collapsedParameters = emptySet())
+		assertTrue(enclosed.isEmpty(), "the open group row shows no marks of its own")
 	}
 }

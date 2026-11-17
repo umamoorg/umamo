@@ -51,6 +51,7 @@ internal class TrackSheetHarness {
 	val laneBounds = mutableMapOf<String, Rect>()
 	val labelMenuRows = mutableListOf<TrackRow>()
 	val laneMenuHits = mutableListOf<TrackLaneHit>()
+	val snapRequests = mutableListOf<Pair<TrackRow, TrackKeyMark?>>()
 
 	/** The keys of the rows whose children the sheet shows; a test changes it in runOnIdle. */
 	var expandedKeys: Set<String> by mutableStateOf(setOf(FixtureRows.OWNER))
@@ -86,7 +87,7 @@ internal fun trackSheetFixtureRows(): List<TrackRow> =
 					TrackRow(
 						key = FixtureRows.ANGLE,
 						label = "Angle",
-						marks = listOf(TrackKeyMark(0, -10f, selected = true), TrackKeyMark(1, 20f)),
+						marks = listOf(TrackKeyMark(0, -10f, selection = TrackMarkSelection.Selected), TrackKeyMark(1, 20f)),
 					),
 				),
 		),
@@ -103,6 +104,7 @@ internal fun trackSheetFixtureRows(): List<TrackRow> =
  * @param Function? labelMenuItems The label-cell menu builder, or null for no label menus.
  * @param Function? laneMenuItems The lane menu builder, or null for no lane menus.
  * @param Function? formatTick The ruler's tick formatter, or null for the sheet's default.
+ * @param Function? snapTargets The values a held-Ctrl drag latches onto, or null for a sheet that never snaps.
  */
 @OptIn(ExperimentalTestApi::class)
 internal fun ComposeUiTest.mountTrackSheet(
@@ -113,6 +115,7 @@ internal fun ComposeUiTest.mountTrackSheet(
 	labelMenuItems: ((TrackRow) -> List<MenuItem>)? = null,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)? = null,
 	formatTick: ((Float) -> String)? = null,
+	snapTargets: ((TrackRow, TrackKeyMark?) -> List<Float>)? = null,
 ) {
 	setContent {
 		Box(modifier = Modifier.size(width = SHEET_WIDTH, height = SHEET_HEIGHT).testTag(SHEET_TAG)) {
@@ -145,6 +148,13 @@ internal fun ComposeUiTest.mountTrackSheet(
 					},
 				onLaneHover = { row, hit -> harness.hovers += row to hit },
 				onLaneBounds = { row, bounds -> harness.laneBounds[row.key] = bounds },
+				snapTargets =
+					snapTargets?.let { targetsFor ->
+						{ row, mark ->
+							harness.snapRequests += row to mark
+							targetsFor(row, mark)
+						}
+					},
 			)
 		}
 	}

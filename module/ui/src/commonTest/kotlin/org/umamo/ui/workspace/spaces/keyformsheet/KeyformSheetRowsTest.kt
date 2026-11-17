@@ -1,5 +1,6 @@
 package org.umamo.ui.workspace.spaces.keyformsheet
 
+import org.umamo.edit.TrackKeyRef
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.ChannelGrids
@@ -19,7 +20,9 @@ import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.tracks.TrackMarkSelection
 import org.umamo.ui.tracks.TrackRow
+import org.umamo.ui.tracks.summarizedMarks
 import org.umamo.ui.viewport.viewport2d.LATTICE_RIG_BODY
 import org.umamo.ui.viewport.viewport2d.LATTICE_RIG_HEAD
 import org.umamo.ui.viewport.viewport2d.LATTICE_RIG_PARAMETER
@@ -93,6 +96,31 @@ class KeyformSheetRowsTest {
 
 	/** Every row in the tree, flattened. */
 	private fun allRows(rows: List<TrackRow>): List<TrackRow> = rows.flatMap { row -> listOf(row) + allRows(row.children) }
+
+	/**
+	 * A folded group's summary over a stack with only some of its keys selected shows partly selected,
+	 * whichever track holds them, and selected only when the whole stack is.
+	 */
+	@Test
+	fun aFoldedStackWithSomeKeysSelectedIsPartlySelected() {
+		val projection = keyformSheetRows(model(drawables = listOf(channelKeyedDrawable("d"))), angleX, labels())
+		val opacityKey = TrackKeyRef(angleX, "drawable:d/OPACITY", 1)
+		val drawOrderKey = TrackKeyRef(angleX, "drawable:d/DRAW_ORDER", 1)
+
+		/**
+		 * The folded group's summary mark at 1 with [selected] selected.
+		 *
+		 * @param Set selected The key selection.
+		 * @return TrackMarkSelection The summary's selection.
+		 */
+		fun summaryAtOne(selected: Set<TrackKeyRef>): TrackMarkSelection =
+			summarizedMarks(projection.rows.single().withSelection(angleX, selected)).single { mark -> mark.position == 1f }.selection
+
+		assertEquals(TrackMarkSelection.PartlySelected, summaryAtOne(setOf(opacityKey)), "the first track's key alone")
+		assertEquals(TrackMarkSelection.PartlySelected, summaryAtOne(setOf(drawOrderKey)), "the second track's key alone")
+		assertEquals(TrackMarkSelection.Selected, summaryAtOne(setOf(opacityKey, drawOrderKey)), "the whole stack")
+		assertEquals(TrackMarkSelection.Unselected, summaryAtOne(emptySet()), "none of it")
+	}
 
 	/**
 	 * Removing an earlier glue must not migrate a later glue's row keys: selection and collapse state key

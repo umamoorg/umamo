@@ -155,7 +155,10 @@ fun Modifier.trackWindowGestures(
 						val event = awaitPointerEvent(PointerEventPass.Initial)
 						val change = event.changes.firstOrNull { candidate -> candidate.id == down.id } ?: break
 
-						if (!change.pressed) {
+						// The pan is the middle button's alone, so it ends when that button comes up even with
+						// another still held: a scrub or key drag the pan interrupted gets the pointer back and
+						// carries on in the panned window.
+						if (!change.pressed || !event.buttons.isTertiaryPressed) {
 							change.consume()
 
 							break

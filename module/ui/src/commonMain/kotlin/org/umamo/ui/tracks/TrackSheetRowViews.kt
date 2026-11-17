@@ -65,6 +65,7 @@ private val SLOT_WIDTH: Dp = 16.dp
  * @param Function? labelMenuItems Builds the label cell's context-menu items.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit.
  * @param Function? onLaneBounds Reports the lane's window bounds.
+ * @param Function? snapTargets The domain values a held-Ctrl drag latches onto, asked at most once per press.
  * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
  */
 @Composable
@@ -85,19 +86,13 @@ internal fun TrackSheetRow(
 	labelMenuItems: ((TrackRow) -> List<MenuItem>)?,
 	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)?,
 	onLaneBounds: ((TrackRow, Rect) -> Unit)?,
+	snapTargets: ((TrackRow, TrackKeyMark?) -> List<Float>)?,
 	markRadius: Dp,
 ) {
 	val colors = LocalUmamoColors.current
 	val toneBackground = toneBackgroundOf(line.row.tone)
 	// A collapsed GROUP summarizes its whole subtree, so folding a rig away still shows where its keys are.
-	// Expanded, it shows only its own marks - the children are on screen carrying theirs.  A leaf is
-	// neither: it shows its own marks, unfiltered and at their own ordinals.  (Routing a leaf through the
-	// summary too would drop any non-editable mark it carries and renumber the rest to a summary ordinal -
-	// wrong for a track that owns its keys directly rather than standing in for a whole subtree's.)
-	val marks =
-		remember(line.row, line.expandable, line.expanded) {
-			if (line.expandable && !line.expanded) summarizedMarks(line.row) else line.row.marks
-		}
+	val marks = remember(line.row, line.expandable, line.expanded) { shownMarks(line) }
 	Row(modifier = Modifier.fillMaxWidth().height(TRACK_ROW_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
 		TrackRowLabel(
 			line = line,
@@ -124,6 +119,7 @@ internal fun TrackSheetRow(
 			laneMenuItems = laneMenuItems,
 			onLaneHover = onLaneHover,
 			onLaneBounds = onLaneBounds,
+			snapTargets = snapTargets,
 			markRadius = markRadius,
 		)
 	}

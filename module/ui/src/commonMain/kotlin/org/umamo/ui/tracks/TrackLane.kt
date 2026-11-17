@@ -48,6 +48,7 @@ import org.umamo.ui.theme.LocalUmamoColors
  * @param Function? laneMenuItems Builds the lane's context-menu items.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit.
  * @param Function? onLaneBounds Reports the lane's window bounds.
+ * @param Function? snapTargets The domain values a held-Ctrl drag latches onto, asked at most once per press.
  * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
  */
 @Composable
@@ -67,14 +68,16 @@ internal fun TrackLane(
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)? = null,
 	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)? = null,
 	onLaneBounds: ((TrackRow, Rect) -> Unit)? = null,
+	snapTargets: ((TrackRow, TrackKeyMark?) -> List<Float>)? = null,
 	markRadius: Dp,
 ) {
 	val colors = LocalUmamoColors.current
 	val density = LocalDensity.current
-	// The marks and the callbacks reach the pointer loops through latest-state holders, never as keys; see
-	// TrackLaneCallbacks for why that is load-bearing.
+	// The marks and the callbacks reach the pointer loops through latest-state holders, never as keys, and the
+	// axis reaches the gesture loop the same way; see TrackLaneCallbacks for why that is load-bearing.
 	val editableMarks = remember(marks) { marks.filter { candidate -> candidate.editable } }
 	val latestEditableMarks = rememberUpdatedState(editableMarks)
+	val latestAxis = rememberUpdatedState(axis)
 	val latestCallbacks =
 		rememberUpdatedState(
 			TrackLaneCallbacks(
@@ -84,6 +87,7 @@ internal fun TrackLane(
 				onMarkDrag = onMarkDrag,
 				onMarkDragEnd = onMarkDragEnd,
 				onLaneHover = onLaneHover,
+				snapTargets = snapTargets,
 			),
 		)
 	// The row rides along on the exit report, so a receiver can ignore an exit for a row it is no longer
@@ -137,8 +141,8 @@ internal fun TrackLane(
 					// detector would consume the down before a tap detector saw it, so clicking a mark would do
 					// nothing and neither selection nor dragging would work.  Deciding between them from a single
 					// stream is the only way they cannot fight.
-					.pointerInput(row.key, axis, markRadiusPx) {
-						trackLaneGestureLoop(row, axis, markRadiusPx, touchSlop, latestEditableMarks, latestCallbacks, drag)
+					.pointerInput(row.key, markRadiusPx) {
+						trackLaneGestureLoop(row, latestAxis, markRadiusPx, touchSlop, latestEditableMarks, latestCallbacks, drag)
 					},
 		) {
 			// Read HERE rather than in composition: a group drag changes its offset, and a mark drag its

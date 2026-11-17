@@ -8,9 +8,11 @@ import org.umamo.ui.tracks.TrackAxis
 import org.umamo.ui.tracks.TrackWindow
 import org.umamo.ui.tracks.flattenTrackRows
 import org.umamo.ui.tracks.laneMarkOffsetX
+import org.umamo.ui.tracks.shownMarks
 
 /**
- * Every key the window-space [region] encloses, across every section.
+ * Every key the window-space [region] encloses, across every section, where a collapsed group's summary
+ * mark encloses every key stacked under it.
  *
  * Resolved against the lanes' own reported bounds rather than computed from row heights, since sections
  * fold, groups collapse, and the sheet scrolls.  It matches what is on screen rather than what is in the
@@ -47,22 +49,23 @@ internal fun keysWithin(
 		val axis = window.axisOver(TrackAxis(domainStart, domainEnd))
 
 		for (line in flattenTrackRows(projection.rows, expandedKeys)) {
-			// Only rows with a track ref: a group header names an owner and a blend-shape row is not a
-			// keyform grid, so neither has keys a selection could act on.
 			val row = line.row
 			val bounds = laneBounds[row.key] ?: continue
+			// A track row's marks are its keys and a group row's are its summary.  A blend-shape row has
+			// neither: a blend binding is not a keyform grid, so it has no keys a selection could act on.
+			val selectable = row.key in projection.groupRowKeys || projection.tracksByRowKey.containsKey(row.key)
 
-			if (!projection.tracksByRowKey.containsKey(row.key) || !bounds.overlapsVertically(region)) {
+			if (!selectable || !bounds.overlapsVertically(region)) {
 				continue
 			}
 
-			for (mark in row.marks) {
+			for ((keyIndex, position) in shownMarks(line)) {
 				// The same mapping the marks were drawn with, from the same function - re-deriving the end
 				// inset here is how a marquee drifts by exactly one mark width.
-				val drawnX = bounds.left + laneMarkOffsetX(axis, mark.position, bounds.width, markRadiusPx)
+				val drawnX = bounds.left + laneMarkOffsetX(axis, position, bounds.width, markRadiusPx)
 
 				if (drawnX in region.left..region.right) {
-					enclosed.add(TrackKeyRef(parameter.id, row.key, mark.keyIndex))
+					enclosed.addAll(projection.keysOfMark(parameter.id, row.key, keyIndex))
 				}
 			}
 		}

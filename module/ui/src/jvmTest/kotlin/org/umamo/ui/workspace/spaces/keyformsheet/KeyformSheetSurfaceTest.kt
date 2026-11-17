@@ -123,6 +123,35 @@ class KeyformSheetSurfaceTest {
 			assertFalse(harness.sheetViewState.boxSelectArmed, "one band, then the marquee is spent")
 		}
 
+	/** On a folded group, the band selects every key stacked under each summary mark it encloses. */
+	@Test
+	fun theMarqueeSelectsAFoldedGroupsSummaries() =
+		runComposeUiTest {
+			val harness = mountSheet(listOf(PanelIds.bodyX))
+			clickAt(chevronPoint(harness, SheetRows.DRAWABLE))
+			waitForIdle()
+			assertTrue(SheetRows.DRAWABLE !in harness.sheetViewState.expandedKeys, "the group must really be folded")
+
+			runOnIdle { harness.registry.invoke("mesh.boxSelect") }
+			waitForIdle()
+
+			// A band over the summary marks at 0 and 5, each standing for a geometry and an opacity key.
+			val lane = laneBox(harness, SheetRows.DRAWABLE)
+			val start = lanePoint(harness, SheetRows.DRAWABLE, PanelIds.bodyX, -2f)
+			val end = lanePoint(harness, SheetRows.DRAWABLE, PanelIds.bodyX, 6f)
+			drag(Offset(start.x, lane.top + 2f), listOf(Offset((start.x + end.x) / 2f, lane.center.y), Offset(end.x, lane.bottom - 2f)))
+
+			assertEquals(
+				setOf(
+					geometryKey1,
+					geometryKey2,
+					TrackKeyRef(PanelIds.bodyX, SheetRows.OPACITY, 0),
+					TrackKeyRef(PanelIds.bodyX, SheetRows.OPACITY, 1),
+				),
+				harness.session.keySelection.value,
+			)
+		}
+
 	/** Escape cancels an armed marquee, which hides the pointer and would otherwise strand it. */
 	@Test
 	fun escapeDisarmsTheMarquee() =
