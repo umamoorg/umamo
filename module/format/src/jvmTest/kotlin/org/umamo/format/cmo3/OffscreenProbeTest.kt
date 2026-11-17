@@ -34,7 +34,7 @@ class OffscreenProbeTest {
 		System.getProperty("cmo3.probe")?.split(',')?.map(::File)?.filter { it.isFile } ?: emptyList()
 
 	/**
-	 * Flattens a CMO3 collection field to a plain list (mirrors Cmo3Import.elementsOf).
+	 * Flattens a CMO3 collection field to a plain list (mirrors `:interop`'s elementsOf).
 	 *
 	 * @param Any? collection The raw collection field, held as Any?.
 	 * @return List<Any?> The contained elements.

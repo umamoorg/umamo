@@ -30,11 +30,12 @@ import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.interop.cmo3.Cmo3StoredFrame
 import org.umamo.interop.cmo3.Cmo3TextureFrames
-import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.elementsOf
 import org.umamo.interop.cmo3.import.SoleLayerInput
 import org.umamo.interop.cmo3.import.soleLayerInputOf
 import org.umamo.interop.cmo3.import.walkLayeredImage
 import org.umamo.interop.cmo3.mutableGraphListOf
+import org.umamo.interop.cmo3.uuidOf
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.AtlasTile
@@ -423,9 +424,9 @@ internal class Cmo3RetainedLayerWeb(
 	 */
 	private fun namesFor(): Cmo3ImageChainBuilder.Cmo3FreshChainNames {
 		val retainedFilterSet =
-			Cmo3Import.elementsOf(textureManager._modelImageGroups)
+			elementsOf(textureManager._modelImageGroups)
 				.filterIsInstance<CModelImageGroup>()
-				.flatMap { group -> Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
+				.flatMap { group -> elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
 				.firstNotNullOfOrNull { modelImage -> modelImage.inputFilter as? ModelImageFilterSet }
 		val filters =
 			retainedFilterSet?.let { filterSet -> Cmo3ImageChainBuilder.FilterCommons.fromFilterSet(filterSet) }
@@ -516,7 +517,7 @@ internal class Cmo3RetainedLayerWeb(
 	private fun retargetDrawablesOnto(modelImage: CModelImage, raster: CImageResource, width: Int, height: Int) {
 		val modelSource = target.root as? CModelSource ?: return
 		// CMO3: CModelSource field drawableSourceSet -> CDrawableSourceSet field _sources.
-		val drawableSources = Cmo3Import.elementsOf((modelSource.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>()
+		val drawableSources = elementsOf((modelSource.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>()
 		val shownFromImage = drawableSources.filter { source -> textureFrames.isShownFrom(source, modelImage) }
 
 		if (shownFromImage.isEmpty()) {
@@ -605,13 +606,13 @@ internal class Cmo3RetainedLayerWeb(
 		// _imageToLayerInput keyed by image guid, and the current-image guid value beside it.
 		val filterEnv = modelImage.inputFilterEnv as? FilterEnv ?: return
 
-		for (valueSet in Cmo3Import.elementsOf(filterEnv.envValues).filterIsInstance<EnvValueSet>()) {
+		for (valueSet in elementsOf(filterEnv.envValues).filterIsInstance<EnvValueSet>()) {
 			val selectorMap = valueSet.value as? CLayerSelectorMap
 
 			if (selectorMap != null) {
 				selectorMap._imageToLayerInput = LinkedHashMap<Any?, Any?>().apply { put(image.guid, ArrayList<Any?>(mutableListOf(sole.input))) }
 				valueSet.updateTimeMs = nowMillis
-			} else if (Cmo3Import.uuidOf(valueSet.value) == sole.imageGuid) {
+			} else if (uuidOf(valueSet.value) == sole.imageGuid) {
 				valueSet.value = image.guid
 				valueSet.updateTimeMs = nowMillis
 			}
@@ -708,14 +709,14 @@ internal class Cmo3RetainedLayerWeb(
 		// field guid - the source id a CMO3-origin document carries.
 		val retainedImage =
 			rawImages.firstNotNullOfOrNull { wrapper ->
-				((wrapper as? LayeredImageWrapper)?.image as? CLayeredImage)?.takeIf { image -> Cmo3Import.uuidOf(image.guid) == source.id.raw }
+				((wrapper as? LayeredImageWrapper)?.image as? CLayeredImage)?.takeIf { image -> uuidOf(image.guid) == source.id.raw }
 			}
 		val site =
 			if (retainedImage != null) {
 				// CMO3: CModelImageGroup field _linkedRawImageGuids - the group a file's images live in.
 				val retainedGroup =
 					groups.filterIsInstance<CModelImageGroup>().firstOrNull { group ->
-						Cmo3Import.elementsOf(group._linkedRawImageGuids).any { guid -> Cmo3Import.uuidOf(guid) == source.id.raw } &&
+						elementsOf(group._linkedRawImageGuids).any { guid -> uuidOf(guid) == source.id.raw } &&
 							mutableGraphListOf(group._modelImages) != null
 					}
 				val group =

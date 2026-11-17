@@ -17,7 +17,6 @@ import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.interop.cmo3.export.Cmo3ImageChainBuilder
-import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.testkit.skipTest
 import java.io.File
 import java.util.Collections
@@ -65,10 +64,10 @@ class Cmo3UnpackedDrawableProbeTest {
 		// CModelImageGroup field _modelImages.
 		val textureManager = root.textureManager as? CTextureManager ?: return emptyMap()
 
-		return Cmo3Import.elementsOf(textureManager._modelImageGroups)
+		return elementsOf(textureManager._modelImageGroups)
 			.filterIsInstance<CModelImageGroup>()
-			.flatMap { group -> Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
-			.mapNotNull { image -> Cmo3Import.uuidOf(image.guid)?.let { uuid -> uuid to image } }
+			.flatMap { group -> elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
+			.mapNotNull { image -> uuidOf(image.guid)?.let { uuid -> uuid to image } }
 			.toMap()
 	}
 
@@ -120,13 +119,13 @@ class Cmo3UnpackedDrawableProbeTest {
 			val drawablesByModelImage = HashMap<String, Int>()
 			var fileUnpacked = 0
 			// CMO3: CModelSource field drawableSourceSet -> CDrawableSourceSet field _sources.
-			val meshes = Cmo3Import.elementsOf((root.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>()
+			val meshes = elementsOf((root.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>()
 
 			for (mesh in meshes) {
 				// CMO3: CArtMeshSource field _extensions -> CTextureInputExtension fields _textureInputs /
 				// currentTextureInputData.
-				val extension = Cmo3Import.elementsOf(mesh._extensions).filterIsInstance<CTextureInputExtension>().firstOrNull()
-				val inputs = Cmo3Import.elementsOf(extension?._textureInputs)
+				val extension = elementsOf(mesh._extensions).filterIsInstance<CTextureInputExtension>().firstOrNull()
+				val inputs = elementsOf(extension?._textureInputs)
 
 				if (inputs.any { input -> input is CTextureInput_TextureAtlasRegion }) {
 					packedCount++
@@ -136,7 +135,7 @@ class Cmo3UnpackedDrawableProbeTest {
 
 				unpackedCount++
 				fileUnpacked++
-				val modelImageGuid = inputs.filterIsInstance<CTextureInput_ModelImage>().firstOrNull()?.let { input -> Cmo3Import.uuidOf(input._modelImageGuid) }
+				val modelImageGuid = inputs.filterIsInstance<CTextureInput_ModelImage>().firstOrNull()?.let { input -> uuidOf(input._modelImageGuid) }
 				val modelImage = modelImageGuid?.let(modelImages::get)
 				// CMO3: CArtMeshSource field texture -> GTexture2D.
 				val texture = mesh.texture as? GTexture2D

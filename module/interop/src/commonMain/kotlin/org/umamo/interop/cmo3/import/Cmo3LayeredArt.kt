@@ -14,6 +14,8 @@ import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.LayeredImageWrapper
 import org.umamo.format.cmo3.model.type.CRect
 import org.umamo.format.png.PngCodec
+import org.umamo.interop.cmo3.elementsOf
+import org.umamo.interop.cmo3.uuidOf
 import org.umamo.runtime.model.ArtSourceId
 
 /*
@@ -112,9 +114,9 @@ fun cmo3SourceArtOf(modelSource: CModelSource, sourceId: ArtSourceId, extractPng
 	// field image -> CLayeredImage fields guid / width / height.
 	val textureManager = modelSource.textureManager as? CTextureManager ?: return null
 	val image =
-		Cmo3Import.elementsOf(textureManager._rawImages)
+		elementsOf(textureManager._rawImages)
 			.mapNotNull { wrapper -> (wrapper as? LayeredImageWrapper)?.image as? CLayeredImage }
-			.firstOrNull { candidate -> Cmo3Import.uuidOf(candidate.guid) == sourceId.raw }
+			.firstOrNull { candidate -> uuidOf(candidate.guid) == sourceId.raw }
 			?: return null
 	val layers = walkLayeredImage(image).map { walked -> Cmo3SourceLayer(walked, extractPng) }
 

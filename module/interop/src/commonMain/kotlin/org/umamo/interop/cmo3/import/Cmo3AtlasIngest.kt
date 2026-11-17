@@ -27,6 +27,9 @@ import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CRect
 import org.umamo.format.cmo3.model.type.FileRef
 import org.umamo.format.cmo3.model.type.GVector2
+import org.umamo.interop.cmo3.elementsOf
+import org.umamo.interop.cmo3.idStrOf
+import org.umamo.interop.cmo3.uuidOf
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.ArtSourceLayer
@@ -88,7 +91,7 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 	// CMO3: CTextureManager field _textureAtlases -> CTextureAtlas fields modelImages / width / height.
 	// This page order is the document's, and becomes AtlasPlacement.pageIndex; it is independent of the
 	// renderer's own page numbering, which is derived from drawable encounter order.
-	val atlases = Cmo3Import.elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()
+	val atlases = elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()
 	val pages = atlases.map { atlas -> AtlasPage(atlas.width, atlas.height) }
 	// CMO3: CTextureAtlas field cachedAtlasImage - the page's own pixels.  A drawable whose texture points AT
 	// one stores page-space coordinates.  Identity membership is the test, CImageResource being a plain class.
@@ -96,9 +99,9 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 	val placementByModelImageGuid = HashMap<String, AtlasPlacement>()
 
 	for ((pageIndex, atlas) in atlases.withIndex()) {
-		for (entry in Cmo3Import.elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>()) {
+		for (entry in elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>()) {
 			// CMO3: ModelImageEntry field modelImageGuid - the join back to the pooled model image.
-			val modelImageGuid = Cmo3Import.uuidOf(entry.modelImageGuid) ?: continue
+			val modelImageGuid = uuidOf(entry.modelImageGuid) ?: continue
 			// CMO3: ModelImageEntry field materialLocalToAtlasTransform - the packer's work, as a
 			// GTransform2 (position, scale, eulerAngle in DEGREES).  Absent scale defaults to 1: a
 			// GTransform2 with no scale child is the unscaled case, not a collapse to zero.
@@ -124,12 +127,12 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 	// field's legacy name notwithstanding, a flat raster import lands in the same structure, so the
 	// format is read off the name's extension rather than assumed.
 	val layeredImages =
-		Cmo3Import.elementsOf(textureManager._rawImages).mapNotNull { wrapper -> (wrapper as? LayeredImageWrapper)?.image as? CLayeredImage }
+		elementsOf(textureManager._rawImages).mapNotNull { wrapper -> (wrapper as? LayeredImageWrapper)?.image as? CLayeredImage }
 	val sources = ArrayList<ArtSource>(layeredImages.size)
 	val refByLayerGuidBySource = HashMap<String, Map<String, SourceLayerRef>>()
 
 	for (image in layeredImages) {
-		val guid = Cmo3Import.uuidOf(image.guid) ?: continue
+		val guid = uuidOf(image.guid) ?: continue
 
 		if (guid in refByLayerGuidBySource) {
 			continue
@@ -154,16 +157,16 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 
 	// CMO3: CTextureManager field _modelImageGroups -> CModelImageGroup field _modelImages.
 	val modelImages =
-		Cmo3Import.elementsOf(textureManager._modelImageGroups)
+		elementsOf(textureManager._modelImageGroups)
 			.filterIsInstance<CModelImageGroup>()
-			.flatMap { group -> Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
+			.flatMap { group -> elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
 	val tiles = ArrayList<AtlasTile>(modelImages.size)
 	val imageResourceByTile = HashMap<AtlasTileId, CImageResource>()
 	val knownTileIds = HashSet<String>()
 
 	for (modelImage in modelImages) {
 		// CMO3: CModelImage field guid - the key every binding and placement references.
-		val key = Cmo3Import.uuidOf(modelImage.guid) ?: continue
+		val key = uuidOf(modelImage.guid) ?: continue
 		// CMO3: CModelImage field _filteredImage - the baked composite raster, carrying its own
 		// dimensions, so the inventory needs no decode.  An image with no resource has no art to show
 		// and no size to place, so it is not a tile at all.
@@ -175,7 +178,7 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 			AtlasTile(
 				id = tileId,
 				// CMO3: CModelImage field name - the editor writes the drawable's own name here.
-				name = displayNameOf(modelImage.name) ?: key,
+				name = nameSlotTextOf(modelImage.name) ?: key,
 				width = resource.width,
 				height = resource.height,
 				placement = placementByModelImageGuid[key],
@@ -186,7 +189,7 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 
 	// CMO3: CDrawableSourceSet field _sources -> CArtMeshSource field _extensions.
 	val artMeshes =
-		Cmo3Import.elementsOf((modelSource.drawableSourceSet as? CDrawableSourceSet)?._sources)
+		elementsOf((modelSource.drawableSourceSet as? CDrawableSourceSet)?._sources)
 			.filterIsInstance<CArtMeshSource>()
 	val tileIdByDrawableId = HashMap<String, AtlasTileId>()
 	// Whether the model's coordinates address pages: a drawable samples a page, or - the same thing once
@@ -196,16 +199,16 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 	var anyDrawableAddressesAPage = false
 
 	for (mesh in artMeshes) {
-		val drawableId = Cmo3Import.idStrOf(mesh.id) ?: continue
+		val drawableId = idStrOf(mesh.id) ?: continue
 		// CMO3: CTextureInputExtension field _textureInputs -> CTextureInput_ModelImage field
 		// _modelImageGuid.  A drawable carrying only an atlas-region input (no model image) has no
 		// source art and is simply absent from the map.
 		val extension =
-			Cmo3Import.elementsOf(mesh._extensions).filterIsInstance<CTextureInputExtension>().firstOrNull() ?: continue
+			elementsOf(mesh._extensions).filterIsInstance<CTextureInputExtension>().firstOrNull() ?: continue
 		val modelImageInput =
-			Cmo3Import.elementsOf(extension._textureInputs).filterIsInstance<CTextureInput_ModelImage>().firstOrNull()
+			elementsOf(extension._textureInputs).filterIsInstance<CTextureInput_ModelImage>().firstOrNull()
 				?: continue
-		val key = Cmo3Import.uuidOf(modelImageInput._modelImageGuid) ?: continue
+		val key = uuidOf(modelImageInput._modelImageGuid) ?: continue
 
 		if (key !in knownTileIds) {
 			continue
@@ -284,7 +287,7 @@ internal fun walkLayeredImage(image: CLayeredImage): List<WalkedCmo3Layer> {
 	 * @param String path The group's folder path, empty at the root.
 	 */
 	fun walk(group: ACLayerGroup, path: String) {
-		for (entry in Cmo3Import.elementsOf(group._children)) {
+		for (entry in elementsOf(group._children)) {
 			when (entry) {
 				is ACLayerGroup -> {
 					// CMO3: ACLayerEntry field name - the folder's own name, one segment of the path.
@@ -327,7 +330,7 @@ private fun layeredImageInventory(image: CLayeredImage, sourceId: ArtSourceId): 
 		// CMO3: ACLayerEntry fields isVisible / guid; CLayer field boundsOnImageDoc, a CRect (x / y /
 		// width / height) placing the layer on the source document.
 		val bounds = entry.boundsOnImageDoc as? CRect
-		Cmo3Import.uuidOf(entry.guid)?.let { layerGuid ->
+		uuidOf(entry.guid)?.let { layerGuid ->
 			refByLayerGuid[layerGuid] = SourceLayerRef(sourceId, layerKey = walked.key, stableKey = walked.stable)
 		}
 		rows.add(
@@ -404,7 +407,7 @@ internal fun soleLayerInputOf(modelImage: CModelImage): SoleLayerInput? {
 	// whose equality the deserializer does not promise, and only one set holds a selector map.
 	val filterEnv = modelImage.inputFilterEnv as? FilterEnv ?: return null
 	val selectorMap =
-		Cmo3Import.elementsOf(filterEnv.envValues).filterIsInstance<EnvValueSet>()
+		elementsOf(filterEnv.envValues).filterIsInstance<EnvValueSet>()
 			.firstNotNullOfOrNull { valueSet -> valueSet.value as? CLayerSelectorMap } ?: return null
 	val imageToInputs = selectorMap._imageToLayerInput as? Map<*, *> ?: return null
 	var soleImageGuid: String? = null
@@ -412,9 +415,9 @@ internal fun soleLayerInputOf(modelImage: CModelImage): SoleLayerInput? {
 	var inputCount = 0
 
 	for ((imageGuid, inputs) in imageToInputs) {
-		for (input in Cmo3Import.elementsOf(inputs).filterIsInstance<CLayerInputData>()) {
+		for (input in elementsOf(inputs).filterIsInstance<CLayerInputData>()) {
 			inputCount++
-			soleImageGuid = Cmo3Import.uuidOf(imageGuid)
+			soleImageGuid = uuidOf(imageGuid)
 			soleInput = input
 		}
 	}
@@ -446,7 +449,7 @@ private fun soleSourceLayerRefOf(modelImage: CModelImage, refByLayerGuidBySource
 	val refByLayerGuid = refByLayerGuidBySource[sole.imageGuid] ?: return null
 	// CMO3: CLayerInputData field layer -> ACLayerEntry fields guid / name.
 	val layer = sole.input.layer as? ACLayerEntry ?: return null
-	Cmo3Import.uuidOf(layer.guid)?.let { layerGuid -> refByLayerGuid[layerGuid] }?.let { ref -> return ref }
+	uuidOf(layer.guid)?.let { layerGuid -> refByLayerGuid[layerGuid] }?.let { ref -> return ref }
 	val layerName = layer.name?.takeIf { name -> name.isNotEmpty() } ?: return null
 
 	return SourceLayerRef(ArtSourceId(sole.imageGuid), layerKey = "name:$layerName", stableKey = false)
@@ -459,7 +462,7 @@ private fun soleSourceLayerRefOf(modelImage: CModelImage, refByLayerGuidBySource
  * @param Any? name The raw name field.
  * @return String? The display name, or null when the slot holds neither shape.
  */
-private fun displayNameOf(name: Any?): String? =
+private fun nameSlotTextOf(name: Any?): String? =
 	when (name) {
 		is String -> name.takeIf { candidate -> candidate.isNotEmpty() }
 		is Id -> name.idstr.takeIf { candidate -> candidate.isNotEmpty() }

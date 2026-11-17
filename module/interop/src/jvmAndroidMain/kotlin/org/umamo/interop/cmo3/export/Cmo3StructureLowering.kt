@@ -45,8 +45,11 @@ import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.cmo3.Cmo3TextureFrames
-import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.editableMeshOf
+import org.umamo.interop.cmo3.elementsOf
+import org.umamo.interop.cmo3.idStrOf
 import org.umamo.interop.cmo3.mutableGraphListOf
+import org.umamo.interop.cmo3.uuidOf
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -223,7 +226,7 @@ internal class Cmo3StructureLowering(
 		val parts = index.userPartSources + listOfNotNull(index.rootPartSource)
 
 		for (part in parts) {
-			mutableGraphListOf(part._childGuids)?.removeAll { entry -> Cmo3Import.uuidOf(entry) == uuid }
+			mutableGraphListOf(part._childGuids)?.removeAll { entry -> uuidOf(entry) == uuid }
 		}
 	}
 
@@ -278,10 +281,10 @@ internal class Cmo3StructureLowering(
 	 */
 	fun deleteParameter(parameterId: ParameterId) {
 		val sourceSet = modelSource.parameterSourceSet as? CParameterSourceSet ?: return
-		val deleted = Cmo3Import.elementsOf(sourceSet._sources).filterIsInstance<CParameterSource>().firstOrNull { entry -> Cmo3Import.idStrOf(entry.id) == parameterId.raw }
+		val deleted = elementsOf(sourceSet._sources).filterIsInstance<CParameterSource>().firstOrNull { entry -> idStrOf(entry.id) == parameterId.raw }
 
 		if (removeFromCollection(sourceSet._sources) { entry ->
-				entry is CParameterSource && Cmo3Import.idStrOf(entry.id) == parameterId.raw
+				entry is CParameterSource && idStrOf(entry.id) == parameterId.raw
 			}
 		) {
 			deletedAnything = true
@@ -301,7 +304,7 @@ internal class Cmo3StructureLowering(
 	 * @return List<String> The settings' names, in the graph's order.
 	 */
 	private fun physicsSettingsNaming(parameterGuid: Any): List<String> {
-		val uuid = Cmo3Import.uuidOf(parameterGuid)
+		val uuid = uuidOf(parameterGuid)
 
 		/**
 		 * Tells whether a reference names the parameter, by identity or by guid.
@@ -309,7 +312,7 @@ internal class Cmo3StructureLowering(
 		 * @param Any? reference A guid reference found in the physics settings.
 		 * @return Boolean True when it is the parameter's.
 		 */
-		fun names(reference: Any?): Boolean = reference === parameterGuid || (uuid != null && Cmo3Import.uuidOf(reference) == uuid)
+		fun names(reference: Any?): Boolean = reference === parameterGuid || (uuid != null && uuidOf(reference) == uuid)
 
 		// CMO3: CModelSource field physicsSettingsSourceSet -> CPhysicsSettingsSourceSet field _sourceCubismPhysics
 		// -> CPhysicsSettingsSource fields inputs / outputs -> CPhysicsInput field source and CPhysicsOutput field
@@ -317,12 +320,12 @@ internal class Cmo3StructureLowering(
 		// Cmo3PhysicsReferenceProbeTest).
 		val physicsSet = modelSource.physicsSettingsSourceSet as? CPhysicsSettingsSourceSet ?: return emptyList()
 
-		return Cmo3Import.elementsOf(physicsSet._sourceCubismPhysics)
+		return elementsOf(physicsSet._sourceCubismPhysics)
 			.filterIsInstance<CPhysicsSettingsSource>()
 			.filter { setting ->
-				Cmo3Import.elementsOf(setting.inputs).filterIsInstance<CPhysicsInput>().any { input -> names(input.source) } ||
-					Cmo3Import.elementsOf(setting.outputs).filterIsInstance<CPhysicsOutput>().any { output -> names(output.destination) }
-			}.map { setting -> setting.name?.takeIf { name -> name.isNotBlank() } ?: Cmo3Import.idStrOf(setting.id).orEmpty() }
+				elementsOf(setting.inputs).filterIsInstance<CPhysicsInput>().any { input -> names(input.source) } ||
+					elementsOf(setting.outputs).filterIsInstance<CPhysicsOutput>().any { output -> names(output.destination) }
+			}.map { setting -> setting.name?.takeIf { name -> name.isNotBlank() } ?: idStrOf(setting.id).orEmpty() }
 	}
 
 	/**
@@ -378,7 +381,7 @@ internal class Cmo3StructureLowering(
 		val groupSet = modelSource.parameterGroupSet as? CParameterGroupSet ?: return
 
 		if (removeFromCollection(groupSet._groups) { entry ->
-				entry is CParameterGroup && Cmo3Import.idStrOf(entry.id) == groupId.raw
+				entry is CParameterGroup && idStrOf(entry.id) == groupId.raw
 			}
 		) {
 			deletedAnything = true
@@ -413,7 +416,7 @@ internal class Cmo3StructureLowering(
 			return false
 		}
 
-		val templateMesh = textureSource?.let(Cmo3Import::editableMeshOf)
+		val templateMesh = textureSource?.let(::editableMeshOf)
 		val ownerPartId = edited.partByDrawable()[editedDrawable.id]
 		val ownerGuid = ownerPartId?.let { index.partByIdStr[it.raw]?.guid } ?: index.rootPartSource?.guid
 		val fresh = CArtMeshSource()
@@ -455,7 +458,7 @@ internal class Cmo3StructureLowering(
 			_extensions =
 				CArrayList<Any?>().apply {
 					if (textureSource != null) {
-						Cmo3Import.elementsOf(textureSource._extensions)
+						elementsOf(textureSource._extensions)
 							.filterIsInstance<CTextureInputExtension>()
 							.firstOrNull()
 							?.let(::add)
@@ -801,7 +804,7 @@ internal class Cmo3StructureLowering(
 		val source = index.drawableByIdStr[drawableId.raw]
 
 		if (removeFromCollection(sourceSet._sources) { entry -> entry === source }) {
-			stripFromChildLists(Cmo3Import.uuidOf(source?.guid))
+			stripFromChildLists(uuidOf(source?.guid))
 			deletedAnything = true
 		}
 	}
@@ -816,7 +819,7 @@ internal class Cmo3StructureLowering(
 		val source = index.partByIdStr[partIdRaw]
 
 		if (removeFromCollection(sourceSet._sources) { entry -> entry === source }) {
-			stripFromChildLists(Cmo3Import.uuidOf(source?.guid))
+			stripFromChildLists(uuidOf(source?.guid))
 			deletedAnything = true
 		}
 	}
@@ -831,7 +834,7 @@ internal class Cmo3StructureLowering(
 		val source = index.deformerByIdStr[deformerIdRaw]
 
 		if (removeFromCollection(sourceSet._sources) { entry -> entry === source }) {
-			stripFromChildLists(Cmo3Import.uuidOf(source?.guid))
+			stripFromChildLists(uuidOf(source?.guid))
 			deletedAnything = true
 		}
 	}
@@ -847,13 +850,13 @@ internal class Cmo3StructureLowering(
 		val sourceSet = modelSource.affecterSourceSet as? CAffecterSourceSet ?: return
 		val matching =
 			index.glueSources.filter { glueSource ->
-				index.drawableIdStrByUuid[Cmo3Import.uuidOf(glueSource.targetArtMeshA_guid)] == meshA.raw &&
-					index.drawableIdStrByUuid[Cmo3Import.uuidOf(glueSource.targetArtMeshB_guid)] == meshB.raw
+				index.drawableIdStrByUuid[uuidOf(glueSource.targetArtMeshA_guid)] == meshA.raw &&
+					index.drawableIdStrByUuid[uuidOf(glueSource.targetArtMeshB_guid)] == meshB.raw
 			}
 		val victim = matching.getOrNull(ordinal) ?: return
 
 		if (removeFromCollection(sourceSet._sources) { entry -> entry === victim }) {
-			stripFromChildLists(Cmo3Import.uuidOf(victim.guid))
+			stripFromChildLists(uuidOf(victim.guid))
 			deletedAnything = true
 		}
 	}
@@ -891,7 +894,7 @@ internal class Cmo3StructureLowering(
 		source.uvs = storedUvsFor(source, mesh.uvs, editedDrawable)
 		editor.ensureChildSlot(source, "CArtMeshSource", "uvs", "texture")
 
-		val editableMesh = Cmo3Import.editableMeshOf(source)
+		val editableMesh = editableMeshOf(source)
 
 		if (editableMesh != null) {
 			val vertexCount = mesh.vertexCount
@@ -968,8 +971,8 @@ internal class Cmo3StructureLowering(
 		val ordinal = editedByPair.indexOfFirst { it === editedGlue }.coerceAtLeast(0)
 		val glueSource =
 			index.glueSources.filter { candidate ->
-				index.drawableIdStrByUuid[Cmo3Import.uuidOf(candidate.targetArtMeshA_guid)] == editedGlue.meshA.raw &&
-					index.drawableIdStrByUuid[Cmo3Import.uuidOf(candidate.targetArtMeshB_guid)] == editedGlue.meshB.raw
+				index.drawableIdStrByUuid[uuidOf(candidate.targetArtMeshA_guid)] == editedGlue.meshA.raw &&
+					index.drawableIdStrByUuid[uuidOf(candidate.targetArtMeshB_guid)] == editedGlue.meshB.raw
 			}.getOrNull(ordinal)
 
 		if (glueSource == null) {
@@ -1024,7 +1027,7 @@ internal class Cmo3StructureLowering(
 	 * @return IntArray? The table, or null when the drawable has no source or no table.
 	 */
 	private fun uidTableOf(drawableId: DrawableId): IntArray? =
-		index.drawableByIdStr[drawableId.raw]?.let { source -> Cmo3Import.editableMeshOf(source)?.pointUid as? IntArray }
+		index.drawableByIdStr[drawableId.raw]?.let { source -> editableMeshOf(source)?.pointUid as? IntArray }
 
 	/**
 	 * The unique undirected triangle edges as the editable mesh's short-indexed pair list.

@@ -14,7 +14,7 @@ import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
-import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.elementsOf
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
@@ -260,7 +260,7 @@ public object Cmo3Conversion {
 		val textureManager = (model.root as? CModelSource)?.textureManager as? CTextureManager ?: return
 		val pageResourceByPath = HashMap<String, CImageResource>()
 
-		for (atlas in Cmo3Import.elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()) {
+		for (atlas in elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()) {
 			val pageResource = atlas.cachedAtlasImage as? CImageResource ?: continue
 			pageResource.imageFileBuf?.archivePath?.let { path -> pageResourceByPath[path] = pageResource }
 		}
@@ -279,8 +279,8 @@ public object Cmo3Conversion {
 		// field _filteredImage - the raster an unpacked drawable samples.
 		val rasterByPath = HashMap<String, CImageResource>()
 
-		for (group in Cmo3Import.elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
-			for (modelImage in Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
+		for (group in elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
+			for (modelImage in elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
 				val raster = modelImage._filteredImage as? CImageResource ?: continue
 				raster.imageFileBuf?.archivePath?.let { path -> rasterByPath[path] = raster }
 			}

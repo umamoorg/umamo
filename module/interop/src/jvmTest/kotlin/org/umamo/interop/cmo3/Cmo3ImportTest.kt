@@ -18,6 +18,7 @@ import org.umamo.format.cmo3.model.gen.Type
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.displayNameOf
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.OrgChild
@@ -272,11 +273,11 @@ class Cmo3ImportTest {
 	fun theDisplayNameIsTheObjectsOwnOrItsId() {
 		val id = Id("").apply { idstr = "ParamAngleX" }
 
-		assertEquals("Angle X", Cmo3Import.displayNameOf("Angle X", id))
-		assertEquals("ParamAngleX", Cmo3Import.displayNameOf(null, id), "absent")
-		assertEquals("ParamAngleX", Cmo3Import.displayNameOf("", id), "empty")
-		assertEquals("ParamAngleX", Cmo3Import.displayNameOf(" \t", id), "blank")
-		assertEquals("", Cmo3Import.displayNameOf("", null), "with neither a name nor an id there is nothing to show")
+		assertEquals("Angle X", displayNameOf("Angle X", id))
+		assertEquals("ParamAngleX", displayNameOf(null, id), "absent")
+		assertEquals("ParamAngleX", displayNameOf("", id), "empty")
+		assertEquals("ParamAngleX", displayNameOf(" \t", id), "blank")
+		assertEquals("", displayNameOf("", null), "with neither a name nor an id there is nothing to show")
 	}
 
 	/**

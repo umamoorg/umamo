@@ -38,8 +38,11 @@ import org.umamo.interop.ParameterGroupField
 import org.umamo.interop.PartField
 import org.umamo.interop.alphaCompositionOf
 import org.umamo.interop.cmo3.Cmo3TextureFrames
-import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.editableMeshOf
+import org.umamo.interop.cmo3.elementsOf
+import org.umamo.interop.cmo3.idStrOf
 import org.umamo.interop.cmo3.mutableGraphListOf
+import org.umamo.interop.cmo3.uuidOf
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.interop.colorCompositionOf
 import org.umamo.runtime.model.AtlasPlacement
@@ -644,7 +647,7 @@ internal class Cmo3PropertyLowering(
 		editor.ensureChildSlot(source, "CArtMeshSource", "positions", "uvs")
 		// CMO3: GEditableMesh2 field point mirrors the positions as its OWN float-array (the corpus
 		// never shares the two array objects, and a shared object would hoist as an xs.ref).
-		val editableMesh = Cmo3Import.editableMeshOf(source)
+		val editableMesh = editableMeshOf(source)
 		val pointArray = editableMesh?.point as? FloatArray
 
 		if (editableMesh != null && (pointArray == null || pointArray.size == newCanvas.size)) {
@@ -702,8 +705,8 @@ internal class Cmo3PropertyLowering(
 		// ordinal, the same keying the diff used.
 		val sourcesByPair =
 			index.glueSources.groupBy { glueSource ->
-				val meshA = index.drawableIdStrByUuid[Cmo3Import.uuidOf(glueSource.targetArtMeshA_guid)]
-				val meshB = index.drawableIdStrByUuid[Cmo3Import.uuidOf(glueSource.targetArtMeshB_guid)]
+				val meshA = index.drawableIdStrByUuid[uuidOf(glueSource.targetArtMeshA_guid)]
+				val meshB = index.drawableIdStrByUuid[uuidOf(glueSource.targetArtMeshB_guid)]
 				meshA to meshB
 			}
 		val editedByPair = edited.glues.groupBy { glue -> glue.meshA.raw to glue.meshB.raw }
@@ -1014,7 +1017,7 @@ internal class Cmo3PropertyLowering(
 		source.defaultOrder_forEditor = editedPart.drawOrder
 		editor.ensureChildSlot(source, "CPartSource", "defaultOrder_forEditor", "isSketch")
 
-		for (form in Cmo3Import.elementsOf(source.keyforms).filterIsInstance<CPartForm>()) {
+		for (form in elementsOf(source.keyforms).filterIsInstance<CPartForm>()) {
 			form.drawOrder = editedPart.drawOrder
 			editor.ensureChildSlot(form, "CPartForm", "drawOrder", "opacity")
 		}
@@ -1115,7 +1118,7 @@ internal class Cmo3PropertyLowering(
 	 * @param PartId?          newPartId  The new owning part, or null for the root.
 	 */
 	private fun lowerDeformerPart(source: ACDeformerSource, deformerId: DeformerId, newPartId: PartId?) {
-		val deformerUuid = Cmo3Import.uuidOf(source.guid)
+		val deformerUuid = uuidOf(source.guid)
 		val oldPartId = baselineDeformerById[deformerId]?.partId
 		val oldPartSource = oldPartId?.let { index.partByIdStr[it.raw] } ?: index.rootPartSource
 		val newPartSource = newPartId?.let { index.partByIdStr[it.raw] } ?: index.rootPartSource
@@ -1135,11 +1138,11 @@ internal class Cmo3PropertyLowering(
 			return
 		}
 
-		mutableGraphListOf(oldPartSource?._childGuids)?.removeAll { entry -> Cmo3Import.uuidOf(entry) == deformerUuid }
+		mutableGraphListOf(oldPartSource?._childGuids)?.removeAll { entry -> uuidOf(entry) == deformerUuid }
 		val newChildList = mutableGraphListOf(newPartSource._childGuids)
 
 		if (newChildList != null) {
-			if (newChildList.none { entry -> Cmo3Import.uuidOf(entry) == deformerUuid }) {
+			if (newChildList.none { entry -> uuidOf(entry) == deformerUuid }) {
 				newChildList.add(source.guid)
 			}
 		} else {
@@ -1165,12 +1168,12 @@ internal class Cmo3PropertyLowering(
 	 * @param List        editedChildren The edited model's ordered org children.
 	 */
 	private fun rebuildOrgChildren(source: CPartSource, editedChildren: List<OrgChild>) {
-		val currentEntries = Cmo3Import.elementsOf(source._childGuids)
+		val currentEntries = elementsOf(source._childGuids)
 		val nonOrgAfterAnchor = LinkedHashMap<String?, MutableList<Any?>>()
 		var lastOrgUuid: String? = null
 
 		for (entry in currentEntries) {
-			val uuid = Cmo3Import.uuidOf(entry)
+			val uuid = uuidOf(entry)
 			val isOrgChild = uuid != null && (uuid in index.drawableUuids || uuid in index.userPartUuids)
 
 			if (isOrgChild) {
@@ -1198,7 +1201,7 @@ internal class Cmo3PropertyLowering(
 			}
 
 			newEntries.add(childGuid)
-			nonOrgAfterAnchor.remove(Cmo3Import.uuidOf(childGuid))?.let(newEntries::addAll)
+			nonOrgAfterAnchor.remove(uuidOf(childGuid))?.let(newEntries::addAll)
 		}
 
 		// Non-org entries whose anchor did not survive keep existing at the end of the list.
@@ -1309,7 +1312,7 @@ internal class Cmo3PropertyLowering(
 		val linkByHorizontal = edited.parameterLinks.associateBy { link -> link.horizontal }
 
 		for (source in index.parameterSources) {
-			val idStr = Cmo3Import.idStrOf(source.id) ?: continue
+			val idStr = idStrOf(source.id) ?: continue
 			val shouldCombine = ParameterId(idStr) in linkByHorizontal
 
 			if (source.combined != shouldCombine) {
@@ -1373,9 +1376,9 @@ internal class Cmo3PropertyLowering(
 
 		val imageByGuid = HashMap<String, CLayeredImage>()
 
-		for (wrapper in Cmo3Import.elementsOf(textureManager._rawImages)) {
+		for (wrapper in elementsOf(textureManager._rawImages)) {
 			val image = (wrapper as? LayeredImageWrapper)?.image as? CLayeredImage ?: continue
-			val guid = Cmo3Import.uuidOf(image.guid) ?: continue
+			val guid = uuidOf(image.guid) ?: continue
 			imageByGuid.putIfAbsent(guid, image)
 		}
 
@@ -1443,8 +1446,8 @@ internal class Cmo3PropertyLowering(
 			val source = index.drawableByIdStr[drawable.id.raw] ?: continue
 			// CMO3: CArtMeshSource field _extensions -> CTextureInputExtension fields _textureInputs /
 			// currentTextureInputData - the pointer names which of the drawable's inputs is live.
-			val extension = Cmo3Import.elementsOf(source._extensions).filterIsInstance<CTextureInputExtension>().firstOrNull() ?: continue
-			val inputs = Cmo3Import.elementsOf(extension._textureInputs)
+			val extension = elementsOf(source._extensions).filterIsInstance<CTextureInputExtension>().firstOrNull() ?: continue
+			val inputs = elementsOf(extension._textureInputs)
 			val wanted =
 				if (fromSourceLayers) {
 					inputs.filterIsInstance<CTextureInput_ModelImage>().firstOrNull()

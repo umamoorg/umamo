@@ -13,6 +13,7 @@ import org.umamo.format.uma.textures.UmaPixelSource
 import org.umamo.format.uma.textures.UmaRenderPagePixels
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
+import org.umamo.interop.cmo3.elementsOf
 import org.umamo.interop.cmo3.export.Cmo3Conversion
 import org.umamo.interop.cmo3.export.ModelOrderPages
 import org.umamo.interop.cmo3.export.modelOrderPages
@@ -332,7 +333,7 @@ class UmaCmo3HopCorpusTest {
 		val exportedRoot = exported.root as CModelSource
 		val back = Cmo3Import.importModelSource(exportedRoot)
 		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases.
-		val atlasCount = Cmo3Import.elementsOf((exportedRoot.textureManager as? CTextureManager)?._textureAtlases).filterIsInstance<CTextureAtlas>().size
+		val atlasCount = elementsOf((exportedRoot.textureManager as? CTextureManager)?._textureAtlases).filterIsInstance<CTextureAtlas>().size
 		assertTrue(atlasCount == maxOf(reopened.atlas.pages.size, pages.size), "$atlasCount atlases for ${reopened.atlas.pages.size} model pages")
 
 		val expected = result.puppet
