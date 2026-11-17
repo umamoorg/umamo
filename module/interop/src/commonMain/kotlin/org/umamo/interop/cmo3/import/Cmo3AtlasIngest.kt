@@ -23,10 +23,10 @@ import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.GTransform2
 import org.umamo.format.cmo3.model.gen.LayeredImageWrapper
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
-import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CRect
 import org.umamo.format.cmo3.model.type.FileRef
 import org.umamo.format.cmo3.model.type.GVector2
+import org.umamo.interop.cmo3.displayNameOf
 import org.umamo.interop.cmo3.elementsOf
 import org.umamo.interop.cmo3.idStrOf
 import org.umamo.interop.cmo3.uuidOf
@@ -138,7 +138,7 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 			continue
 		}
 
-		val name = image.name?.takeIf { candidate -> candidate.isNotEmpty() } ?: guid
+		val name = displayNameOf(image.name, guid)
 		val inventory = layeredImageInventory(image, ArtSourceId(guid))
 		refByLayerGuidBySource[guid] = inventory.refByLayerGuid
 		sources.add(
@@ -177,8 +177,10 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 		tiles.add(
 			AtlasTile(
 				id = tileId,
-				// CMO3: CModelImage field name - the editor writes the drawable's own name here.
-				name = nameSlotTextOf(modelImage.name) ?: key,
+				// CMO3: CModelImage field name - the editor writes the drawable's own name here.  The
+				// serializer holds the slot as `Any?`: a plain string, or an id-bearing node whose idstr then
+				// stands in.  A tile with neither is named by its guid.
+				name = displayNameOf(modelImage.name as? String, idStrOf(modelImage.name) ?: key),
 				width = resource.width,
 				height = resource.height,
 				placement = placementByModelImageGuid[key],
@@ -454,17 +456,3 @@ private fun soleSourceLayerRefOf(modelImage: CModelImage, refByLayerGuidBySource
 
 	return SourceLayerRef(ArtSourceId(sole.imageGuid), layerKey = "name:$layerName", stableKey = false)
 }
-
-/**
- * Resolves a CMO3 name slot, which the serializer holds as `Any?` and fills with either a plain string
- * or an id-bearing node.
- *
- * @param Any? name The raw name field.
- * @return String? The display name, or null when the slot holds neither shape.
- */
-private fun nameSlotTextOf(name: Any?): String? =
-	when (name) {
-		is String -> name.takeIf { candidate -> candidate.isNotEmpty() }
-		is Id -> name.idstr.takeIf { candidate -> candidate.isNotEmpty() }
-		else -> null
-	}

@@ -167,17 +167,6 @@ internal fun <T> resolveGuids(guidList: Any?, index: Map<String, T>): List<T> =
 	elementsOf(guidList).mapNotNull { index[uuidOf(it)] }
 
 /**
- * The display name of a CMO3 object: its own name, or its id when it has none.  The editor writes the
- * name of an object the rigger never named as an empty string as readily as it leaves the name out, so
- * an empty or blank name counts as none.
- *
- * @param String? name The object's own name field (`localName`, or `name` on a parameter or a group).
- * @param Any? id The object's `Id` field.
- * @return String The object's own name, or its idstr (e.g. `ArtMesh82`) when it has none.
- */
-internal fun displayNameOf(name: String?, id: Any?): String = name?.takeIf { ownName -> ownName.isNotBlank() } ?: idStrOf(id).orEmpty()
-
-/**
  * Converts a CMO3 `CFloatColor` field to the runtime [ColorRgb].
  *
  * @param Any? value A field expected to hold a `CFloatColor` (channels = editor hex / 255).

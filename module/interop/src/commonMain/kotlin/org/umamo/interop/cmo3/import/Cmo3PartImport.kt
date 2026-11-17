@@ -5,6 +5,7 @@ import org.umamo.format.cmo3.model.gen.CPartForm
 import org.umamo.format.cmo3.model.gen.CPartSource
 import org.umamo.format.cmo3.model.gen.ColorComposition
 import org.umamo.interop.alphaBlendOfToken
+import org.umamo.interop.cmo3.displayNameOf
 import org.umamo.interop.cmo3.elementsOf
 import org.umamo.interop.cmo3.idStrOf
 import org.umamo.interop.cmo3.uuidOf
@@ -39,7 +40,7 @@ internal fun importParts(context: Cmo3ImportContext): List<Part> =
 		Part(
 			id = PartId(idStrOf(source.id).orEmpty()),
 			// CMO3: localName is the user-facing part name; an absent or empty one falls back to the id.
-			name = displayNameOf(source.localName, source.id),
+			name = displayNameOf(source.localName, idStrOf(source.id)),
 			children = context.orgChildrenOf(source._childGuids),
 			// CMO3: ACParameterControllableSource.isVisible = the Parts-panel eyeball (cascades to children);
 			// CPartSource.isSketch = the Inspector's "Guide Image" checkbox (reference-only, non-export).

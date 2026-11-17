@@ -3,6 +3,7 @@ package org.umamo.interop.cmo3.import
 import org.umamo.format.cmo3.model.gen.CParameterGroup
 import org.umamo.format.cmo3.model.gen.CParameterGroupSet
 import org.umamo.format.cmo3.model.gen.Type
+import org.umamo.interop.cmo3.displayNameOf
 import org.umamo.interop.cmo3.elementsOf
 import org.umamo.interop.cmo3.idStrOf
 import org.umamo.interop.cmo3.uuidOf
@@ -29,7 +30,7 @@ internal fun importParameters(context: Cmo3ImportContext): List<Parameter> =
 		Parameter(
 			id = ParameterId(idStrOf(source.id).orEmpty()),
 			// CMO3: CParameterSource.name is the display label; an absent or empty one falls back to the id (ParamAngleX).
-			name = displayNameOf(source.name, source.id),
+			name = displayNameOf(source.name, idStrOf(source.id)),
 			min = source.minValue,
 			max = source.maxValue,
 			default = source.defaultValue,
@@ -151,7 +152,7 @@ private fun buildParameterTree(
 						id = ParameterGroupId(idStrOf(childGroup.id).orEmpty()),
 						// CMO3: CParameterGroup.name is the group label; an absent or empty one falls back to the id.  Names are
 						// not unique (group names can repeat), so identity stays on the id.
-						name = displayNameOf(childGroup.name, childGroup.id),
+						name = displayNameOf(childGroup.name, idStrOf(childGroup.id)),
 						// CMO3: CParameterGroup.folderIsOpened - the editor's saved expand/collapse state.
 						initiallyOpen = childGroup.folderIsOpened,
 						children = childrenOf(childGroup),

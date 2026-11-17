@@ -4,6 +4,7 @@ import org.umamo.format.cmo3.model.custom.CRotationDeformerForm
 import org.umamo.format.cmo3.model.gen.CRotationDeformerSource
 import org.umamo.format.cmo3.model.gen.CWarpDeformerForm
 import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
+import org.umamo.interop.cmo3.displayNameOf
 import org.umamo.interop.cmo3.idStrOf
 import org.umamo.interop.cmo3.uuidOf
 import org.umamo.runtime.keyform.fanOutRotation
@@ -30,7 +31,7 @@ internal fun importDeformers(context: Cmo3ImportContext): List<Deformer> =
 	context.deformerSources.mapNotNull { source ->
 		val id = idStrOf(source.id)?.let(::DeformerId) ?: return@mapNotNull null
 		// CMO3: ACParameterControllableSource.localName is the user-facing deformer name; an absent or empty one falls back to the id.
-		val name = displayNameOf(source.localName, source.id)
+		val name = displayNameOf(source.localName, idStrOf(source.id))
 		// CMO3: targetDeformerGuid = parent deformer (transform tree); parentGuid = part (org tree).
 		val parent = context.deformerIdByUuid[uuidOf(source.targetDeformerGuid)]
 		val partId = context.partIdByUuid[uuidOf(source.parentGuid)]

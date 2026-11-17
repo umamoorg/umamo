@@ -6,6 +6,7 @@ import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.ColorComposition
 import org.umamo.interop.alphaBlendOfToken
 import org.umamo.interop.cmo3.Cmo3TextureFrames
+import org.umamo.interop.cmo3.displayNameOf
 import org.umamo.interop.cmo3.idStrOf
 import org.umamo.interop.cmo3.uuidOf
 import org.umamo.interop.colorBlendOfToken
@@ -76,7 +77,7 @@ internal fun importDrawables(
 		Drawable(
 			id = DrawableId(idStrOf(source.id).orEmpty()),
 			// CMO3: ACParameterControllableSource.localName is the user-facing drawable name; an absent or empty one falls back to the id.
-			name = displayNameOf(source.localName, source.id),
+			name = displayNameOf(source.localName, idStrOf(source.id)),
 			parentDeformerId = context.deformerIdByUuid[uuidOf(source.targetDeformerGuid)],
 			// CMO3: colorComposition/alphaComposition - the full 5.3 blend surface (bare legacy
 			// tokens on pre-5.3 meshes; every mode token maps, see BlendModeMapping).

@@ -45,6 +45,18 @@ internal fun uuidOf(value: Any?): String? = (value as? Guid)?.uuid?.takeIf { it.
 internal fun idStrOf(value: Any?): String? = (value as? Id)?.idstr?.takeIf { it.isNotEmpty() }
 
 /**
+ * The display name of a CMO3 object: its own name, or a fallback when it has none.  The editor writes the
+ * name of an object the rigger never named as an empty string as readily as it leaves the name out, so
+ * an empty or blank name counts as none.
+ *
+ * @param String? name The object's own name field (`localName`, or `name` on a parameter, a group, or an image).
+ * @param String? fallback What stands in for a missing name: the object's idstr (e.g. `ArtMesh82`), or its
+ *   guid where it carries no id.
+ * @return String The object's own name, else the fallback, else an empty string.
+ */
+internal fun displayNameOf(name: String?, fallback: String?): String = name?.takeIf { ownName -> ownName.isNotBlank() } ?: fallback.orEmpty()
+
+/**
  * The editable mesh holding a drawable's stable per-vertex UIDs (`pointUid[i]` is vertex `i`'s UID,
  * since `editableMesh.point[i] == CArtMeshSource.positions[i]`).
  *

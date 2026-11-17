@@ -18,7 +18,6 @@ import org.umamo.format.cmo3.model.gen.Type
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.interop.cmo3.import.Cmo3Import
-import org.umamo.interop.cmo3.import.displayNameOf
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.OrgChild
@@ -267,17 +266,15 @@ class Cmo3ImportTest {
 
 	/**
 	 * The one rule every named CMO3 object takes its display name by: parameters, parameter groups, parts,
-	 * deformers, and drawables alike.
+	 * deformers, and drawables with their id as the fallback, tiles and artwork sources with their guid.
 	 */
 	@Test
-	fun theDisplayNameIsTheObjectsOwnOrItsId() {
-		val id = Id("").apply { idstr = "ParamAngleX" }
-
-		assertEquals("Angle X", displayNameOf("Angle X", id))
-		assertEquals("ParamAngleX", displayNameOf(null, id), "absent")
-		assertEquals("ParamAngleX", displayNameOf("", id), "empty")
-		assertEquals("ParamAngleX", displayNameOf(" \t", id), "blank")
-		assertEquals("", displayNameOf("", null), "with neither a name nor an id there is nothing to show")
+	fun theDisplayNameIsTheObjectsOwnOrItsFallback() {
+		assertEquals("Angle X", displayNameOf("Angle X", "ParamAngleX"))
+		assertEquals("ParamAngleX", displayNameOf(null, "ParamAngleX"), "absent")
+		assertEquals("ParamAngleX", displayNameOf("", "ParamAngleX"), "empty")
+		assertEquals("ParamAngleX", displayNameOf(" \t", "ParamAngleX"), "blank")
+		assertEquals("", displayNameOf("", null), "with neither a name nor a fallback there is nothing to show")
 	}
 
 	/**

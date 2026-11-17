@@ -45,6 +45,7 @@ import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.cmo3.Cmo3TextureFrames
+import org.umamo.interop.cmo3.displayNameOf
 import org.umamo.interop.cmo3.editableMeshOf
 import org.umamo.interop.cmo3.elementsOf
 import org.umamo.interop.cmo3.idStrOf
@@ -325,7 +326,7 @@ internal class Cmo3StructureLowering(
 			.filter { setting ->
 				elementsOf(setting.inputs).filterIsInstance<CPhysicsInput>().any { input -> names(input.source) } ||
 					elementsOf(setting.outputs).filterIsInstance<CPhysicsOutput>().any { output -> names(output.destination) }
-			}.map { setting -> setting.name?.takeIf { name -> name.isNotBlank() } ?: idStrOf(setting.id).orEmpty() }
+			}.map { setting -> displayNameOf(setting.name, idStrOf(setting.id)) }
 	}
 
 	/**
