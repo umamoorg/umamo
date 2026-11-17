@@ -31,11 +31,13 @@ internal fun brushCommands(
 	commandTable(
 		CommandTable.Brush,
 		// The brush is an Edit-mode tool over a warp's cage, so it arms in the 2D viewport alone - there is
-		// no lattice to smear in the UV editor, and Pose mode has the lattice's own tool.
+		// no lattice to smear in the UV editor, and Pose mode has the lattice's own tool.  The command applies
+		// in Edit mode whatever the selection holds, so the toolbar shows it there and nowhere else; a session
+		// with no warp to smear says so when the brush is asked for.
 		Command(
 			"mesh.deformBrush",
 			title = Res.string.cmd_mesh_deform_brush,
-			availability = availability.inEditModeOverWarp,
+			availability = availability.inEditMode,
 			spaces = SpaceScope.Viewport2D,
 			group = CommandSection.ToolBrush,
 			icon = LocalUmamoIcons.toolDeformBrush,

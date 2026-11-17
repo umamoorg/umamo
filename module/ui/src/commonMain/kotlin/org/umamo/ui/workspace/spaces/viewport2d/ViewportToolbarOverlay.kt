@@ -29,8 +29,13 @@ private val TOOLBAR_GLYPH_SIZE = 18.dp
 /**
  * The viewport's floating left tool toolbar (Blender's toolbar, reduced to a strip): the viewport tool family as
  * the registry lists it, the select tools then the modal transforms.  Each button is its command's - the glyph, the
- * label, lit while the tool is armed or in flight, and grayed with no open document - so the buttons, shortcuts,
- * pies, and palette all share one behavior, and the strip still renders, disabled, before the first file opens.
+ * label, lit while the tool is armed or in flight - so the buttons, shortcuts, pies, and palette all share one
+ * behavior.
+ *
+ * A tool that does not apply is NOT drawn: the strip holds the tools of this mode, so a tool of another mode is
+ * absent rather than grayed, and nobody meets a button that would refuse.  The palette hides an inapplicable
+ * command the same way.  With no open document the whole strip is drawn grayed, so the chrome reads the same before
+ * the first file opens.
  *
  * The caller gates the strip's visibility and mounts it in a [org.umamo.ui.kit.PointerShield], keeping
  * this composable a pure strip.
@@ -48,9 +53,10 @@ internal fun ViewportToolbarOverlay(modifier: Modifier = Modifier) {
 		session?.activeSelectTool?.collectAsState()?.value,
 		session?.activeMeshOperator?.collectAsState()?.value,
 		session?.activeObjectOperator?.collectAsState()?.value,
+		session?.activeBrush?.collectAsState()?.value,
 		// The mode and the element selection too: a button's enabled state is read when it is composed, and the
-		// Deform brush's command applies only in Edit mode over a warp.  Without these the strip would keep the
-		// state its buttons had when it was composed, and the brush's button would stay gray.
+		// Deform brush's command applies only in Edit mode.  Without these the strip would keep the state its
+		// buttons had when it was composed.
 		session?.mode?.collectAsState()?.value,
 		session?.meshSelection?.collectAsState()?.value,
 	)
@@ -64,6 +70,12 @@ internal fun ViewportToolbarOverlay(modifier: Modifier = Modifier) {
 		verticalArrangement = Arrangement.spacedBy(2.dp),
 	) {
 		for (tool in commands.inGroup(CommandFamily.ViewportTool)) {
+			// With a document open, a tool that does not apply is not drawn at all; with none, every tool is
+			// drawn so the strip reads the same before the first file opens.
+			if (session != null && !tool.availability.isAvailable()) {
+				continue
+			}
+
 			CommandIconButton(
 				command = tool,
 				appearance = IconButtonAppearance.Filled(shapes.small),

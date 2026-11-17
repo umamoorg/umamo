@@ -5,7 +5,6 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.editsElements
 import org.umamo.edit.editsKeys
-import org.umamo.runtime.model.deformerId
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandRegistry
@@ -72,16 +71,6 @@ internal class SessionAvailability(session: EditorSession?) {
 
 	/** Applies only in Edit mode, where the rest geometry - topology, UVs - is the domain. */
 	val inEditMode = CommandAvailability { session?.mode?.value == EditorMode.Edit }
-
-	/**
-	 * Applies in Edit mode with a warp in the session's element selection: the Deform brush shapes a warp's
-	 * lattice, so over a mesh there is nothing for it to smear.
-	 */
-	val inEditModeOverWarp =
-		CommandAvailability {
-			session?.mode?.value == EditorMode.Edit &&
-				session.meshSelection.value.owners.any { owner -> owner.deformerId != null }
-		}
 
 	/**
 	 * Applies in the modes that edit elements (Edit and Pose), where the session's vertices or lattice points are the
