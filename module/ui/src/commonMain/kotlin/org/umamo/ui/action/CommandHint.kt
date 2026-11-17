@@ -15,8 +15,12 @@ import org.umamo.ui.workspace.SpaceScope
  * mode, the hovered space, or the keymap changes.  Both predicates of a hinted command must therefore
  * depend on the document and the mode alone, or the suggestion goes stale.
  *
- * @property StringResource label The short label the command is suggested under ("Grab", where the title
- *   reads "Grab Vertices").  Commands sharing one label are suggested as one entry ("1/2/3 Select Mode").
+ * @property StringResource? label The short name the command is suggested under, or null to read under its
+ *   own [Command.title].  The bar is a narrow one-line strip whose suggestions are what get cut when the
+ *   window narrows, so a command whose title is long declares a short name here rather than costing the
+ *   strip the room.  A name is also what lets commands go by one name together: the select modes are
+ *   suggested as the single entry "1/2/3 Select Mode", which needs a name none of the three titles
+ *   carries.
  * @property CommandAvailability suggestedWhen Whether the command is worth suggesting right now, on top
  *   of being available; defaults to always.
  * @property Function suggestedOver The spaces the suggestion shows over right now, when narrower than the command's
@@ -25,7 +29,7 @@ import org.umamo.ui.workspace.SpaceScope
  *   follows the same document-and-mode rule as [suggestedWhen], and like it, dispatch and the palette never read it.
  */
 class CommandHint(
-	val label: StringResource,
+	val label: StringResource? = null,
 	val suggestedWhen: CommandAvailability = CommandAvailability.Always,
 	val suggestedOver: () -> SpaceScope? = { null },
 )
