@@ -5,8 +5,8 @@ import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
-import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.cmo3AtlasPages
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test

@@ -1,4 +1,4 @@
-package org.umamo.interop.cmo3
+package org.umamo.interop.cmo3.export
 
 import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.Cmo3Model
@@ -37,6 +37,9 @@ import org.umamo.interop.ParameterField
 import org.umamo.interop.ParameterGroupField
 import org.umamo.interop.PartField
 import org.umamo.interop.alphaCompositionOf
+import org.umamo.interop.cmo3.Cmo3TextureFrames
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.mutableGraphListOf
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.interop.colorCompositionOf
 import org.umamo.runtime.model.AtlasPlacement

@@ -1,4 +1,4 @@
-package org.umamo.interop.cmo3
+package org.umamo.interop.cmo3.export
 
 import org.umamo.format.art.analyzeAlpha
 import org.umamo.format.cmo3.model.custom.CImageResource
@@ -49,6 +49,7 @@ import org.umamo.format.cmo3.type.CHashMap
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.cropped
+import org.umamo.interop.cmo3.mutableGraphListOf
 import org.umamo.runtime.model.AtlasPlacement
 
 /*

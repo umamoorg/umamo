@@ -5,8 +5,8 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.png.PngCodec
 import org.umamo.interop.ExportReport
-import org.umamo.interop.cmo3.Cmo3Conversion
-import org.umamo.interop.cmo3.cmo3AtlasPages
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
 import org.umamo.interop.describeExportNotice
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.render.PuppetTextures

@@ -17,6 +17,7 @@ import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraintSet
 import org.umamo.format.cmo3.model.gen.Type
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.OrgChild

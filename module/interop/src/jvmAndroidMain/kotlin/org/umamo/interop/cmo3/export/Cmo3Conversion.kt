@@ -1,4 +1,4 @@
-package org.umamo.interop.cmo3
+package org.umamo.interop.cmo3.export
 
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.Cmo3Model
@@ -14,6 +14,7 @@ import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel

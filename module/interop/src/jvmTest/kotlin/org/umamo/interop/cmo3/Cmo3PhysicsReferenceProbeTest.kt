@@ -8,6 +8,7 @@ import org.umamo.format.cmo3.model.gen.CPhysicsInput
 import org.umamo.format.cmo3.model.gen.CPhysicsOutput
 import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSource
 import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSourceSet
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.testkit.skipTest
 import java.io.File
 import java.util.Collections

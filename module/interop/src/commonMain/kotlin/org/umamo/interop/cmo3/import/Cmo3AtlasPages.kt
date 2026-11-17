@@ -1,4 +1,4 @@
-package org.umamo.interop.cmo3
+package org.umamo.interop.cmo3.import
 
 import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CModelSource
@@ -8,6 +8,7 @@ import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.interop.AtlasPageSet
+import org.umamo.interop.cmo3.Cmo3TextureFrames
 
 /**
  * Extracts the image(s) a CMO3 model's art meshes are shown from, the images their imported coordinates

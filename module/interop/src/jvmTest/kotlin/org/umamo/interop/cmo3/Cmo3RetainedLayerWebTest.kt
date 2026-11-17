@@ -29,6 +29,14 @@ import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.fittedInto
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.export.Cmo3Icons
+import org.umamo.interop.cmo3.export.Cmo3ImageChainBuilder
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasIngest
+import org.umamo.interop.cmo3.import.cmo3SourceArtOf
+import org.umamo.interop.cmo3.import.walkLayeredImage
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.ArtSourceLayer

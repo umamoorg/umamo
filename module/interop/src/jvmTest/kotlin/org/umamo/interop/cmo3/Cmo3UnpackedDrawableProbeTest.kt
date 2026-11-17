@@ -16,6 +16,8 @@ import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.interop.cmo3.export.Cmo3ImageChainBuilder
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.testkit.skipTest
 import java.io.File
 import java.util.Collections

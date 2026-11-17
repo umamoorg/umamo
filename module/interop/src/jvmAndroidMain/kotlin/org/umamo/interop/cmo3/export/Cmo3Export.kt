@@ -1,4 +1,4 @@
-package org.umamo.interop.cmo3
+package org.umamo.interop.cmo3.export
 
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.edit
@@ -17,6 +17,8 @@ import org.umamo.interop.ParameterField
 import org.umamo.interop.ParameterGroupField
 import org.umamo.interop.PartField
 import org.umamo.interop.PuppetDiff
+import org.umamo.interop.cmo3.Cmo3TextureFrames
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.diffPuppetModels
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.Deformer

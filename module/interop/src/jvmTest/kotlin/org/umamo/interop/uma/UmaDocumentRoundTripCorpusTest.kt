@@ -16,8 +16,8 @@ import org.umamo.format.uma.textures.UmaRenderPagePixels
 import org.umamo.interop.AtlasPageSet
 import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.SourceArtImport
-import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.cmo3AtlasPages
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.interop.moc3.import.moc3AtlasPages

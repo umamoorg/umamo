@@ -7,7 +7,7 @@ import org.umamo.format.cmo3.model.gen.CArtMeshForm
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.identity.Id
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test

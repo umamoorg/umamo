@@ -4,9 +4,9 @@ import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.interop.ExportReport
-import org.umamo.interop.cmo3.Cmo3Conversion
-import org.umamo.interop.cmo3.Cmo3Export
-import org.umamo.interop.cmo3.modelOrderPages
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.export.modelOrderPages
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.deriveAtlasTextures

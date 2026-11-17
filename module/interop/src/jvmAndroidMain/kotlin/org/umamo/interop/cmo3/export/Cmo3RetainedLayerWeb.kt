@@ -1,4 +1,4 @@
-package org.umamo.interop.cmo3
+package org.umamo.interop.cmo3.export
 
 import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.Cmo3Model
@@ -28,6 +28,13 @@ import org.umamo.format.cmo3.model.type.CRect
 import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.interop.cmo3.Cmo3StoredFrame
+import org.umamo.interop.cmo3.Cmo3TextureFrames
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.SoleLayerInput
+import org.umamo.interop.cmo3.import.soleLayerInputOf
+import org.umamo.interop.cmo3.import.walkLayeredImage
+import org.umamo.interop.cmo3.mutableGraphListOf
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.AtlasTile

@@ -12,6 +12,8 @@ import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.storedToArtAffineForTile
 import java.io.File

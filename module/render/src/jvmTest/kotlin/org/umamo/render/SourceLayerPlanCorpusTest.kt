@@ -3,8 +3,8 @@ package org.umamo.render
 import org.junit.Assume
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.cmo3AtlasIngest
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasIngest
 import org.umamo.runtime.model.AtlasTileId
 import java.io.File
 import kotlin.test.Test

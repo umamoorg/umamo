@@ -8,6 +8,9 @@ import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3TwinColocation
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId

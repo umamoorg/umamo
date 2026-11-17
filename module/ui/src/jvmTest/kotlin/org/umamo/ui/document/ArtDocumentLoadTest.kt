@@ -12,9 +12,9 @@ import org.umamo.format.cmo3.model.gen.KeyformGridSource
 import org.umamo.format.png.PngCodec
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.art.SourceArtImportNotice
-import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.cmo3AtlasIngest
-import org.umamo.interop.cmo3.cmo3SourceArtOf
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasIngest
+import org.umamo.interop.cmo3.import.cmo3SourceArtOf
 import org.umamo.render.deriveAtlasTextures
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.testkit.skipTest

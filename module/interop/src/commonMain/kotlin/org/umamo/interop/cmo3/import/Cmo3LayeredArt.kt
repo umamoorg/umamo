@@ -1,4 +1,4 @@
-package org.umamo.interop.cmo3
+package org.umamo.interop.cmo3.import
 
 import org.umamo.format.art.LayerBlend
 import org.umamo.format.art.LayerBounds

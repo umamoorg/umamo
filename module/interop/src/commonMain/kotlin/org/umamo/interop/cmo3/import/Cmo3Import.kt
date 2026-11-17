@@ -1,4 +1,4 @@
-package org.umamo.interop.cmo3
+package org.umamo.interop.cmo3.import
 
 import org.umamo.format.cmo3.Cmo3TargetVersion
 import org.umamo.format.cmo3.model.custom.CFloatColor
@@ -44,6 +44,7 @@ import org.umamo.format.cmo3.model.gen.Type
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.interop.alphaBlendOfToken
+import org.umamo.interop.cmo3.Cmo3TextureFrames
 import org.umamo.interop.colorBlendOfToken
 import org.umamo.interop.runtimeTargetOfCmo3Target
 import org.umamo.runtime.eval.keyformBaseOf

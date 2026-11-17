@@ -1,4 +1,4 @@
-package org.umamo.interop.cmo3
+package org.umamo.interop.cmo3.export
 
 import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.model.custom.CFloatColor
@@ -39,6 +39,8 @@ import org.umamo.interop.KeyformBundleCell
 import org.umamo.interop.KeyformBundleResult
 import org.umamo.interop.OutOfSpanPolicy
 import org.umamo.interop.buildKeyformBundle
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.mutableGraphListOf
 import org.umamo.runtime.keyform.FormInterpolator
 import org.umamo.runtime.keyform.MeshDeltaInterpolator
 import org.umamo.runtime.keyform.RotationPivotInterpolator

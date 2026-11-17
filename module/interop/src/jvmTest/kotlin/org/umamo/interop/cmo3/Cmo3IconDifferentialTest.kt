@@ -13,6 +13,9 @@ import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.cropped
 import org.umamo.format.raster.fittedInto
+import org.umamo.interop.cmo3.export.Cmo3Icons
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.walkLayeredImage
 import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs

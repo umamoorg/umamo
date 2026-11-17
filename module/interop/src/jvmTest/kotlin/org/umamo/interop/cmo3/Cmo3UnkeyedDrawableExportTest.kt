@@ -8,6 +8,8 @@ import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.KeyformGridSource
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId

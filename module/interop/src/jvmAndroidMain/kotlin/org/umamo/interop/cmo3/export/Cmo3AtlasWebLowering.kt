@@ -1,4 +1,4 @@
-package org.umamo.interop.cmo3
+package org.umamo.interop.cmo3.export
 
 import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.Cmo3Model
@@ -18,6 +18,9 @@ import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.format.raster.RasterImage
+import org.umamo.interop.cmo3.Cmo3TextureFrames
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.mutableGraphListOf
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel

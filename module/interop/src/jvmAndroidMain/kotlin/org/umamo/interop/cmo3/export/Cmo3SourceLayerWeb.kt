@@ -1,4 +1,4 @@
-package org.umamo.interop.cmo3
+package org.umamo.interop.cmo3.export
 
 import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CLayer
@@ -18,6 +18,7 @@ import org.umamo.format.cmo3.model.type.FileRef
 import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.interop.cmo3.mutableGraphListOf
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel

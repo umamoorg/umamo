@@ -1,4 +1,4 @@
-package org.umamo.interop.cmo3
+package org.umamo.interop.cmo3.import
 
 import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CLayer

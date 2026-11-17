@@ -22,6 +22,12 @@ import org.umamo.format.cmo3.model.type.CRect
 import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.export.Cmo3FreshFile
+import org.umamo.interop.cmo3.export.Cmo3ImageChainBuilder
+import org.umamo.interop.cmo3.export.Cmo3SkeletonBuilder
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.interop.diffPuppetModels
 import org.umamo.runtime.model.BlendMode

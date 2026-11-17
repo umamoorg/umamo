@@ -13,11 +13,11 @@ import org.umamo.format.uma.textures.UmaPixelSource
 import org.umamo.format.uma.textures.UmaRenderPagePixels
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
-import org.umamo.interop.cmo3.Cmo3Conversion
-import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.ModelOrderPages
-import org.umamo.interop.cmo3.cmo3AtlasPages
-import org.umamo.interop.cmo3.modelOrderPages
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.ModelOrderPages
+import org.umamo.interop.cmo3.export.modelOrderPages
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.Drawable

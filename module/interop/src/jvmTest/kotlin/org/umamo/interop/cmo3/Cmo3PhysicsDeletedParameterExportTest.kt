@@ -10,6 +10,8 @@ import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSource
 import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSourceSet
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.ParameterId
 import org.umamo.testkit.skipTest
 import java.io.File

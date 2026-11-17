@@ -13,7 +13,7 @@ import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.art.SourceArtImportOptions
-import org.umamo.interop.cmo3.cmo3SourceArtOf
+import org.umamo.interop.cmo3.import.cmo3SourceArtOf
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.ArtSourceId

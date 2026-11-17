@@ -11,6 +11,7 @@ import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.invertAffine
 

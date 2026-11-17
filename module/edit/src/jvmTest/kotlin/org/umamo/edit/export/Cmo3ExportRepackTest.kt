@@ -25,9 +25,9 @@ import org.umamo.format.raster.RasterImage
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
-import org.umamo.interop.cmo3.Cmo3Conversion
-import org.umamo.interop.cmo3.Cmo3Export
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.PuppetModel

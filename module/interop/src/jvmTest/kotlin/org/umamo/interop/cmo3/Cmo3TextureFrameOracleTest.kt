@@ -18,6 +18,8 @@ import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.interop.moc3.import.moc3AtlasPages

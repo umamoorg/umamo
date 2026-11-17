@@ -1,4 +1,4 @@
-package org.umamo.interop.cmo3
+package org.umamo.interop.cmo3.export
 
 import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.gen.CModelImageGroup
@@ -6,6 +6,7 @@ import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.interop.cmo3.import.Cmo3Import
 
 /*
  * The retained graph's atlas web indexed by tile id (the model image guid), the one walk both the

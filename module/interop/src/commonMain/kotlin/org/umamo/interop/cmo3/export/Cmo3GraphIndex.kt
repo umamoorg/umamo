@@ -1,4 +1,4 @@
-package org.umamo.interop.cmo3
+package org.umamo.interop.cmo3.export
 
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.ACDeformerSource
@@ -13,6 +13,7 @@ import org.umamo.format.cmo3.model.gen.CParameterSource
 import org.umamo.format.cmo3.model.gen.CParameterSourceSet
 import org.umamo.format.cmo3.model.gen.CPartSource
 import org.umamo.format.cmo3.model.gen.CPartSourceSet
+import org.umamo.interop.cmo3.import.Cmo3Import
 
 /**
  * Lookup index over a CMO3 model graph for the export reconcile: every source category listed and
