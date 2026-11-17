@@ -48,6 +48,11 @@ internal fun ViewportToolbarOverlay(modifier: Modifier = Modifier) {
 		session?.activeSelectTool?.collectAsState()?.value,
 		session?.activeMeshOperator?.collectAsState()?.value,
 		session?.activeObjectOperator?.collectAsState()?.value,
+		// The mode and the element selection too: a button's enabled state is read when it is composed, and the
+		// Deform brush's command applies only in Edit mode over a warp.  Without these the strip would keep the
+		// state its buttons had when it was composed, and the brush's button would stay gray.
+		session?.mode?.collectAsState()?.value,
+		session?.meshSelection?.collectAsState()?.value,
 	)
 	Column(
 		modifier =
