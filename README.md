@@ -347,8 +347,9 @@ Umamo is an independent, community-developed project.  It is **not affiliated wi
 
 WANTED: Human translations for various languages.(Japanese, Chinese, Korean, Spanish, French, German, etc.)
 The English strings are located at: `module/ui/src/commonMain/composeResources/values/strings.xml`
+We're testing Weblate to translate!  You can translate easily from a browser on your phone or desktop: https://hosted.weblate.org/projects/umamo/
 
-At the moment I'm not accepting large code contributions from outside contributers.  Small fixes are accepted, but please keep in mind that at moment the development speed on this project is rapid.  I'm might make your change obsolete by the time I get around to reviewing it.
+At the moment I'm not accepting large code contributions from outside contributors.  Small fixes are accepted, but please keep in mind that at moment the development speed on this project is rapid.  I'm might make your change obsolete by the time I get around to reviewing it.
 
 (Once large changes are accepted in the future.)
 If you are planning a large change that touches many files then break it down into a stack of smaller pull requests that build on each other.  For example, if you're adding a new export format:
