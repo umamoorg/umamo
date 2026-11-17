@@ -224,12 +224,11 @@ class Cmo3TwinColocationTest {
 		// CMO3: CModelSource field textureManager -> CTextureManager fields _textureAtlases and
 		// _modelImageGroups -> CModelImageGroup field _modelImages.
 		val textureManager = assertIs<CTextureManager>(source.textureManager)
-		val atlases = Cmo3Import.elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()
+		val atlases = elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()
 		val modelImages =
-			Cmo3Import
-				.elementsOf(textureManager._modelImageGroups)
+			elementsOf(textureManager._modelImageGroups)
 				.filterIsInstance<CModelImageGroup>()
-				.flatMap { group -> Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
+				.flatMap { group -> elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
 
 		assertEquals(1, atlases.size, "no page is synthesized for the twin")
 		assertEquals(1, modelImages.size, "the twins share one material")

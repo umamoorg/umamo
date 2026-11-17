@@ -72,8 +72,8 @@ class Cmo3ImageChainBuilderTest {
 		assertEquals(2, resources.size, "one CImageResource per page")
 		// No crop region on either page: no stand-in document, no crop group, nothing counted.
 		val textureManager = skeleton.root.textureManager as CTextureManager
-		assertTrue(Cmo3Import.elementsOf(textureManager._rawImages).isEmpty(), "no crop region, no stand-in document")
-		assertTrue(Cmo3Import.elementsOf(textureManager._modelImageGroups).isEmpty(), "and no crop group")
+		assertTrue(elementsOf(textureManager._rawImages).isEmpty(), "no crop region, no stand-in document")
+		assertTrue(elementsOf(textureManager._modelImageGroups).isEmpty(), "and no crop group")
 		assertEquals(0, chain.cropDrawableCount)
 		// The reachability walk's order is unspecified; the by-name path attribute is the contract.
 		// Only the page buffers (imageFileBuf*) have a CImageResource; a chain's icon entries
@@ -153,7 +153,7 @@ class Cmo3ImageChainBuilderTest {
 
 		// The texture web the renderer's extraction walks: drawable -> GTexture2D -> page resource.
 		val drawableSource =
-			(Cmo3Import.elementsOf((reimportedSource.drawableSourceSet as CDrawableSourceSet)._sources))
+			(elementsOf((reimportedSource.drawableSourceSet as CDrawableSourceSet)._sources))
 				.filterIsInstance<CArtMeshSource>()
 				.single()
 		val texture = drawableSource.texture as? GTexture2D ?: error("bound drawable has no GTexture2D")
@@ -263,11 +263,11 @@ class Cmo3ImageChainBuilderTest {
 		assertEquals(7, crop.height, "crop height is the opaque block's height")
 		val textureManager = skeleton.root.textureManager as CTextureManager
 		val atlas =
-			Cmo3Import.elementsOf(textureManager._textureAtlases)
+			elementsOf(textureManager._textureAtlases)
 				.filterIsInstance<CTextureAtlas>()
 				.single()
 		val entry =
-			Cmo3Import.elementsOf(atlas.modelImages)
+			elementsOf(atlas.modelImages)
 				.filterIsInstance<ModelImageEntry>()
 				.single()
 		val packing = entry.materialLocalToAtlasTransform as GTransform2
@@ -275,12 +275,12 @@ class Cmo3ImageChainBuilderTest {
 		assertEquals(10f, packingPosition.x, 1e-6f, "packing origin x is the block's page origin")
 		assertEquals(12f, packingPosition.y, 1e-6f, "packing origin y is the block's page origin")
 		val layeredImage =
-			Cmo3Import.elementsOf(textureManager._rawImages)
+			elementsOf(textureManager._rawImages)
 				.filterIsInstance<LayeredImageWrapper>()
 				.single()
 				.image as CLayeredImage
 		val patchLayer =
-			Cmo3Import.elementsOf((layeredImage._rootLayer as CLayerGroup)._children)
+			elementsOf((layeredImage._rootLayer as CLayerGroup)._children)
 				.filterIsInstance<CLayer>()
 				.single()
 		val bounds = patchLayer.boundsOnImageDoc as CRect
@@ -291,14 +291,14 @@ class Cmo3ImageChainBuilderTest {
 		// The cache transform records the raw dims over the 64-aligned cache raster (5/64, 7/64);
 		// identity here stretches the art by the padding fraction in the editor's source-image mode.
 		val modelImage =
-			Cmo3Import.elementsOf(
-				Cmo3Import.elementsOf(textureManager._modelImageGroups)
+			elementsOf(
+				elementsOf(textureManager._modelImageGroups)
 					.filterIsInstance<CModelImageGroup>()
 					.single()
 					._modelImages,
 			).filterIsInstance<CModelImage>().single()
 		val cachedImage =
-			Cmo3Import.elementsOf((modelImage.cachedImageManager as CCachedImageManager).cachedImages)
+			elementsOf((modelImage.cachedImageManager as CCachedImageManager).cachedImages)
 				.filterIsInstance<CCachedImage>()
 				.single()
 		val cacheTransform = cachedImage.transformRawImageToCachedImage as CAffine
@@ -355,16 +355,16 @@ class Cmo3ImageChainBuilderTest {
 		assertEquals(-1f, bindingB.inputImageLocalToCanvasTransform!!.m00, 1e-4f, "twin B keeps its mirrored fit")
 		val textureManager = skeleton.root.textureManager as CTextureManager
 		val modelImages =
-			Cmo3Import.elementsOf(
-				Cmo3Import.elementsOf(textureManager._modelImageGroups)
+			elementsOf(
+				elementsOf(textureManager._modelImageGroups)
 					.filterIsInstance<CModelImageGroup>()
 					.single()
 					._modelImages,
 			).filterIsInstance<CModelImage>()
 		assertEquals(1, modelImages.size, "one shared material, not one per twin")
 		val entries =
-			Cmo3Import.elementsOf(
-				Cmo3Import.elementsOf(textureManager._textureAtlases)
+			elementsOf(
+				elementsOf(textureManager._textureAtlases)
 					.filterIsInstance<CTextureAtlas>()
 					.single()
 					.modelImages,
@@ -411,8 +411,8 @@ class Cmo3ImageChainBuilderTest {
 		)
 		val textureManager = skeleton.root.textureManager as CTextureManager
 		val modelImage =
-			Cmo3Import.elementsOf(
-				Cmo3Import.elementsOf(textureManager._modelImageGroups)
+			elementsOf(
+				elementsOf(textureManager._modelImageGroups)
 					.filterIsInstance<CModelImageGroup>()
 					.single()
 					._modelImages,
@@ -421,11 +421,11 @@ class Cmo3ImageChainBuilderTest {
 		assertEquals(10f, placement.m02, "placement x snaps to the whole canvas pixel (10.4 -> 10)")
 		assertEquals(12f, placement.m12, "placement y snaps to the whole canvas pixel (11.7 -> 12)")
 		val atlas =
-			Cmo3Import.elementsOf(textureManager._textureAtlases)
+			elementsOf(textureManager._textureAtlases)
 				.filterIsInstance<CTextureAtlas>()
 				.single()
 		val entry =
-			Cmo3Import.elementsOf(atlas.modelImages)
+			elementsOf(atlas.modelImages)
 				.filterIsInstance<ModelImageEntry>()
 				.single()
 		val packing = entry.materialLocalToAtlasTransform as GTransform2
@@ -433,12 +433,12 @@ class Cmo3ImageChainBuilderTest {
 		assertEquals(9.6f, packingPosition.x, 1e-4f, "packing origin carries the complementary x fraction")
 		assertEquals(12.3f, packingPosition.y, 1e-4f, "packing origin carries the complementary y fraction")
 		val layeredImage =
-			Cmo3Import.elementsOf(textureManager._rawImages)
+			elementsOf(textureManager._rawImages)
 				.filterIsInstance<LayeredImageWrapper>()
 				.single()
 				.image as CLayeredImage
 		val patchLayer =
-			Cmo3Import.elementsOf((layeredImage._rootLayer as CLayerGroup)._children)
+			elementsOf((layeredImage._rootLayer as CLayerGroup)._children)
 				.filterIsInstance<CLayer>()
 				.single()
 		val bounds = patchLayer.boundsOnImageDoc as CRect
@@ -483,11 +483,11 @@ class Cmo3ImageChainBuilderTest {
 		// The atlas entry carries the patch origin and the same fitted placement.
 		val textureManager = skeleton.root.textureManager as CTextureManager
 		val atlas =
-			Cmo3Import.elementsOf(textureManager._textureAtlases)
+			elementsOf(textureManager._textureAtlases)
 				.filterIsInstance<CTextureAtlas>()
 				.single()
 		val entry =
-			Cmo3Import.elementsOf(atlas.modelImages)
+			elementsOf(atlas.modelImages)
 				.filterIsInstance<ModelImageEntry>()
 				.single()
 		assertEquals(binding.modelImageGuid, entry.modelImageGuid, "entry joins the drawable's model image")
@@ -505,14 +505,14 @@ class Cmo3ImageChainBuilderTest {
 		// equals its model image's _materialLocalToCanvasTransform translation plus its
 		// imageResource dims.
 		val layeredImage =
-			Cmo3Import.elementsOf(textureManager._rawImages)
+			elementsOf(textureManager._rawImages)
 				.filterIsInstance<LayeredImageWrapper>()
 				.single()
 				.image as CLayeredImage
 		assertEquals(pageSize, layeredImage.width, "doc width is the page")
 		assertEquals(pageSize, layeredImage.height, "doc height is the page")
 		val patchLayer =
-			Cmo3Import.elementsOf((layeredImage._rootLayer as CLayerGroup)._children)
+			elementsOf((layeredImage._rootLayer as CLayerGroup)._children)
 				.filterIsInstance<CLayer>()
 				.single()
 		val bounds = patchLayer.boundsOnImageDoc as CRect

@@ -147,30 +147,30 @@ internal object Cmo3SourceLayerWeb {
 		val canvasHeight = puppet.canvasHeight.roundToInt()
 		val images = ArrayList<SourceImageInput>()
 
-		for (source in puppet.sources) {
+		for ((id, name, path, _, layers, _, lastModified) in puppet.sources) {
 			val rowIndexByKey = HashMap<String, Int>()
 
-			for ((rowIndex, row) in source.layers.withIndex()) {
+			for ((rowIndex, row) in layers.withIndex()) {
 				rowIndexByKey.putIfAbsent(row.key, rowIndex)
 			}
 
 			val ordered = ArrayList<Pair<Int, SourceLayerInput>>()
 
-			for (tile in puppet.atlas.tiles) {
-				val ref = tile.source ?: continue
+			for ((id1, name1, _, _, placement, source) in puppet.atlas.tiles) {
+				val ref = source ?: continue
 
-				if (ref.sourceId != source.id) {
+				if (ref.sourceId != id) {
 					continue
 				}
 
 				val rowIndex = rowIndexByKey[ref.layerKey] ?: continue
-				val row = source.layers[rowIndex]
-				val raster = tileRasters(tile.id) ?: continue
+				val row = layers[rowIndex]
+				val raster = tileRasters(id1) ?: continue
 				ordered.add(
 					rowIndex to
 						SourceLayerInput(
-							tileId = tile.id.raw,
-							name = tile.name,
+							tileId = id1.raw,
+							name = name1,
 							layerName = row.name,
 							layerKey = ref.layerKey,
 							groupPath = row.groupPath,
@@ -178,9 +178,9 @@ internal object Cmo3SourceLayerWeb {
 							canvasLeft = row.left,
 							canvasTop = row.top,
 							raster = raster,
-							placement = tile.placement,
-							drawableIds = drawableIdsByTile[tile.id].orEmpty(),
-							artUvsByDrawableId = artUvsByTile[tile.id].orEmpty(),
+							placement = placement,
+							drawableIds = drawableIdsByTile[id1].orEmpty(),
+							artUvsByDrawableId = artUvsByTile[id1].orEmpty(),
 						),
 				)
 			}
@@ -190,36 +190,43 @@ internal object Cmo3SourceLayerWeb {
 			}
 
 			// A stable sort: two tiles bound to one row (a double binding) keep their atlas order.
-			images.add(SourceImageInput(source.name, source.path, source.lastModified, canvasWidth, canvasHeight, ordered.sortedBy { (rowIndex, _) -> rowIndex }.map { (_, layer) -> layer }))
+			images.add(
+				SourceImageInput(
+					name,
+					path,
+					lastModified,
+					canvasWidth,
+					canvasHeight,
+					ordered.sortedBy { (rowIndex, _) -> rowIndex }.map { (_, layer) -> layer },
+				),
+			)
 		}
 
 		val rowKeysBySource = puppet.sources.associate { source -> source.id to source.layers.mapTo(HashSet()) { row -> row.key } }
 
-		for (tile in puppet.atlas.tiles) {
-			val ref = tile.source
-
+		for ((id, name, _, _, placement, ref) in puppet.atlas.tiles) {
 			if (ref != null && rowKeysBySource[ref.sourceId]?.contains(ref.layerKey) == true) {
 				continue
 			}
 
-			val raster = tileRasters(tile.id) ?: continue
-			val (canvasLeft, canvasTop) = fittedCanvasOrigin(positionsByTile[tile.id].orEmpty(), raster)
+			val raster = tileRasters(id) ?: continue
+			val (canvasLeft, canvasTop) = fittedCanvasOrigin(positionsByTile[id].orEmpty(), raster)
 			val layer =
 				SourceLayerInput(
-					tileId = tile.id.raw,
-					name = tile.name,
-					layerName = tile.name,
-					layerKey = "name:${tile.name}",
+					tileId = id.raw,
+					name = name,
+					layerName = name,
+					layerKey = "name:$name",
 					groupPath = "",
 					visible = true,
 					canvasLeft = canvasLeft,
 					canvasTop = canvasTop,
 					raster = raster,
-					placement = tile.placement,
-					drawableIds = drawableIdsByTile[tile.id].orEmpty(),
-					artUvsByDrawableId = artUvsByTile[tile.id].orEmpty(),
+					placement = placement,
+					drawableIds = drawableIdsByTile[id].orEmpty(),
+					artUvsByDrawableId = artUvsByTile[id].orEmpty(),
 				)
-			images.add(SourceImageInput(tile.name, null, null, canvasWidth, canvasHeight, listOf(layer), unresolvedBinding = ref))
+			images.add(SourceImageInput(name, null, null, canvasWidth, canvasHeight, listOf(layer), unresolvedBinding = ref))
 		}
 
 		return images
@@ -274,7 +281,7 @@ internal object Cmo3SourceLayerWeb {
 		image: SourceImageInput,
 		atlases: List<CTextureAtlas>,
 		textures: List<GTexture2D>,
-		names: Cmo3ImageChainBuilder.Cmo3FreshChainNames,
+		names: Cmo3FreshChainNames,
 		pngEntries: MutableList<Cmo3FreshFile.PngEntry>,
 		nowMillis: Long,
 	): Written {
@@ -337,7 +344,7 @@ internal object Cmo3SourceLayerWeb {
 				)
 			childrenByPath.getValue(layerInput.groupPath).add(layer)
 			layerEntryList.add(layer)
-			val modelImage = Cmo3ImageChainBuilder.modelImageOver(layerInput.name, layeredImage, layer, resource, raster, layerPlacement(layerInput.canvasLeft, layerInput.canvasTop), group, names, pngEntries, nowMillis)
+			val modelImage = Cmo3ModelImageWeb.modelImageOver(layerInput.name, layeredImage, layer, resource, raster, layerPlacement(layerInput.canvasLeft, layerInput.canvasTop), group, names, pngEntries, nowMillis)
 			groupModelImages.add(modelImage)
 			val tilePlacement = layerInput.placement
 
@@ -347,7 +354,7 @@ internal object Cmo3SourceLayerWeb {
 				// drawable.  Its coordinates are stored in the raster's cache frame by the reconcile, which
 				// reads that frame off the texture (Cmo3TextureFrames).
 				if (layerInput.drawableIds.isNotEmpty()) {
-					val texture = Cmo3ImageChainBuilder.rasterTexture(layerInput.name, resource)
+					val texture = Cmo3PageWeb.rasterTexture(layerInput.name, resource)
 					rasterTextures.add(texture)
 
 					for (drawableId in layerInput.drawableIds) {
@@ -376,11 +383,11 @@ internal object Cmo3SourceLayerWeb {
 			val canvasAffine = floatArrayOf(1f, 0f, layerInput.canvasLeft.toFloat(), 0f, 1f, layerInput.canvasTop.toFloat())
 			val entryHalf = atlasLocalToCanvasFor(canvasAffine, tilePlacement) ?: continue
 			checkNotNull(mutableGraphListOf(atlas.modelImages)) { "pageAtlas builds a list" }.add(
-				Cmo3ImageChainBuilder.packedEntry(
+				Cmo3PageWeb.packedEntry(
 					atlas = atlas,
 					modelImageGuid = modelImage.guid,
 					atlasLocalToCanvas = affineOf(entryHalf),
-					packing = Cmo3ImageChainBuilder.writePacking(GTransform2(), tilePlacement),
+					packing = Cmo3PageWeb.writePacking(GTransform2(), tilePlacement),
 				),
 			)
 
@@ -441,7 +448,7 @@ internal object Cmo3SourceLayerWeb {
 		lastModified: Long?,
 		width: Int,
 		height: Int,
-		names: Cmo3ImageChainBuilder.Cmo3FreshChainNames,
+		names: Cmo3FreshChainNames,
 		nowMillis: Long,
 	): MintedLayeredImage {
 		val layeredImage = CLayeredImage()
@@ -461,7 +468,7 @@ internal object Cmo3SourceLayerWeb {
 			// as a relative path that the Sources space reports missing and the watcher polls.
 			psdFile = FileRef().apply { textPath = path ?: "" }
 			description = ""
-			guid = Cmo3SkeletonBuilder.freshGuid("CLayeredImageGuid")
+			guid = freshGuid("CLayeredImageGuid")
 			// CMO3: CLayeredImage field psdFileLastModified - the source's modification time as last read.
 			psdFileLastModified = lastModified ?: nowMillis
 			_rootLayer = rootGroup
@@ -543,7 +550,7 @@ internal object Cmo3SourceLayerWeb {
 		raster: RasterImage,
 		layeredImage: CLayeredImage,
 		folder: CLayerGroup,
-		names: Cmo3ImageChainBuilder.Cmo3FreshChainNames,
+		names: Cmo3FreshChainNames,
 		pngEntries: MutableList<Cmo3FreshFile.PngEntry>,
 	): CLayer =
 		CLayer().apply {
@@ -552,7 +559,7 @@ internal object Cmo3SourceLayerWeb {
 			memo = ""
 			isVisible = visible
 			blend = names.sharedBlend
-			guid = Cmo3SkeletonBuilder.freshGuid("CLayerGuid")
+			guid = freshGuid("CLayerGuid")
 			opacity255 = 255
 			_optionOfIOption = names.sharedOptions
 			_layeredImage = layeredImage
@@ -611,14 +618,14 @@ internal object Cmo3SourceLayerWeb {
 	 * @param Cmo3FreshChainNames names        The document's shared blend and options.
 	 * @return CLayerGroup The group.
 	 */
-	internal fun layerGroup(name: String, layeredImage: CLayeredImage, children: CArrayList<Any?>, names: Cmo3ImageChainBuilder.Cmo3FreshChainNames): CLayerGroup =
+	internal fun layerGroup(name: String, layeredImage: CLayeredImage, children: CArrayList<Any?>, names: Cmo3FreshChainNames): CLayerGroup =
 		CLayerGroup().apply {
 			// CMO3: CLayerGroup - a folder of the decomposed file; ACLayerGroup field _children.
 			this.name = name
 			memo = ""
 			isVisible = true
 			blend = names.sharedBlend
-			guid = Cmo3SkeletonBuilder.freshGuid("CLayerGuid")
+			guid = freshGuid("CLayerGuid")
 			opacity255 = 255
 			_optionOfIOption = names.sharedOptions
 			_layeredImage = layeredImage

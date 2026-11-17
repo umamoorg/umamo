@@ -74,7 +74,7 @@ internal object Cmo3TwinColocation {
 			val pageIndex = pageIndexByDrawableId[drawable.id.raw] ?: continue
 			val page = pages.getOrNull(pageIndex) ?: continue
 			val mesh = drawable.mesh ?: continue
-			Cmo3ImageChainBuilder.patchRectOf(mesh.uvs, page.width, page.height) ?: continue
+			patchRectOf(mesh.uvs, page.width, page.height) ?: continue
 			val fit = fitAtlasPageToCanvasTransform(mesh.uvs, mesh.positions, page.width, page.height)
 			val placementKey =
 				listOf(

@@ -6,7 +6,8 @@ import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.type.CAffine
-import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.elementsOf
+import org.umamo.interop.cmo3.uuidOf
 
 /*
  * The retained graph's atlas web indexed by tile id (the model image guid), the one walk both the
@@ -63,11 +64,11 @@ internal fun indexAtlasWeb(textureManager: CTextureManager): Cmo3AtlasWebIndex {
 	val siteByTileId = HashMap<String, AtlasEntrySite>()
 	val strayEntryAtlasIndices = ArrayList<Int>()
 
-	for ((atlasIndex, member) in Cmo3Import.elementsOf(textureManager._textureAtlases).withIndex()) {
+	for ((atlasIndex, member) in elementsOf(textureManager._textureAtlases).withIndex()) {
 		val atlas = member as? CTextureAtlas ?: continue
 
-		for (entry in Cmo3Import.elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>()) {
-			val uuid = Cmo3Import.uuidOf(entry.modelImageGuid)
+		for (entry in elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>()) {
+			val uuid = uuidOf(entry.modelImageGuid)
 
 			if (uuid == null || siteByTileId.containsKey(uuid)) {
 				strayEntryAtlasIndices.add(atlasIndex)
@@ -86,9 +87,9 @@ internal fun indexAtlasWeb(textureManager: CTextureManager): Cmo3AtlasWebIndex {
 	val modelImageByTileId = HashMap<String, CModelImage>()
 	val canvasAffineByTileId = HashMap<String, FloatArray>()
 
-	for (group in Cmo3Import.elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
-		for (modelImage in Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
-			val uuid = Cmo3Import.uuidOf(modelImage.guid) ?: continue
+	for (group in elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
+		for (modelImage in elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
+			val uuid = uuidOf(modelImage.guid) ?: continue
 			modelImageByTileId[uuid] = modelImage
 			val canvas = modelImage._materialLocalToCanvasTransform as? CAffine ?: continue
 			canvasAffineByTileId[uuid] = canvas.toAffineArray()

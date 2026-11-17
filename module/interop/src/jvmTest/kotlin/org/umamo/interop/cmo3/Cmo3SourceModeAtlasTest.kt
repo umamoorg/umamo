@@ -90,11 +90,11 @@ class Cmo3SourceModeAtlasTest {
 			val root = cmo3.root as? CModelSource ?: continue
 			val textureManager = root.textureManager as? CTextureManager ?: continue
 			// CMO3: CTextureManager field _textureAtlases -> CTextureAtlas field cachedAtlasImage.
-			val pageResources = Cmo3Import.elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>().map { atlas -> atlas.cachedAtlasImage as? CImageResource }
+			val pageResources = elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>().map { atlas -> atlas.cachedAtlasImage as? CImageResource }
 			val imported = Cmo3Import.importModelSource(root)
 			val puppet = imported.puppet
 			val sourceById =
-				Cmo3Import.elementsOf((root.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>()
+				elementsOf((root.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>()
 					.mapNotNull { source -> (source.id as? Id)?.idstr?.let { idStr -> idStr to source } }.toMap()
 			// Placed drawables whose file texture names no page: what a source-layer save is made of.
 			val sourceModeDrawables =

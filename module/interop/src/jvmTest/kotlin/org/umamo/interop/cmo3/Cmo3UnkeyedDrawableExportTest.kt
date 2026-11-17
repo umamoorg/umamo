@@ -73,11 +73,11 @@ class Cmo3UnkeyedDrawableExportTest {
 
 		val root = result.model.root as CModelSource
 		val artMesh =
-			Cmo3Import.elementsOf((root.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>().single()
+			elementsOf((root.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>().single()
 		val gridSource = assertNotNull(artMesh.keyformGridSource as? KeyformGridSource, "the mesh keeps a keyform grid")
-		assertTrue(Cmo3Import.elementsOf(gridSource.keyformBindings).isEmpty(), "an unkeyed mesh binds no parameter")
-		assertEquals(1, Cmo3Import.elementsOf(gridSource.keyformsOnGrid).size, "one default cell")
-		val form = Cmo3Import.elementsOf(artMesh.keyforms).filterIsInstance<CArtMeshForm>().single()
+		assertTrue(elementsOf(gridSource.keyformBindings).isEmpty(), "an unkeyed mesh binds no parameter")
+		assertEquals(1, elementsOf(gridSource.keyformsOnGrid).size, "one default cell")
+		val form = elementsOf(artMesh.keyforms).filterIsInstance<CArtMeshForm>().single()
 		assertTrue(base.contentEquals(form.positions as? FloatArray), "the default form holds the base mesh: ${(form.positions as? FloatArray)?.toList()}")
 
 		val reimported = Cmo3Import.fromModelSource(Cmo3.read(Cmo3.write(result.model)).root as CModelSource)

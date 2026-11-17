@@ -9,7 +9,6 @@ import org.umamo.interop.DeformerField
 import org.umamo.interop.DrawableField
 import org.umamo.interop.EntityDiff
 import org.umamo.interop.ExportFormat
-import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
 import org.umamo.interop.GlueDiff
 import org.umamo.interop.GlueField
@@ -70,11 +69,21 @@ object Cmo3Export {
 	private val ALL_PART_FIELDS = PartField.entries.toSet()
 
 	/** Every warp field except KIND (fixed at synthesis) and the rotation-only BASE_ANGLE. */
-	private val ALL_WARP_FIELDS = DeformerField.entries.toSet() - DeformerField.KIND - DeformerField.BASE_ANGLE
+	private val ALL_WARP_FIELDS =
+		buildSet {
+			addAll(DeformerField.entries.toSet())
+			remove(DeformerField.KIND)
+			remove(DeformerField.BASE_ANGLE)
+		}
 
 	/** Every rotation field except KIND (fixed at synthesis) and the warp-only lattice pair. */
 	private val ALL_ROTATION_FIELDS =
-		DeformerField.entries.toSet() - DeformerField.KIND - DeformerField.LATTICE - DeformerField.QUAD_TRANSFORM
+		buildSet {
+			addAll(DeformerField.entries.toSet())
+			remove(DeformerField.KIND)
+			remove(DeformerField.LATTICE)
+			remove(DeformerField.QUAD_TRANSFORM)
+		}
 
 	/** Every field of a synthesized glue. */
 	private val ALL_GLUE_FIELDS = GlueField.entries.toSet()
@@ -124,7 +133,7 @@ object Cmo3Export {
 		// Taken before any pass writes: a reload rewrite rebuilds a model image's cache, and every later
 		// pass must still know which textures were the editor's reduced copies.
 		val textureFrames = Cmo3TextureFrames(modelSource)
-		val notices = ArrayList<ExportNotice>()
+		val notices = Cmo3ExportNotices()
 		val editor = target.edit()
 		// The atlas-web reconcile runs before the graph lowering so the stale-page notices know
 		// whether the stored pages already show the new packing.  Strictly diff-gated by the CALLER:
@@ -459,6 +468,6 @@ object Cmo3Export {
 			editor.pruneUnreachableShared()
 		}
 
-		return ExportReport(ExportFormat.Cmo3, notices)
+		return notices.report()
 	}
 }

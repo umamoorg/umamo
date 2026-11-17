@@ -9,6 +9,8 @@ import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.interop.AtlasPageSet
 import org.umamo.interop.cmo3.Cmo3TextureFrames
+import org.umamo.interop.cmo3.elementsOf
+import org.umamo.interop.cmo3.idStrOf
 
 /**
  * Extracts the image(s) a CMO3 model's art meshes are shown from, the images their imported coordinates
@@ -47,12 +49,12 @@ public fun cmo3AtlasPages(
 	readPng: (CImageResource) -> ByteArray?,
 ): AtlasPageSet {
 	val sources = (modelSource.drawableSourceSet as? CDrawableSourceSet)?._sources
-	val artMeshes = Cmo3Import.elementsOf(sources).filterIsInstance<CArtMeshSource>()
+	val artMeshes = elementsOf(sources).filterIsInstance<CArtMeshSource>()
 	val textureFrames = Cmo3TextureFrames(modelSource)
 	// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases -> CTextureAtlas field
 	// cachedAtlasImage, in the order a placement's pageIndex counts.
 	val pageImages =
-		Cmo3Import.elementsOf((modelSource.textureManager as? CTextureManager)?._textureAtlases)
+		elementsOf((modelSource.textureManager as? CTextureManager)?._textureAtlases)
 			.filterIsInstance<CTextureAtlas>()
 			.map { atlas -> atlas.cachedAtlasImage as? CImageResource }
 
@@ -66,7 +68,7 @@ public fun cmo3AtlasPages(
 	var premultiplied = false
 
 	for (mesh in artMeshes) {
-		val drawableId = Cmo3Import.idStrOf(mesh.id) ?: continue
+		val drawableId = idStrOf(mesh.id) ?: continue
 		val texture = mesh.texture as? GTexture2D ?: continue
 		// CMO3: GTexture2D.isPremultiplied is an editor texture-upload-convention flag (serialized true on
 		// nearly every model), NOT a claim the embedded PNG is premultiplied - PngCodec decodes straight

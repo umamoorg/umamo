@@ -14,7 +14,7 @@ import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
-import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.elementsOf
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
@@ -33,7 +33,7 @@ import kotlin.math.roundToInt
  * art: every tile with a raster and an inventory row becomes a layer of its file's layered image
  * ([Cmo3SourceLayerWeb]), so the export is the shape the editor writes for its own PSD import and
  * reopens with the same layer identities.  A MOC3-origin document has none of that: a .moc3
- * carries only the packed pages, so [Cmo3ImageChainBuilder] fabricates a source document by slicing
+ * carries only the packed pages, so [Cmo3PageCropWeb] fabricates a source document by slicing
  * the packed atlas back apart, every layer in that output is a slice of a baked page rather than the
  * artwork the rig was drawn from, and the report leads with MissingSourceArt for as long as any
  * drawable's art came out of a page.
@@ -260,7 +260,7 @@ public object Cmo3Conversion {
 		val textureManager = (model.root as? CModelSource)?.textureManager as? CTextureManager ?: return
 		val pageResourceByPath = HashMap<String, CImageResource>()
 
-		for (atlas in Cmo3Import.elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()) {
+		for (atlas in elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()) {
 			val pageResource = atlas.cachedAtlasImage as? CImageResource ?: continue
 			pageResource.imageFileBuf?.archivePath?.let { path -> pageResourceByPath[path] = pageResource }
 		}
@@ -279,8 +279,8 @@ public object Cmo3Conversion {
 		// field _filteredImage - the raster an unpacked drawable samples.
 		val rasterByPath = HashMap<String, CImageResource>()
 
-		for (group in Cmo3Import.elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
-			for (modelImage in Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
+		for (group in elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
+			for (modelImage in elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
 				val raster = modelImage._filteredImage as? CImageResource ?: continue
 				raster.imageFileBuf?.archivePath?.let { path -> rasterByPath[path] = raster }
 			}

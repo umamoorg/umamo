@@ -42,11 +42,14 @@ import org.umamo.format.cmo3.model.type.CColor
 import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.interop.ExportEntityCategory
-import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.cmo3.Cmo3TextureFrames
-import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.displayNameOf
+import org.umamo.interop.cmo3.editableMeshOf
+import org.umamo.interop.cmo3.elementsOf
+import org.umamo.interop.cmo3.idStrOf
 import org.umamo.interop.cmo3.mutableGraphListOf
+import org.umamo.interop.cmo3.uuidOf
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -55,12 +58,11 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterKind
-import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.findParameterGroup
 import org.umamo.runtime.model.partByDrawable
 import org.umamo.runtime.model.storedToArtAffineForTile
-import java.util.UUID
 
 /*
  * The structural half of the CMO3 export reconcile: set membership.  Creations synthesize an
@@ -81,7 +83,7 @@ internal class Cmo3StructureLowering(
 	private val index: Cmo3GraphIndex,
 	private val editor: Cmo3GraphEditor,
 	private val edited: PuppetModel,
-	private val notices: MutableList<ExportNotice>,
+	private val notices: Cmo3ExportNotices,
 	// The document's texture frames, taken from the graph before the export changed it.
 	private val textureFrames: Cmo3TextureFrames,
 	private val drawableBindings: Map<String, Cmo3DrawableTextureBinding> = emptyMap(),
@@ -121,34 +123,6 @@ internal class Cmo3StructureLowering(
 	}
 
 	/**
-	 * Records an edit this export cannot represent.
-	 *
-	 * @param ExportEntityCategory category The kind of entity the edit is on.
-	 * @param String? subject The entity's id, or null.
-	 * @param ExportNoticeReason reason Why it cannot be written.
-	 */
-	private fun unsupported(
-		category: ExportEntityCategory,
-		subject: String?,
-		reason: ExportNoticeReason,
-	) {
-		notices.add(ExportNotice.UnsupportedChange(category, subject, reason))
-	}
-
-	/**
-	 * A fresh guid of the template's kind, or of a fallback kind when there is no template.
-	 *
-	 * @param Guid? template The guid whose kind and note to copy, or null.
-	 * @param String fallbackKind The kind to use without a template.
-	 * @return Guid The new guid.
-	 */
-	private fun freshGuidLike(template: Guid?, fallbackKind: String): Guid =
-		Guid(template?.kind ?: fallbackKind).apply {
-			uuid = UUID.randomUUID().toString()
-			note = template?.note ?: "(no debug info)"
-		}
-
-	/**
 	 * The shared CoordType every fresh editable mesh gets.
 	 *
 	 * CMO3: GEditableMesh2 field coordType - corpus meshes always carry a CoordType with coordName
@@ -157,17 +131,6 @@ internal class Cmo3StructureLowering(
 	private val basicCoordType: CoordType by lazy {
 		CoordType().apply { coordName = "Basic Coord" }
 	}
-
-	/**
-	 * A fresh id of the template's kind, carrying a given id string.
-	 *
-	 * @param Id? template The id whose kind to copy, or null.
-	 * @param String fallbackKind The kind to use without a template.
-	 * @param String idStr The id string.
-	 * @return Id The new id.
-	 */
-	private fun freshIdLike(template: Id?, fallbackKind: String, idStr: String): Id =
-		Id(template?.kind ?: fallbackKind).apply { idstr = idStr }
 
 	/**
 	 * Appends an element to a graph collection field, creating the list when the field holds none.
@@ -223,7 +186,7 @@ internal class Cmo3StructureLowering(
 		val parts = index.userPartSources + listOfNotNull(index.rootPartSource)
 
 		for (part in parts) {
-			mutableGraphListOf(part._childGuids)?.removeAll { entry -> Cmo3Import.uuidOf(entry) == uuid }
+			mutableGraphListOf(part._childGuids)?.removeAll { entry -> uuidOf(entry) == uuid }
 		}
 	}
 
@@ -238,7 +201,7 @@ internal class Cmo3StructureLowering(
 		val sourceSet = modelSource.parameterSourceSet as? CParameterSourceSet
 
 		if (sourceSet == null) {
-			unsupported(ExportEntityCategory.Parameter, editedParameter.id.raw, ExportNoticeReason.NoSourceSetToCreateInto)
+			notices.unsupported(ExportEntityCategory.Parameter, editedParameter.id.raw, ExportNoticeReason.NoSourceSetToCreateInto)
 
 			return false
 		}
@@ -278,10 +241,10 @@ internal class Cmo3StructureLowering(
 	 */
 	fun deleteParameter(parameterId: ParameterId) {
 		val sourceSet = modelSource.parameterSourceSet as? CParameterSourceSet ?: return
-		val deleted = Cmo3Import.elementsOf(sourceSet._sources).filterIsInstance<CParameterSource>().firstOrNull { entry -> Cmo3Import.idStrOf(entry.id) == parameterId.raw }
+		val deleted = elementsOf(sourceSet._sources).filterIsInstance<CParameterSource>().firstOrNull { entry -> idStrOf(entry.id) == parameterId.raw }
 
 		if (removeFromCollection(sourceSet._sources) { entry ->
-				entry is CParameterSource && Cmo3Import.idStrOf(entry.id) == parameterId.raw
+				entry is CParameterSource && idStrOf(entry.id) == parameterId.raw
 			}
 		) {
 			deletedAnything = true
@@ -290,7 +253,7 @@ internal class Cmo3StructureLowering(
 		val settingNames = deleted?.guid?.let(::physicsSettingsNaming).orEmpty()
 
 		if (settingNames.isNotEmpty()) {
-			unsupported(ExportEntityCategory.Parameter, parameterId.raw, ExportNoticeReason.PhysicsNamesDeletedParameter(settingNames))
+			notices.unsupported(ExportEntityCategory.Parameter, parameterId.raw, ExportNoticeReason.PhysicsNamesDeletedParameter(settingNames))
 		}
 	}
 
@@ -301,7 +264,7 @@ internal class Cmo3StructureLowering(
 	 * @return List<String> The settings' names, in the graph's order.
 	 */
 	private fun physicsSettingsNaming(parameterGuid: Any): List<String> {
-		val uuid = Cmo3Import.uuidOf(parameterGuid)
+		val uuid = uuidOf(parameterGuid)
 
 		/**
 		 * Tells whether a reference names the parameter, by identity or by guid.
@@ -309,7 +272,7 @@ internal class Cmo3StructureLowering(
 		 * @param Any? reference A guid reference found in the physics settings.
 		 * @return Boolean True when it is the parameter's.
 		 */
-		fun names(reference: Any?): Boolean = reference === parameterGuid || (uuid != null && Cmo3Import.uuidOf(reference) == uuid)
+		fun names(reference: Any?): Boolean = reference === parameterGuid || (uuid != null && uuidOf(reference) == uuid)
 
 		// CMO3: CModelSource field physicsSettingsSourceSet -> CPhysicsSettingsSourceSet field _sourceCubismPhysics
 		// -> CPhysicsSettingsSource fields inputs / outputs -> CPhysicsInput field source and CPhysicsOutput field
@@ -317,12 +280,12 @@ internal class Cmo3StructureLowering(
 		// Cmo3PhysicsReferenceProbeTest).
 		val physicsSet = modelSource.physicsSettingsSourceSet as? CPhysicsSettingsSourceSet ?: return emptyList()
 
-		return Cmo3Import.elementsOf(physicsSet._sourceCubismPhysics)
+		return elementsOf(physicsSet._sourceCubismPhysics)
 			.filterIsInstance<CPhysicsSettingsSource>()
 			.filter { setting ->
-				Cmo3Import.elementsOf(setting.inputs).filterIsInstance<CPhysicsInput>().any { input -> names(input.source) } ||
-					Cmo3Import.elementsOf(setting.outputs).filterIsInstance<CPhysicsOutput>().any { output -> names(output.destination) }
-			}.map { setting -> setting.name?.takeIf { name -> name.isNotBlank() } ?: Cmo3Import.idStrOf(setting.id).orEmpty() }
+				elementsOf(setting.inputs).filterIsInstance<CPhysicsInput>().any { input -> names(input.source) } ||
+					elementsOf(setting.outputs).filterIsInstance<CPhysicsOutput>().any { output -> names(output.destination) }
+			}.map { setting -> displayNameOf(setting.name, idStrOf(setting.id)) }
 	}
 
 	/**
@@ -335,15 +298,15 @@ internal class Cmo3StructureLowering(
 		val groupSet = modelSource.parameterGroupSet as? CParameterGroupSet
 
 		if (groupSet == null) {
-			unsupported(ExportEntityCategory.ParameterGroup, groupId.raw, ExportNoticeReason.NoSourceSetToCreateInto)
+			notices.unsupported(ExportEntityCategory.ParameterGroup, groupId.raw, ExportNoticeReason.NoSourceSetToCreateInto)
 
 			return false
 		}
 
-		val editedGroup = findEditedGroup(groupId)
+		val editedGroup = findParameterGroup(edited.parameterTree, groupId)
 
 		if (editedGroup == null) {
-			unsupported(ExportEntityCategory.ParameterGroup, groupId.raw, ExportNoticeReason.CreatedGroupIsNotInTheEditedTree)
+			notices.unsupported(ExportEntityCategory.ParameterGroup, groupId.raw, ExportNoticeReason.CreatedGroupIsNotInTheEditedTree)
 
 			return false
 		}
@@ -359,7 +322,7 @@ internal class Cmo3StructureLowering(
 				// CMO3: CParameterGroup fields description / labelColor - present on every corpus
 				// group, never null.
 				description = ""
-				labelColor = Cmo3SkeletonBuilder.undefinedLabelColor()
+				labelColor = undefinedLabelColor()
 				folderIsOpened = editedGroup.initiallyOpen
 				_childGuids = CArrayList<Any?>()
 				parentGroupGuid = index.rootParameterGroup?.guid
@@ -378,7 +341,7 @@ internal class Cmo3StructureLowering(
 		val groupSet = modelSource.parameterGroupSet as? CParameterGroupSet ?: return
 
 		if (removeFromCollection(groupSet._groups) { entry ->
-				entry is CParameterGroup && Cmo3Import.idStrOf(entry.id) == groupId.raw
+				entry is CParameterGroup && idStrOf(entry.id) == groupId.raw
 			}
 		) {
 			deletedAnything = true
@@ -399,7 +362,7 @@ internal class Cmo3StructureLowering(
 		val sourceSet = modelSource.drawableSourceSet as? CDrawableSourceSet
 
 		if (sourceSet == null) {
-			unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.NoSourceSetToCreateInto)
+			notices.unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.NoSourceSetToCreateInto)
 
 			return false
 		}
@@ -408,12 +371,12 @@ internal class Cmo3StructureLowering(
 		val binding = drawableBindings[subject]
 
 		if (textureSource == null && binding == null) {
-			unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.CreatedDrawableHasNoTextureSource)
+			notices.unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.CreatedDrawableHasNoTextureSource)
 
 			return false
 		}
 
-		val templateMesh = textureSource?.let(Cmo3Import::editableMeshOf)
+		val templateMesh = textureSource?.let(::editableMeshOf)
 		val ownerPartId = edited.partByDrawable()[editedDrawable.id]
 		val ownerGuid = ownerPartId?.let { index.partByIdStr[it.raw]?.guid } ?: index.rootPartSource?.guid
 		val fresh = CArtMeshSource()
@@ -423,8 +386,8 @@ internal class Cmo3StructureLowering(
 			parentGuid = ownerGuid
 			// CMO3: ACParameterControllableSource fields keyformMorphTargetSet / labelColor and
 			// CArtMeshSource field userData - present on every corpus drawable, never omitted.
-			keyformMorphTargetSet = Cmo3SkeletonBuilder.emptyMorphTargetSet()
-			labelColor = Cmo3SkeletonBuilder.undefinedLabelColor()
+			keyformMorphTargetSet = emptyMorphTargetSet()
+			labelColor = undefinedLabelColor()
 			userData = ""
 			// CMO3: ACDrawableSource fields icon32 / icon16 - the drawable's own thumbnails of its
 			// texture patch, minted by whoever built the binding; a drawable with no binding (a clone
@@ -455,7 +418,7 @@ internal class Cmo3StructureLowering(
 			_extensions =
 				CArrayList<Any?>().apply {
 					if (textureSource != null) {
-						Cmo3Import.elementsOf(textureSource._extensions)
+						elementsOf(textureSource._extensions)
 							.filterIsInstance<CTextureInputExtension>()
 							.firstOrNull()
 							?.let(::add)
@@ -536,7 +499,7 @@ internal class Cmo3StructureLowering(
 		// file self-consistent.  The notice names the gap, matching what the property lowering reports
 		// for an EXISTING drawable in the same state - one reason, reported the same way from both paths.
 		if (edited.rendersFromSourceLayers && modelImage == null) {
-			unsupported(ExportEntityCategory.Drawable, subjectName, ExportNoticeReason.NoTextureInputForDisplayMode)
+			notices.unsupported(ExportEntityCategory.Drawable, subjectName, ExportNoticeReason.NoTextureInputForDisplayMode)
 		}
 
 		return extension.apply {
@@ -573,7 +536,7 @@ internal class Cmo3StructureLowering(
 		val sourceSet = modelSource.partSourceSet as? CPartSourceSet
 
 		if (sourceSet == null) {
-			unsupported(ExportEntityCategory.Part, editedPart.id.raw, ExportNoticeReason.NoSourceSetToCreateInto)
+			notices.unsupported(ExportEntityCategory.Part, editedPart.id.raw, ExportNoticeReason.NoSourceSetToCreateInto)
 
 			return false
 		}
@@ -589,8 +552,8 @@ internal class Cmo3StructureLowering(
 				notes = ""
 				drawOrder = editedPart.drawOrder
 				opacity = 1f
-				multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
-				screenColor = Cmo3SkeletonBuilder.identityScreenColor()
+				multiplyColor = identityMultiplyColor()
+				screenColor = identityScreenColor()
 			}
 		part.apply {
 			localName = editedPart.name
@@ -612,9 +575,9 @@ internal class Cmo3StructureLowering(
 						)
 					keyformBindings = ArrayList<Any?>()
 				}
-			keyformMorphTargetSet = Cmo3SkeletonBuilder.emptyMorphTargetSet()
+			keyformMorphTargetSet = emptyMorphTargetSet()
 			_extensions = CArrayList<Any?>()
-			labelColor = Cmo3SkeletonBuilder.undefinedLabelColor()
+			labelColor = undefinedLabelColor()
 			guid = freshGuidLike(template?.guid as? Guid, "CPartGuid")
 			id = freshIdLike(template?.id as? Id, "CPartId", editedPart.id.raw)
 			keyforms = CArrayList<Any?>(mutableListOf(form))
@@ -641,7 +604,7 @@ internal class Cmo3StructureLowering(
 		val sourceSet = modelSource.deformerSourceSet as? CDeformerSourceSet
 
 		if (sourceSet == null) {
-			unsupported(ExportEntityCategory.Deformer, editedDeformer.id.raw, ExportNoticeReason.NoSourceSetToCreateInto)
+			notices.unsupported(ExportEntityCategory.Deformer, editedDeformer.id.raw, ExportNoticeReason.NoSourceSetToCreateInto)
 
 			return false
 		}
@@ -677,9 +640,9 @@ internal class Cmo3StructureLowering(
 			localName = editedDeformer.name
 			isVisible = true
 			isLocked = !editedDeformer.isSelectable
-			keyformMorphTargetSet = Cmo3SkeletonBuilder.emptyMorphTargetSet()
+			keyformMorphTargetSet = emptyMorphTargetSet()
 			_extensions = CArrayList<Any?>()
-			labelColor = Cmo3SkeletonBuilder.undefinedLabelColor()
+			labelColor = undefinedLabelColor()
 		}
 		appendToCollection(sourceSet, "CDeformerSourceSet", "_sources", sourceSet._sources, { sourceSet._sources = it }, fresh)
 
@@ -699,7 +662,7 @@ internal class Cmo3StructureLowering(
 		val sourceSet = modelSource.affecterSourceSet as? CAffecterSourceSet
 
 		if (sourceSet == null) {
-			unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.NoSourceSetToCreateInto)
+			notices.unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.NoSourceSetToCreateInto)
 
 			return false
 		}
@@ -708,7 +671,7 @@ internal class Cmo3StructureLowering(
 		val meshBGuid = index.drawableByIdStr[editedGlue.meshB.raw]?.guid as? Guid
 
 		if (meshAGuid == null || meshBGuid == null) {
-			unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.GluedDrawableHasNoSource)
+			notices.unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.GluedDrawableHasNoSource)
 
 			return false
 		}
@@ -755,9 +718,9 @@ internal class Cmo3StructureLowering(
 						)
 					keyformBindings = ArrayList<Any?>()
 				}
-			keyformMorphTargetSet = Cmo3SkeletonBuilder.emptyMorphTargetSet()
+			keyformMorphTargetSet = emptyMorphTargetSet()
 			_extensions = CArrayList<Any?>()
-			labelColor = Cmo3SkeletonBuilder.undefinedLabelColor()
+			labelColor = undefinedLabelColor()
 			guid = glueGuid
 			// The model keys glues by mesh pair + ordinal (they carry no id of their own), so the
 			// minted idstr only needs uniqueness within the document.
@@ -765,7 +728,7 @@ internal class Cmo3StructureLowering(
 			// CMO3: ACAffecterSource field targetDeformerGuid - the editor's fixed root-deformer
 			// sentinel (uuid identical in every corpus file; the editor writes it even for glues
 			// whose meshes have real deformer parents).
-			targetDeformerGuid = Cmo3SkeletonBuilder.rootDeformerSentinel()
+			targetDeformerGuid = rootDeformerSentinel()
 			// CMO3: CGlueSource fields targetArtMeshA_guid / targetArtMeshB_guid - identity refs
 			// to the glued drawables' own guid objects.
 			targetArtMeshA_guid = meshAGuid
@@ -801,7 +764,7 @@ internal class Cmo3StructureLowering(
 		val source = index.drawableByIdStr[drawableId.raw]
 
 		if (removeFromCollection(sourceSet._sources) { entry -> entry === source }) {
-			stripFromChildLists(Cmo3Import.uuidOf(source?.guid))
+			stripFromChildLists(uuidOf(source?.guid))
 			deletedAnything = true
 		}
 	}
@@ -816,7 +779,7 @@ internal class Cmo3StructureLowering(
 		val source = index.partByIdStr[partIdRaw]
 
 		if (removeFromCollection(sourceSet._sources) { entry -> entry === source }) {
-			stripFromChildLists(Cmo3Import.uuidOf(source?.guid))
+			stripFromChildLists(uuidOf(source?.guid))
 			deletedAnything = true
 		}
 	}
@@ -831,7 +794,7 @@ internal class Cmo3StructureLowering(
 		val source = index.deformerByIdStr[deformerIdRaw]
 
 		if (removeFromCollection(sourceSet._sources) { entry -> entry === source }) {
-			stripFromChildLists(Cmo3Import.uuidOf(source?.guid))
+			stripFromChildLists(uuidOf(source?.guid))
 			deletedAnything = true
 		}
 	}
@@ -847,13 +810,13 @@ internal class Cmo3StructureLowering(
 		val sourceSet = modelSource.affecterSourceSet as? CAffecterSourceSet ?: return
 		val matching =
 			index.glueSources.filter { glueSource ->
-				index.drawableIdStrByUuid[Cmo3Import.uuidOf(glueSource.targetArtMeshA_guid)] == meshA.raw &&
-					index.drawableIdStrByUuid[Cmo3Import.uuidOf(glueSource.targetArtMeshB_guid)] == meshB.raw
+				index.drawableIdStrByUuid[uuidOf(glueSource.targetArtMeshA_guid)] == meshA.raw &&
+					index.drawableIdStrByUuid[uuidOf(glueSource.targetArtMeshB_guid)] == meshB.raw
 			}
 		val victim = matching.getOrNull(ordinal) ?: return
 
 		if (removeFromCollection(sourceSet._sources) { entry -> entry === victim }) {
-			stripFromChildLists(Cmo3Import.uuidOf(victim.guid))
+			stripFromChildLists(uuidOf(victim.guid))
 			deletedAnything = true
 		}
 	}
@@ -874,7 +837,7 @@ internal class Cmo3StructureLowering(
 		val mesh = editedDrawable.mesh
 
 		if (mesh == null) {
-			unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.DrawableHasNoMesh)
+			notices.unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.DrawableHasNoMesh)
 
 			return false
 		}
@@ -891,7 +854,7 @@ internal class Cmo3StructureLowering(
 		source.uvs = storedUvsFor(source, mesh.uvs, editedDrawable)
 		editor.ensureChildSlot(source, "CArtMeshSource", "uvs", "texture")
 
-		val editableMesh = Cmo3Import.editableMeshOf(source)
+		val editableMesh = editableMeshOf(source)
 
 		if (editableMesh != null) {
 			val vertexCount = mesh.vertexCount
@@ -912,7 +875,7 @@ internal class Cmo3StructureLowering(
 				editableMesh.edge = triangleEdges(mesh.indices)
 				editor.ensureChildSlot(editableMesh, "GEditableMesh2", "edge", "edgePriority")
 			} else {
-				unsupported(
+				notices.unsupported(
 					ExportEntityCategory.Drawable,
 					subject,
 					ExportNoticeReason.VertexCountExceedsEdgeTable(vertexCount, Short.MAX_VALUE.toInt()),
@@ -968,12 +931,12 @@ internal class Cmo3StructureLowering(
 		val ordinal = editedByPair.indexOfFirst { it === editedGlue }.coerceAtLeast(0)
 		val glueSource =
 			index.glueSources.filter { candidate ->
-				index.drawableIdStrByUuid[Cmo3Import.uuidOf(candidate.targetArtMeshA_guid)] == editedGlue.meshA.raw &&
-					index.drawableIdStrByUuid[Cmo3Import.uuidOf(candidate.targetArtMeshB_guid)] == editedGlue.meshB.raw
+				index.drawableIdStrByUuid[uuidOf(candidate.targetArtMeshA_guid)] == editedGlue.meshA.raw &&
+					index.drawableIdStrByUuid[uuidOf(candidate.targetArtMeshB_guid)] == editedGlue.meshB.raw
 			}.getOrNull(ordinal)
 
 		if (glueSource == null) {
-			unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.NoMatchingSourceToReconcile)
+			notices.unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.NoMatchingSourceToReconcile)
 
 			return false
 		}
@@ -982,7 +945,7 @@ internal class Cmo3StructureLowering(
 		val uidTableB = uidTableOf(editedGlue.meshB)
 
 		if (uidTableA == null || uidTableB == null) {
-			unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.GluedMeshHasNoUidTable)
+			notices.unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.GluedMeshHasNoUidTable)
 
 			return false
 		}
@@ -997,7 +960,7 @@ internal class Cmo3StructureLowering(
 			val uidB = uidTableB.getOrNull(pair.indexB)
 
 			if (uidA == null || uidB == null) {
-				unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.GluePairIndexesPastUidTable)
+				notices.unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.GluePairIndexesPastUidTable)
 
 				return false
 			}
@@ -1024,7 +987,7 @@ internal class Cmo3StructureLowering(
 	 * @return IntArray? The table, or null when the drawable has no source or no table.
 	 */
 	private fun uidTableOf(drawableId: DrawableId): IntArray? =
-		index.drawableByIdStr[drawableId.raw]?.let { source -> Cmo3Import.editableMeshOf(source)?.pointUid as? IntArray }
+		index.drawableByIdStr[drawableId.raw]?.let { source -> editableMeshOf(source)?.pointUid as? IntArray }
 
 	/**
 	 * The unique undirected triangle edges as the editable mesh's short-indexed pair list.
@@ -1091,34 +1054,4 @@ internal class Cmo3StructureLowering(
 	 */
 	private fun storedUvsFor(source: CArtMeshSource, uvs: FloatArray, editedDrawable: Drawable): FloatArray =
 		textureFrames.storedUvsOf(source, uvs, editedDrawable.atlasTileId?.let { tileId -> edited.atlas.storedToArtAffineForTile(tileId) })
-
-	/**
-	 * Finds a parameter group in the edited model's parameter tree.
-	 *
-	 * @param ParameterGroupId groupId The group to find.
-	 * @return ParameterNode.Group? The group, or null when the edited model has none by that id.
-	 */
-	private fun findEditedGroup(groupId: ParameterGroupId): ParameterNode.Group? {
-		/**
-		 * Searches a node list, nested groups included, for the wanted group.
-		 *
-		 * @param List<ParameterNode> nodes The node list to search.
-		 * @return ParameterNode.Group? The group, or null.
-		 */
-		fun walk(nodes: List<ParameterNode>): ParameterNode.Group? {
-			for (node in nodes) {
-				if (node is ParameterNode.Group) {
-					if (node.id == groupId) {
-						return node
-					}
-
-					walk(node.children)?.let { return it }
-				}
-			}
-
-			return null
-		}
-
-		return walk(edited.parameterTree)
-	}
 }

@@ -252,8 +252,7 @@ class Cmo3ConversionRoundTripTest {
 		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases.
 		val textureManager = source.textureManager as? CTextureManager
 		val atlasCount =
-			Cmo3Import
-				.elementsOf(textureManager?._textureAtlases)
+			elementsOf(textureManager?._textureAtlases)
 				.filterIsInstance<CTextureAtlas>()
 				.size
 
@@ -319,8 +318,7 @@ class Cmo3ConversionRoundTripTest {
 		// CMO3: CTextureManager field _textureAtlases -> CTextureAtlas field cachedAtlasImage.
 		val textureManager = source.textureManager as? CTextureManager ?: return
 		val pageResources =
-			Cmo3Import
-				.elementsOf(textureManager._textureAtlases)
+			elementsOf(textureManager._textureAtlases)
 				.filterIsInstance<CTextureAtlas>()
 				.mapNotNull { atlas -> atlas.cachedAtlasImage as? CImageResource }
 
@@ -333,8 +331,7 @@ class Cmo3ConversionRoundTripTest {
 		// CMO3: CDrawableSourceSet field _sources -> CArtMeshSource field texture -> GTexture2D field
 		// srcImageResource.
 		val meshes =
-			Cmo3Import
-				.elementsOf((source.drawableSourceSet as? CDrawableSourceSet)?._sources)
+			elementsOf((source.drawableSourceSet as? CDrawableSourceSet)?._sources)
 				.filterIsInstance<CArtMeshSource>()
 		val strays =
 			meshes.filter { mesh ->

@@ -19,8 +19,10 @@ import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.format.raster.RasterImage
 import org.umamo.interop.cmo3.Cmo3TextureFrames
-import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.elementsOf
+import org.umamo.interop.cmo3.idStrOf
 import org.umamo.interop.cmo3.mutableGraphListOf
+import org.umamo.interop.cmo3.uuidOf
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
@@ -261,7 +263,7 @@ internal class Cmo3AtlasWebLowering(
 		// CMO3: CDrawableSourceSet field _sources -> CArtMeshSource field _extensions ->
 		// CTextureInputExtension field _textureInputs.
 		val artMeshes =
-			Cmo3Import.elementsOf((modelSource.drawableSourceSet as? CDrawableSourceSet)?._sources)
+			elementsOf((modelSource.drawableSourceSet as? CDrawableSourceSet)?._sources)
 				.filterIsInstance<CArtMeshSource>()
 		val editedDrawableIds = edited.drawables.mapTo(HashSet()) { drawable -> drawable.id.raw }
 		val fileDrawableIds = HashSet<String>()
@@ -271,7 +273,7 @@ internal class Cmo3AtlasWebLowering(
 		val existingTextureByAtlasIndex = HashMap<Int, GTexture2D>()
 
 		for (mesh in artMeshes) {
-			val drawableId = Cmo3Import.idStrOf(mesh.id) ?: continue
+			val drawableId = idStrOf(mesh.id) ?: continue
 			fileDrawableIds.add(drawableId)
 			val texture = mesh.texture as? GTexture2D
 
@@ -294,16 +296,16 @@ internal class Cmo3AtlasWebLowering(
 
 			meshByDrawableId[drawableId] = mesh
 			val extension =
-				Cmo3Import.elementsOf(mesh._extensions).filterIsInstance<CTextureInputExtension>().firstOrNull() ?: continue
+				elementsOf(mesh._extensions).filterIsInstance<CTextureInputExtension>().firstOrNull() ?: continue
 			val tileId =
-				Cmo3Import.uuidOf(
-					Cmo3Import.elementsOf(extension._textureInputs)
+				uuidOf(
+					elementsOf(extension._textureInputs)
 						.filterIsInstance<CTextureInput_ModelImage>()
 						.firstOrNull()
 						?._modelImageGuid,
 				) ?: continue
 			val region =
-				Cmo3Import.elementsOf(extension._textureInputs)
+				elementsOf(extension._textureInputs)
 					.filterIsInstance<CTextureInput_TextureAtlasRegion>()
 					.firstOrNull()
 
@@ -408,7 +410,7 @@ internal class Cmo3AtlasWebLowering(
 				atlas.height = page.height
 				// CMO3: CTextureAtlas field cachedImageManager - rebuilt so the cache raster's
 				// 64-aligned padding transform describes the NEW dimensions.
-				atlas.cachedImageManager = Cmo3ImageChainBuilder.paddedCacheManager(resource, page.width, page.height)
+				atlas.cachedImageManager = Cmo3PageWeb.paddedCacheManager(resource, page.width, page.height)
 			}
 		}
 
@@ -418,11 +420,11 @@ internal class Cmo3AtlasWebLowering(
 		for (pageIndex in atlasList.size until newPageCount) {
 			val page = recomposedPages[pageIndex]
 			val path = target.nextImageFileBufPath()
-			val resource = Cmo3ImageChainBuilder.pageImageResource(path, page.width, page.height, page.pngBytes.size)
+			val resource = Cmo3PageWeb.pageImageResource(path, page.width, page.height, page.pngBytes.size)
 			target.addLayerPng(resource, page.pngBytes)
-			val atlas = Cmo3ImageChainBuilder.pageAtlas(pageIndex, page.width, page.height, resource)
+			val atlas = Cmo3PageWeb.pageAtlas(pageIndex, page.width, page.height, resource)
 			atlasList.add(atlas)
-			mintedTextureByAtlasIndex[pageIndex] = Cmo3ImageChainBuilder.pageTexture(atlas.name, resource)
+			mintedTextureByAtlasIndex[pageIndex] = Cmo3PageWeb.pageTexture(atlas.name, resource)
 		}
 
 		// 4. Re-home every cross-page entry: list membership plus the owning-page back-reference.
@@ -453,7 +455,7 @@ internal class Cmo3AtlasWebLowering(
 				// No drawable ever sampled this retained page; give it the shared texture the fresh
 				// path would have built.
 				val atlas = atlasList[pageIndex] as CTextureAtlas
-				Cmo3ImageChainBuilder.pageTexture(atlas.name, atlas.cachedAtlasImage as CImageResource)
+				Cmo3PageWeb.pageTexture(atlas.name, atlas.cachedAtlasImage as CImageResource)
 			}
 		}
 
@@ -469,11 +471,11 @@ internal class Cmo3AtlasWebLowering(
 					"pack-in tile '$tileId' lost its composition after validation"
 				}
 			val entry =
-				Cmo3ImageChainBuilder.packedEntry(
+				Cmo3PageWeb.packedEntry(
 					atlas = destination,
 					modelImageGuid = modelImage.guid,
 					atlasLocalToCanvas = affineOf(entryHalf),
-					packing = Cmo3ImageChainBuilder.writePacking(GTransform2(), newPlacement),
+					packing = Cmo3PageWeb.writePacking(GTransform2(), newPlacement),
 				)
 			mutableGraphListOf(destination.modelImages)?.add(entry)
 		}
@@ -484,7 +486,7 @@ internal class Cmo3AtlasWebLowering(
 
 		for (pageIndex in atlasList.size - 1 downTo newPageCount) {
 			val atlas = atlasList[pageIndex] as CTextureAtlas
-			check(Cmo3Import.elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>().isEmpty()) {
+			check(elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>().isEmpty()) {
 				"atlas $pageIndex still holds entries after the membership reconcile"
 			}
 			(atlas.cachedAtlasImage as? CImageResource)?.let { resource -> target.removeLayerPng(resource) }
