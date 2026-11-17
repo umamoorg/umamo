@@ -74,6 +74,7 @@ internal fun changeLabel(labelKey: String?): String =
 		"change.mesh.merge" -> stringResource(Res.string.history_mesh_merge)
 		"change.mesh.rip" -> stringResource(Res.string.history_mesh_rip)
 		"change.mesh.connect" -> stringResource(Res.string.history_mesh_connect)
+		"change.mesh.brush" -> stringResource(Res.string.history_mesh_brush)
 		"change.mesh.generateFromArt" -> stringResource(Res.string.history_mesh_generate_from_art)
 		"change.mesh.generateQuad" -> stringResource(Res.string.history_mesh_generate_quad)
 		"change.drawable.duplicate" -> stringResource(Res.string.history_drawable_duplicate)

@@ -49,8 +49,8 @@ internal fun editMeshPick(
 	)
 
 /**
- * The deform brush's machinery over the session's warps (see brushMarquee), publishing what the stroke
- * would give the lattices into the window's live preview, which the cage follows until the release
+ * The deform brush's machinery over the session's geometry (see brushMarquee), publishing what the
+ * stroke would do into the window's live preview, which the mesh and the cage follow until the release
  * commits it.
  *
  * @param EditorSession session The session owning the brush latch and the model.
@@ -61,11 +61,8 @@ internal fun editMeshPick(
 internal fun editBrushMarquee(session: EditorSession, livePreview: LiveMeshPreview?): MarqueeSelectController<BrushStroke> {
 	val preview = livePreview ?: LiveMeshPreview()
 
-	return brushMarquee(session) { world ->
-		if (world == null) {
-			preview.clearLattices()
-		} else {
-			preview.showLattices(world, emptyMap())
-		}
+	return brushMarquee(session) { brushPreview ->
+		preview.restByDrawable = brushPreview?.restByDrawable?.takeIf { rest -> rest.isNotEmpty() }
+		preview.showLattices(brushPreview?.latticeWorldByDeformer ?: emptyMap(), emptyMap())
 	}
 }

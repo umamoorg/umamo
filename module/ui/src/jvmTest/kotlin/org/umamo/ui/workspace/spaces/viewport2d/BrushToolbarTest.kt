@@ -191,11 +191,11 @@ class BrushToolbarTest {
 		}
 
 	/**
-	 * The brush stands in Edit mode whatever the selection holds, and says why it cannot smear when the session
-	 * has no warp - rather than leaving the rigger to wonder why the brush did nothing.
+	 * The brush stands in Edit mode whatever the selection holds, and arms over a mesh as readily as over
+	 * a warp - a mesh is what the brush smears.
 	 */
 	@Test
-	fun theBrushSaysWhyItCannotSmearWithoutAWarp() =
+	fun theBrushArmsOverAMeshToo() =
 		runComposeUiTest {
 			val session = mountToolbar(warpSelected = false)
 			session.setMode(EditorMode.Edit)
@@ -207,7 +207,6 @@ class BrushToolbarTest {
 			onNodeWithContentDescription("Deform Brush").performClick()
 			waitForIdle()
 
-			assertNull(session.activeBrush.value, "nothing to smear, so no brush")
-			assertEquals("notice.edit.deformBrushNeedsAWarp", session.notice.value?.messageKey, "and it says why")
+			assertNotNull(session.activeBrush.value, "the brush is armed over the mesh")
 		}
 }

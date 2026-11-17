@@ -2,7 +2,7 @@ package org.umamo.edit
 
 import org.umamo.edit.mesh.commitLatticeReshape
 import org.umamo.edit.transform.BrushStroke
-import org.umamo.edit.transform.brushLatticeOffsets
+import org.umamo.edit.transform.brushPointOffsets
 import org.umamo.runtime.keyform.withLatticeShifted
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -61,7 +61,7 @@ class BrushStrokeCommitTest {
 	 */
 	private fun smeared(model: PuppetModel, stroke: BrushStroke): PuppetModel {
 		// The warp sits at the model's root, so its parent space is the space the brush measures in.
-		val offsets = brushLatticeOffsets(stroke.stamps, square(), 1f, ProportionalFalloff.Smooth)
+		val offsets = brushPointOffsets(stroke.stamps, square(), 1f, ProportionalFalloff.Smooth)
 
 		return model.copy(
 			deformers =

@@ -1060,6 +1060,20 @@ sealed interface MeshChange : Change {
 	}
 
 	/**
+	 * Smears one or more drawables' meshes with the deform brush: the vertices the brush covered take its
+	 * travel, weighted by the falloff, so the art's shape changes where the brush went.
+	 *
+	 * A brush stroke is not a modal transform, so it carries no operator kind - the history label names the
+	 * brush rather than filing the smear under a move.
+	 *
+	 * @property List<DrawableId> drawableIds The smeared drawables.
+	 */
+	data class BrushVertices(val drawableIds: List<DrawableId>) : MeshChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.mesh.brush"
+	}
+
+	/**
 	 * A topology edit of one mesh (duplicate / merge / rip / connect): the vertex count changes, every
 	 * keyform cell's deltas are rebuilt, and the glue pairs remap.  One change kind per operation so the
 	 * history panel names what happened.

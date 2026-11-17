@@ -715,6 +715,7 @@
 	<string name="history_mesh_merge">Merge Vertices</string>
 	<string name="history_mesh_rip">Rip</string>
 	<string name="history_mesh_connect">Connect Vertices</string>
+	<string name="history_mesh_brush">Brush Vertices</string>
 	<string name="history_mesh_generate_from_art">Generate Mesh from Art</string>
 	<string name="history_mesh_generate_quad">Generate Quad Mesh</string>
 	<!-- Generate Mesh from Art notices.  %1$d is the number of meshes generated, %2$d the number skipped. -->
@@ -800,7 +801,6 @@
 	<string name="notice_edit_warp_has_no_lattice">This warp deformer has no lattice to edit.</string>
 	<string name="notice_edit_warp_hidden_at_rest">This warp deformer is not drawn at the default pose, so its lattice cannot be edited.</string>
 	<string name="notice_edit_lattice_topology_fixed">A lattice's points can be moved, but not added, merged, or connected.  Change its rows and columns instead.</string>
-	<string name="notice_edit_deform_brush_needs_a_warp">The Deform brush smears a warp's lattice points, so it needs a warp selected.</string>
 	<string name="notice_edit_lattice_children_moved">The reshaped lattice folds or collapses at %1$d object(s) under it, so their art has moved.</string>
 	<string name="notice_lattice_resampled">The lattice was rebuilt as a close approximation, so its motion may differ slightly.  Check it and adjust if needed.</string>
 	<string name="notice_lattice_resampled_children_moved">The lattice was rebuilt as a close approximation, so its motion may differ slightly.  %1$d object(s) under it could not keep their place, so their art has moved.</string>

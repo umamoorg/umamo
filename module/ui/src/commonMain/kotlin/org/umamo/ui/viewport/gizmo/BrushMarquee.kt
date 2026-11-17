@@ -3,9 +3,8 @@ package org.umamo.ui.viewport.gizmo
 import org.umamo.edit.EditorSession
 import org.umamo.edit.transform.BrushStroke
 import org.umamo.edit.transform.setBrushRadius
-import org.umamo.runtime.model.DeformerId
-import org.umamo.ui.transform.brushLatticeWorld
-import org.umamo.ui.transform.brushWarpIds
+import org.umamo.ui.transform.BrushPreview
+import org.umamo.ui.transform.brushPreview
 import org.umamo.ui.transform.commitBrushStroke
 
 /**
@@ -17,13 +16,13 @@ import org.umamo.ui.transform.commitBrushStroke
  * the brush had where it laid them down.
  *
  * @param EditorSession session The session owning the brush latch, the settings, and the model.
- * @param Function publishPreview Publishes the world points a stroke would give the lattices, or null when
- *   the stroke ends; the caller hands them to the live preview.
+ * @param Function publishPreview Publishes what the stroke would do, or null when the stroke ends; the
+ *   caller hands it to the live preview.
  * @return MarqueeSelectController The brush's controller.
  */
 internal fun brushMarquee(
 	session: EditorSession,
-	publishPreview: (Map<DeformerId, FloatArray>?) -> Unit,
+	publishPreview: (BrushPreview?) -> Unit,
 ): MarqueeSelectController<BrushStroke> =
 	MarqueeSelectController(
 		seedStroke = { BrushStroke.empty() },
@@ -32,8 +31,7 @@ internal fun brushMarquee(
 			stroke.stampedTo(worldX, worldZ, radiusWorld)
 		},
 		commitStroke = { stroke ->
-			val areaId = session.activeBrush.value?.areaId
-			commitBrushStroke(session, areaId ?: "", stroke, session.brushSettings.value, brushWarpIds(session))
+			commitBrushStroke(session, session.activeBrush.value?.areaId ?: "", stroke, session.brushSettings.value, session.meshSelection.value.owners)
 		},
 		// The brush has no rubber band: the controller's box rule belongs to the select tools.
 		applyBox = { _, _, _, _, _ -> },
@@ -42,7 +40,7 @@ internal fun brushMarquee(
 		previewStroke = { stroke ->
 			publishPreview(
 				stroke?.let { brush ->
-					brushLatticeWorld(session.model.value, brush, session.brushSettings.value, brushWarpIds(session))
+					brushPreview(session.model.value, brush, session.brushSettings.value, session.meshSelection.value.owners)
 				},
 			)
 		},

@@ -2,9 +2,7 @@ package org.umamo.edit.transform
 
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
-import org.umamo.edit.NoticePlacement
 import org.umamo.edit.clampBrushRadius
-import org.umamo.runtime.model.deformerId
 
 /*
  * The deform brush's session entry points: arming it and resizing it.  The brush is armed like a select
@@ -13,22 +11,16 @@ import org.umamo.runtime.model.deformerId
  */
 
 /**
- * Arms the deform brush for [areaId], so the area's overlay drives the smear over the warps the session
+ * Arms the deform brush for [areaId], so the area's overlay drives the smear over the geometry the session
  * edits.
  *
- * The brush shapes a cage at rest, which is Edit mode's own domain.  A session with no warp to smear says
- * so, rather than leaving the rigger to wonder why the brush did nothing.
+ * The brush is an Edit-mode tool: it shapes the model at rest, whether that is a mesh's vertices or a warp's
+ * lattice.  A session in another mode has no rest geometry to smear, so the brush does nothing there.
  *
  * @param String areaId The arming viewport's area id (only its overlay drives the brush).
  */
 fun EditorSession.beginBrush(areaId: String) {
 	if (mode.value != EditorMode.Edit) {
-		return
-	}
-
-	if (meshSelection.value.owners.none { owner -> owner.deformerId != null }) {
-		emitNotice("notice.edit.deformBrushNeedsAWarp", NoticePlacement.NearCursor)
-
 		return
 	}
 

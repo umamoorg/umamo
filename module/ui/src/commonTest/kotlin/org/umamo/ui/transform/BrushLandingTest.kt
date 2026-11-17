@@ -8,6 +8,7 @@ import org.umamo.edit.transform.BrushParameterKeys
 import org.umamo.edit.transform.BrushStroke
 import org.umamo.edit.transform.brushParameters
 import org.umamo.render.eval.warpLatticeAt
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.ui.assertArrayNear
 import org.umamo.ui.viewport.viewport2d.LATTICE_RIG_BODY
 import org.umamo.ui.viewport.viewport2d.latticeRigModel
@@ -17,9 +18,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Pins the deform brush's landing: a stroke over a cage's corner moves that corner's lattice point and
- * leaves the rest of the cage alone, a stroke that reaches no cage changes nothing, and the model the
- * stroke lands on carries the lattice where the stroke put it.
+ * Pins the deform brush's landing on a warp's cage: a stroke over a cage's corner moves that corner's
+ * lattice point and leaves the rest of the cage alone, a stroke that reaches no cage changes nothing, and
+ * the model the stroke lands on carries the lattice where the stroke put it.
  */
 class BrushLandingTest {
 	// How close a landed point must be, in world units.
@@ -29,7 +30,7 @@ class BrushLandingTest {
 	private val settings = BrushSettings(ProportionalFalloff.Smooth, 15f, 1f)
 
 	/**
-	 * A stroke that walks the brush along the cage's bottom edge, from the left of the lower-left corner
+	 * A stroke that walks the brush along the cage's bottom edge, from the left of its lower-left corner
 	 * to the right of it.
 	 *
 	 * @return BrushStroke The stroke.
@@ -39,14 +40,18 @@ class BrushLandingTest {
 	/** The body's rest lattice in world space. */
 	private fun latticeWorld(): FloatArray = warpLatticeAt(latticeRigModel(), emptyMap(), LATTICE_RIG_BODY)!!.world
 
-	/** A stroke over the cage's lower-left corner moves that corner and leaves the rest of the cage alone. */
-	@Test
-	fun aBrushOverAPointMovesThatPointAndLeavesTheRestAlone() {
-		val before = latticeWorld()
-		val world = brushLatticeWorld(latticeRigModel(), stroke(), settings, listOf(LATTICE_RIG_BODY))
+	/** The cage the brush smears. */
+	private fun cageOwner(): ElementOwner = ElementOwner.Deformer(LATTICE_RIG_BODY)
 
-		assertEquals(setOf(LATTICE_RIG_BODY), world.keys, "the brush touched the one cage it was over")
-		val after = world.getValue(LATTICE_RIG_BODY)
+	/** A stroke over a cage's corner moves that corner's lattice point and leaves the rest of the cage alone. */
+	@Test
+	fun aStrokeOverACageMovesThatPointAndLeavesTheRestAlone() {
+		val before = latticeWorld()
+		val landing = brushLanding(latticeRigModel(), stroke(), settings, listOf(cageOwner()))
+
+		val cages = landing as BrushLanding.Cages
+		assertEquals(listOf(LATTICE_RIG_BODY), cages.warpIds, "the brush touched the one cage it was over")
+		val after = cages.world.getValue(LATTICE_RIG_BODY)
 
 		assertTrue(after[0] > before[0], "the corner the brush passed over moved along x")
 		assertEquals(before[1], after[1], tolerance, "and did not move off the edge")
@@ -61,36 +66,38 @@ class BrushLandingTest {
 	@Test
 	fun theFalloffHoldsAPointBackShortOfTheWholeTravel() {
 		val before = latticeWorld()
-		val after = brushLatticeWorld(latticeRigModel(), stroke(), settings, listOf(LATTICE_RIG_BODY)).getValue(LATTICE_RIG_BODY)
+		val landing = brushLanding(latticeRigModel(), stroke(), settings, listOf(cageOwner()))
+		val after = (landing as BrushLanding.Cages).world.getValue(LATTICE_RIG_BODY)
 		val travelled = after[0] - before[0]
 
 		assertTrue(travelled > 0f, "the point moved")
 		assertTrue(travelled < 20f, "the falloff held it back short of the brush's travel")
 	}
 
-	/** A stroke that reaches no lattice changes nothing. */
+	/** A stroke that reaches no cage changes nothing. */
 	@Test
-	fun aStrokeThatReachesNoLatticeChangesNothing() {
+	fun aStrokeThatReachesNoCageChangesNothing() {
 		val far = BrushStroke.starting(500f, 500f, 15f).stampedTo(510f, 500f, 15f)
-		val world = brushLatticeWorld(latticeRigModel(), far, settings, listOf(LATTICE_RIG_BODY))
+		val landing = brushLanding(latticeRigModel(), far, settings, listOf(cageOwner()))
 
-		assertTrue(world.isEmpty(), "the brush reached no cage")
+		val cages = landing as BrushLanding.Cages
+		assertTrue(cages.world.isEmpty(), "the brush reached no cage")
 	}
 
 	/** The model a stroke lands on carries the lattice where the stroke put it. */
 	@Test
 	fun theLandedModelCarriesTheLatticeWhereTheStrokePutIt() {
 		val model = latticeRigModel()
-		val world = brushLatticeWorld(model, stroke(), settings, listOf(LATTICE_RIG_BODY)).getValue(LATTICE_RIG_BODY)
-		val reshape = brushLatticeReshape(model, stroke(), settings, listOf(LATTICE_RIG_BODY))
+		val landing = brushLanding(model, stroke(), settings, listOf(cageOwner()))
+		val cages = landing as BrushLanding.Cages
 
-		assertArrayNear(world, warpLatticeAt(reshape.model, emptyMap(), LATTICE_RIG_BODY)!!.world, tolerance, "the lattice lands where the brush put it")
-		assertEquals(0, reshape.unconvertedCount)
+		assertArrayNear(cages.world.getValue(LATTICE_RIG_BODY), warpLatticeAt(cages.reshape.model, emptyMap(), LATTICE_RIG_BODY)!!.world, tolerance, "the lattice lands where the brush put it")
+		assertEquals(0, cages.reshape.unconvertedCount)
 	}
 
 	/**
 	 * The stroke's own step is what an adjustment rewrites: the strength row set to half lands over the
-	 * same step, moves the lattice less, and one undo puts the pre-stroke lattice back.
+	 * same step, moves the cage less, and one undo puts the pre-stroke lattice back.
 	 */
 	@Test
 	fun theAdjustedStrokeLandsOverItsOwnStep() {
@@ -98,7 +105,7 @@ class BrushLandingTest {
 		session.setMode(EditorMode.Edit)
 		val stepsBefore = session.historyView.value.steps.size
 
-		assertTrue(commitBrushStroke(session, "area", stroke(), settings, listOf(LATTICE_RIG_BODY)), "the stroke recorded a step")
+		assertTrue(commitBrushStroke(session, "area", stroke(), settings, listOf(cageOwner())), "the stroke recorded a step")
 		val stepsAfterStroke = session.historyView.value.steps.size
 		assertEquals(stepsBefore + 1, stepsAfterStroke, "one stroke, one step")
 		val full = warpLatticeAt(session.model.value, emptyMap(), LATTICE_RIG_BODY)!!.world[0]

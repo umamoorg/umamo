@@ -6,9 +6,11 @@ import kotlin.math.sqrt
 
 /*
  * The deform brush's own arithmetic: the log of stamps a stroke lays down, and the merge that turns that
- * log into the world offset every lattice point takes.  Both are pure data and pure math, so the live
- * preview and the committed stroke run the same function and cannot drift apart - which is what lets the
- * operation strip re-run a finished stroke at a new strength.
+ * log into the world offset every point takes.  Both are pure data and pure math, so the live preview and
+ * the committed stroke run the same function and cannot drift apart - which is what lets the operation
+ * strip re-run a finished stroke at a new strength.
+ *
+ * The points are whatever the brush is over: a warp's lattice control points, or a mesh's vertices.
  *
  * The falloff weights come from ProportionalEditing.kt's proportionalWeight, so the brush and
  * proportional editing share Blender's eight curves rather than growing a second set.
@@ -111,8 +113,8 @@ data class BrushStroke(
 }
 
 /**
- * The world offset every point of a lattice takes from a brush stroke: the brush's travel, weighted by the
- * falloff over each point's distance to the brush.
+ * The world offset every point takes from a brush stroke: the brush's travel, weighted by the falloff over
+ * each point's distance to the brush.
  *
  * Each stretch between two stamps carries the points the brush covered at the start of it, and the weight
  * is the falloff curve over the distance from a point to that stamp's centre - the same curve, and the same
@@ -123,19 +125,19 @@ data class BrushStroke(
  * stamps changing.
  *
  * @param List<BrushStamp> stamps The stroke's stamps, in order.
- * @param FloatArray latticeWorld The lattice's points in world space, interleaved x, z.
+ * @param FloatArray points The points in world space, interleaved x, z.
  * @param Float strength How much of the brush's travel a point under it takes.
  * @param ProportionalFalloff falloff The falloff curve shaping the weights.
- * @return FloatArray The per-point world offsets, interleaved x, z, the same length as [latticeWorld].
+ * @return FloatArray The per-point world offsets, interleaved x, z, the same length as [points].
  */
-fun brushLatticeOffsets(
+fun brushPointOffsets(
 	stamps: List<BrushStamp>,
-	latticeWorld: FloatArray,
+	points: FloatArray,
 	strength: Float,
 	falloff: ProportionalFalloff,
 ): FloatArray {
-	val offsets = FloatArray(latticeWorld.size)
-	val pointCount = latticeWorld.size / 2
+	val offsets = FloatArray(points.size)
+	val pointCount = points.size / 2
 
 	for (stampIndex in 1 until stamps.size) {
 		val previous = stamps[stampIndex - 1]
@@ -152,8 +154,8 @@ fun brushLatticeOffsets(
 		}
 
 		for (pointIndex in 0 until pointCount) {
-			val pointX = latticeWorld[pointIndex * 2]
-			val pointZ = latticeWorld[pointIndex * 2 + 1]
+			val pointX = points[pointIndex * 2]
+			val pointZ = points[pointIndex * 2 + 1]
 			val distanceX = pointX - previous.centreX
 			val distanceZ = pointZ - previous.centreZ
 			val normalizedDistance = sqrt(distanceX * distanceX + distanceZ * distanceZ) / previous.radiusWorld

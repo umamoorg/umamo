@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
  * leaves the others where they were, the strength scales that travel, the falloff shapes how fast the
  * influence fades, and the same stamps re-run at another strength.
  */
-class BrushLatticeTest {
+class BrushPointsTest {
 	// How close a weight may sit to the value a test expects.
 	private val tolerance = 1e-5f
 
@@ -45,7 +45,7 @@ class BrushLatticeTest {
 		radiusWorld: Float,
 		strength: Float,
 		falloff: ProportionalFalloff = ProportionalFalloff.Smooth,
-	): Float = brushLatticeOffsets(stroke(fromX, toX, radiusWorld).stamps, floatArrayOf(pointX, 0f), strength, falloff)[0]
+	): Float = brushPointOffsets(stroke(fromX, toX, radiusWorld).stamps, floatArrayOf(pointX, 0f), strength, falloff)[0]
 
 	/** A point the brush passed over travels with it. */
 	@Test
@@ -63,7 +63,7 @@ class BrushLatticeTest {
 	@Test
 	fun aBrushThatNeverTravelsMovesNothing() {
 		val still = BrushStroke.starting(0f, 0f, 50f)
-		val offsets = brushLatticeOffsets(still.stamps, floatArrayOf(0f, 0f), 1f, ProportionalFalloff.Smooth)
+		val offsets = brushPointOffsets(still.stamps, floatArrayOf(0f, 0f), 1f, ProportionalFalloff.Smooth)
 
 		assertEquals(0f, offsets[0], tolerance)
 	}
@@ -79,8 +79,8 @@ class BrushLatticeTest {
 	fun theSameStampsReRunAtAnotherStrength() {
 		val stamps = stroke(0f, 10f, 50f).stamps
 		val lattice = floatArrayOf(0f, 0f)
-		val full = brushLatticeOffsets(stamps, lattice, 1f, ProportionalFalloff.Smooth)
-		val half = brushLatticeOffsets(stamps, lattice, 0.5f, ProportionalFalloff.Smooth)
+		val full = brushPointOffsets(stamps, lattice, 1f, ProportionalFalloff.Smooth)
+		val half = brushPointOffsets(stamps, lattice, 0.5f, ProportionalFalloff.Smooth)
 
 		assertEquals(full[0] * 0.5f, half[0], tolerance)
 	}
