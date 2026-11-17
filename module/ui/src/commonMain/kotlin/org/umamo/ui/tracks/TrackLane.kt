@@ -48,7 +48,7 @@ import org.umamo.ui.theme.LocalUmamoColors
  * @param Function? laneMenuItems Builds the lane's context-menu items.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit.
  * @param Function? onLaneBounds Reports the lane's window bounds.
- * @param Function? snapTargets The domain values a held-Ctrl drag latches onto, asked once per press.
+ * @param Function? snapTargets The domain values a held-Ctrl drag latches onto, asked at most once per press.
  * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
  */
 @Composable

@@ -65,11 +65,11 @@ private val SLOT_WIDTH: Dp = 16.dp
  * @param Function? labelMenuItems Builds the label cell's context-menu items.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit.
  * @param Function? onLaneBounds Reports the lane's window bounds.
- * @param Function? snapTargets The domain values a held-Ctrl drag latches onto, asked once per press.
+ * @param Function? snapTargets The domain values a held-Ctrl drag latches onto, asked at most once per press.
  * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
  */
 @Composable
-internal fun trackSheetRow(
+internal fun TrackSheetRow(
 	line: TrackRowLine,
 	axis: TrackAxis,
 	playhead: Float?,
@@ -94,7 +94,7 @@ internal fun trackSheetRow(
 	// A collapsed GROUP summarizes its whole subtree, so folding a rig away still shows where its keys are.
 	val marks = remember(line.row, line.expandable, line.expanded) { shownMarks(line) }
 	Row(modifier = Modifier.fillMaxWidth().height(TRACK_ROW_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
-		trackRowLabel(
+		TrackRowLabel(
 			line = line,
 			decor = decor,
 			width = labelColumnWidth,
@@ -140,7 +140,7 @@ internal fun trackSheetRow(
  * @param Function? menuItems Builds this row's label context menu; null (or an empty list) shows none.
  */
 @Composable
-private fun trackRowLabel(
+private fun TrackRowLabel(
 	line: TrackRowLine,
 	decor: TrackRowDecor,
 	width: Dp,
@@ -179,7 +179,7 @@ private fun trackRowLabel(
 		verticalAlignment = Alignment.CenterVertically,
 	) {
 		if (line.expandable && onToggleExpanded != null) {
-			expandChevron(expanded = line.expanded, onClick = { onToggleExpanded(line.row) })
+			ExpandChevron(expanded = line.expanded, onClick = { onToggleExpanded(line.row) })
 		} else {
 			Spacer(modifier = Modifier.width(SLOT_WIDTH))
 		}
@@ -234,7 +234,7 @@ private fun trackRowLabel(
  * @param Function onClick Invoked on click.
  */
 @Composable
-private fun expandChevron(expanded: Boolean, onClick: () -> Unit) {
+private fun ExpandChevron(expanded: Boolean, onClick: () -> Unit) {
 	val colors = LocalUmamoColors.current
 	// NOT focusable: a row can be disposed by the very edit its chevron is next to, and a disposed focus
 	// owner leaves Compose with none, killing every keyboard shortcut.

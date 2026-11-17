@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.v2.runComposeUiTest
+import org.umamo.ui.kit.field.KEY_SNAP_RADIUS
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -167,6 +168,48 @@ class TrackLaneSnapTest {
 
 			assertEquals(0f, harness.markClicks.single().second.position)
 			assertTrue(harness.scrubs.isEmpty(), "a click on a mark is no scrub")
+		}
+
+	/** Without Ctrl the owner is never asked for targets, for a scrub, a mark drag, or a click. */
+	@Test
+	fun withoutCtrlTheOwnerIsNeverAsked() =
+		runComposeUiTest {
+			val harness = TrackSheetHarness()
+			mountTrackSheet(harness, axis = axis, snapTargets = { _, _ -> listOf(12f) })
+
+			dragOnSheet(opacityAt(-15f), listOf(opacityAt(5f), opacityAt(12.5f)))
+			dragOnSheet(opacityAt(0f), listOf(opacityAt(6f), opacityAt(9f)))
+			dragOnSheet(opacityAt(-30f), emptyList())
+
+			assertEquals(1, harness.scrubEnds.size, "the scrub ran")
+			assertEquals(1, harness.markDragEnds.size, "and so did the mark drag")
+			assertEquals(1, harness.markClicks.size, "and the click")
+			assertTrue(harness.snapRequests.isEmpty(), "but nothing asked for targets: ${harness.snapRequests}")
+		}
+
+	/**
+	 * A target just past the visible window never latches: the value would be clamped back onto the window's
+	 * edge, which is neither the target nor the pointer.  The press and the drag both land under the pointer.
+	 */
+	@Test
+	fun aTargetPastTheWindowEdgeNeverLatches() =
+		runComposeUiTest {
+			val window = TrackAxis(-30f, 10f)
+			val reach = laneReach(window, laneWidth().toInt(), TRACK_MARK_RADIUS.value, KEY_SNAP_RADIUS.value)
+			val pointer = 10f - 0.5f * reach
+			val harness = TrackSheetHarness()
+			mountTrackSheet(harness, axis = window, snapTargets = { _, _ -> listOf(10f + 0.3f * reach) })
+			val pointAt = { value: Float -> Offset(laneXOf(window, value), rowCenterY(opacityLine)) }
+
+			ctrl(held = true)
+			dragOnSheet(pointAt(pointer), emptyList())
+			val pressed = harness.scrubs.single().second
+			dragOnSheet(pointAt(-15f), listOf(pointAt(5f), pointAt(pointer)))
+			ctrl(held = false)
+
+			assertTrue(abs(pressed - pointer) < 0.25f * reach, "the press lands under the pointer at $pointer, at $pressed")
+			val released = harness.scrubEnds.last().second
+			assertTrue(abs(released - pointer) < 0.25f * reach, "the drag lands under the pointer at $pointer, at $released")
 		}
 
 	/** An owner that offers no targets gets no snapping, Ctrl or not. */

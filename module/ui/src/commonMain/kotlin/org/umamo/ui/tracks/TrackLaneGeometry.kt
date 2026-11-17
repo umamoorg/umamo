@@ -52,32 +52,29 @@ fun laneMarkOffsetX(axis: TrackAxis, domainValue: Float, laneWidth: Float, markR
 	laneX(axis.fractionOf(domainValue), laneWidth, markRadiusPx)
 
 /**
- * The pick radius for a mark, in DOMAIN units, so it stays a constant number of pixels however wide the
- * panel is or however large the domain is.
+ * The pick radius for a mark, in DOMAIN units: one and a half mark radii, however wide the panel is or
+ * however large the domain is.
  *
  * @param TrackAxis axis The domain.
  * @param Int laneWidth The lane's pixel width.
  * @param Float markRadius The half-extent of a mark, in pixels.
  * @return Float The tolerance, in domain units.
  */
-internal fun pickTolerance(axis: TrackAxis, laneWidth: Int, markRadius: Float): Float {
-	val usable = laneWidth - markRadius * 2f
-
-	return if (usable <= 0f) 0f else abs(axis.span) * (markRadius * 1.5f / usable)
-}
+internal fun pickTolerance(axis: TrackAxis, laneWidth: Int, markRadius: Float): Float = laneReach(axis, laneWidth, markRadius, markRadius * 1.5f)
 
 /**
- * How near a snap target a held-Ctrl drag must come to latch onto it, in DOMAIN units, so the reach stays a
- * constant number of pixels however wide the panel is or however far the window is zoomed.
+ * The domain distance [reach] pixels spans on a lane, so a pointer tolerance stays a constant number of
+ * pixels however wide the panel is or however far the window is zoomed.  Zero on a lane too narrow to have
+ * a track region, where nothing can be hit.
  *
  * @param TrackAxis axis The domain.
  * @param Int laneWidth The lane's pixel width.
- * @param Float markRadius The half-extent of a mark, in pixels.
- * @param Float snapRadius The snap reach, in pixels.
+ * @param Float markRadius The half-extent of a mark, in pixels, which insets the track region at each end.
+ * @param Float reach The tolerance, in pixels.
  * @return Float The tolerance, in domain units.
  */
-internal fun snapTolerance(axis: TrackAxis, laneWidth: Int, markRadius: Float, snapRadius: Float): Float {
+internal fun laneReach(axis: TrackAxis, laneWidth: Int, markRadius: Float, reach: Float): Float {
 	val usable = laneWidth - markRadius * 2f
 
-	return if (usable <= 0f) 0f else abs(axis.span) * (snapRadius / usable)
+	return if (usable <= 0f) 0f else abs(axis.span) * (reach / usable)
 }

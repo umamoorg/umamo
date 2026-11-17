@@ -73,6 +73,55 @@ class TrackWindowGestureTest {
 			assertTrue(window.span in 0.19f..0.21f, "a pan keeps the span (got ${window.span})")
 		}
 
+	/**
+	 * A middle drag begun while the primary button is held, as mid-way through a key drag, pans until the
+	 * middle button comes up and not a moment longer, so the drag it interrupted gets the pointer back.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aPanBegunMidDragEndsAtTheMiddleRelease() =
+		runComposeUiTest {
+			var window by mutableStateOf(TrackWindow(0.4f, 0.6f))
+			var panning = false
+			setContent {
+				Box(
+					modifier =
+						Modifier
+							.size(width = 600.dp, height = 200.dp)
+							.testTag("sheet")
+							.trackWindowGestures(
+								window = window,
+								onWindowChange = { updated -> window = updated },
+								labelColumnWidth = 100.dp,
+								onPanningChange = { held -> panning = held },
+							),
+				) {
+					Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+						Box(modifier = Modifier.size(width = 600.dp, height = 800.dp))
+					}
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				moveTo(Offset(400f, 100f))
+				press(MouseButton.Primary)
+				moveTo(Offset(390f, 100f))
+				press(MouseButton.Tertiary)
+				moveTo(Offset(330f, 100f))
+				release(MouseButton.Tertiary)
+			}
+			waitForIdle()
+			val panned = window
+			assertTrue(panned.start > 0.4f, "the middle drag panned (got $panned)")
+			assertTrue(!panning, "and the pan ended with the middle button, though the primary is still held")
+
+			onNodeWithTag("sheet").performMouseInput {
+				moveTo(Offset(250f, 100f))
+				release(MouseButton.Primary)
+			}
+			waitForIdle()
+			assertEquals(panned, window, "a move after the middle release does not pan")
+		}
+
 	/** A middle-button drag over the LABEL column is not a pan - that region is not the track. */
 	@OptIn(ExperimentalTestApi::class)
 	@Test

@@ -227,14 +227,12 @@ private fun sliderValueAt(
 		return raw
 	}
 
-	val usableWidth = (width - 2f * inset).takeIf { it > 0f } ?: 1f
-	val tolerance = abs(range.endInclusive - range.start) * snapRadius / usableWidth
-	// A key can sit outside the range on a malformed import, so the snap is clamped again.  The minOf / maxOf
-	// form tolerates a reversed range, where coerceIn would throw mid-gesture.
-	val low = minOf(range.start, range.endInclusive)
-	val high = maxOf(range.start, range.endInclusive)
+	val tolerance = abs(range.endInclusive - range.start) * snapRadius / travelWidth(width, inset)
+	// Bounded by the range because a key can sit outside it on a malformed import.  The minOf / maxOf form
+	// tolerates a reversed range, where a plain range would hold nothing.
+	val bounds = minOf(range.start, range.endInclusive)..maxOf(range.start, range.endInclusive)
 
-	return snapToNearestWithin(raw, snapTargets, tolerance).coerceIn(low, high)
+	return snapToNearestWithin(raw, snapTargets, tolerance, bounds)
 }
 
 /**
@@ -248,8 +246,17 @@ private fun sliderValueAt(
  * @return Float The value at [x].
  */
 private fun valueAt(x: Float, width: Float, inset: Float, range: ClosedFloatingPointRange<Float>): Float {
-	val usableWidth = (width - 2f * inset).takeIf { it > 0f } ?: 1f
-	val fraction = ((x - inset) / usableWidth).coerceIn(0f, 1f)
+	val fraction = ((x - inset) / travelWidth(width, inset)).coerceIn(0f, 1f)
 
 	return range.start + fraction * (range.endInclusive - range.start)
 }
+
+/**
+ * The width of the thumb's travel band: the control less [inset] at each end, floored at one pixel so a
+ * control narrower than its thumb cannot divide by zero.
+ *
+ * @param Float width The control's full width.
+ * @param Float inset The thumb radius the band is inset by at each end.
+ * @return Float The band's width, in pixels.
+ */
+private fun travelWidth(width: Float, inset: Float): Float = (width - 2f * inset).takeIf { usable -> usable > 0f } ?: 1f

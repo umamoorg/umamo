@@ -2,6 +2,7 @@ package org.umamo.ui.workspace.spaces.keyformsheet
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.TrackKeyRef
+import org.umamo.edit.keyform.TrackKeyDragAnchor
 import org.umamo.edit.keyform.dragTrackKeysKeepingSelection
 import org.umamo.edit.keyform.limitedDragFraction
 import org.umamo.runtime.eval.EPS_KEY
@@ -95,19 +96,31 @@ internal fun groupDragFraction(
 }
 
 /**
- * The values a held-Ctrl scrub of empty track latches onto: every key the section's tracks hold, the same
- * keys the parameter slider snaps to.
+ * The values a held-Ctrl scrub of empty track latches onto: every key on the section's track rows, once each.
+ *
+ * The rows are the ones the sheet's filters leave on screen, so a scrub latches only onto a key it can see,
+ * as a key drag does; a key the Channels or Blend Shapes filter hides is no target here, though the
+ * parameter slider, which shows every key, still snaps to it.
  *
  * @param List rows The section's root rows.
  * @param Set groupRowKeys The group rows' keys.
- * @return List The key positions.
+ * @return List The key positions, in row order.
  */
-internal fun scrubSnapTargets(rows: List<TrackRow>, groupRowKeys: Set<String>): List<Float> =
-	ArrayList<Float>().also { positions -> collectMarkPositions(rows, groupRowKeys, { _, _ -> true }, positions) }
+internal fun scrubSnapTargets(rows: List<TrackRow>, groupRowKeys: Set<String>): List<Float> {
+	val positions = LinkedHashSet<Float>()
+	forEachTrackRow(rows, groupRowKeys) { row -> row.marks.mapTo(positions) { mark -> mark.position } }
+
+	return positions.toList()
+}
 
 /**
  * The values a held-Ctrl drag of a mark latches onto: the keys on other rows, so keys line up across tracks,
  * and the playhead, so a key can be moved to the pose on screen.
+ *
+ * A target moves every key the drag carries by the same offset, so it is dropped when that offset would set
+ * any carried key down on a key its own track keeps: two keys in one place on a track are a span the
+ * evaluator cannot resolve.  On the dragged mark's own rows that is a kept key at the target itself.  Keys of
+ * another section's parameter travel by their own share of their own range and are not checked here.
  *
  * @param List rows The section's root rows.
  * @param Set groupRowKeys The group rows' keys.
@@ -116,7 +129,7 @@ internal fun scrubSnapTargets(rows: List<TrackRow>, groupRowKeys: Set<String>): 
  * @param Set moving The key selection the drag works on (see [selectionDraggedWith]).
  * @param Float startPosition Where the dragged mark sits before the drag.
  * @param Float? playhead The playhead's value, or null with none.
- * @return List The positions to latch onto.
+ * @return List The positions to latch onto, once each.
  */
 internal fun markDragSnapTargets(
 	rows: List<TrackRow>,
@@ -128,11 +141,26 @@ internal fun markDragSnapTargets(
 	playhead: Float?,
 ): List<Float> {
 	val draggedRows = draggedKeys.mapTo(HashSet()) { key -> key.rowKey }
-	val stays = { row: TrackRow, mark: TrackKeyMark -> TrackKeyRef(parameterId, row.key, mark.keyIndex) !in moving }
-	val blocked = ArrayList<Float>()
-	collectMarkPositions(rows, groupRowKeys, { row, mark -> row.key in draggedRows && stays(row, mark) }, blocked)
-	val candidates = ArrayList<Float>()
-	collectMarkPositions(rows, groupRowKeys, { row, mark -> row.key !in draggedRows && stays(row, mark) }, candidates)
+	val movingOrdinalsByRow =
+		moving
+			.filter { key -> key.parameterId == parameterId }
+			.groupBy(keySelector = { key -> key.rowKey }, valueTransform = { key -> key.keyIndex })
+			.mapValues { (_, ordinals) -> ordinals.toHashSet() }
+	val candidates = LinkedHashSet<Float>()
+	// Where the hand would have to land for a carried key to come down on a kept key of its own track.
+	val blocked = HashSet<Float>()
+	forEachTrackRow(rows, groupRowKeys) { row ->
+		val movingOrdinals = movingOrdinalsByRow[row.key].orEmpty()
+		val (carried, kept) = row.marks.partition { mark -> mark.keyIndex in movingOrdinals }
+
+		if (row.key !in draggedRows) {
+			kept.mapTo(candidates) { mark -> mark.position }
+		}
+
+		for (carriedMark in carried) {
+			kept.mapTo(blocked) { keptMark -> startPosition + (keptMark.position - carriedMark.position) }
+		}
+	}
 
 	if (playhead != null && abs(playhead - startPosition) > EPS_KEY) {
 		candidates.add(playhead)
@@ -142,28 +170,22 @@ internal fun markDragSnapTargets(
 }
 
 /**
- * Adds the position of every mark [include] accepts on [rows] and their whole subtrees to [into].
+ * Runs [action] on every track row among [rows] and their whole subtrees.
  *
  * Group rows are skipped: they carry no keys of their own, and their summaries only repeat their children's.
  * The children are walked whether or not their group is expanded, since a folded key is still a key.
  *
  * @param List rows The rows to walk.
  * @param Set groupRowKeys The group rows' keys.
- * @param Function include Whether a mark on a row counts.
- * @param MutableList into The positions found so far.
+ * @param Function action What to do with each track row.
  */
-private fun collectMarkPositions(
-	rows: List<TrackRow>,
-	groupRowKeys: Set<String>,
-	include: (TrackRow, TrackKeyMark) -> Boolean,
-	into: MutableList<Float>,
-) {
+private fun forEachTrackRow(rows: List<TrackRow>, groupRowKeys: Set<String>, action: (TrackRow) -> Unit) {
 	for (row in rows) {
 		if (row.key !in groupRowKeys) {
-			row.marks.filter { mark -> include(row, mark) }.mapTo(into) { mark -> mark.position }
+			action(row)
 		}
 
-		collectMarkPositions(row.children, groupRowKeys, include, into)
+		forEachTrackRow(row.children, groupRowKeys, action)
 	}
 }
 
@@ -234,12 +256,15 @@ internal fun resolveTrackKeys(
  * @param EditorSession? session The editing session, or null with none, which only clears the preview.
  * @param List projections Each targeted parameter and its tracks.
  * @param Float fraction The drag as a signed fraction of each parameter's range.
+ * @param TrackKeyDragAnchor? anchor The key under the hand, which a commit lands exactly where it was let go;
+ *   null for a nudge, and unused by a preview.
  * @param Boolean commit Whether the drag has been released.
  */
 internal fun KeyformSheetViewState.dragKeySelection(
 	session: EditorSession?,
 	projections: List<Pair<Parameter, KeyformSheetProjection>>,
 	fraction: Float,
+	anchor: TrackKeyDragAnchor?,
 	commit: Boolean,
 ) {
 	val plan = resolveTrackKeys(session?.keySelection?.value.orEmpty(), projections)
@@ -248,7 +273,7 @@ internal fun KeyformSheetViewState.dragKeySelection(
 		dragPreviewFraction = null
 	} else if (commit) {
 		dragPreviewFraction = null
-		session.dragTrackKeysKeepingSelection(plan, fraction)
+		session.dragTrackKeysKeepingSelection(plan, fraction, anchor)
 	} else {
 		dragPreviewFraction = session.model.value.limitedDragFraction(plan.map { (_, key) -> key }, fraction)
 	}

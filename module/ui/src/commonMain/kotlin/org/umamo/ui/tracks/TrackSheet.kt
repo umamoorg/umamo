@@ -131,8 +131,8 @@ data class TrackLaneHit(
  *   about a key at a position, the label is about the thing the row names.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit, for hover-aimed commands.
  * @param Function? onLaneBounds Reports each lane's window bounds, so a region gesture can resolve rows.
- * @param Function? snapTargets The domain values a drag latches onto while Ctrl is held, asked once per press
- *   with the row and the mark pressed (null for empty track).
+ * @param Function? snapTargets The domain values a drag latches onto while Ctrl is held, asked at most once per
+ *   press, when Ctrl is first held, with the row and the mark pressed (null for empty track).
  * @param Dp markRadius Half-extent of a drawn mark, and the inset applied at both ends of the track region.
  */
 @Composable
@@ -171,7 +171,7 @@ fun TrackSheet(
 
 		for (line in lines) {
 			key(line.row.key) {
-				trackSheetRow(
+				TrackSheetRow(
 					line = line,
 					axis = axis,
 					playhead = playhead,
