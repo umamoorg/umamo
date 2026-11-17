@@ -28,6 +28,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.TrackKeyRef
 import org.umamo.edit.editsKeys
+import org.umamo.edit.keyform.TrackKeyDragAnchor
 import org.umamo.edit.shownHeldTracks
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
@@ -230,8 +231,8 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 			// runs here and is handed down as an action.  The projections are read through state as the drag
 			// runs: an action holding the list itself would be a new action after every edit, for every section.
 			val currentProjections = rememberUpdatedState(projections)
-			val dragSelectedKeys: (Float, Boolean) -> Unit = { fraction, commit ->
-				viewState.dragKeySelection(session, currentProjections.value, fraction, commit)
+			val dragSelectedKeys: (Float, TrackKeyDragAnchor?, Boolean) -> Unit = { fraction, anchor, commit ->
+				viewState.dragKeySelection(session, currentProjections.value, fraction, anchor, commit)
 			}
 			// After both early returns on purpose: a sheet with nothing to show offers the shell's commands
 			// nothing, so they fall through to a sheet that does.
@@ -352,7 +353,8 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
  * @param EditorSession? session The editing session, or null with none.
  * @param KeyformSheetViewState viewState The area's view state.
  * @param List projections Each targeted parameter and its tracks.
- * @param Function dragSelectedKeys Previews or applies a drag of the whole selection; a nudge applies one.
+ * @param Function dragSelectedKeys Previews or applies a drag of the whole selection; a nudge applies one,
+ *   with no hand.
  */
 @Composable
 private fun KeyformSheetSurfaceEffect(
@@ -360,7 +362,7 @@ private fun KeyformSheetSurfaceEffect(
 	session: EditorSession?,
 	viewState: KeyformSheetViewState,
 	projections: List<Pair<Parameter, KeyformSheetProjection>>,
-	dragSelectedKeys: (Float, Boolean) -> Unit,
+	dragSelectedKeys: (Float, TrackKeyDragAnchor?, Boolean) -> Unit,
 ) {
 	val keyformSheetViews = LocalKeyformSheetViews.current
 	val currentProjections = rememberUpdatedState(projections)
@@ -387,7 +389,7 @@ private fun KeyformSheetSurfaceEffect(
 					disarmBoxSelect = { viewState.boxSelectArmed = false },
 					// The same path a mark drag commits through, so a nudge and a drag cannot disagree about
 					// clamping or about where the selection points afterwards.
-					nudgeSelection = { fraction -> currentDragSelectedKeys.value(fraction, true) },
+					nudgeSelection = { fraction -> currentDragSelectedKeys.value(fraction, null, true) },
 				)
 			keyformSheetViews.register(areaId, surface)
 			onDispose { keyformSheetViews.unregister(areaId, surface) }

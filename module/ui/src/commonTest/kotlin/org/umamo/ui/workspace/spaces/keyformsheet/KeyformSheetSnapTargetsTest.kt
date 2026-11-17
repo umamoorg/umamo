@@ -12,7 +12,7 @@ import kotlin.test.assertTrue
 /**
  * What a held-Ctrl gesture in the keyform sheet may latch onto.  A scrub snaps to every key the section's
  * tracks hold.  A key drag snaps to other rows' keys and the playhead, never to what it carries along, and
- * never onto a key its own track keeps in place.
+ * never where it or a key it carries would land on a key its own track keeps in place.
  *
  *   drawable:d           (group, with a stray mark at 9 that no target may come from)
  *     geometry           -5, 0, 5
@@ -102,21 +102,47 @@ class KeyformSheetSnapTargetsTest {
 		assertTrue(8f in targets, "an opacity key with no geometry key under it stays a target")
 	}
 
+	/**
+	 * The targets of a drag of the geometry key at -5 carrying the opacity key at 8 along.
+	 *
+	 * @return Set The targets.
+	 */
+	private fun carryingOpacityTargets(): Set<Float> =
+		markDragSnapTargets(
+			rows = rows,
+			groupRowKeys = groupRowKeys,
+			parameterId = angleX,
+			draggedKeys = listOf(key(GEOMETRY, 0)),
+			moving = setOf(key(GEOMETRY, 0), key(OPACITY, 2)),
+			startPosition = -5f,
+			playhead = null,
+		).toSet()
+
 	/** A key the drag carries along moves with the hand, so it is no target. */
 	@Test
 	fun aKeyTheDragCarriesIsNoTarget() {
-		val targets =
-			markDragSnapTargets(
-				rows = rows,
-				groupRowKeys = groupRowKeys,
-				parameterId = angleX,
-				draggedKeys = listOf(key(GEOMETRY, 0)),
-				moving = setOf(key(GEOMETRY, 0), key(OPACITY, 2)),
-				startPosition = -5f,
-				playhead = null,
-			)
+		assertFalse(8f in carryingOpacityTargets())
+	}
 
-		assertEquals(setOf(-8f, 7f), targets.toSet())
+	/**
+	 * A target that would set a carried key down on a key its own track keeps is dropped.  Latching the hand
+	 * onto the part key at -8 moves everything by -3, which takes the carried opacity key from 8 onto the
+	 * opacity key kept at 5; the part key at 7 moves it to 20, clear of every kept opacity key.
+	 */
+	@Test
+	fun aTargetThatStacksACarriedKeyIsDropped() {
+		val targets = carryingOpacityTargets()
+
+		assertFalse(-8f in targets, "the opacity key at 8 would land on the one kept at 5")
+		assertEquals(setOf(7f), targets)
+	}
+
+	/** Scrub targets come back once each, however many tracks key the same value. */
+	@Test
+	fun aScrubTargetIsListedOnce() {
+		val targets = scrubSnapTargets(rows, groupRowKeys)
+
+		assertEquals(targets.distinct(), targets)
 	}
 
 	/** The playhead is no target where the dragged key starts, nor where the dragged track keeps a key. */

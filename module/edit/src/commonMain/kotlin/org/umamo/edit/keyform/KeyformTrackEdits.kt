@@ -10,6 +10,7 @@ import org.umamo.runtime.keyform.keyIndexAt
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
+import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.channelGridsOf
 
@@ -244,6 +245,19 @@ private fun PuppetModel.keyDragsOf(keys: List<Triple<KeyformTrackRef, Parameter,
 	}
 
 /**
+ * Where the key under the hand of a group drag started and where it was let go.
+ *
+ * A group drag travels by a fraction of each range, and `from + span * ((to - from) / span)` rounds in
+ * float32, so without this the key under the hand would land a few ULPs off the value it was dropped on:
+ * beside another track's key it was snapped onto rather than stacked with it.
+ *
+ * @property ParameterId parameterId The parameter whose axis the hand's key sits on.
+ * @property Float from The hand's key's position before the drag.
+ * @property Float to Where the hand let it go.
+ */
+data class TrackKeyDragAnchor(val parameterId: ParameterId, val from: Float, val to: Float)
+
+/**
  * Drags every key in [keys] by [fraction] of its parameter's range, as ONE undo step - the multi-select
  * mark drag.
  *
@@ -254,10 +268,16 @@ private fun PuppetModel.keyDragsOf(keys: List<Triple<KeyformTrackRef, Parameter,
  *
  * @param List keys The (track, parameter, key ordinal) triples to drag.
  * @param Float fraction The drag as a signed fraction of each parameter's range.
+ * @param TrackKeyDragAnchor? anchor The hand's key, which lands exactly where it was let go; null for a drag
+ *   with no hand, such as a nudge.
  * @return List<Int> Each key's ordinal AFTER the drag, in the order given, since crossings renumber the axis.
  */
-fun EditorSession.dragTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, Int>>, fraction: Float): List<Int> {
-	val plan = model.value.planTrackKeyDrag(keys, fraction) ?: return keys.map { (_, _, keyIndex) -> keyIndex }
+fun EditorSession.dragTrackKeys(
+	keys: List<Triple<KeyformTrackRef, Parameter, Int>>,
+	fraction: Float,
+	anchor: TrackKeyDragAnchor? = null,
+): List<Int> {
+	val plan = model.value.planTrackKeyDrag(keys, fraction, anchor) ?: return keys.map { (_, _, keyIndex) -> keyIndex }
 	// Computed before the mutate rather than inside it because the landing VALUES have to come back out, and
 	// mutate hands back only a model.  It applies the transform exactly once against this same instance, so
 	// handing it the finished model is equivalent - including the reference-equality no-op check, which
@@ -275,11 +295,15 @@ fun EditorSession.dragTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, In
  *
  * @param List keys The (track, parameter, key ordinal) triples being dragged.
  * @param Float fraction The drag as a signed fraction of each parameter's range.
+ * @param TrackKeyDragAnchor? anchor The hand's key, as [dragTrackKeys] takes it.
  * @return List<Int> Each key's ordinal after the drag, in the order given - the starting ordinals when the
  *   drag would move nothing.
  */
-fun PuppetModel.trackKeyDragLandings(keys: List<Triple<KeyformTrackRef, Parameter, Int>>, fraction: Float): List<Int> =
-	planTrackKeyDrag(keys, fraction)?.landedOrdinals ?: keys.map { (_, _, keyIndex) -> keyIndex }
+fun PuppetModel.trackKeyDragLandings(
+	keys: List<Triple<KeyformTrackRef, Parameter, Int>>,
+	fraction: Float,
+	anchor: TrackKeyDragAnchor? = null,
+): List<Int> = planTrackKeyDrag(keys, fraction, anchor)?.landedOrdinals ?: keys.map { (_, _, keyIndex) -> keyIndex }
 
 /**
  * A planned group drag: the model it would produce, and the ordinal each key would hold in it.
@@ -297,11 +321,13 @@ private class KeyDragPlan(val model: PuppetModel, val landedOrdinals: List<Int>)
  *
  * @param List keys The (track, parameter, key ordinal) triples to drag.
  * @param Float fraction The drag as a signed fraction of each parameter's range.
+ * @param TrackKeyDragAnchor? anchor The hand's key, as [dragTrackKeys] takes it.
  * @return KeyDragPlan? The plan, or null when the drag is empty, unresolvable, or clamped to nothing.
  */
 private fun PuppetModel.planTrackKeyDrag(
 	keys: List<Triple<KeyformTrackRef, Parameter, Int>>,
 	fraction: Float,
+	anchor: TrackKeyDragAnchor?,
 ): KeyDragPlan? {
 	if (keys.isEmpty() || fraction == 0f) {
 		return null
@@ -320,7 +346,9 @@ private fun PuppetModel.planTrackKeyDrag(
 		return null
 	}
 
-	val destinations = live.associateWith { move -> move.destinationAt(effectiveFraction) }
+	// The hand only reaches where it was let go while no wall limits the group; a limited drag stops it short.
+	val hand = anchor?.takeIf { effectiveFraction == fraction }
+	val destinations = live.associateWith { move -> move.destinationAt(effectiveFraction, hand) }
 	// Nearest the destination first, so a run of keys shuffling the same way cannot have an earlier one
 	// clamp against a neighbour that is about to move out of the way.
 	val ordered = if (effectiveFraction > 0f) live.sortedByDescending { it.fromValue } else live.sortedBy { it.fromValue }
@@ -429,11 +457,19 @@ private class KeyDrag(val track: KeyformTrackRef, val parameter: Parameter, val 
 	/**
 	 * Where this key lands at [fraction] of its parameter's range.
 	 *
+	 * A key that starts where the [hand]'s key did lands where the hand let go, so every key stacked under the
+	 * hand stays stacked on the exact value it was dropped on.
+	 *
 	 * @param Float fraction The (already limited) drag.
+	 * @param TrackKeyDragAnchor? hand The hand's key, or null when the drag has none or a wall limited it.
 	 * @return Float The destination, clamped defensively to the range.
 	 */
-	fun destinationAt(fraction: Float): Float =
-		(fromValue + span * fraction).coerceIn(minOf(parameter.min, parameter.max), maxOf(parameter.min, parameter.max))
+	fun destinationAt(fraction: Float, hand: TrackKeyDragAnchor?): Float {
+		val destination =
+			if (hand != null && hand.parameterId == parameter.id && hand.from == fromValue) hand.to else fromValue + span * fraction
+
+		return destination.coerceIn(minOf(parameter.min, parameter.max), maxOf(parameter.min, parameter.max))
+	}
 }
 
 /**

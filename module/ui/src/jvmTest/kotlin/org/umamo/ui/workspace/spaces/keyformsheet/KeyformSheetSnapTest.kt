@@ -15,6 +15,7 @@ import org.umamo.ui.workspace.spaces.parameters.setCtrlHeld
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -62,19 +63,24 @@ class KeyformSheetSnapTest {
 			assertEquals(8f, harness.committed(PanelIds.bodyX))
 		}
 
-	/** The same scrub without Ctrl lands where the pointer let go. */
+	/**
+	 * The same scrub without Ctrl lands where the pointer let go: nearer the pointer than the key, which also
+	 * proves the scrub landed at all rather than leaving the pose where it began.
+	 */
 	@Test
 	fun withoutCtrlAScrubIgnoresTheKeys() =
 		runComposeUiTest {
 			val harness = mountSheet(listOf(PanelIds.bodyX))
-			val near = 8f - 0.4f * snapReach(harness, SheetRows.GEOMETRY, PanelIds.bodyX)
+			val reach = snapReach(harness, SheetRows.GEOMETRY, PanelIds.bodyX)
+			val near = 8f - 0.4f * reach
 
 			drag(
 				lanePoint(harness, SheetRows.GEOMETRY, PanelIds.bodyX, -2.5f),
 				listOf(lanePoint(harness, SheetRows.GEOMETRY, PanelIds.bodyX, 6.5f), lanePoint(harness, SheetRows.GEOMETRY, PanelIds.bodyX, near)),
 			)
 
-			assertTrue(harness.committed(PanelIds.bodyX) != 8f, "no snap without Ctrl")
+			val committed = assertNotNull(harness.committed(PanelIds.bodyX))
+			assertTrue(abs(committed - near) < 0.2f * reach, "no snap without Ctrl: the release lands under the pointer at $near, got $committed")
 		}
 
 	/** A Ctrl drag of a key lands it exactly on another row's key, so the two line up. */
@@ -155,7 +161,7 @@ class KeyformSheetSnapTest {
 			setCtrlHeld(false)
 
 			val geometryKeys = geometryKeysOf(harness, PanelIds.drawable, PanelIds.bodyX)
-			assertTrue(abs(geometryKeys.last() - 8f) < 1e-4f, "the key under the hand lands on the opacity key at 8: $geometryKeys")
+			assertEquals(8f, geometryKeys.last(), "the key under the hand lands exactly on the opacity key at 8: $geometryKeys")
 			assertKeysNear(listOf(5f, 8f), partOpacityKeysOf(harness), "the part key travels the same thirteen units")
 		}
 }

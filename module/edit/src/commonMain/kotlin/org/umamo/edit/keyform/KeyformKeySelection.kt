@@ -104,18 +104,23 @@ fun EditorSession.insertingKey(inserted: TrackKeyRef?, insertKey: () -> Unit) {
  * @param List keys Each dragged key as the sheet names it, paired with the (track, parameter, key ordinal)
  *   it resolves to.
  * @param Float fraction The drag as a signed fraction of each parameter's range.
+ * @param TrackKeyDragAnchor? anchor The hand's key, which lands exactly where it was let go; null for a nudge.
  */
-fun EditorSession.dragTrackKeysKeepingSelection(keys: List<Pair<TrackKeyRef, Triple<KeyformTrackRef, Parameter, Int>>>, fraction: Float) {
+fun EditorSession.dragTrackKeysKeepingSelection(
+	keys: List<Pair<TrackKeyRef, Triple<KeyformTrackRef, Parameter, Int>>>,
+	fraction: Float,
+	anchor: TrackKeyDragAnchor? = null,
+) {
 	if (keys.isEmpty()) {
 		return
 	}
 
 	val dragged = keys.map { (_, key) -> key }
-	val landed = model.value.trackKeyDragLandings(dragged, fraction)
+	val landed = model.value.trackKeyDragLandings(dragged, fraction, anchor)
 	val landedSelection =
 		keys.mapIndexed { position, (keyRef, _) -> keyRef.copy(keyIndex = landed.getOrElse(position) { keyRef.keyIndex }) }.toSet()
 	stageKeySelection(landedSelection)
-	dragTrackKeys(dragged, fraction)
+	dragTrackKeys(dragged, fraction, anchor)
 	setKeySelection(landedSelection)
 }
 

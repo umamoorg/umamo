@@ -8,7 +8,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.isTertiaryPressed
@@ -21,6 +23,15 @@ import kotlin.math.abs
  * The lane's owner callbacks, bundled so the pointer loops read every one of them through ONE latest-state
  * holder at event time.
  *
+ * Read through a holder rather than keying the gesture loops on them, and that is load-bearing rather than
+ * tidy: a pointerInput RESTARTS when a key changes, and these change identity the moment the SELECTION does.
+ * Keying on them would let an owner that clears the selection on the press (exactly what pressing empty
+ * track does) tear its own gesture down mid-stroke: the drag would freeze at the press point with no
+ * release ever arriving, so nothing would commit.  The axis reaches the gesture loop the same way, so a zoom
+ * or pan moves the window under a stroke rather than ending it; only the lane's row and mark radius key that
+ * loop.  The hover loop holds no stroke, so it still keys on the axis.  A plain class rather than a data
+ * class: lambda equality is meaningless, and the holder is rebuilt every recomposition anyway.
+ *
  * @property Function? onMarkClick Invoked when a click lands on a mark, with whether Shift was held.
  * @property Function? onTrackScrub Invoked as an empty-track drag moves, with the gesture's Shift state.
  * @property Function? onTrackScrubEnd Invoked when an empty-track drag is released.
@@ -28,8 +39,8 @@ import kotlin.math.abs
  * @property Function? onMarkDragEnd Invoked when a mark drag is released; null leaves the marks in place, so a
  *   press on one is a click however far the pointer travels.
  * @property Function? onLaneHover Reports the live hit under the pointer, or null on exit.
- * @property Function? snapTargets The domain values a held-Ctrl drag latches onto, asked once per press with
- *   the mark under it (null for empty track); null never snaps.
+ * @property Function? snapTargets The domain values a held-Ctrl drag latches onto, asked at most once per press,
+ *   when Ctrl is first held, with the mark under it (null for empty track); null never snaps.
  */
 internal class TrackLaneCallbacks(
 	val onMarkClick: ((TrackRow, TrackKeyMark, Boolean) -> Unit)?,
@@ -154,14 +165,20 @@ internal suspend fun PointerInputScope.trackLaneGestureLoop(
 		// drag is manipulating the mark it started on, whatever the list does meanwhile.
 		val hitMark =
 			nearestMark(editableMarks.value, pressedValue, pickTolerance(pressAxis, size.width, markRadiusPx))
-		// Sampled at the press like the mark, so what a drag can latch onto cannot change under it.  CTRL,
-		// unlike Shift, is read off every event: snapping is a live toggle rather than part of what the
-		// gesture meant, and on macOS, where Ctrl+click is the right click, Ctrl joins a drag already under way.
-		val snapTargets = callbacks.value.snapTargets?.invoke(row, hitMark).orEmpty()
+		// The owner's question is the press's, so what a drag can latch onto cannot change under it, but it is
+		// asked only the first time Ctrl is held: a plain click or a Ctrl-less drag never pays for the walk over
+		// the owner's rows.  CTRL, unlike Shift, is read off every event: snapping is a live toggle rather than
+		// part of what the gesture meant, and on macOS, where Ctrl+click is the right click, Ctrl joins a drag
+		// already under way.
+		val snapTargetsAtPress = callbacks.value.snapTargets
+		val snapTargets = lazy(LazyThreadSafetyMode.NONE) { snapTargetsAtPress?.invoke(row, hitMark).orEmpty() }
 		val snapRadiusPx = KEY_SNAP_RADIUS.toPx()
 		// Sampled at the press like Shift: whether the mark under it can move is part of what the gesture
 		// meant when it began.  An empty-track press always may, since its drag is the scrub.
 		val pressMayDrag = hitMark == null || callbacks.value.onMarkDragEnd != null
+		// A mouse gesture begun on the primary button ends when that button comes up, even while the middle
+		// button still pans the sheet.  Any other pointer ends when it lifts.
+		val endsOnPrimaryRelease = down.type == PointerType.Mouse && currentEvent.buttons.isPrimaryPressed
 		var dragging = false
 		// A press on empty track scrubs immediately, so the playhead lands under the pointer on the way
 		// down rather than only on release - the affordance a timeline ruler has, applied across the whole
@@ -173,9 +190,14 @@ internal suspend fun PointerInputScope.trackLaneGestureLoop(
 		// stops where the pointer stops.
 		var releaseValue =
 			if (hitMark == null) {
-				val ctrlHeld = currentEvent.keyboardModifiers.isCtrlPressed
-				snapped(pressedValue, snapTargets, snapTolerance(pressAxis, size.width, markRadiusPx, snapRadiusPx), ctrlHeld)
-					.coerceIn(dragBoundsOf(pressAxis))
+				val pressBounds = dragBoundsOf(pressAxis)
+				snapped(
+					value = pressedValue,
+					targets = snapTargets,
+					reach = laneReach(pressAxis, size.width, markRadiusPx, snapRadiusPx),
+					bounds = pressBounds,
+					ctrlHeld = currentEvent.keyboardModifiers.isCtrlPressed,
+				).coerceIn(pressBounds)
 			} else {
 				pressedValue
 			}
@@ -188,10 +210,14 @@ internal suspend fun PointerInputScope.trackLaneGestureLoop(
 			val event = awaitPointerEvent()
 			val change = event.changes.firstOrNull { candidate -> candidate.id == down.id } ?: break
 
-			if (!change.pressed) {
+			if (!change.pressed || (endsOnPrimaryRelease && !event.buttons.isPrimaryPressed)) {
 				break
 			}
 
+			// Reads zero while the sheet's middle-drag pan holds the pointer, since the pan consumes every move.
+			// The held value is right through a pan: it moves the content with the hand, so the key or the
+			// playhead stays under the pointer, and a pan cannot carry a press past the slop into a drag.  Once
+			// the middle button lets go, the next move resolves against the panned window.
 			if (change.positionChange().x != 0f || change.positionChange().y != 0f) {
 				if (!dragging && pressMayDrag && abs(change.position.x - down.position.x) > touchSlop) {
 					dragging = true
@@ -205,19 +231,19 @@ internal suspend fun PointerInputScope.trackLaneGestureLoop(
 					// The window as it is NOW: a zoom or pan mid-stroke moves it, and the drag carries on within
 					// the moved window, its walls included, rather than ending.
 					val moveAxis = axis.value
-					// Snapped BEFORE the clamp, so a target just past the visible window cannot carry the
-					// mark or the playhead outside it.
+					val moveBounds = dragBoundsOf(moveAxis)
 					val pointerValue =
 						snapped(
-							domainAt(change.position.x, moveAxis, size.width, markRadiusPx),
-							snapTargets,
-							snapTolerance(moveAxis, size.width, markRadiusPx, snapRadiusPx),
-							event.keyboardModifiers.isCtrlPressed,
+							value = domainAt(change.position.x, moveAxis, size.width, markRadiusPx),
+							targets = snapTargets,
+							reach = laneReach(moveAxis, size.width, markRadiusPx, snapRadiusPx),
+							bounds = moveBounds,
+							ctrlHeld = event.keyboardModifiers.isCtrlPressed,
 						)
 					// Clamped to the axis as it moves rather than on release: a mark that follows the pointer past
 					// its bound and then snaps back reads as a rejected edit, where stopping at the wall reads as
 					// the wall being there.  A scrub moves the playhead, which the same clamp keeps on the axis.
-					releaseValue = pointerValue.coerceIn(dragBoundsOf(moveAxis))
+					releaseValue = pointerValue.coerceIn(moveBounds)
 
 					if (hitMark == null) {
 						callbacks.value.onTrackScrub?.invoke(row, releaseValue, additive)
@@ -244,13 +270,20 @@ internal suspend fun PointerInputScope.trackLaneGestureLoop(
 }
 
 /**
- * [value] latched onto the nearest of [targets] within [reach] while Ctrl is held, else unchanged.
+ * [value] latched onto the nearest of [targets] inside [bounds] within [reach] while Ctrl is held, else
+ * unchanged.  The targets are only resolved under Ctrl.
  *
  * @param Float value The pointer's domain value.
- * @param List targets The press's snap targets.
+ * @param Lazy targets The press's snap targets.
  * @param Float reach The snap tolerance, in domain units.
+ * @param ClosedFloatingPointRange bounds The visible window the value is then clamped to.
  * @param Boolean ctrlHeld Whether Ctrl is held on the event being handled.
  * @return Float The value to use.
  */
-private fun snapped(value: Float, targets: List<Float>, reach: Float, ctrlHeld: Boolean): Float =
-	if (ctrlHeld) snapToNearestWithin(value, targets, reach) else value
+private fun snapped(
+	value: Float,
+	targets: Lazy<List<Float>>,
+	reach: Float,
+	bounds: ClosedFloatingPointRange<Float>,
+	ctrlHeld: Boolean,
+): Float = if (ctrlHeld) snapToNearestWithin(value, targets.value, reach, bounds) else value

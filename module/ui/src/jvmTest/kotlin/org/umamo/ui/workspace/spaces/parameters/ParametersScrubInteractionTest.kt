@@ -264,7 +264,10 @@ class ParametersScrubInteractionTest {
 			assertEquals(0f, harness.committed(PanelIds.bodyX), "Body X is keyed at 0, a hair from where the drag ended")
 		}
 
-	/** The same scrub without Ctrl lands where the pointer let go. */
+	/**
+	 * The same scrub without Ctrl lands where the pointer let go, a little above 0.2 on Body X's -10..10: clear
+	 * of the key at 0 and of the starting pose at 2, so it proves the scrub landed and did not snap.
+	 */
 	@Test
 	fun withoutCtrlAScrubIgnoresTheKeys() =
 		runComposeUiTest {
@@ -274,7 +277,8 @@ class ParametersScrubInteractionTest {
 
 			drag(slider.at(0.3f), listOf(slider.at(0.45f), slider.at(0.51f)))
 
-			assertTrue(harness.committed(PanelIds.bodyX) != 0f, "no snap without Ctrl")
+			val committed = harness.committed(PanelIds.bodyX)
+			assertTrue(committed != null && committed in 0.1f..0.4f, "no snap without Ctrl: the release lands under the pointer, got $committed")
 		}
 
 	/** Far from every key, a Ctrl scrub follows the pointer. */

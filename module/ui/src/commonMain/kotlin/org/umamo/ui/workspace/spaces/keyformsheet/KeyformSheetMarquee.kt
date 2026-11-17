@@ -14,6 +14,12 @@ import org.umamo.ui.tracks.shownMarks
  * Every key the window-space [region] encloses, across every section, where a collapsed group's summary
  * mark encloses every key stacked under it.
  *
+ * Resolved against the lanes' own reported bounds rather than computed from row heights, since sections
+ * fold, groups collapse, and the sheet scrolls.  It matches what is on screen rather than what is in the
+ * model: only the flattened, currently-visible rows are walked, because laneBounds is never pruned and a
+ * collapsed group's children keep their last rectangles, and the axis is the windowed one, so a zoomed
+ * sheet maps a mark to the pixel it is drawn at.
+ *
  * @param Rect region The marquee, in window coordinates.
  * @param List projections Each targeted parameter and its tracks.
  * @param Map laneBounds Each row key's last reported window bounds.
