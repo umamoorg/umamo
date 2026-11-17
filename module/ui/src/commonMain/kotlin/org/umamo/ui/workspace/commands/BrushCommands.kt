@@ -35,7 +35,7 @@ internal fun brushCommands(
 		Command(
 			"mesh.deformBrush",
 			title = Res.string.cmd_mesh_deform_brush,
-			availability = availability.inEditMode,
+			availability = availability.inEditModeOverWarp,
 			spaces = SpaceScope.Viewport2D,
 			group = CommandSection.ToolBrush,
 			icon = LocalUmamoIcons.toolDeformBrush,
