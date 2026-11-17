@@ -102,6 +102,7 @@ fun ViewportEditGizmoOverlay(
 	val model by session.model.collectAsState()
 	val activeOperator by session.activeMeshOperator.collectAsState()
 	val activeSelectTool by session.activeSelectTool.collectAsState()
+	val activeBrush by session.activeBrush.collectAsState()
 	// Held as State, not read here: the chrome reads them only while drawing a gesture this area owns.
 	val axisConstraintState = session.axisConstraint.collectAsState()
 	val proportionalEditState = session.proportionalEdit.collectAsState()
@@ -162,6 +163,11 @@ fun ViewportEditGizmoOverlay(
 	// The element pick and box select, armed or not, one per area (see MeshPickController).
 	val meshPick = remember(areaId) { editMeshPick(session, marquee, liveGeometryState) }
 
+	// The deform brush's machinery, one per area (see editBrushMarquee).  The live preview it writes is
+	// the window's, so the cage follows the stroke wherever it is drawn.
+	val livePreview = LocalLiveMeshPreview.current
+	val brush = remember(areaId) { editBrushMarquee(session, livePreview) }
+
 	// The idle lattice the pointer is over in Pose mode, drawn in the hover color in this area alone, one per area
 	// (see LatticeHover).
 	val latticeHover = remember(areaId) { LatticeHover(areaId, service) { session.model.value } }
@@ -169,7 +175,6 @@ fun ViewportEditGizmoOverlay(
 	// The modal transform's commit side, one per area: the pointer loop and the collectors below keep the
 	// instance they started with (see EditModalTransform).  Its gesture state is what the Box, the pointer
 	// loop, and the chrome read.
-	val livePreview = LocalLiveMeshPreview.current
 	val modalTransform = remember(areaId) { EditModalTransform(areaId, session, service::setModel, livePreview, service::setLatticePreview) }
 	val gesture = modalTransform.gesture
 
@@ -189,6 +194,7 @@ fun ViewportEditGizmoOverlay(
 			}
 
 			marquee.discard()
+			brush.discard()
 			meshPick.cancel()
 			latticeHover.clear()
 		}
@@ -215,6 +221,14 @@ fun ViewportEditGizmoOverlay(
 		meshPick.cancel()
 	}
 
+	// The same backstop for the deform brush: arming and disarming it resolves any stroke in flight, and
+	// so does leaving the area.  Keyed on whether the brush is armed rather than on the latch itself, since
+	// resizing the brush makes a new latch that must NOT re-fire and wipe the stroke mid-smear.
+	val ownedBrush = activeBrush?.takeIf { it.areaId == areaId }
+	LaunchedEffect(ownedBrush != null) {
+		brush.cancel()
+	}
+
 	// The race-free cancel path: an already-suspended collector that resumes before the mouse release, so the
 	// box rubber-band is discarded (and any held circle stroke committed) before the Release could commit it.
 	// The shell fires this for every Edit-mode select-gesture cancel - the non-armed box drag (which owns no
@@ -222,6 +236,7 @@ fun ViewportEditGizmoOverlay(
 	LaunchedEffect(session) {
 		session.meshGestureCancelRequests.collect {
 			marquee.cancel()
+			brush.cancel()
 			meshPick.cancel()
 		}
 	}
@@ -293,7 +308,7 @@ fun ViewportEditGizmoOverlay(
 					.fillMaxSize()
 					.graphicsLayer()
 					.pointerInput(areaId) {
-						editGizmoPointerLoop(areaId, session, modalTransform, marquee, meshPick, latticeHover, liveCamera, liveSize)
+						editGizmoPointerLoop(areaId, session, modalTransform, marquee, brush, meshPick, latticeHover, liveCamera, liveSize)
 					}
 					// While THIS AREA'S modal transform runs or its select tool is armed, hide the OS cursor so
 					// only the overlay's drawn cursor (double-arrow, crosshair, or brush circle) shows; plain idle
@@ -302,7 +317,7 @@ fun ViewportEditGizmoOverlay(
 					// The hidden cursor joins AFTER the pointer input, below the loop's node: armed above it, it would re-route
 					// the hit path, and Compose delivers the next event to the loop down both the old and the new path.
 					.then(
-						if (activeOperator?.areaId == areaId || ownedSelectTool != null) {
+						if (activeOperator?.areaId == areaId || ownedSelectTool != null || ownedBrush != null) {
 							Modifier.pointerHoverIcon(hiddenPointerIcon(), overrideDescendants = true)
 						} else {
 							Modifier
@@ -313,6 +328,7 @@ fun ViewportEditGizmoOverlay(
 				marquee = marquee,
 				gesture = gesture,
 				ownedSelectTool = ownedSelectTool,
+				ownedBrush = ownedBrush,
 				hudOperator = activeOperator,
 				axisConstraint = axisConstraintState,
 				proportionalEdit = proportionalEditState,

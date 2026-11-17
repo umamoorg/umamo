@@ -3,8 +3,11 @@ package org.umamo.ui.viewport.viewport2d
 import androidx.compose.runtime.State
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelection
+import org.umamo.edit.transform.BrushStroke
+import org.umamo.ui.viewport.LiveMeshPreview
 import org.umamo.ui.viewport.gizmo.MarqueeSelectController
 import org.umamo.ui.viewport.gizmo.MeshPickController
+import org.umamo.ui.viewport.gizmo.brushMarquee
 import org.umamo.ui.viewport.gizmo.meshMarquee
 
 /**
@@ -44,3 +47,25 @@ internal fun editMeshPick(
 		geometries = { geometries.value.map { it.gizmo } },
 		placeCursor = session::setCursor2d,
 	)
+
+/**
+ * The deform brush's machinery over the session's warps (see brushMarquee), publishing what the stroke
+ * would give the lattices into the window's live preview, which the cage follows until the release
+ * commits it.
+ *
+ * @param EditorSession session The session owning the brush latch and the model.
+ * @param LiveMeshPreview? livePreview The window's live mesh preview, or null outside a shell; a brush
+ *   built without one keeps a private slot nothing reads.
+ * @return MarqueeSelectController The brush's controller.
+ */
+internal fun editBrushMarquee(session: EditorSession, livePreview: LiveMeshPreview?): MarqueeSelectController<BrushStroke> {
+	val preview = livePreview ?: LiveMeshPreview()
+
+	return brushMarquee(session) { world ->
+		if (world == null) {
+			preview.clearLattices()
+		} else {
+			preview.showLattices(world, emptyMap())
+		}
+	}
+}

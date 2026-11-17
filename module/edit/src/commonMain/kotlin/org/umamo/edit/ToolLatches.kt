@@ -38,6 +38,11 @@ internal class ToolLatches : SessionToolLatches {
 	/** The armed Box / Circle select tool, or null (see [SessionToolLatches.activeSelectTool]). */
 	override val activeSelectTool: StateFlow<ActiveSelectTool?> = mutableActiveSelectTool.asStateFlow()
 
+	private val mutableActiveBrush = MutableStateFlow<ActiveBrush?>(null)
+
+	/** The armed deform brush, or null (see [SessionToolLatches.activeBrush]). */
+	override val activeBrush: StateFlow<ActiveBrush?> = mutableActiveBrush.asStateFlow()
+
 	private val mutableZoomRegionArmedArea = MutableStateFlow<String?>(null)
 
 	/** The area id whose Zoom Region gesture is armed, or null (see [SessionToolLatches.zoomRegionArmedArea]). */
@@ -116,6 +121,7 @@ internal class ToolLatches : SessionToolLatches {
 		mutableActiveObjectOperator.value = null
 		mutableActiveUvOperator.value = null
 		mutableActiveSelectTool.value = null
+		mutableActiveBrush.value = null
 
 		if (clearZoomRegion) {
 			mutableZoomRegionArmedArea.value = null
@@ -211,6 +217,7 @@ internal class ToolLatches : SessionToolLatches {
 				mutablePreviewSelection.value == null &&
 				mutableMeshPreviewSelection.value == null &&
 				mutableActiveSelectTool.value == null &&
+				mutableActiveBrush.value == null &&
 				mutableActivePieMenu.value == null
 
 	/**
@@ -308,6 +315,34 @@ internal class ToolLatches : SessionToolLatches {
 	}
 
 	/**
+	 * Arms the deform brush at [radiusWorld] for [areaId], dropping any latched tool first (mutual
+	 * exclusion).
+	 *
+	 * @param String areaId The arming viewport's area id (only its overlay drives the brush).
+	 * @param Float radiusWorld The brush's radius, in world units (canvas px).
+	 */
+	fun armBrush(areaId: String, radiusWorld: Float) {
+		clearTransient(clearZoomRegion = true)
+		mutableActiveBrush.value = ActiveBrush(radiusWorld, areaId)
+	}
+
+	/**
+	 * Sets the deform brush's radius (clamped).  When a brush is live its radius updates in place so the
+	 * overlay redraws it.
+	 *
+	 * @param Float radiusWorld The requested radius, in world units (canvas px).
+	 */
+	fun setActiveBrushRadius(radiusWorld: Float) {
+		val current = mutableActiveBrush.value ?: return
+		mutableActiveBrush.value = ActiveBrush(clampBrushRadius(radiusWorld), current.areaId)
+	}
+
+	/** Clears the armed deform brush. */
+	override fun clearBrush() {
+		mutableActiveBrush.value = null
+	}
+
+	/**
 	 * Arms the Zoom Region gesture for [areaId], clearing any latched tool so two overlays never
 	 * capture at once.
 	 *
@@ -350,6 +385,10 @@ internal class ToolLatches : SessionToolLatches {
 
 		if (mutableActiveSelectTool.value?.areaId == areaId) {
 			clearSelectTool()
+		}
+
+		if (mutableActiveBrush.value?.areaId == areaId) {
+			clearBrush()
 		}
 
 		if (mutableZoomRegionArmedArea.value == areaId) {

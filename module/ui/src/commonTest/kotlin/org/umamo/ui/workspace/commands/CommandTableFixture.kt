@@ -244,6 +244,7 @@ private fun shellCommandTableFunctions(session: EditorSession? = null): List<Lis
 		topologyCommands(session, routing, availability),
 		meshGenerationCommands(availability, routing, null, null),
 		latticeCommands(session, routing, availability),
+		brushCommands(session, routing, availability),
 		proportionalCommands(session, availability),
 		displayCommands(session, availability),
 		atlasCommands(availability, routing, null),

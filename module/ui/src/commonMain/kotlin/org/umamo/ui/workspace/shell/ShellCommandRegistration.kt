@@ -28,6 +28,7 @@ import org.umamo.ui.workspace.RelationPickController
 import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.commands.SessionAvailability
 import org.umamo.ui.workspace.commands.atlasCommands
+import org.umamo.ui.workspace.commands.brushCommands
 import org.umamo.ui.workspace.commands.chromeCommands
 import org.umamo.ui.workspace.commands.displayCommands
 import org.umamo.ui.workspace.commands.documentCommands
@@ -235,6 +236,7 @@ internal fun RegisterShellCommands(
 					addAll(topologyCommands(editorSession, routing, availability))
 					addAll(meshGenerationCommands(availability, routing, generateMesh, generateQuadMesh))
 					addAll(latticeCommands(editorSession, routing, availability))
+					addAll(brushCommands(editorSession, routing, availability))
 					addAll(proportionalCommands(editorSession, availability))
 					addAll(displayCommands(editorSession, availability))
 					addAll(atlasCommands(availability, routing, repackAtlas))

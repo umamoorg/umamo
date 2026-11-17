@@ -967,6 +967,7 @@ class EditorSession private constructor(
 			depthSurface = settings.depthSurface.value,
 			proportionalEnabled = settings.proportionalEdit.value != null,
 			proportionalSettings = settings.proportionalSettings.value,
+			brushSettings = settings.brushSettings.value,
 		)
 
 	/**

@@ -62,6 +62,7 @@ internal fun CommandListing.sectionIn(family: CommandFamily): CommandSection? {
  */
 enum class CommandTable : CommandGroup {
 	Atlas,
+	Brush,
 	Chrome,
 	Display,
 	Document,
@@ -249,6 +250,9 @@ enum class CommandSection(override val parent: CommandFamily, val ruled: Boolean
 
 	/** The modal transforms: Grab, Rotate, and Scale. */
 	ToolTransform(CommandFamily.ViewportTool, ruled = false),
+
+	/** The Deform brush: the smear over a warp's lattice points. */
+	ToolBrush(CommandFamily.ViewportTool, ruled = false),
 
 	/** The world-space snaps that move the 2D cursor. */
 	SnapCursor(CommandFamily.Snap),

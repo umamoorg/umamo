@@ -84,7 +84,7 @@ class CommandGroupTableTest {
 					listOf(CommandSection.WorkspaceSwitch, CommandSection.WorkspaceManage, CommandSection.WorkspaceTab, CommandSection.WorkspaceFiles),
 				CommandFamily.Help to
 					listOf(CommandSection.HelpLinks, CommandSection.HelpSetup, CommandSection.HelpUpdates, CommandSection.HelpLogs, CommandSection.HelpAbout),
-				CommandFamily.ViewportTool to listOf(CommandSection.ToolSelect, CommandSection.ToolTransform),
+				CommandFamily.ViewportTool to listOf(CommandSection.ToolSelect, CommandSection.ToolTransform, CommandSection.ToolBrush),
 				CommandFamily.Snap to listOf(CommandSection.SnapCursor, CommandSection.SnapSelection),
 				CommandFamily.UvSnap to listOf(CommandSection.UvSnapSelection, CommandSection.UvSnapCursor),
 				CommandFamily.Relation to listOf(CommandSection.RelationSelect, CommandSection.RelationBind, CommandSection.RelationRemove, CommandSection.RelationCopy),
@@ -126,7 +126,7 @@ class CommandGroupTableTest {
 	@Test
 	fun theSectionsThatJoinTheBlockBeforeThemAreExactlyThese() {
 		assertEquals(
-			listOf(CommandSection.ImportPuppet, CommandSection.ExportImage, CommandSection.HelpUpdates, CommandSection.HelpLogs, CommandSection.ToolTransform),
+			listOf(CommandSection.ImportPuppet, CommandSection.ExportImage, CommandSection.HelpUpdates, CommandSection.HelpLogs, CommandSection.ToolTransform, CommandSection.ToolBrush),
 			CommandSection.entries.filter { section -> !section.ruled },
 		)
 	}
@@ -311,8 +311,8 @@ class CommandGroupTableTest {
 	}
 
 	/**
-	 * The toolbar's tools, in its order: the select tools, then the transforms.  Each is lit exactly while it is
-	 * armed or in flight, which the session says and the toolbar only shows.
+	 * The toolbar's tools, in its order: the select tools, then the transforms, then the Deform brush.  Each is
+	 * lit exactly while it is armed or in flight, which the session says and the toolbar only shows.
 	 */
 	@Test
 	fun theToolbarsToolsAreLitWhileArmedOrInFlight() {
@@ -321,7 +321,7 @@ class CommandGroupTableTest {
 		val lit = { registry.inGroup(CommandFamily.ViewportTool).filter { command -> command.isOn() }.map { command -> command.id } }
 
 		assertEquals(
-			listOf("mesh.boxSelect", "mesh.circleSelect", "mesh.grab", "mesh.rotate", "mesh.scale"),
+			listOf("mesh.boxSelect", "mesh.circleSelect", "mesh.grab", "mesh.rotate", "mesh.scale", "mesh.deformBrush"),
 			registry.inGroup(CommandFamily.ViewportTool).map { command -> command.id },
 		)
 		assertEquals(emptyList(), lit(), "nothing is armed")

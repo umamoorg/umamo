@@ -73,6 +73,7 @@ class SessionViewStateTest {
 				pivotMode = TransformPivotMode.Cursor,
 				proportionalEnabled = true,
 				proportionalSettings = ProportionalEditState(ProportionalFalloff.Sharp, 64f, connectedOnly = true),
+				brushSettings = BrushSettings(ProportionalFalloff.Root, 48f, 0.5f),
 			)
 
 		val session = EditorSession(meshedModel, initialViewState = saved)
@@ -83,6 +84,7 @@ class SessionViewStateTest {
 		assertEquals(UvCursor(0.25f, 0.75f), session.uvCursor.value)
 		assertEquals(TransformPivotMode.Cursor, session.pivotMode.value)
 		assertEquals(ProportionalEditState(ProportionalFalloff.Sharp, 64f, connectedOnly = true), session.proportionalEdit.value)
+		assertEquals(BrushSettings(ProportionalFalloff.Root, 48f, 0.5f), session.brushSettings.value)
 		assertFalse(session.canUndo.value, "nothing restored is an undo step")
 		assertFalse(session.dirty.value, "and nothing restored is a change to the document")
 		assertNull(session.notice.value, "and nothing restored posts a notice")
@@ -217,6 +219,6 @@ class SessionViewStateTest {
 	fun aPlainOpenKeepsTheDefaults() {
 		val session = EditorSession(meshedModel)
 
-		assertEquals(SessionViewState(proportionalSettings = DEFAULT_PROPORTIONAL_EDIT_STATE), session.viewState())
+		assertEquals(SessionViewState(proportionalSettings = DEFAULT_PROPORTIONAL_EDIT_STATE, brushSettings = DEFAULT_BRUSH_SETTINGS), session.viewState())
 	}
 }

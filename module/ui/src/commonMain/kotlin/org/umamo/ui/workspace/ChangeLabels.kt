@@ -60,6 +60,7 @@ internal fun changeLabel(labelKey: String?): String =
 		"change.lattice.resize" -> stringResource(Res.string.history_lattice_resize)
 		"change.deformer.create" -> stringResource(Res.string.history_deformer_create)
 		"change.lattice.subdivide" -> stringResource(Res.string.history_lattice_subdivide)
+		"change.lattice.brush" -> stringResource(Res.string.history_lattice_brush)
 		"change.pose.move" -> stringResource(Res.string.history_pose_move)
 		"change.pose.scale" -> stringResource(Res.string.history_pose_scale)
 		"change.pose.rotate" -> stringResource(Res.string.history_pose_rotate)
