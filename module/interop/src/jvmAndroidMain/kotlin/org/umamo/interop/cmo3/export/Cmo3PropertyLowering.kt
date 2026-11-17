@@ -62,8 +62,7 @@ import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.composeAffine
-import org.umamo.runtime.model.inversePlacementAffine
+import org.umamo.runtime.model.findParameterGroup
 import org.umamo.runtime.model.isOriginAtCanvasCenter
 import org.umamo.runtime.model.lineageRoot
 import org.umamo.runtime.model.storedToArtAffineForTile
@@ -92,7 +91,7 @@ internal class Cmo3PropertyLowering(
 	private val editor: Cmo3GraphEditor,
 	private val baseline: PuppetModel,
 	private val edited: PuppetModel,
-	private val notices: MutableList<ExportNotice>,
+	private val notices: Cmo3ExportNotices,
 	// The document's texture frames, taken from the graph before the export changed it.
 	private val textureFrames: Cmo3TextureFrames,
 	// True when the caller replaced the stored page images with pages recomposed for the edited
@@ -121,21 +120,6 @@ internal class Cmo3PropertyLowering(
 	private val structure = Cmo3StructureLowering(index.modelSource, index, editor, edited, notices, textureFrames)
 
 	/**
-	 * Records an edit this export cannot represent.
-	 *
-	 * @param ExportEntityCategory category The kind of entity the edit is on.
-	 * @param String? subject The entity's id, or null.
-	 * @param ExportNoticeReason reason Why it cannot be written.
-	 */
-	private fun unsupported(
-		category: ExportEntityCategory,
-		subject: String?,
-		reason: ExportNoticeReason,
-	) {
-		notices.add(ExportNotice.UnsupportedChange(category, subject, reason))
-	}
-
-	/**
 	 * Lowers each changed parameter's fields onto its graph source.
 	 *
 	 * @param List<EntityDiff<ParameterId, ParameterField>> diffs The parameter diffs.
@@ -154,7 +138,7 @@ internal class Cmo3PropertyLowering(
 					val editedParameter = editedParameterById[diff.id]
 
 					if (source == null || editedParameter == null) {
-						unsupported(ExportEntityCategory.Parameter, diff.id.raw, ExportNoticeReason.NoMatchingSourceToReconcile)
+						notices.unsupported(ExportEntityCategory.Parameter, diff.id.raw, ExportNoticeReason.NoMatchingSourceToReconcile)
 
 						continue
 					}
@@ -178,7 +162,7 @@ internal class Cmo3PropertyLowering(
 							}
 
 							ParameterField.KIND -> {
-								unsupported(ExportEntityCategory.Parameter, diff.id.raw, ExportNoticeReason.ParameterKindChangeNotLowered)
+								notices.unsupported(ExportEntityCategory.Parameter, diff.id.raw, ExportNoticeReason.ParameterKindChangeNotLowered)
 							}
 						}
 					}
@@ -203,10 +187,10 @@ internal class Cmo3PropertyLowering(
 
 				is EntityDiff.Changed -> {
 					val group = index.groupByIdStr[diff.id.raw]
-					val editedGroup = findEditedGroup(diff.id)
+					val editedGroup = findParameterGroup(edited.parameterTree, diff.id)
 
 					if (group == null || editedGroup == null) {
-						unsupported(ExportEntityCategory.ParameterGroup, diff.id.raw, ExportNoticeReason.NoMatchingSourceToReconcile)
+						notices.unsupported(ExportEntityCategory.ParameterGroup, diff.id.raw, ExportNoticeReason.NoMatchingSourceToReconcile)
 
 						continue
 					}
@@ -257,7 +241,7 @@ internal class Cmo3PropertyLowering(
 					val baselinePart = baselinePartById[diff.id] ?: Part(id = diff.id, name = "", children = emptyList())
 
 					if (source == null || editedPart == null) {
-						unsupported(ExportEntityCategory.Part, diff.id.raw, ExportNoticeReason.NoMatchingSourceToReconcile)
+						notices.unsupported(ExportEntityCategory.Part, diff.id.raw, ExportNoticeReason.NoMatchingSourceToReconcile)
 
 						continue
 					}
@@ -332,7 +316,7 @@ internal class Cmo3PropertyLowering(
 					val editedDeformer = editedDeformerById[diff.id]
 
 					if (source == null || editedDeformer == null) {
-						unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.NoMatchingSourceToReconcile)
+						notices.unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.NoMatchingSourceToReconcile)
 
 						continue
 					}
@@ -340,7 +324,7 @@ internal class Cmo3PropertyLowering(
 					for (field in diff.fields) {
 						when (field) {
 							DeformerField.KIND -> {
-								unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerKindChangeNotLowered)
+								notices.unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerKindChangeNotLowered)
 							}
 
 							DeformerField.NAME -> {
@@ -358,7 +342,7 @@ internal class Cmo3PropertyLowering(
 								// shared xs.ref identity the editor writes.
 								source.targetDeformerGuid =
 									editedDeformer.parent?.let { index.deformerByIdStr[it.raw]?.guid }
-										?: Cmo3SkeletonBuilder.rootDeformerSentinel()
+										?: rootDeformerSentinel()
 								editor.ensureChildSlot(source, "ACDeformerSource", "targetDeformerGuid")
 								// The forms are read in the new parent's space from now on, reused ones included.
 								keyforms.retagFormSpaces(source, editedDeformer.parent != null)
@@ -372,7 +356,7 @@ internal class Cmo3PropertyLowering(
 								val warpSource = source as? CWarpDeformerSource
 
 								if (warpSource == null) {
-									unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerEditNeedsWarpSource)
+									notices.unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerEditNeedsWarpSource)
 								} else {
 									// CMO3: CWarpDeformerSource field isQuadTransform - the FFD interpolation mode.
 									warpSource.isQuadTransform = (editedDeformer as Deformer.Warp).isQuadTransform
@@ -384,7 +368,7 @@ internal class Cmo3PropertyLowering(
 								val rotationSource = source as? CRotationDeformerSource
 
 								if (rotationSource == null) {
-									unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerEditNeedsRotationSource)
+									notices.unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerEditNeedsRotationSource)
 								} else {
 									// CMO3: CRotationDeformerSource field baseAngle - the static editor reference angle.
 									rotationSource.baseAngle = (editedDeformer as Deformer.Rotation).baseAngle
@@ -403,7 +387,7 @@ internal class Cmo3PropertyLowering(
 									editor.ensureChildSlot(warpSource, "CWarpDeformerSource", "col", "row")
 									editor.ensureChildSlot(warpSource, "CWarpDeformerSource", "row", "isQuadTransform")
 								} else {
-									unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerEditNeedsWarpSource)
+									notices.unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerEditNeedsWarpSource)
 								}
 							}
 
@@ -429,7 +413,7 @@ internal class Cmo3PropertyLowering(
 								val warpSource = source as? CWarpDeformerSource
 
 								if (warpSource == null) {
-									unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerEditNeedsWarpSource)
+									notices.unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerEditNeedsWarpSource)
 								} else {
 									keyforms.lowerWarp(warpSource, editedDeformer, rebuildGrid, rebuildMorphs)
 								}
@@ -439,7 +423,7 @@ internal class Cmo3PropertyLowering(
 								val rotationSource = source as? CRotationDeformerSource
 
 								if (rotationSource == null) {
-									unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerEditNeedsRotationSource)
+									notices.unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerEditNeedsRotationSource)
 								} else {
 									keyforms.lowerRotation(rotationSource, editedDeformer, rebuildGrid, rebuildMorphs)
 								}
@@ -474,7 +458,7 @@ internal class Cmo3PropertyLowering(
 					val editedDrawable = editedDrawableById[diff.id]
 
 					if (source == null || editedDrawable == null) {
-						unsupported(ExportEntityCategory.Drawable, diff.id.raw, ExportNoticeReason.NoMatchingSourceToReconcile)
+						notices.unsupported(ExportEntityCategory.Drawable, diff.id.raw, ExportNoticeReason.NoMatchingSourceToReconcile)
 
 						continue
 					}
@@ -500,7 +484,7 @@ internal class Cmo3PropertyLowering(
 								// on absence, and no corpus drawable nulls it in any era.
 								source.targetDeformerGuid =
 									editedDrawable.parentDeformerId?.let { index.deformerByIdStr[it.raw]?.guid }
-										?: Cmo3SkeletonBuilder.rootDeformerSentinel()
+										?: rootDeformerSentinel()
 								editor.ensureChildSlot(source, "ACDrawableSource", "targetDeformerGuid", "clipGuidList")
 								// The forms are read in the new parent's space from now on, reused ones included.
 								keyforms.retagFormSpaces(source, editedDrawable.parentDeformerId != null)
@@ -544,11 +528,11 @@ internal class Cmo3PropertyLowering(
 							}
 
 							DrawableField.TEXTURE_SOURCE -> {
-								unsupported(ExportEntityCategory.Drawable, diff.id.raw, ExportNoticeReason.TextureSourceRebindingIsEditorOnly)
+								notices.unsupported(ExportEntityCategory.Drawable, diff.id.raw, ExportNoticeReason.TextureSourceRebindingIsEditorOnly)
 							}
 
 							DrawableField.ATLAS_TILE -> {
-								unsupported(ExportEntityCategory.Drawable, diff.id.raw, ExportNoticeReason.AtlasTileRebindingNotLowered)
+								notices.unsupported(ExportEntityCategory.Drawable, diff.id.raw, ExportNoticeReason.AtlasTileRebindingNotLowered)
 							}
 
 							DrawableField.MESH_TOPOLOGY -> {
@@ -637,7 +621,7 @@ internal class Cmo3PropertyLowering(
 		val newCanvas = editedDrawable.mesh?.positions
 
 		if (origCanvas == null || newCanvas == null || origCanvas.size != newCanvas.size) {
-			unsupported(ExportEntityCategory.Drawable, drawableId.raw, ExportNoticeReason.BaseGeometryVertexCountMismatch)
+			notices.unsupported(ExportEntityCategory.Drawable, drawableId.raw, ExportNoticeReason.BaseGeometryVertexCountMismatch)
 
 			return
 		}
@@ -670,7 +654,7 @@ internal class Cmo3PropertyLowering(
 		val newUvs = editedDrawable.mesh?.uvs
 
 		if (newUvs == null) {
-			unsupported(ExportEntityCategory.Drawable, drawableId.raw, ExportNoticeReason.NoUvsToReconcile)
+			notices.unsupported(ExportEntityCategory.Drawable, drawableId.raw, ExportNoticeReason.NoUvsToReconcile)
 
 			return
 		}
@@ -727,7 +711,7 @@ internal class Cmo3PropertyLowering(
 					val editedGlue = editedByPair[pairKey]?.getOrNull(diff.ordinal)
 
 					if (glueSource == null || editedGlue == null) {
-						unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.NoMatchingSourceToReconcile)
+						notices.unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.NoMatchingSourceToReconcile)
 
 						continue
 					}
@@ -771,7 +755,7 @@ internal class Cmo3PropertyLowering(
 		val textureManager = index.modelSource.textureManager as? CTextureManager
 
 		if (textureManager == null) {
-			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoTextureManagerToReconcile)
+			notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoTextureManagerToReconcile)
 
 			return
 		}
@@ -790,7 +774,7 @@ internal class Cmo3PropertyLowering(
 				// rather than with an edit - so these arms are unreachable.  They stay defensive rather
 				// than silent: an appearance here is a bug worth reporting.
 				is EntityDiff.Created, is EntityDiff.Deleted -> {
-					unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasTileMetadataNotReconcilable)
+					notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasTileMetadataNotReconcilable)
 				}
 
 				is EntityDiff.Changed -> {
@@ -800,7 +784,7 @@ internal class Cmo3PropertyLowering(
 					val artChanged = AtlasTileField.METADATA in diff.fields || AtlasTileField.PIXELS in diff.fields
 
 					if (artChanged && diff.id.raw !in reconciledTileIds) {
-						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasTileMetadataNotReconcilable)
+						notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasTileMetadataNotReconcilable)
 					}
 
 					if (AtlasTileField.PLACEMENT !in diff.fields) {
@@ -818,7 +802,7 @@ internal class Cmo3PropertyLowering(
 					val entry = web.siteByTileId[diff.id.raw]?.entry
 
 					if (placement == null || entry == null) {
-						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
+						notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
 
 						continue
 					}
@@ -826,7 +810,7 @@ internal class Cmo3PropertyLowering(
 					val canvasAffine = web.canvasAffineByTileId[diff.id.raw]
 
 					if (canvasAffine == null) {
-						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
+						notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
 
 						continue
 					}
@@ -834,7 +818,7 @@ internal class Cmo3PropertyLowering(
 					lowerAtlasEntry(entry, placement, canvasAffine)
 
 					if (!pagesRecomposed) {
-						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasPageNotRecomposed)
+						notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasPageNotRecomposed)
 					}
 				}
 			}
@@ -852,7 +836,7 @@ internal class Cmo3PropertyLowering(
 		// CMO3: ModelImageEntry field materialLocalToAtlasTransform - written into the entry's EXISTING
 		// GTransform2 when it has one, so the element keeps its instance.
 		val transform = (entry.materialLocalToAtlasTransform as? GTransform2) ?: GTransform2()
-		entry.materialLocalToAtlasTransform = Cmo3ImageChainBuilder.writePacking(transform, placement)
+		entry.materialLocalToAtlasTransform = Cmo3PageWeb.writePacking(transform, placement)
 		editor.ensureChildSlot(entry, "ModelImageEntry", "materialLocalToAtlasTransform", "atlasLocalToCanvasTransform")
 
 		// CMO3: ModelImageEntry field atlasLocalToCanvasTransform - the other half of the composition.
@@ -866,7 +850,7 @@ internal class Cmo3PropertyLowering(
 		val canvasTransform = entry.atlasLocalToCanvasTransform as? CAffine
 
 		if (canvasTransform == null) {
-			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
+			notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
 
 			return
 		}
@@ -874,7 +858,7 @@ internal class Cmo3PropertyLowering(
 		val composed = atlasLocalToCanvasFor(canvasAffine, placement)
 
 		if (composed == null) {
-			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
+			notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
 
 			return
 		}
@@ -920,7 +904,7 @@ internal class Cmo3PropertyLowering(
 				// says the page set itself was not.
 				DocumentField.ATLAS_PAGES -> {
 					if (!pagesRecomposed) {
-						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasPageNotRecomposed)
+						notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasPageNotRecomposed)
 					}
 				}
 
@@ -928,7 +912,7 @@ internal class Cmo3PropertyLowering(
 					// An origin AT the canvas center survives implicitly (import derives exactly that),
 					// so only an off-center origin is unrepresentable and worth a notice.
 					if (!edited.isOriginAtCanvasCenter()) {
-						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAuthoredWorldOrigin)
+						notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAuthoredWorldOrigin)
 					}
 				}
 
@@ -938,7 +922,7 @@ internal class Cmo3PropertyLowering(
 					val rootGroup = index.rootParameterGroup
 
 					if (rootGroup == null) {
-						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoRootParameterGroup)
+						notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoRootParameterGroup)
 					} else {
 						rebuildGroupChildren(rootGroup, edited.parameterTree)
 					}
@@ -948,7 +932,7 @@ internal class Cmo3PropertyLowering(
 					val rootPart = index.rootPartSource
 
 					if (rootPart == null) {
-						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoRootPart)
+						notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoRootPart)
 					} else {
 						rebuildOrgChildren(rootPart, edited.rootChildren)
 					}
@@ -1007,7 +991,7 @@ internal class Cmo3PropertyLowering(
 			val headDrawOrder = (drawOrderTrack.cells.firstOrNull()?.form as? ChannelValue.Scalar)?.value?.toInt()
 
 			if (headDrawOrder != editedPart.drawOrder) {
-				unsupported(ExportEntityCategory.Part, editedPart.id.raw, ExportNoticeReason.StaticDrawOrderShadowedByKeyforms)
+				notices.unsupported(ExportEntityCategory.Part, editedPart.id.raw, ExportNoticeReason.StaticDrawOrderShadowedByKeyforms)
 			}
 
 			return
@@ -1055,7 +1039,7 @@ internal class Cmo3PropertyLowering(
 			baselineComposite.maskedByParts != editedComposite.maskedByParts
 		) {
 			if (editedComposite.maskedByParts.isNotEmpty()) {
-				unsupported(ExportEntityCategory.Part, partId.raw, ExportNoticeReason.PartMasksFlattenToDrawables)
+				notices.unsupported(ExportEntityCategory.Part, partId.raw, ExportNoticeReason.PartMasksFlattenToDrawables)
 			}
 
 			// CMO3: CPartSource field clipGuidList - always drawable GUIDs, so part-typed masks are
@@ -1099,7 +1083,7 @@ internal class Cmo3PropertyLowering(
 					(screenTrack?.cells?.firstOrNull()?.form as? ChannelValue.Color)?.color == editedComposite.screenColor
 
 				if (!opacitySurvives || !multiplySurvives || !screenSurvives) {
-					unsupported(ExportEntityCategory.Part, partId.raw, ExportNoticeReason.CompositeStaticsShadowedByKeyforms)
+					notices.unsupported(ExportEntityCategory.Part, partId.raw, ExportNoticeReason.CompositeStaticsShadowedByKeyforms)
 				}
 			} else {
 				keyforms.writePartCompositeStatics(source, editedPart)
@@ -1124,7 +1108,7 @@ internal class Cmo3PropertyLowering(
 		val newPartSource = newPartId?.let { index.partByIdStr[it.raw] } ?: index.rootPartSource
 
 		if (newPartSource == null) {
-			unsupported(ExportEntityCategory.Deformer, deformerId.raw, ExportNoticeReason.DeformerHasNoPartToMoveTo)
+			notices.unsupported(ExportEntityCategory.Deformer, deformerId.raw, ExportNoticeReason.DeformerHasNoPartToMoveTo)
 
 			return
 		}
@@ -1195,7 +1179,7 @@ internal class Cmo3PropertyLowering(
 
 			if (childGuid == null) {
 				val childId = if (child is OrgChild.Drawable) child.id.raw else (child as OrgChild.Part).id.raw
-				unsupported(ExportEntityCategory.Part, childId, ExportNoticeReason.CreatedEntityHasNoSourceYet)
+				notices.unsupported(ExportEntityCategory.Part, childId, ExportNoticeReason.CreatedEntityHasNoSourceYet)
 
 				continue
 			}
@@ -1239,7 +1223,7 @@ internal class Cmo3PropertyLowering(
 					val parameterSource = index.parameterByIdStr[node.id.raw]
 
 					if (parameterSource == null) {
-						unsupported(ExportEntityCategory.Parameter, node.id.raw, ExportNoticeReason.CreatedEntityHasNoSourceYet)
+						notices.unsupported(ExportEntityCategory.Parameter, node.id.raw, ExportNoticeReason.CreatedEntityHasNoSourceYet)
 
 						continue
 					}
@@ -1254,7 +1238,7 @@ internal class Cmo3PropertyLowering(
 					val childGroup = index.groupByIdStr[node.id.raw]
 
 					if (childGroup == null) {
-						unsupported(ExportEntityCategory.ParameterGroup, node.id.raw, ExportNoticeReason.CreatedEntityHasNoSourceYet)
+						notices.unsupported(ExportEntityCategory.ParameterGroup, node.id.raw, ExportNoticeReason.CreatedEntityHasNoSourceYet)
 
 						continue
 					}
@@ -1288,7 +1272,7 @@ internal class Cmo3PropertyLowering(
 		val sourceSet = index.modelSource.parameterSourceSet as? CParameterSourceSet
 
 		if (sourceSet == null) {
-			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoParameterSourceSet)
+			notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoParameterSourceSet)
 
 			return
 		}
@@ -1334,7 +1318,7 @@ internal class Cmo3PropertyLowering(
 			orderedSources.removeAt(verticalIndex)
 			val anchorIndex = orderedSources.indexOfFirst { it === horizontalSource }
 			orderedSources.add(anchorIndex + 1, verticalSource)
-			unsupported(
+			notices.unsupported(
 				ExportEntityCategory.Document,
 				null,
 				ExportNoticeReason.CombinedPairReordered(link.horizontal.raw, link.vertical.raw),
@@ -1369,7 +1353,7 @@ internal class Cmo3PropertyLowering(
 		val textureManager = index.modelSource.textureManager as? CTextureManager
 
 		if (textureManager == null) {
-			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoTextureManagerToReconcile)
+			notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoTextureManagerToReconcile)
 
 			return
 		}
@@ -1394,7 +1378,7 @@ internal class Cmo3PropertyLowering(
 			val image = imageByGuid[source.id.raw]
 
 			if (image == null) {
-				unsupported(ExportEntityCategory.Document, source.name, ExportNoticeReason.NoMatchingSourceToReconcile)
+				notices.unsupported(ExportEntityCategory.Document, source.name, ExportNoticeReason.NoMatchingSourceToReconcile)
 
 				continue
 			}
@@ -1433,7 +1417,7 @@ internal class Cmo3PropertyLowering(
 		val textureManager = index.modelSource.textureManager as? CTextureManager
 
 		if (textureManager == null) {
-			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoTextureManagerToReconcile)
+			notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoTextureManagerToReconcile)
 
 			return
 		}
@@ -1442,8 +1426,8 @@ internal class Cmo3PropertyLowering(
 		textureManager.isTextureInputModelImageMode = fromSourceLayers
 		editor.ensureChildSlot(textureManager, "CTextureManager", "isTextureInputModelImageMode", "previewReductionRatio")
 
-		for (drawable in edited.drawables) {
-			val source = index.drawableByIdStr[drawable.id.raw] ?: continue
+		for ((id, name) in edited.drawables) {
+			val source = index.drawableByIdStr[id.raw] ?: continue
 			// CMO3: CArtMeshSource field _extensions -> CTextureInputExtension fields _textureInputs /
 			// currentTextureInputData - the pointer names which of the drawable's inputs is live.
 			val extension = elementsOf(source._extensions).filterIsInstance<CTextureInputExtension>().firstOrNull() ?: continue
@@ -1464,7 +1448,7 @@ internal class Cmo3PropertyLowering(
 				if (!neverPacked) {
 					// One with no model image in layer mode.  Leaving the live pointer alone keeps the file
 					// self-consistent; the notice names the gap.
-					unsupported(ExportEntityCategory.Drawable, drawable.name, ExportNoticeReason.NoTextureInputForDisplayMode)
+					notices.unsupported(ExportEntityCategory.Drawable, name, ExportNoticeReason.NoTextureInputForDisplayMode)
 				}
 
 				continue
@@ -1480,7 +1464,7 @@ internal class Cmo3PropertyLowering(
 		val canvas = index.modelSource.canvas as? CImageCanvas
 
 		if (canvas == null) {
-			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoCanvasToReconcile)
+			notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoCanvasToReconcile)
 
 			return
 		}
@@ -1489,7 +1473,7 @@ internal class Cmo3PropertyLowering(
 		val height = edited.canvasHeight
 
 		if (width != width.toInt().toFloat() || height != height.toInt().toFloat()) {
-			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.FractionalCanvasSizeNotStorable)
+			notices.unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.FractionalCanvasSizeNotStorable)
 
 			return
 		}
@@ -1526,36 +1510,6 @@ internal class Cmo3PropertyLowering(
 		walk(part.children)
 
 		return drawableIds
-	}
-
-	/**
-	 * Finds a parameter group in the edited model's parameter tree.
-	 *
-	 * @param ParameterGroupId groupId The group to find.
-	 * @return ParameterNode.Group? The group, or null when the edited model has none by that id.
-	 */
-	private fun findEditedGroup(groupId: ParameterGroupId): ParameterNode.Group? {
-		/**
-		 * Searches a node list, nested groups included, for the wanted group.
-		 *
-		 * @param List<ParameterNode> nodes The node list to search.
-		 * @return ParameterNode.Group? The group, or null.
-		 */
-		fun walk(nodes: List<ParameterNode>): ParameterNode.Group? {
-			for (node in nodes) {
-				if (node is ParameterNode.Group) {
-					if (node.id == groupId) {
-						return node
-					}
-
-					walk(node.children)?.let { return it }
-				}
-			}
-
-			return null
-		}
-
-		return walk(edited.parameterTree)
 	}
 
 	/**
@@ -1596,22 +1550,4 @@ internal class Cmo3PropertyLowering(
 		assign(fresh)
 		editor.ensureChildSlot(owner, tag, property, beforeProperty)
 	}
-}
-
-/**
- * The atlas-to-canvas half a packed entry carries at [placement]: the tile's full canvas placement
- * composed with the placement's inverse, so the entry pair keeps composing to
- * CModelImage._materialLocalToCanvasTransform.
- *
- * One helper shared by the entry lowering and the drawable region-input rewrite, so the two values
- * the corpus keeps equal stay bit-identical when both are written.
- *
- * @param FloatArray     canvasAffine The tile's canvas placement, all six components.
- * @param AtlasPlacement placement    Where the art sits on its page.
- * @return FloatArray? The composed 2x3 affine, or null when the placement is degenerate.
- */
-internal fun atlasLocalToCanvasFor(canvasAffine: FloatArray, placement: AtlasPlacement): FloatArray? {
-	val inverse = inversePlacementAffine(placement) ?: return null
-
-	return composeAffine(canvasAffine, inverse)
 }

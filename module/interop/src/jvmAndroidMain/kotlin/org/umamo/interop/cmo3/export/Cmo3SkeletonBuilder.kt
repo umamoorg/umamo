@@ -1,7 +1,5 @@
 package org.umamo.interop.cmo3.export
 
-import org.umamo.format.cmo3.model.custom.CFloatColor
-import org.umamo.format.cmo3.model.custom.CLabelColor
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.AlphaComposition
 import org.umamo.format.cmo3.model.gen.CAffecterSourceSet
@@ -12,7 +10,6 @@ import org.umamo.format.cmo3.model.gen.CEffectParameterGroups
 import org.umamo.format.cmo3.model.gen.CGameMotionSet
 import org.umamo.format.cmo3.model.gen.CGuidesSetting
 import org.umamo.format.cmo3.model.gen.CImageCanvas
-import org.umamo.format.cmo3.model.gen.CLabelColorType
 import org.umamo.format.cmo3.model.gen.CModelInfo
 import org.umamo.format.cmo3.model.gen.CModelStateSetSet
 import org.umamo.format.cmo3.model.gen.CMotionSyncSettingSourceSet
@@ -28,12 +25,10 @@ import org.umamo.format.cmo3.model.gen.CRandomPoseSettingManager
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.ColorComposition
 import org.umamo.format.cmo3.model.gen.EditorEdition
-import org.umamo.format.cmo3.model.gen.KeyFormMorphTargetSet
 import org.umamo.format.cmo3.model.gen.KeyformGridAccessKey
 import org.umamo.format.cmo3.model.gen.KeyformGridSource
 import org.umamo.format.cmo3.model.gen.KeyformOnGrid
 import org.umamo.format.cmo3.model.gen.ModelViewerSetting
-import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraintSet
 import org.umamo.format.cmo3.model.gen.TextureImageGroup
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
@@ -42,7 +37,6 @@ import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.format.cmo3.type.CHashMap
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
-import java.util.UUID
 
 /**
  * Builds the blank CModelSource spine a fresh (never-read) CMO3 starts from, mirroring what the
@@ -74,25 +68,6 @@ internal object Cmo3SkeletonBuilder {
 
 	/** The root parameter group's id string.  CMO3: CParameterGroupId idstr. */
 	internal const val ROOT_PARAMETER_GROUP_ID_STR: String = "ParamGroupRoot"
-
-	/**
-	 * The editor's root-deformer marker uuid.
-	 *
-	 * CMO3: CDeformerGuid uuid + note "ROOT" - the same fixed uuid in every corpus file, written
-	 * as an affecter's or root-level deformer's targetDeformerGuid.
-	 */
-	internal const val ROOT_DEFORMER_SENTINEL_UUID: String = "71fae776-e218-4aee-873e-78e8ac0cb48a"
-
-	/**
-	 * A fresh root-deformer sentinel guid (see ROOT_DEFORMER_SENTINEL_UUID).
-	 *
-	 * @return Guid The sentinel CDeformerGuid.
-	 */
-	internal fun rootDeformerSentinel(): Guid =
-		Guid("CDeformerGuid").apply {
-			uuid = ROOT_DEFORMER_SENTINEL_UUID
-			note = "ROOT"
-		}
 
 	/** One embedded PNG the skeleton's icons reference: the archive entry path plus its bytes. */
 	internal class IconEntry(val path: String, val pngBytes: ByteArray)
@@ -287,63 +262,6 @@ internal object Cmo3SkeletonBuilder {
 			_childGuids = CArrayList<Any?>()
 			id = Id("CParameterGroupId").apply { idstr = ROOT_PARAMETER_GROUP_ID_STR }
 			labelColor = undefinedLabelColor()
-		}
-
-	/**
-	 * Mints a fresh guid of the given kind.
-	 *
-	 * @param String kind The typed guid tag (e.g. "CPartGuid").
-	 * @return Guid The fresh guid.
-	 */
-	internal fun freshGuid(kind: String): Guid =
-		Guid(kind).apply {
-			uuid = UUID.randomUUID().toString()
-			note = "(no debug info)"
-		}
-
-	/**
-	 * An empty morph-target set (empty targets + empty constraint set).
-	 *
-	 * @return Any The fresh KeyFormMorphTargetSet.
-	 */
-	internal fun emptyMorphTargetSet(): Any =
-		KeyFormMorphTargetSet().apply {
-			_morphTargets = CArrayList<Any?>()
-			blendWeightConstraintSet =
-				MorphTargetBlendWeightConstraintSet().apply { _constraints = CArrayList<Any?>() }
-		}
-
-	/**
-	 * The identity multiply tint (white, opaque).
-	 *
-	 * @return CFloatColor The fresh color.
-	 */
-	internal fun identityMultiplyColor(): CFloatColor =
-		CFloatColor().apply {
-			red = 1f
-			green = 1f
-			blue = 1f
-			alpha = 1f
-		}
-
-	/**
-	 * The identity screen tint (black, opaque).
-	 *
-	 * @return CFloatColor The fresh color.
-	 */
-	internal fun identityScreenColor(): CFloatColor =
-		CFloatColor().apply { alpha = 1f }
-
-	/**
-	 * The default label color (uncustomized, UNDEFINED type).
-	 *
-	 * @return CLabelColor The fresh label color.
-	 */
-	internal fun undefinedLabelColor(): CLabelColor =
-		CLabelColor().apply {
-			// CMO3: CLabelColor attr customizedColorInt (-1 = none) + CLabelColorType labelType.
-			customizedColorInt = -1
-			labelType = CLabelColorType.UNDEFINED
 		}
 
 	/**

@@ -410,7 +410,7 @@ internal class Cmo3AtlasWebLowering(
 				atlas.height = page.height
 				// CMO3: CTextureAtlas field cachedImageManager - rebuilt so the cache raster's
 				// 64-aligned padding transform describes the NEW dimensions.
-				atlas.cachedImageManager = Cmo3ImageChainBuilder.paddedCacheManager(resource, page.width, page.height)
+				atlas.cachedImageManager = Cmo3PageWeb.paddedCacheManager(resource, page.width, page.height)
 			}
 		}
 
@@ -420,11 +420,11 @@ internal class Cmo3AtlasWebLowering(
 		for (pageIndex in atlasList.size until newPageCount) {
 			val page = recomposedPages[pageIndex]
 			val path = target.nextImageFileBufPath()
-			val resource = Cmo3ImageChainBuilder.pageImageResource(path, page.width, page.height, page.pngBytes.size)
+			val resource = Cmo3PageWeb.pageImageResource(path, page.width, page.height, page.pngBytes.size)
 			target.addLayerPng(resource, page.pngBytes)
-			val atlas = Cmo3ImageChainBuilder.pageAtlas(pageIndex, page.width, page.height, resource)
+			val atlas = Cmo3PageWeb.pageAtlas(pageIndex, page.width, page.height, resource)
 			atlasList.add(atlas)
-			mintedTextureByAtlasIndex[pageIndex] = Cmo3ImageChainBuilder.pageTexture(atlas.name, resource)
+			mintedTextureByAtlasIndex[pageIndex] = Cmo3PageWeb.pageTexture(atlas.name, resource)
 		}
 
 		// 4. Re-home every cross-page entry: list membership plus the owning-page back-reference.
@@ -455,7 +455,7 @@ internal class Cmo3AtlasWebLowering(
 				// No drawable ever sampled this retained page; give it the shared texture the fresh
 				// path would have built.
 				val atlas = atlasList[pageIndex] as CTextureAtlas
-				Cmo3ImageChainBuilder.pageTexture(atlas.name, atlas.cachedAtlasImage as CImageResource)
+				Cmo3PageWeb.pageTexture(atlas.name, atlas.cachedAtlasImage as CImageResource)
 			}
 		}
 
@@ -471,11 +471,11 @@ internal class Cmo3AtlasWebLowering(
 					"pack-in tile '$tileId' lost its composition after validation"
 				}
 			val entry =
-				Cmo3ImageChainBuilder.packedEntry(
+				Cmo3PageWeb.packedEntry(
 					atlas = destination,
 					modelImageGuid = modelImage.guid,
 					atlasLocalToCanvas = affineOf(entryHalf),
-					packing = Cmo3ImageChainBuilder.writePacking(GTransform2(), newPlacement),
+					packing = Cmo3PageWeb.writePacking(GTransform2(), newPlacement),
 				)
 			mutableGraphListOf(destination.modelImages)?.add(entry)
 		}

@@ -91,3 +91,24 @@ sealed interface ParameterNode {
  * @return List<ParameterNode> The tree, or one root leaf per parameter in list order when the model has no groups.
  */
 fun PuppetModel.materializedParameterTree(): List<ParameterNode> = parameterTree.ifEmpty { parameters.map { parameter -> ParameterNode.Param(parameter.id) } }
+
+/**
+ * Finds a parameter group anywhere in a panel tree, nested groups included.
+ *
+ * @param List<ParameterNode> nodes The node list to search.
+ * @param ParameterGroupId groupId The group to find.
+ * @return ParameterNode.Group? The first group by that id in panel order, or null when the tree has none.
+ */
+fun findParameterGroup(nodes: List<ParameterNode>, groupId: ParameterGroupId): ParameterNode.Group? {
+	for (node in nodes) {
+		if (node is ParameterNode.Group) {
+			if (node.id == groupId) {
+				return node
+			}
+
+			findParameterGroup(node.children, groupId)?.let { found -> return found }
+		}
+	}
+
+	return null
+}

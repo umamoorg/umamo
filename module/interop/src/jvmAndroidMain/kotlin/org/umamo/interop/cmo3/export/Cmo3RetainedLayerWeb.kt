@@ -161,7 +161,7 @@ internal class Cmo3RetainedLayerWeb(
 	 * the filter definitions of a model image the graph already holds (fresh ones when it holds none,
 	 * or one another writer shaped differently).
 	 */
-	private val names: Cmo3ImageChainBuilder.Cmo3FreshChainNames by lazy { namesFor() }
+	private val names: Cmo3FreshChainNames by lazy { namesFor() }
 
 	/** The PNG entries the shared builders collected since the last [embedPending]. */
 	private val pendingEntries = ArrayList<Cmo3FreshFile.PngEntry>()
@@ -422,19 +422,19 @@ internal class Cmo3RetainedLayerWeb(
 	 *
 	 * @return Cmo3FreshChainNames The names.
 	 */
-	private fun namesFor(): Cmo3ImageChainBuilder.Cmo3FreshChainNames {
+	private fun namesFor(): Cmo3FreshChainNames {
 		val retainedFilterSet =
 			elementsOf(textureManager._modelImageGroups)
 				.filterIsInstance<CModelImageGroup>()
 				.flatMap { group -> elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
 				.firstNotNullOfOrNull { modelImage -> modelImage.inputFilter as? ModelImageFilterSet }
 		val filters =
-			retainedFilterSet?.let { filterSet -> Cmo3ImageChainBuilder.FilterCommons.fromFilterSet(filterSet) }
-				?: Cmo3ImageChainBuilder.FilterCommons.fresh()
-		val bufferPaths = Cmo3ImageChainBuilder.FreshPathSequence.continuingFrom("imageFileBuf", target.nextImageFileBufPath())
-		val iconPaths = Cmo3ImageChainBuilder.FreshPathSequence.continuingFrom("image", target.nextImagePath())
+			retainedFilterSet?.let { filterSet -> Cmo3ModelImageWeb.FilterCommons.fromFilterSet(filterSet) }
+				?: Cmo3ModelImageWeb.FilterCommons.fresh()
+		val bufferPaths = Cmo3FreshPathSequence.continuingFrom("imageFileBuf", target.nextImageFileBufPath())
+		val iconPaths = Cmo3FreshPathSequence.continuingFrom("image", target.nextImagePath())
 
-		return Cmo3ImageChainBuilder.Cmo3FreshChainNames(filters, bufferPaths::next, iconPaths::next)
+		return Cmo3FreshChainNames(filters, bufferPaths::next, iconPaths::next)
 	}
 
 	/**
@@ -497,7 +497,7 @@ internal class Cmo3RetainedLayerWeb(
 			placement.setFromAffineArray(job.canvasAffine)
 		}
 
-		modelImage.cachedImageManager = Cmo3ImageChainBuilder.paddedCacheManager(filtered, job.raster.width, job.raster.height)
+		modelImage.cachedImageManager = Cmo3PageWeb.paddedCacheManager(filtered, job.raster.width, job.raster.height)
 		retargetDrawablesOnto(modelImage, filtered, job.raster.width, job.raster.height)
 		replaceModelImageIcon(modelImage, job.raster)
 		embedPending()
@@ -542,8 +542,8 @@ internal class Cmo3RetainedLayerWeb(
 			// the raster, its cache scale, and the full-resolution level, as every corpus texture over a
 			// model image's raster writes them.
 			texture.srcImageResource = raster
-			texture.transformImageResource01toLogical01 = Cmo3ImageChainBuilder.paddedFrameAffine(width, height)
-			texture.mipmapLevel = Cmo3ImageChainBuilder.FULL_RESOLUTION_MIPMAP_LEVEL
+			texture.transformImageResource01toLogical01 = Cmo3PageWeb.paddedFrameAffine(width, height)
+			texture.mipmapLevel = Cmo3PageWeb.FULL_RESOLUTION_MIPMAP_LEVEL
 			editor.ensureChildSlot(texture, "GTexture2D", "transformImageResource01toLogical01", "mipmapLevel")
 			editor.ensureChildSlot(texture, "GTexture2D", "mipmapLevel", "isPremultiplied")
 		}
@@ -675,7 +675,7 @@ internal class Cmo3RetainedLayerWeb(
 		// its own.
 		val resource = layer.imageResource as CImageResource
 		val modelImage =
-			Cmo3ImageChainBuilder.modelImageOver(
+			Cmo3ModelImageWeb.modelImageOver(
 				job.tile.name,
 				site.image,
 				layer,
