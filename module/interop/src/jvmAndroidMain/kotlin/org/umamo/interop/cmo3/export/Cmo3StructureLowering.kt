@@ -132,34 +132,6 @@ internal class Cmo3StructureLowering(
 	}
 
 	/**
-	 * Appends an element to a graph collection field, creating the list when the field holds none.
-	 *
-	 * @param Any owner The graph object that owns the field.
-	 * @param String ownerTag The class level of the owner, by tag.
-	 * @param String property The field's name.
-	 * @param Any? current The field's current value.
-	 * @param Function assign Stores a new list on the owner.
-	 * @param Any element The element to append.
-	 */
-	private fun appendToCollection(owner: Any, ownerTag: String, property: String, current: Any?, assign: (MutableList<Any?>) -> Unit, element: Any) {
-		val mutable = mutableGraphListOf(current)
-
-		if (mutable != null) {
-			mutable.add(element)
-
-			return
-		}
-
-		// Every field this helper serves (_sources, _groups, _childGuids) is carray_list in every
-		// corpus model; the official editor's deserializers cast such fields to CArrayList, so an
-		// array_list tag fails its load.
-		val fresh: MutableList<Any?> = CArrayList()
-		fresh.add(element)
-		assign(fresh)
-		editor.ensureChildSlot(owner, ownerTag, property)
-	}
-
-	/**
 	 * Removes every matching element from a graph collection field.
 	 *
 	 * @param Any? current The field's current value.
@@ -226,7 +198,7 @@ internal class Cmo3StructureLowering(
 				combined = false
 				parentGroupGuid = index.rootParameterGroup?.guid
 			}
-		appendToCollection(sourceSet, "CParameterSourceSet", "_sources", sourceSet._sources, { sourceSet._sources = it }, fresh)
+		editor.appendToGraphList(sourceSet, "CParameterSourceSet", "_sources", sourceSet._sources, fresh, GraphListKind.CArrayList) { sourceSet._sources = it }
 
 		return true
 	}
@@ -326,7 +298,7 @@ internal class Cmo3StructureLowering(
 				_childGuids = CArrayList<Any?>()
 				parentGroupGuid = index.rootParameterGroup?.guid
 			}
-		appendToCollection(groupSet, "CParameterGroupSet", "_groups", groupSet._groups, { groupSet._groups = it }, fresh)
+		editor.appendToGraphList(groupSet, "CParameterGroupSet", "_groups", groupSet._groups, fresh, GraphListKind.CArrayList) { groupSet._groups = it }
 
 		return true
 	}
@@ -446,7 +418,7 @@ internal class Cmo3StructureLowering(
 					)
 				}
 		}
-		appendToCollection(sourceSet, "CDrawableSourceSet", "_sources", sourceSet._sources, { sourceSet._sources = it }, fresh)
+		editor.appendToGraphList(sourceSet, "CDrawableSourceSet", "_sources", sourceSet._sources, fresh, GraphListKind.CArrayList) { sourceSet._sources = it }
 
 		return true
 	}
@@ -587,7 +559,7 @@ internal class Cmo3StructureLowering(
 			colorComposition = ColorComposition.NORMAL
 			alphaComposition = AlphaComposition.OVER
 		}
-		appendToCollection(sourceSet, "CPartSourceSet", "_sources", sourceSet._sources, { sourceSet._sources = it }, part)
+		editor.appendToGraphList(sourceSet, "CPartSourceSet", "_sources", sourceSet._sources, part, GraphListKind.CArrayList) { sourceSet._sources = it }
 
 		return true
 	}
@@ -643,7 +615,7 @@ internal class Cmo3StructureLowering(
 			_extensions = CArrayList<Any?>()
 			labelColor = undefinedLabelColor()
 		}
-		appendToCollection(sourceSet, "CDeformerSourceSet", "_sources", sourceSet._sources, { sourceSet._sources = it }, fresh)
+		editor.appendToGraphList(sourceSet, "CDeformerSourceSet", "_sources", sourceSet._sources, fresh, GraphListKind.CArrayList) { sourceSet._sources = it }
 
 		return true
 	}
@@ -741,13 +713,13 @@ internal class Cmo3StructureLowering(
 				}
 			keyforms = CArrayList<Any?>(mutableListOf(form))
 		}
-		appendToCollection(sourceSet, "CAffecterSourceSet", "_sources", sourceSet._sources, { sourceSet._sources = it }, fresh)
+		editor.appendToGraphList(sourceSet, "CAffecterSourceSet", "_sources", sourceSet._sources, fresh, GraphListKind.CArrayList) { sourceSet._sources = it }
 
 		// CMO3: CPartSource field _childGuids - the owning part lists the glue's CAffecterGuid
 		// after its drawables and deformers; the editor's load-time verify repairs (and 5.4
 		// crashes on) an affecter absent from the part hierarchy.
 		if (ownerPart != null) {
-			appendToCollection(ownerPart, "CPartSource", "_childGuids", ownerPart._childGuids, { ownerPart._childGuids = it }, glueGuid)
+			editor.appendToGraphList(ownerPart, "CPartSource", "_childGuids", ownerPart._childGuids, glueGuid, GraphListKind.CArrayList) { ownerPart._childGuids = it }
 		}
 
 		return true

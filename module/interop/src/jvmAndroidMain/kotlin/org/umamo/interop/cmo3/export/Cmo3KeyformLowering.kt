@@ -436,7 +436,7 @@ internal class Cmo3KeyformLowering(
 
 		// CMO3: KeyformGridSource fields keyformBindings / keyformsOnGrid - array_list in every
 		// corpus model (vs the carray_list keyforms pools).
-		writeCollection(gridSource, "KeyformGridSource", "keyformBindings", "keyformsOnGrid", gridSource.keyformBindings, bindingPerAxis, { ArrayList() }) {
+		editor.writeGraphList(gridSource, "KeyformGridSource", "keyformBindings", "keyformsOnGrid", gridSource.keyformBindings, bindingPerAxis, GraphListKind.ArrayList) {
 			gridSource.keyformBindings = it
 		}
 		val cellRecords = ArrayList<Any?>(bundle.cells.size)
@@ -464,55 +464,11 @@ internal class Cmo3KeyformLowering(
 			cellRecords.add(record)
 		}
 
-		writeCollection(gridSource, "KeyformGridSource", "keyformsOnGrid", null, gridSource.keyformsOnGrid, cellRecords, { ArrayList() }) {
+		editor.writeGraphList(gridSource, "KeyformGridSource", "keyformsOnGrid", null, gridSource.keyformsOnGrid, cellRecords, GraphListKind.ArrayList) {
 			gridSource.keyformsOnGrid = it
 		}
 
 		return true
-	}
-
-	/**
-	 * Rewrites a collection field in place, or creates a fresh list and records its slot.
-	 *
-	 * The fresh list's runtime type decides the serialized tag (ArrayList = array_list,
-	 * CArrayList = carray_list), and the official editor requires the exact tag per field:
-	 * its deserializers cast carray_list fields to CArrayList, so a wrong tag is a
-	 * ClassCastException on load.  Every corpus model agrees on the tag per field, so each
-	 * call site passes the factory matching what the editor writes there.
-	 *
-	 * @param Any      owner          The graph object owning the collection field.
-	 * @param String   tag            The owner's serial tag for the child-slot record.
-	 * @param String   property       The collection field's name.
-	 * @param String?  beforeProperty The sibling field the slot precedes, or null for last.
-	 * @param Any?     current        The current field value.
-	 * @param List     newElements    The elements to write.
-	 * @param Function freshList      Creates the list when the field is empty; the list type
-	 *                                must match the tag the official editor writes.
-	 * @param Function assign         Assigns the fresh list to the field.
-	 */
-	private fun writeCollection(
-		owner: Any,
-		tag: String,
-		property: String,
-		beforeProperty: String?,
-		current: Any?,
-		newElements: List<Any?>,
-		freshList: () -> MutableList<Any?>,
-		assign: (MutableList<Any?>) -> Unit,
-	) {
-		val mutable = mutableGraphListOf(current)
-
-		if (mutable != null) {
-			mutable.clear()
-			mutable.addAll(newElements)
-
-			return
-		}
-
-		val fresh: MutableList<Any?> = freshList()
-		fresh.addAll(newElements)
-		assign(fresh)
-		editor.ensureChildSlot(owner, tag, property, beforeProperty)
 	}
 
 	/**
@@ -1232,11 +1188,11 @@ internal class Cmo3KeyformLowering(
 			if (set != null) {
 				// CMO3: KeyFormMorphTargetSet field _morphTargets / MorphTargetBlendWeightConstraintSet
 				// field _constraints - carray_list in every corpus model.
-				writeCollection(set, "KeyFormMorphTargetSet", "_morphTargets", "blendWeightConstraintSet", set._morphTargets, emptyList(), { CArrayList() }) {
+				editor.writeGraphList(set, "KeyFormMorphTargetSet", "_morphTargets", "blendWeightConstraintSet", set._morphTargets, emptyList(), GraphListKind.CArrayList) {
 					set._morphTargets = it
 				}
 				(set.blendWeightConstraintSet as? MorphTargetBlendWeightConstraintSet)?.let { constraintSet ->
-					writeCollection(constraintSet, "MorphTargetBlendWeightConstraintSet", "_constraints", null, constraintSet._constraints, emptyList(), { CArrayList() }) {
+					editor.writeGraphList(constraintSet, "MorphTargetBlendWeightConstraintSet", "_constraints", null, constraintSet._constraints, emptyList(), GraphListKind.CArrayList) {
 						constraintSet._constraints = it
 					}
 				}
@@ -1317,7 +1273,7 @@ internal class Cmo3KeyformLowering(
 
 		// CMO3: KeyFormMorphTargetSet field _morphTargets / MorphTargetBlendWeightConstraintSet
 		// field _constraints - carray_list in every corpus model.
-		writeCollection(targetSet, "KeyFormMorphTargetSet", "_morphTargets", "blendWeightConstraintSet", targetSet._morphTargets, records, { CArrayList() }) {
+		editor.writeGraphList(targetSet, "KeyFormMorphTargetSet", "_morphTargets", "blendWeightConstraintSet", targetSet._morphTargets, records, GraphListKind.CArrayList) {
 			targetSet._morphTargets = it
 		}
 		val constraintSet =
@@ -1326,7 +1282,7 @@ internal class Cmo3KeyformLowering(
 					targetSet.blendWeightConstraintSet = it
 					editor.ensureChildSlot(targetSet, "KeyFormMorphTargetSet", "blendWeightConstraintSet")
 				}
-		writeCollection(constraintSet, "MorphTargetBlendWeightConstraintSet", "_constraints", null, constraintSet._constraints, constraints, { CArrayList() }) {
+		editor.writeGraphList(constraintSet, "MorphTargetBlendWeightConstraintSet", "_constraints", null, constraintSet._constraints, constraints, GraphListKind.CArrayList) {
 			constraintSet._constraints = it
 		}
 
@@ -1369,7 +1325,7 @@ internal class Cmo3KeyformLowering(
 
 		// CMO3: ACParameterControllableSource field keyforms - carray_list in every corpus model;
 		// the editor's deserializers cast it to CArrayList, so array_list fails its load.
-		writeCollection(owner, ownerTag, property, beforeProperty, current, pool, { CArrayList() }, assign)
+		editor.writeGraphList(owner, ownerTag, property, beforeProperty, current, pool, GraphListKind.CArrayList, assign)
 	}
 
 	/** The no-op interpolator for channel-only owners (parts, glues) whose bundles carry no geometry. */

@@ -502,13 +502,14 @@ internal class Cmo3PropertyLowering(
 
 							DrawableField.MASKED_BY -> {
 								// CMO3: ACDrawableSource field clipGuidList - always drawable GUIDs.
-								writeListField(
+								editor.writeGraphList(
 									owner = source,
 									tag = "ACDrawableSource",
 									property = "clipGuidList",
 									beforeProperty = "invertClippingMask",
 									current = source.clipGuidList,
 									newElements = editedDrawable.maskedBy.mapNotNull { index.drawableByIdStr[it.raw]?.guid },
+									kind = GraphListKind.CArrayList,
 									assign = { list -> source.clipGuidList = list },
 								)
 							}
@@ -1043,13 +1044,14 @@ internal class Cmo3PropertyLowering(
 			// CMO3: CPartSource field clipGuidList - always drawable GUIDs, so part-typed masks are
 			// expanded to the part's descendant drawables (the same expansion the render tree applies).
 			val expandedMask = editedComposite.maskedBy + editedComposite.maskedByParts.flatMap(::descendantDrawables)
-			writeListField(
+			editor.writeGraphList(
 				owner = source,
 				tag = "CPartSource",
 				property = "clipGuidList",
 				beforeProperty = "invertClippingMask",
 				current = source.clipGuidList,
 				newElements = expandedMask.distinct().mapNotNull { index.drawableByIdStr[it.raw]?.guid },
+				kind = GraphListKind.CArrayList,
 				assign = { list -> source.clipGuidList = list },
 			)
 		}
@@ -1128,13 +1130,14 @@ internal class Cmo3PropertyLowering(
 				newChildList.add(source.guid)
 			}
 		} else {
-			writeListField(
+			editor.writeGraphList(
 				owner = newPartSource,
 				tag = "CPartSource",
 				property = "_childGuids",
 				beforeProperty = "useOffscreen",
 				current = newPartSource._childGuids,
 				newElements = listOf(source.guid),
+				kind = GraphListKind.CArrayList,
 				assign = { list -> newPartSource._childGuids = list },
 			)
 		}
@@ -1193,13 +1196,14 @@ internal class Cmo3PropertyLowering(
 			}
 		}
 
-		writeListField(
+		editor.writeGraphList(
 			owner = source,
 			tag = "CPartSource",
 			property = "_childGuids",
 			beforeProperty = "useOffscreen",
 			current = source._childGuids,
 			newElements = newEntries,
+			kind = GraphListKind.CArrayList,
 			assign = { list -> source._childGuids = list },
 		)
 	}
@@ -1249,13 +1253,14 @@ internal class Cmo3PropertyLowering(
 			}
 		}
 
-		writeListField(
+		editor.writeGraphList(
 			owner = group,
 			tag = "CParameterGroup",
 			property = "_childGuids",
 			beforeProperty = "id",
 			current = group._childGuids,
 			newElements = newEntries,
+			kind = GraphListKind.CArrayList,
 			assign = { list -> group._childGuids = list },
 		)
 	}
@@ -1323,13 +1328,14 @@ internal class Cmo3PropertyLowering(
 			)
 		}
 
-		writeListField(
+		editor.writeGraphList(
 			owner = sourceSet,
 			tag = "CParameterSourceSet",
 			property = "_sources",
 			beforeProperty = null,
 			current = sourceSet._sources,
 			newElements = orderedSources,
+			kind = GraphListKind.CArrayList,
 			assign = { list -> sourceSet._sources = list },
 		)
 	}
@@ -1508,44 +1514,5 @@ internal class Cmo3PropertyLowering(
 		walk(part.children)
 
 		return drawableIds
-	}
-
-	/**
-	 * Rewrites a collection field in place, or creates a fresh CArrayList and records its slot.
-	 *
-	 * The fresh list's runtime type decides the serialized tag, and every field this helper
-	 * serves (_childGuids, _sources) is carray_list in every corpus model; the official
-	 * editor's deserializers cast such fields to CArrayList, so array_list fails its load.
-	 *
-	 * @param Any      owner          The graph object owning the collection field.
-	 * @param String   tag            The owner's serial tag for the child-slot record.
-	 * @param String   property       The collection field's name.
-	 * @param String?  beforeProperty The sibling field the slot precedes, or null for last.
-	 * @param Any?     current        The current field value.
-	 * @param List     newElements    The elements to write.
-	 * @param Function assign         Assigns the fresh list to the field.
-	 */
-	private fun writeListField(
-		owner: Any,
-		tag: String,
-		property: String,
-		beforeProperty: String?,
-		current: Any?,
-		newElements: List<Any?>,
-		assign: (MutableList<Any?>) -> Unit,
-	) {
-		val mutable = mutableGraphListOf(current)
-
-		if (mutable != null) {
-			mutable.clear()
-			mutable.addAll(newElements)
-
-			return
-		}
-
-		val fresh: MutableList<Any?> = CArrayList()
-		fresh.addAll(newElements)
-		assign(fresh)
-		editor.ensureChildSlot(owner, tag, property, beforeProperty)
 	}
 }
