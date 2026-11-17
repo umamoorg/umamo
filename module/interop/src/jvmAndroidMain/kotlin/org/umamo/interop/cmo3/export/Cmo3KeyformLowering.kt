@@ -1268,8 +1268,11 @@ internal class Cmo3KeyformLowering(
 			val parameterSource = index.parameterByIdStr[parameterId.raw]
 
 			if (parameterSource == null) {
-				notices.unsupported(ExportEntityCategory.Keyform, subject, ExportNoticeReason.BlendShapeParameterHasNoSource(
-					parameterId.raw))
+				notices.unsupported(
+					ExportEntityCategory.Keyform,
+					subject,
+					ExportNoticeReason.BlendShapeParameterHasNoSource(parameterId.raw),
+				)
 
 				return null
 			}
