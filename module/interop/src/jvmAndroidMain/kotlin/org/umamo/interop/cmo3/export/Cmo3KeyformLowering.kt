@@ -32,7 +32,6 @@ import org.umamo.format.cmo3.model.gen.MorphTargetEditBaseParameterMap
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.interop.ExportEntityCategory
-import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.KeyformBundle
 import org.umamo.interop.KeyformBundleCell
@@ -68,7 +67,6 @@ import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.deltaReaching
 import java.util.Collections
 import java.util.IdentityHashMap
-import java.util.UUID
 
 /*
  * The keyform half of the CMO3 export reconcile: re-bundling Umamo's split representation (a
@@ -92,7 +90,7 @@ internal class Cmo3KeyformLowering(
 	private val index: Cmo3GraphIndex,
 	private val editor: Cmo3GraphEditor,
 	private val baseline: PuppetModel,
-	private val notices: MutableList<ExportNotice>,
+	private val notices: Cmo3ExportNotices,
 ) {
 	private val parameterIdByUuid: Map<String, ParameterId> =
 		buildMap {
@@ -222,21 +220,6 @@ internal class Cmo3KeyformLowering(
 		} as? CoordType
 
 	/**
-	 * Records an edit this export cannot represent.
-	 *
-	 * @param ExportEntityCategory category The kind of entity the edit is on.
-	 * @param String? subject The entity's id, or null.
-	 * @param ExportNoticeReason reason Why it cannot be written.
-	 */
-	private fun unsupported(
-		category: ExportEntityCategory,
-		subject: String?,
-		reason: ExportNoticeReason,
-	) {
-		notices.add(ExportNotice.UnsupportedChange(category, subject, reason))
-	}
-
-	/**
 	 * [buildKeyformBundle] with CMO3's policy applied: an owner whose split state cannot be expressed
 	 * as one grid is REJECTED and reported, rather than partially written, and an owner with no keys
 	 * anywhere gets ONE default cell rather than no grid.
@@ -290,7 +273,7 @@ internal class Cmo3KeyformLowering(
 			}
 
 			is KeyformBundleResult.Unrepresentable -> {
-				unsupported(category, subject, ExportNoticeReason.KeyformCannotBundle(result.rejection))
+				notices.unsupported(category, subject, ExportNoticeReason.KeyformCannotBundle(result.rejection))
 				null
 			}
 		}
@@ -358,18 +341,6 @@ internal class Cmo3KeyformLowering(
 			.joinToString("|") { entry -> "${entry.key.raw}=${entry.value.toRawBits()}" }
 
 	/**
-	 * A fresh Guid cloning [template]'s kind (the tag the identity subsystem writes).
-	 *
-	 * @param Guid? template The guid whose kind and note to copy, or null.
-	 * @return Guid The new guid.
-	 */
-	private fun freshGuidLike(template: Guid?): Guid =
-		Guid(template?.kind ?: "CFormGuid").apply {
-			uuid = UUID.randomUUID().toString()
-			note = template?.note ?: "(no debug info)"
-		}
-
-	/**
 	 * A template form of [TFormClass] from [ownForms], falling back to any owner of the same kind.
 	 *
 	 * @param Any? ownForms The owner's own forms pool, as stored.
@@ -432,7 +403,7 @@ internal class Cmo3KeyformLowering(
 			val parameterSource = index.parameterByIdStr[axis.parameterId.raw]
 
 			if (parameterSource == null) {
-				unsupported(ExportEntityCategory.Keyform, subject, ExportNoticeReason.AxisParameterHasNoSource(axis.parameterId.raw))
+				notices.unsupported(ExportEntityCategory.Keyform, subject, ExportNoticeReason.AxisParameterHasNoSource(axis.parameterId.raw))
 
 				return false
 			}
@@ -650,7 +621,7 @@ internal class Cmo3KeyformLowering(
 		val editedBase = editedDrawable.mesh?.localPositions
 
 		if (editedBase == null) {
-			unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.KeyformsWithoutBaseMesh)
+			notices.unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.KeyformsWithoutBaseMesh)
 
 			return
 		}
@@ -675,7 +646,7 @@ internal class Cmo3KeyformLowering(
 			) ?: return
 
 		if (!drawOrdersAreIntegral(bundle)) {
-			unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.FractionalDrawOrderNotStorable)
+			notices.unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.FractionalDrawOrderNotStorable)
 
 			return
 		}
@@ -696,7 +667,7 @@ internal class Cmo3KeyformLowering(
 			val form =
 				existing
 					?: CArtMeshForm().apply {
-						guid = freshGuidLike((template?.guid ?: existingForms.values.firstOrNull()?.let { (it as ACForm).guid }) as? Guid)
+						guid = freshGuidLike((template?.guid ?: existingForms.values.firstOrNull()?.let { (it as ACForm).guid }) as? Guid, "CFormGuid")
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
@@ -705,8 +676,8 @@ internal class Cmo3KeyformLowering(
 						notes = template?.notes ?: ""
 						// CMO3: form multiply/screen colors - modern-era forms always carry identity
 						// values; the channel lowering overwrites them when a color channel exists.
-						multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
-						screenColor = Cmo3SkeletonBuilder.identityScreenColor()
+						multiplyColor = identityMultiplyColor()
+						screenColor = identityScreenColor()
 						coordType = freshFormCoordType(template, editedDrawable.parentDeformerId != null)
 					}
 			val origAbsolute = (existing?.positions as? FloatArray)?.takeIf { it.size == editedBase.size }
@@ -827,7 +798,7 @@ internal class Cmo3KeyformLowering(
 			val form =
 				existing
 					?: CWarpDeformerForm().apply {
-						guid = freshGuidLike(template?.guid as? Guid)
+						guid = freshGuidLike(template?.guid as? Guid, "CFormGuid")
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
@@ -836,8 +807,8 @@ internal class Cmo3KeyformLowering(
 						notes = template?.notes ?: ""
 						// CMO3: form multiply/screen colors - modern-era forms always carry identity
 						// values; the channel lowering overwrites them when a color channel exists.
-						multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
-						screenColor = Cmo3SkeletonBuilder.identityScreenColor()
+						multiplyColor = identityMultiplyColor()
+						screenColor = identityScreenColor()
 						coordType = freshFormCoordType(template, editedWarp.parent != null)
 					}
 			val newPoints = payload?.controlPoints
@@ -937,7 +908,7 @@ internal class Cmo3KeyformLowering(
 			val form =
 				existing
 					?: CRotationDeformerForm().apply {
-						guid = freshGuidLike(template?.guid as? Guid)
+						guid = freshGuidLike(template?.guid as? Guid, "CFormGuid")
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
@@ -946,8 +917,8 @@ internal class Cmo3KeyformLowering(
 						notes = template?.notes ?: ""
 						// CMO3: form multiply/screen colors - modern-era forms always carry identity
 						// values; the channel lowering overwrites them when a color channel exists.
-						multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
-						screenColor = Cmo3SkeletonBuilder.identityScreenColor()
+						multiplyColor = identityMultiplyColor()
+						screenColor = identityScreenColor()
 						coordType = freshFormCoordType(template, editedRotation.parent != null)
 					}
 
@@ -1047,7 +1018,7 @@ internal class Cmo3KeyformLowering(
 				?: return
 
 		if (!drawOrdersAreIntegral(bundle)) {
-			unsupported(ExportEntityCategory.Part, subject, ExportNoticeReason.FractionalDrawOrderNotStorable)
+			notices.unsupported(ExportEntityCategory.Part, subject, ExportNoticeReason.FractionalDrawOrderNotStorable)
 
 			return
 		}
@@ -1067,7 +1038,7 @@ internal class Cmo3KeyformLowering(
 			val form =
 				existing
 					?: CPartForm().apply {
-						guid = freshGuidLike(template?.guid as? Guid)
+						guid = freshGuidLike(template?.guid as? Guid, "CFormGuid")
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
@@ -1080,8 +1051,8 @@ internal class Cmo3KeyformLowering(
 						// no colors NPEs at load).  Corpus signatures are all-five or the pre-5.3
 						// drawOrder-only shape, never the partial middle; the channel lowering
 						// overwrites these when a color channel exists.
-						multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
-						screenColor = Cmo3SkeletonBuilder.identityScreenColor()
+						multiplyColor = identityMultiplyColor()
+						screenColor = identityScreenColor()
 					}
 			scalarOf(cell.channels[FormChannel.DRAW_ORDER])?.let { drawOrder ->
 				// CMO3: CPartForm field drawOrder.
@@ -1158,7 +1129,7 @@ internal class Cmo3KeyformLowering(
 			val forms = elementsOf(source.keyforms).filterIsInstance<CGlueForm>()
 
 			if (forms.isEmpty() && editedGlue.intensity != 1f) {
-				unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.StaticGlueIntensityWithoutKeyforms)
+				notices.unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.StaticGlueIntensityWithoutKeyforms)
 
 				return
 			}
@@ -1179,7 +1150,7 @@ internal class Cmo3KeyformLowering(
 			val form =
 				existingForms[valueKey(cell.values)] as? CGlueForm
 					?: CGlueForm().apply {
-						guid = freshGuidLike(template?.guid as? Guid)
+						guid = freshGuidLike(template?.guid as? Guid, "CFormGuid")
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
@@ -1293,20 +1264,21 @@ internal class Cmo3KeyformLowering(
 		val morphForms = ArrayList<ACForm>()
 		val constraints = ArrayList<Any?>()
 
-		for (binding in bindings) {
-			val parameterSource = index.parameterByIdStr[binding.parameterId.raw]
+		for ((parameterId, keys, _, forms, limits) in bindings) {
+			val parameterSource = index.parameterByIdStr[parameterId.raw]
 
 			if (parameterSource == null) {
-				unsupported(ExportEntityCategory.Keyform, subject, ExportNoticeReason.BlendShapeParameterHasNoSource(binding.parameterId.raw))
+				notices.unsupported(ExportEntityCategory.Keyform, subject, ExportNoticeReason.BlendShapeParameterHasNoSource(
+					parameterId.raw))
 
 				return null
 			}
 
 			val parameterUuid = uuidOf(parameterSource.guid)
 
-			for (keyIndex in binding.keys.indices) {
-				val payload = binding.forms[keyIndex] ?: continue
-				val keyValue = binding.keys[keyIndex]
+			for (keyIndex in keys.indices) {
+				val payload = forms[keyIndex] ?: continue
+				val keyValue = keys[keyIndex]
 				val existingRecord = existingRecords["$parameterUuid@${keyValue.toRawBits()}"]
 				val existingForm = existingRecord?.let { record -> formByUuid[uuidOf(record.keyformGuid)] }
 				val form = writeForm(existingForm, payload)
@@ -1326,16 +1298,16 @@ internal class Cmo3KeyformLowering(
 				records.add(record)
 			}
 
-			for (limit in binding.limits) {
-				val constraintSource = index.parameterByIdStr[limit.parameterId.raw] ?: continue
+			for ((parameterId1, points) in limits) {
+				val constraintSource = index.parameterByIdStr[parameterId1.raw] ?: continue
 
-				for (point in limit.points) {
+				for ((value, weight) in points) {
 					constraints.add(
 						MorphTargetBlendWeightConstraint().apply {
 							morphTargetParameterGuid = parameterSource.guid
 							constraintParameterGuid = constraintSource.guid
-							constraintParameterValue = point.value
-							blendWeight = point.weight
+							constraintParameterValue = value
+							blendWeight = weight
 						},
 					)
 				}
