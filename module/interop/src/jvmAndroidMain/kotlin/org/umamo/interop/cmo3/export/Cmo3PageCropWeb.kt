@@ -485,7 +485,7 @@ internal object Cmo3PageCropWeb {
 				memo = ""
 				isVisible = true
 				blend = names.sharedBlend
-				guid = Cmo3SkeletonBuilder.freshGuid("CLayerGuid")
+				guid = freshGuid("CLayerGuid")
 				opacity255 = 255
 				_optionOfIOption = names.sharedOptions
 				_layeredImage = layeredImage
@@ -505,7 +505,7 @@ internal object Cmo3PageCropWeb {
 			// breadcrumb (the editor stores the importing machine's absolute path here).
 			psdFile = FileRef().apply { textPath = pageName }
 			description = ""
-			guid = Cmo3SkeletonBuilder.freshGuid("CLayeredImageGuid")
+			guid = freshGuid("CLayeredImageGuid")
 			psdFileLastModified = nowMillis
 			_rootLayer = rootLayerGroup
 			layerSet =
@@ -655,7 +655,7 @@ internal object Cmo3PageCropWeb {
 				memo = ""
 				isVisible = true
 				blend = names.sharedBlend
-				guid = Cmo3SkeletonBuilder.freshGuid("CLayerGuid")
+				guid = freshGuid("CLayerGuid")
 				opacity255 = 255
 				_optionOfIOption = names.sharedOptions
 				_layeredImage = document.layeredImage

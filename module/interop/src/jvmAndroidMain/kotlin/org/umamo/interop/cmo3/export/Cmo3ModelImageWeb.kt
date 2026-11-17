@@ -373,7 +373,7 @@ internal object Cmo3ModelImageWeb {
 		nowMillis: Long,
 	): CModelImage =
 		CModelImage().apply {
-			guid = Cmo3SkeletonBuilder.freshGuid("CModelImageGuid")
+			guid = freshGuid("CModelImageGuid")
 			this.name = name
 			// CMO3: CModelImage fields inputFilter / inputFilterEnv - the layer-filter web selecting
 			// this layer; the deserializer dereferences both.

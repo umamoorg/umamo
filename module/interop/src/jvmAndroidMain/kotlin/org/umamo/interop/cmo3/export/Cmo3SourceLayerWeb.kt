@@ -190,16 +190,21 @@ internal object Cmo3SourceLayerWeb {
 			}
 
 			// A stable sort: two tiles bound to one row (a double binding) keep their atlas order.
-			images.add(SourceImageInput(
-				name,
-				path,
-				lastModified, canvasWidth, canvasHeight, ordered.sortedBy { (rowIndex, _) -> rowIndex }.map { (_, layer) -> layer }))
+			images.add(
+				SourceImageInput(
+					name,
+					path,
+					lastModified,
+					canvasWidth,
+					canvasHeight,
+					ordered.sortedBy { (rowIndex, _) -> rowIndex }.map { (_, layer) -> layer },
+				),
+			)
 		}
 
 		val rowKeysBySource = puppet.sources.associate { source -> source.id to source.layers.mapTo(HashSet()) { row -> row.key } }
 
 		for ((id, name, _, _, placement, ref) in puppet.atlas.tiles) {
-
 			if (ref != null && rowKeysBySource[ref.sourceId]?.contains(ref.layerKey) == true) {
 				continue
 			}
@@ -463,7 +468,7 @@ internal object Cmo3SourceLayerWeb {
 			// as a relative path that the Sources space reports missing and the watcher polls.
 			psdFile = FileRef().apply { textPath = path ?: "" }
 			description = ""
-			guid = Cmo3SkeletonBuilder.freshGuid("CLayeredImageGuid")
+			guid = freshGuid("CLayeredImageGuid")
 			// CMO3: CLayeredImage field psdFileLastModified - the source's modification time as last read.
 			psdFileLastModified = lastModified ?: nowMillis
 			_rootLayer = rootGroup
@@ -554,7 +559,7 @@ internal object Cmo3SourceLayerWeb {
 			memo = ""
 			isVisible = visible
 			blend = names.sharedBlend
-			guid = Cmo3SkeletonBuilder.freshGuid("CLayerGuid")
+			guid = freshGuid("CLayerGuid")
 			opacity255 = 255
 			_optionOfIOption = names.sharedOptions
 			_layeredImage = layeredImage
@@ -620,7 +625,7 @@ internal object Cmo3SourceLayerWeb {
 			memo = ""
 			isVisible = true
 			blend = names.sharedBlend
-			guid = Cmo3SkeletonBuilder.freshGuid("CLayerGuid")
+			guid = freshGuid("CLayerGuid")
 			opacity255 = 255
 			_optionOfIOption = names.sharedOptions
 			_layeredImage = layeredImage

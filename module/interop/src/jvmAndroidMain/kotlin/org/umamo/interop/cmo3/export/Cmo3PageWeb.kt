@@ -75,7 +75,7 @@ internal object Cmo3PageWeb {
 			this.width = width
 			this.height = height
 			cachedAtlasImage = resource
-			guid = Cmo3SkeletonBuilder.freshGuid("CTextureAtlasGuid")
+			guid = freshGuid("CTextureAtlasGuid")
 			modelImages = CArrayList<Any?>()
 			cachedImageManager = paddedCacheManager(resource, width, height)
 		}
@@ -96,7 +96,7 @@ internal object Cmo3PageWeb {
 				// CMO3: GTexture fields wrapMode / filterMode / anisotropy - the editor's fixed
 				// sampling setup on every corpus texture.
 				wrapMode = WrapMode.CLAMP_TO_BORDER
-				guid = Cmo3SkeletonBuilder.freshGuid("GTextureGuid")
+				guid = freshGuid("GTextureGuid")
 				anisotropy = Anisotropy.ON
 				srcImageResource = resource
 				transformImageResource01toLogical01 = CAffine()
