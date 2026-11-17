@@ -39,7 +39,6 @@ import org.umamo.interop.cmo3.uuidOf
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.AtlasTile
-import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.lineageRoot
 import org.umamo.runtime.model.storedToArtAffineForTile
@@ -79,14 +78,16 @@ import kotlin.math.roundToInt
  * @param Cmo3TextureFrames textureFrames The document's texture frames, taken before the export wrote.
  */
 internal class Cmo3RetainedLayerWeb(
-	private val target: Cmo3Model,
+	context: Cmo3ExportContext,
 	private val textureManager: CTextureManager,
-	private val editor: Cmo3GraphEditor,
-	private val edited: PuppetModel,
-	private val tileRasters: (AtlasTileId) -> RasterImage?,
-	private val nowMillis: Long,
-	private val textureFrames: Cmo3TextureFrames,
 ) {
+	private val target = context.target
+	private val editor = context.editor
+	private val edited = context.edited
+	private val tileRasters = context.tileRasters
+	private val nowMillis = context.nowMillis
+	private val textureFrames = context.textureFrames
+
 	/**
 	 * The art a job writes: the tile, its file and inventory row, and its pixels.
 	 *

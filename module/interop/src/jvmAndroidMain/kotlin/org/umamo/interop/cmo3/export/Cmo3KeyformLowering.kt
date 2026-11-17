@@ -1,6 +1,5 @@
 package org.umamo.interop.cmo3.export
 
-import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.model.custom.CFloatColor
 import org.umamo.format.cmo3.model.custom.CRotationDeformerForm
 import org.umamo.format.cmo3.model.drawable.CoordType
@@ -59,7 +58,6 @@ import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.Part
-import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
@@ -87,11 +85,11 @@ import java.util.IdentityHashMap
  * coordType, backrefs) from a surviving sibling.
  */
 internal class Cmo3KeyformLowering(
+	context: Cmo3ExportContext,
 	private val index: Cmo3GraphIndex,
-	private val editor: Cmo3GraphEditor,
-	private val baseline: PuppetModel,
 	private val notices: Cmo3ExportNotices,
 ) {
+	private val editor = context.editor
 	private val parameterIdByUuid: Map<String, ParameterId> =
 		buildMap {
 			for (source in index.parameterSources) {
@@ -100,7 +98,7 @@ internal class Cmo3KeyformLowering(
 				put(uuid, ParameterId(idStr))
 			}
 		}
-	private val baselineDrawableById = baseline.drawables.associateBy(Drawable::id)
+	private val baselineDrawableById = context.baselineDrawableById
 
 	/**
 	 * Per-name CoordType instances shared across every form this lowering tags, seeded from the forms

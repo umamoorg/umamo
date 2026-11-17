@@ -1,6 +1,5 @@
 package org.umamo.interop.cmo3.export
 
-import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.gen.ACDeformerSource
 import org.umamo.format.cmo3.model.gen.ACParameterControllableSource
@@ -61,7 +60,6 @@ import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
-import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.findParameterGroup
 import org.umamo.runtime.model.isOriginAtCanvasCenter
 import org.umamo.runtime.model.lineageRoot
@@ -86,14 +84,9 @@ import java.util.IdentityHashMap
  * field order (the editor's document order), so an ensured element lands where the editor writes it.
  */
 internal class Cmo3PropertyLowering(
-	private val target: Cmo3Model,
+	context: Cmo3ExportContext,
 	private val index: Cmo3GraphIndex,
-	private val editor: Cmo3GraphEditor,
-	private val baseline: PuppetModel,
-	private val edited: PuppetModel,
 	private val notices: Cmo3ExportNotices,
-	// The document's texture frames, taken from the graph before the export changed it.
-	private val textureFrames: Cmo3TextureFrames,
 	// True when the caller replaced the stored page images with pages recomposed for the edited
 	// placements (the atlas-web reconcile ran); the stale-page notices below are then false and stay
 	// quiet.  Defaults false so every other construction keeps the honest warning.
@@ -102,22 +95,27 @@ internal class Cmo3PropertyLowering(
 	// their metadata (name, size, binding) is reconciled there, so no notice is owed for it.
 	private val reconciledTileIds: Set<String> = emptySet(),
 ) {
-	private val editedParameterById = edited.parameters.associateBy(Parameter::id)
-	private val editedPartById = edited.parts.associateBy(Part::id)
-	private val editedDeformerById = edited.deformers.associateBy(Deformer::id)
-	private val editedDrawableById = edited.drawables.associateBy(Drawable::id)
-	private val baselinePartById = baseline.parts.associateBy(Part::id)
-	private val baselineDeformerById = baseline.deformers.associateBy(Deformer::id)
-	private val baselineDrawableById = baseline.drawables.associateBy(Drawable::id)
+	private val target = context.target
+	private val editor = context.editor
+	private val baseline = context.baseline
+	private val edited = context.edited
+	private val textureFrames = context.textureFrames
+	private val editedParameterById = context.editedParameterById
+	private val editedPartById = context.editedPartById
+	private val editedDeformerById = context.editedDeformerById
+	private val editedDrawableById = context.editedDrawableById
+	private val baselinePartById = context.baselinePartById
+	private val baselineDeformerById = context.baselineDeformerById
+	private val baselineDrawableById = context.baselineDrawableById
 
 	/** Drawables whose canvas mesh or UVs diverged from the imported weld - one aggregated notice. */
 	private val weldDivergedDrawableNames = ArrayList<String>()
 
 	/** The keyform re-bundling engine, shared by the drawable/deformer/part/glue dispatches. */
-	private val keyforms = Cmo3KeyformLowering(index, editor, baseline, notices)
+	private val keyforms = Cmo3KeyformLowering(context, index, notices)
 
 	/** The structural engine, for topology rewrites and glue re-binding on Changed entities. */
-	private val structure = Cmo3StructureLowering(index.modelSource, index, editor, edited, notices, textureFrames)
+	private val structure = Cmo3StructureLowering(context, index, notices)
 
 	/**
 	 * Lowers each changed parameter's fields onto its graph source.

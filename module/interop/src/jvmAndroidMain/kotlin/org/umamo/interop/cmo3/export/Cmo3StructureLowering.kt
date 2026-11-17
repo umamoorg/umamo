@@ -1,6 +1,5 @@
 package org.umamo.interop.cmo3.export
 
-import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.custom.GEditableMesh2
 import org.umamo.format.cmo3.model.drawable.CoordType
@@ -59,7 +58,6 @@ import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.Part
-import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.findParameterGroup
 import org.umamo.runtime.model.partByDrawable
 import org.umamo.runtime.model.storedToArtAffineForTile
@@ -79,15 +77,16 @@ import org.umamo.runtime.model.storedToArtAffineForTile
  * document hangs off.
  */
 internal class Cmo3StructureLowering(
-	private val modelSource: CModelSource,
+	context: Cmo3ExportContext,
 	private val index: Cmo3GraphIndex,
-	private val editor: Cmo3GraphEditor,
-	private val edited: PuppetModel,
 	private val notices: Cmo3ExportNotices,
-	// The document's texture frames, taken from the graph before the export changed it.
-	private val textureFrames: Cmo3TextureFrames,
 	private val drawableBindings: Map<String, Cmo3DrawableTextureBinding> = emptyMap(),
 ) {
+	private val modelSource = context.modelSource
+	private val editor = context.editor
+	private val edited = context.edited
+	private val textureFrames = context.textureFrames
+
 	/** True once any deletion ran - the caller prunes the shared pool exactly once at the end. */
 	var deletedAnything: Boolean = false
 		private set
