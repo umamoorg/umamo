@@ -87,7 +87,7 @@ class BrushMeshLandingTest {
 
 		val meshes = landing as BrushLanding.Meshes
 		assertEquals(setOf(LATTICE_RIG_ART), meshes.rest.keys, "the brush smeared the mesh")
-		assertEquals(listOf(0), meshes.movedIndices.getValue(LATTICE_RIG_ART), "the vertex the brush grabbed moved")
+		assertEquals(setOf(0), meshes.movedIndices.getValue(LATTICE_RIG_ART), "the vertex the brush grabbed moved")
 
 		val after = meshes.rest.getValue(LATTICE_RIG_ART).positions
 		assertTrue(after[0] != before[0], "the vertex under the brush changed place")
@@ -142,7 +142,7 @@ class BrushMeshLandingTest {
 
 		val meshes = landing as BrushLanding.Meshes
 		assertEquals(setOf(LATTICE_RIG_ART, secondArt), meshes.rest.keys, "the brush smeared both layers")
-		assertEquals(listOf(0), meshes.movedIndices.getValue(LATTICE_RIG_ART), "the first layer's corner moved")
+		assertEquals(setOf(0), meshes.movedIndices.getValue(LATTICE_RIG_ART), "the first layer's corner moved")
 		assertTrue(meshes.movedIndices.getValue(secondArt).contains(0), "and the second layer's corner moved too")
 
 		assertTrue(meshes.rest.getValue(LATTICE_RIG_ART).positions[0] != artBefore[0], "the first layer's vertex changed place")

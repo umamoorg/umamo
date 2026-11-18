@@ -9,9 +9,9 @@ import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.edit.mesh.commitLatticeReshape
 import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.edit.mesh.withMeshPositions
+import org.umamo.edit.transform.BrushMerge
 import org.umamo.edit.transform.BrushStroke
 import org.umamo.edit.transform.brushParameters
-import org.umamo.edit.transform.brushPointOffsets
 import org.umamo.edit.transform.brushSettingsOf
 import org.umamo.render.eval.WarpLatticeResolver
 import org.umamo.runtime.model.DeformerId
@@ -38,11 +38,11 @@ internal sealed interface BrushLanding {
 	 * The meshes the stroke smeared.
 	 *
 	 * @property Map<DrawableId, MeshRestPositions> rest Each smeared drawable's new rest shape.
-	 * @property Map<DrawableId, List<Int>> movedIndices Each smeared drawable's moved vertices.
+	 * @property Map<DrawableId, Set<Int>> movedIndices Each smeared drawable's moved vertices.
 	 */
 	class Meshes(
 		val rest: Map<DrawableId, MeshRestPositions>,
-		val movedIndices: Map<DrawableId, List<Int>>,
+		val movedIndices: Map<DrawableId, Set<Int>>,
 	) : BrushLanding
 
 	/**
@@ -87,7 +87,55 @@ internal class BrushGeometry(
 	val model: PuppetModel,
 	val meshes: List<DrawableWorldGeometry>,
 	val latticeWorld: Map<DeformerId, FloatArray>,
-)
+) {
+	/**
+	 * The merges over the captured geometry, kept for the stroke's length: the live preview folds the stroke as
+	 * it grows, so a pointer event costs the stretch it added rather than the whole stroke.
+	 */
+	val merges = BrushMerges(meshes, latticeWorld)
+}
+
+/**
+ * The merges a brush stroke's landing runs: one over each captured mesh and one over each captured cage.
+ *
+ * @param List<DrawableWorldGeometry> meshes The captured meshes.
+ * @param Map<DeformerId, FloatArray> latticeWorld The captured cages' lattice points.
+ */
+internal class BrushMerges(
+	meshes: List<DrawableWorldGeometry>,
+	latticeWorld: Map<DeformerId, FloatArray>,
+) {
+	private val meshMerges = meshes.associate { mesh -> mesh.drawableId to BrushMerge(mesh.world) }
+	private val cageMerges = latticeWorld.mapValues { (_, lattice) -> BrushMerge(lattice) }
+
+	/**
+	 * The offsets the stroke gives the mesh's points.
+	 *
+	 * @param DrawableWorldGeometry mesh The mesh.
+	 * @param BrushStroke stroke The stroke, as it has grown.
+	 * @param BrushSettings settings The brush's configuration.
+	 * @return FloatArray The per-point world offsets, interleaved x, z.
+	 */
+	fun meshOffsets(
+		mesh: DrawableWorldGeometry,
+		stroke: BrushStroke,
+		settings: BrushSettings,
+	): FloatArray = meshMerges.getValue(mesh.drawableId).update(stroke, settings)
+
+	/**
+	 * The offsets the stroke gives the cage's points.
+	 *
+	 * @param DeformerId warpId The cage.
+	 * @param BrushStroke stroke The stroke, as it has grown.
+	 * @param BrushSettings settings The brush's configuration.
+	 * @return FloatArray The per-point world offsets, interleaved x, z.
+	 */
+	fun cageOffsets(
+		warpId: DeformerId,
+		stroke: BrushStroke,
+		settings: BrushSettings,
+	): FloatArray = cageMerges.getValue(warpId).update(stroke, settings)
+}
 
 /**
  * Captures the geometry a brush stroke would work on: the session's meshes, or the session's cages.
@@ -133,31 +181,31 @@ internal fun brushLanding(
 	settings: BrushSettings,
 ): BrushLanding {
 	if (geometry.meshes.isNotEmpty()) {
-		return brushMeshes(geometry.meshes, stroke, settings)
+		return brushMeshes(geometry, stroke, settings)
 	}
 
-	return brushCages(geometry.model, geometry.latticeWorld, stroke, settings)
+	return brushCages(geometry.model, geometry.latticeWorld, geometry.merges, stroke, settings)
 }
 
 /**
  * The meshes a brush stroke smears: each mesh's world shape moved by the stroke, inverted back onto its
  * rest arrays.  The vertices the brush did not reach keep their places.
  *
- * @param List<DrawableWorldGeometry> meshes The meshes' captured world shapes.
+ * @param BrushGeometry geometry The captured geometry.
  * @param BrushStroke stroke The stroke's stamps.
  * @param BrushSettings settings The brush's configuration.
  * @return BrushLanding The landing.
  */
 private fun brushMeshes(
-	meshes: List<DrawableWorldGeometry>,
+	geometry: BrushGeometry,
 	stroke: BrushStroke,
 	settings: BrushSettings,
 ): BrushLanding.Meshes {
 	val rest = LinkedHashMap<DrawableId, MeshRestPositions>()
-	val movedIndices = LinkedHashMap<DrawableId, List<Int>>()
+	val movedIndices = LinkedHashMap<DrawableId, Set<Int>>()
 
-	for (mesh in meshes) {
-		val offsets = brushPointOffsets(stroke, mesh.world, settings.strength, settings.falloff, settings.mode)
+	for (mesh in geometry.meshes) {
+		val offsets = geometry.merges.meshOffsets(mesh, stroke, settings)
 		val moved = movedVerticesOf(offsets)
 
 		if (moved.isEmpty()) {
@@ -165,7 +213,7 @@ private fun brushMeshes(
 		}
 
 		val smeared = FloatArray(mesh.world.size) { componentIndex -> mesh.world[componentIndex] + offsets[componentIndex] }
-		rest[mesh.drawableId] = mesh.worldToRest(smeared, moved.toSet())
+		rest[mesh.drawableId] = mesh.worldToRest(smeared, moved)
 		movedIndices[mesh.drawableId] = moved
 	}
 
@@ -177,16 +225,26 @@ private fun brushMeshes(
  * components.
  *
  * @param FloatArray offsets The per-point world offsets, interleaved x, z.
- * @return List The moved vertex indices.
+ * @return Set The moved vertex indices.
  */
-private fun movedVerticesOf(offsets: FloatArray): List<Int> =
-	(0 until offsets.size / 2).filter { vertexIndex -> offsets[vertexIndex * 2] != 0f || offsets[vertexIndex * 2 + 1] != 0f }
+private fun movedVerticesOf(offsets: FloatArray): Set<Int> {
+	val moved = LinkedHashSet<Int>()
+
+	for (vertexIndex in 0 until offsets.size / 2) {
+		if (offsets[vertexIndex * 2] != 0f || offsets[vertexIndex * 2 + 1] != 0f) {
+			moved.add(vertexIndex)
+		}
+	}
+
+	return moved
+}
 
 /**
  * The cages a brush stroke smears, through the Edit-mode reshape the lattice drag already uses.
  *
  * @param PuppetModel model The model the stroke is over.
  * @param Map<DeformerId, FloatArray> latticeWorld The cages' captured world points.
+ * @param BrushMerges merges The merges over the captured cages.
  * @param BrushStroke stroke The stroke's stamps.
  * @param BrushSettings settings The brush's configuration.
  * @return BrushLanding The landing.
@@ -194,6 +252,7 @@ private fun movedVerticesOf(offsets: FloatArray): List<Int> =
 private fun brushCages(
 	model: PuppetModel,
 	latticeWorld: Map<DeformerId, FloatArray>,
+	merges: BrushMerges,
 	stroke: BrushStroke,
 	settings: BrushSettings,
 ): BrushLanding.Cages {
@@ -204,7 +263,7 @@ private fun brushCages(
 	val world = LinkedHashMap<DeformerId, FloatArray>()
 
 	for ((warpId, lattice) in latticeWorld) {
-		val offsets = brushPointOffsets(stroke, lattice, settings.strength, settings.falloff, settings.mode)
+		val offsets = merges.cageOffsets(warpId, stroke, settings)
 
 		if (offsets.all { component -> component == 0f }) {
 			continue

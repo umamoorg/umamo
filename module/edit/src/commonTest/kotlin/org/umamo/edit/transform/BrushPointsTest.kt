@@ -1,6 +1,7 @@
 package org.umamo.edit.transform
 
 import org.umamo.edit.BrushMode
+import org.umamo.edit.BrushSettings
 import org.umamo.edit.ProportionalFalloff
 import kotlin.math.abs
 import kotlin.test.Test
@@ -54,7 +55,12 @@ class BrushPointsTest {
 		falloff: ProportionalFalloff = ProportionalFalloff.Smooth,
 		mode: BrushMode = BrushMode.Drag,
 		pointZ: Float = 0f,
-	): Float = brushPointOffsets(stroke(fromX, toX, radiusWorld), floatArrayOf(pointX, pointZ), strength, falloff, mode)[0]
+	): Float {
+		val settings = BrushSettings(falloff, radiusWorld, strength, mode)
+		val offsets = BrushMerge(floatArrayOf(pointX, pointZ)).update(stroke(fromX, toX, radiusWorld), settings)
+
+		return offsets[0]
+	}
 
 	/** A point the brush was over travels with it. */
 	@Test
@@ -72,7 +78,7 @@ class BrushPointsTest {
 	@Test
 	fun aBrushThatNeverTravelsMovesNothing() {
 		val still = BrushStroke.starting(0f, 0f, 50f)
-		val offsets = brushPointOffsets(still, floatArrayOf(0f, 0f), 1f, ProportionalFalloff.Smooth, BrushMode.Drag)
+		val offsets = BrushMerge(floatArrayOf(0f, 0f)).update(still, BrushSettings(ProportionalFalloff.Smooth, 50f, 1f, BrushMode.Drag))
 
 		assertEquals(0f, offsets[0], tolerance)
 	}
@@ -88,8 +94,8 @@ class BrushPointsTest {
 	fun theSameStampsReRunAtAnotherStrength() {
 		val walked = stroke(0f, 10f, 50f)
 		val lattice = floatArrayOf(0f, 0f)
-		val full = brushPointOffsets(walked, lattice, 1f, ProportionalFalloff.Smooth, BrushMode.Drag)
-		val half = brushPointOffsets(walked, lattice, 0.5f, ProportionalFalloff.Smooth, BrushMode.Drag)
+		val full = BrushMerge(lattice).update(walked, BrushSettings(ProportionalFalloff.Smooth, 50f, 1f, BrushMode.Drag))
+		val half = BrushMerge(lattice).update(walked, BrushSettings(ProportionalFalloff.Smooth, 50f, 0.5f, BrushMode.Drag))
 
 		assertEquals(full[0] * 0.5f, half[0], tolerance)
 	}
