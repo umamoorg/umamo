@@ -1,15 +1,23 @@
 package org.umamo.ui.theme
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 
 /**
  * How an icon's path is painted.  Bundling this with the path lets call sites draw an icon without
@@ -624,6 +632,28 @@ val LocalUmamoIcons =
 	)
 
 /**
+ * A rendered icon, keyed by the icon, its tint, and the pixel size it was drawn at.
+ *
+ * @property UmamoIcon icon The icon.
+ * @property Color color The tint it was painted with.
+ * @property Int side The pixel size of the square it was rendered at.
+ */
+private data class RenderedIconKey(
+	val icon: UmamoIcon,
+	val color: Color,
+	val side: Int,
+)
+
+/**
+ * The icons already rendered, so a path is stroked once rather than on every frame.
+ *
+ * Stroking rebuilds the path's outline geometry on every draw, and a list of icons pays that on every
+ * frame it scrolls.  The rendered form is kept and the vector drawn only the first time an icon appears at
+ * a size and a tint; a list that scrolls then costs one bitmap blit per icon.
+ */
+private val renderedIcons = mutableMapOf<RenderedIconKey, ImageBitmap>()
+
+/**
  * Draws [icon] scaled about the origin to fill the current square [DrawScope], painting its layers in
  * order with each layer's style and opacity.  The caller supplies one tint; a two-tone icon's muted
  * layer derives from it via the layer opacity, so both tones follow the theme without a second color.
@@ -632,6 +662,38 @@ val LocalUmamoIcons =
  * @param Color     color The paint color (icons are monochrome and tinted by the caller).
  */
 fun DrawScope.drawIcon(icon: UmamoIcon, color: Color) {
+	val side = size.minDimension.toInt().coerceAtLeast(1)
+	val bitmap = renderedIcons.getOrPut(RenderedIconKey(icon, color, side)) { renderIcon(icon, color, side) }
+
+	drawImage(image = bitmap, dstOffset = IntOffset.Zero, dstSize = IntSize(side, side))
+}
+
+/**
+ * Renders an icon into a bitmap of its own size, so the drawing can be reused.
+ *
+ * @param UmamoIcon icon  The icon to render.
+ * @param Color     color The paint color.
+ * @param Int       side  The pixel size of the square to render at.
+ * @return ImageBitmap The rendered icon.
+ */
+private fun renderIcon(icon: UmamoIcon, color: Color, side: Int): ImageBitmap {
+	val bitmap = ImageBitmap(side, side)
+
+	CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, Canvas(bitmap), Size(side.toFloat(), side.toFloat())) {
+		drawIconVector(icon, color)
+	}
+
+	return bitmap
+}
+
+/**
+ * Paints an icon's layers with each layer's style and opacity, scaled about the origin so it fills the
+ * canvas.
+ *
+ * @param UmamoIcon icon  The icon to paint.
+ * @param Color     color The paint color.
+ */
+private fun DrawScope.drawIconVector(icon: UmamoIcon, color: Color) {
 	// The paths live in a square viewport; scale it about the origin so it fills the (square) canvas.
 	val drawScale = size.minDimension / icon.viewportSize
 	withTransform({ scale(scaleX = drawScale, scaleY = drawScale, pivot = Offset.Zero) }) {

@@ -6,6 +6,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -14,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.Text
 import org.umamo.ui.theme.LocalUmamoColors
@@ -30,9 +32,17 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * @param Boolean  primary  Accent fill when true, neutral when false.
  * @param Boolean  enabled  When false the button rests on the neutral fill with a disabled label, shows no
  *   hover or press, and ignores clicks.
+ * @param Dp?      height   The button's minimum height, or null to sit at its text's height.
  */
 @Composable
-fun Button(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = true, enabled: Boolean = true) {
+fun Button(
+	label: String,
+	onClick: () -> Unit,
+	modifier: Modifier = Modifier,
+	primary: Boolean = true,
+	enabled: Boolean = true,
+	height: Dp? = null,
+) {
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
 	val interaction = remember { MutableInteractionSource() }
@@ -60,6 +70,7 @@ fun Button(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, pr
 	Box(
 		modifier =
 			modifier
+				.then(if (height != null) Modifier.heightIn(min = height) else Modifier)
 				.clip(shapes.small)
 				.background(fill)
 				// NOT focusable: a button can sit in chrome that leaves the composition after its click (a

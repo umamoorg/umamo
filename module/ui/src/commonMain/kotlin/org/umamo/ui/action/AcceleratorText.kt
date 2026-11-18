@@ -11,6 +11,48 @@ package org.umamo.ui.action
 fun formatAccelerator(chord: KeyChord): String = formatAccelerator(chord, primaryModifierLabel())
 
 /**
+ * The modifier caps of a chord, without the key itself.
+ *
+ * A key view shows the modifiers as they are pressed, before any key joins them.
+ *
+ * @param KeyChord chord The chord to read the modifiers of.
+ * @param String primaryLabel The platform label for the primary modifier ("Ctrl" or "⌘").
+ * @return List The modifier cap texts, in order.
+ */
+fun acceleratorModifierParts(chord: KeyChord, primaryLabel: String = primaryModifierLabel()): List<String> =
+	buildList {
+		// A literal Control only appears on macOS, where Control is not the primary modifier.
+		if (chord.controlKey) {
+			add("⌃")
+		}
+
+		if (chord.primaryModifier) {
+			add(primaryLabel)
+		}
+
+		if (chord.alt) {
+			add("Alt")
+		}
+
+		if (chord.shift) {
+			add("Shift")
+		}
+	}
+
+/**
+ * The parts of an accelerator, one per key cap: the modifiers in the canonical order, then the key itself.
+ *
+ * A surface that draws an accelerator as key caps reads this list, so the caps and the flat text form never
+ * disagree about what a chord holds.
+ *
+ * @param KeyChord chord The chord to break into caps.
+ * @param String primaryLabel The platform label for the primary modifier ("Ctrl" or "⌘").
+ * @return List The cap texts, in order.
+ */
+fun acceleratorParts(chord: KeyChord, primaryLabel: String = primaryModifierLabel()): List<String> =
+	acceleratorModifierParts(chord, primaryLabel) + keyGlyph(chord.keyName)
+
+/**
  * The pure core of [formatAccelerator], taking the platform's [primaryLabel] as a parameter so it can be
  * unit-tested deterministically.  Modifiers are ordered Control, primary, Alt, Shift to match the common
  * platform convention.
@@ -19,31 +61,8 @@ fun formatAccelerator(chord: KeyChord): String = formatAccelerator(chord, primar
  * @param String primaryLabel The platform label for the primary modifier ("Ctrl" or "⌘").
  * @return String The display hint.
  */
-internal fun formatAccelerator(chord: KeyChord, primaryLabel: String): String {
-	val parts =
-		buildList {
-			// A literal Control only appears on macOS, where Control is not the primary modifier.
-			if (chord.controlKey) {
-				add("⌃")
-			}
-
-			if (chord.primaryModifier) {
-				add(primaryLabel)
-			}
-
-			if (chord.alt) {
-				add("Alt")
-			}
-
-			if (chord.shift) {
-				add("Shift")
-			}
-
-			add(keyGlyph(chord.keyName))
-		}
-
-	return parts.joinToString(separator = "+")
-}
+internal fun formatAccelerator(chord: KeyChord, primaryLabel: String): String =
+	acceleratorParts(chord, primaryLabel).joinToString(separator = "+")
 
 /**
  * Maps a position-based key token to its display glyph: "KeyO" to "O", "Digit0" to "0", and the few

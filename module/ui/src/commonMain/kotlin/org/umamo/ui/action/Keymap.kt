@@ -190,12 +190,36 @@ fun chordToSpec(chord: KeyChord): String =
 	}.joinToString(separator = "+")
 
 /**
+ * A command's two binding slots: the primary the rest of the editor shows, and the alternative a
+ * second binding for the same command.
+ *
+ * A slot is null when the command answers to nothing on it.  The alternative has no default of its own -
+ * it is empty unless a preset binds a command twice or the user gives it one.
+ *
+ * @property KeyChord? primary The command's primary chord, or null when it is unbound.
+ * @property KeyChord? alternative The command's alternative chord, or null when it is unbound.
+ */
+data class CommandSlots(
+	val primary: KeyChord? = null,
+	val alternative: KeyChord? = null,
+)
+
+/**
  * A resolved set of key-chord → command-id bindings, plus the lookup the input layer uses.  Built from
  * a preset spec map; a chord bound twice resolves last-write-wins at build time, while one command may
  * keep several chords.  The keymap holds only ids - it never references [Command] objects -
  * so it stays decoupled from registration order and from whether a command currently exists.
+ *
+ * The two slots of every command are held beside the chord map, so which chord is the primary and which
+ * the alternative is a fact of the keymap rather than an accident of the map's iteration order.
+ *
+ * @property Map<KeyChord, String> commandIdByChord The chord → command-id map dispatch reads.
+ * @property Map<String, CommandSlots> slotsByCommandId The command's two slots, keyed by command id.
  */
-class Keymap(private val commandIdByChord: Map<KeyChord, String>) {
+class Keymap(
+	private val commandIdByChord: Map<KeyChord, String>,
+	private val slotsByCommandId: Map<String, CommandSlots> = slotsFromChords(commandIdByChord),
+) {
 	/**
 	 * The command id bound to [chord], or null if the chord is unbound.
 	 *
@@ -214,24 +238,24 @@ class Keymap(private val commandIdByChord: Map<KeyChord, String>) {
 	fun commandForPress(pressed: KeyChord): String? = pressed.dispatchCandidates().firstNotNullOfOrNull { candidate -> commandFor(candidate) }
 
 	/**
-	 * The first chord bound to [commandId], or null if none is - the reverse of [commandFor], used to
-	 * render a menu row's accelerator hint.  When several chords map to one command (palette.toggle has
-	 * both primary+KeyP and Space) the first in insertion order wins, so a menu shows the canonical
-	 * accelerator (primary+KeyP) rather than whichever the map happens to yield first.
+	 * The command's primary chord, or null if it is unbound - the reverse of [commandFor], used to
+	 * render a menu row's accelerator hint.
+	 *
+	 * The primary is the slot, not the first chord that happens to map to the command: a command may
+	 * hold an alternative too, and the alternative must never be what a menu row shows.
 	 *
 	 * @param String commandId The command id to find an accelerator for.
-	 * @return KeyChord? The first bound chord, or null.
+	 * @return KeyChord? The primary chord, or null.
 	 */
-	fun chordFor(commandId: String): KeyChord? {
-		// LinkedHashMap iterates in insertion order, so the first match is the canonical binding.
-		for ((chord, boundCommandId) in commandIdByChord) {
-			if (boundCommandId == commandId) {
-				return chord
-			}
-		}
+	fun chordFor(commandId: String): KeyChord? = slotsByCommandId[commandId]?.primary
 
-		return null
-	}
+	/**
+	 * The command's two slots, empty when the command is unbound on both.
+	 *
+	 * @param String commandId The command id to read the slots of.
+	 * @return CommandSlots The command's slots.
+	 */
+	fun slotsFor(commandId: String): CommandSlots = slotsByCommandId[commandId] ?: CommandSlots()
 
 	/**
 	 * The number of bindings - handy for tests.
@@ -260,6 +284,33 @@ class Keymap(private val commandIdByChord: Map<KeyChord, String>) {
 			return Keymap(resolved)
 		}
 	}
+}
+
+/**
+ * Derives each command's two slots from a chord → command-id map: the first chord that maps to a command
+ * is its primary, the second its alternative.
+ *
+ * A third chord for one command has no slot to go to and stays in the chord map alone, dispatching
+ * without being shown.
+ *
+ * @param Map commandIdByChord The chord → command-id map.
+ * @return Map The slots, keyed by command id.
+ */
+private fun slotsFromChords(commandIdByChord: Map<KeyChord, String>): Map<String, CommandSlots> {
+	val slots = LinkedHashMap<String, CommandSlots>()
+
+	for ((chord, commandId) in commandIdByChord) {
+		val current = slots[commandId]
+
+		slots[commandId] =
+			when {
+				current == null -> CommandSlots(primary = chord)
+				current.alternative == null -> current.copy(alternative = chord)
+				else -> current
+			}
+	}
+
+	return slots
 }
 
 /**

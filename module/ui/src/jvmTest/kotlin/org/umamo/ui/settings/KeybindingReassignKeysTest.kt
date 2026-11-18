@@ -4,6 +4,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -12,6 +13,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -29,6 +31,7 @@ import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.loadKeymap
 import org.umamo.ui.action.parseKeyChord
+import org.umamo.ui.action.setPrimaryBinding
 import org.umamo.ui.kit.dialog.ConfirmDialog
 import org.umamo.ui.kit.textentry.KeyCaptureController
 import org.umamo.ui.kit.textentry.LocalKeyCapture
@@ -44,22 +47,25 @@ import org.umamo.ui.workspace.shell.handleModalKeyLadder
 import org.umamo.ui.workspace.shell.toShellKeyStroke
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Drives the keybindings editor with real key events under the shell's real modal ladder, the way it sits inside
- * Preferences: the ladder is the root's preview handler, so it sees every key before the editor does.
+ * Drives the shortcut popup with real key events under the shell's real modal ladder, the way it sits inside
+ * Preferences: the ladder is the root's preview handler, so it sees every key before the popup does.
  */
 @OptIn(ExperimentalTestApi::class)
 class KeybindingReassignKeysTest {
 	private val defaultJson = """{"input":{"keybinding":{"preset":"default","overrides":{}}}}"""
 
+	/** The editor's controller, so a test can open the popup without the click that opens it. */
+	private lateinit var shortcutEditor: ShortcutEditorController
+
 	/**
-	 * Mounts the editor under a root that routes keys through the modal ladder, with Preferences marked open.
+	 * Mounts the panel and the popup under a root that routes keys through the modal ladder, with Preferences
+	 * marked open.
 	 *
 	 * @param ComposeUiTest   test     The running UI test.
 	 * @param ShellOverlayState overlays The shell's overlay state.
@@ -78,13 +84,21 @@ class KeybindingReassignKeysTest {
 				Command("document.confirm", title = null) { argument -> (argument as? ConfirmRequest)?.let { request -> overlays.pendingConfirm = request } },
 			),
 		)
-		val keymap = Keymap(mapOf(parseKeyChord("primary+KeyS")!! to "test.bound"))
+		val keymap = Keymap(mapOf(parseKeyChord("primary+KeyS")!! to "test.bound", parseKeyChord("F5")!! to "test.unbound"))
 		val rootFocus = FocusRequester()
 		// One controller shared by the ladder and the editor, as the shell wires it.
 		val keyCapture = KeyCaptureController()
+		val shortcutEditor = ShortcutEditorController()
+		this.shortcutEditor = shortcutEditor
 		test.setContent {
 			UmamoTheme {
-				CompositionLocalProvider(LocalSettings provides settings, LocalCommands provides registry, LocalKeymap provides keymap, LocalKeyCapture provides keyCapture) {
+				CompositionLocalProvider(
+					LocalSettings provides settings,
+					LocalCommands provides registry,
+					LocalKeymap provides keymap,
+					LocalKeyCapture provides keyCapture,
+					LocalShortcutEditor provides shortcutEditor,
+				) {
 					Box(
 						modifier =
 							Modifier
@@ -95,11 +109,29 @@ class KeybindingReassignKeysTest {
 								.onPreviewKeyEvent { event ->
 									val stroke = event.toShellKeyStroke()
 									strokes += "${stroke.key} down=${stroke.isDown} confirm=${overlays.pendingConfirm != null}"
-									handleModalKeyLadder(stroke, ShellModalState(overlays = overlays, keyCapture = keyCapture, commandRegistry = registry, keymap = keymap))
+									handleModalKeyLadder(
+										stroke,
+										ShellModalState(
+											overlays = overlays,
+											keyCapture = keyCapture,
+											commandRegistry = registry,
+											keymap = keymap,
+											shortcutEditor = shortcutEditor,
+										),
+									)
 								},
 					) {
+						// The shell root holds the keyboard while nothing else does, so a key reaches the
+						// ladder; a control that takes focus (the popup's key view) takes it over.
+						LaunchedEffect(Unit) {
+							rootFocus.requestFocus()
+						}
+
 						if (overlays.settingsVisible) {
 							KeybindingsEditor()
+							shortcutEditor.request?.let { request ->
+								ShortcutBindingPopup(request = request, onDismiss = { shortcutEditor.close() })
+							}
 						}
 
 						overlays.pendingConfirm?.let {
@@ -120,16 +152,58 @@ class KeybindingReassignKeysTest {
 	}
 
 	/**
-	 * Arms the unbound command's chip and presses Ctrl+S, which the other command already holds, so the reassign
-	 * prompt is up.
+	 * Clicking a binding cell opens the popup for that cell's slot.
+	 */
+	@Test
+	fun clickingACellOpensThePopup() {
+		runComposeUiTest {
+			val overlays = ShellOverlayState().apply { settingsVisible = true }
+			mount(this, overlays, mutableListOf())
+
+			// The bound command's primary cell draws its key caps: "Ctrl" and "S".
+			onNodeWithText("S").performClick()
+			waitForIdle()
+
+			assertEquals("test.bound", shortcutEditor.request?.commandId)
+			assertEquals(ShortcutSlot.Primary, shortcutEditor.request?.slot)
+		}
+	}
+
+	/**
+	 * Escape closes the popup, and leaves Preferences open behind it.
+	 */
+	@Test
+	fun escapeClosesThePopupAndLeavesPreferencesOpen() {
+		runComposeUiTest {
+			val overlays = ShellOverlayState().apply { settingsVisible = true }
+			val strokes = mutableListOf<String>()
+			mount(this, overlays, strokes)
+			shortcutEditor.open("test.unbound", ShortcutSlot.Primary)
+			waitForIdle()
+
+			onNodeWithTag("root").performKeyInput {
+				keyDown(Key.Escape)
+				keyUp(Key.Escape)
+			}
+			waitForIdle()
+
+			assertNull(shortcutEditor.request, "Escape closes the popup; strokes: $strokes")
+			assertTrue(overlays.settingsVisible, "and Preferences stays open; strokes: $strokes")
+		}
+	}
+
+	/**
+	 * Arms the popup's capture and presses Ctrl+S, which the other command already holds, then saves - so
+	 * the reassign prompt is up.
 	 *
 	 * @param ComposeUiTest     test     The running UI test.
 	 * @param ShellOverlayState overlays The shell's overlay state.
 	 * @param List              strokes  The strokes seen so far, for the failure message.
 	 */
 	private fun raiseTheReassignPrompt(test: ComposeUiTest, overlays: ShellOverlayState, strokes: List<String>) {
-		test.onNodeWithText("Unbound").performClick()
+		shortcutEditor.open("test.unbound", ShortcutSlot.Primary)
 		test.waitForIdle()
+
 		test.onNodeWithTag("root").performKeyInput {
 			keyDown(Key.CtrlLeft)
 			keyDown(Key.S)
@@ -137,13 +211,13 @@ class KeybindingReassignKeysTest {
 			keyUp(Key.CtrlLeft)
 		}
 		test.waitForIdle()
+		test.onNodeWithText("Save Changes").performClick()
+		test.waitForIdle()
 		assertNotNull(overlays.pendingConfirm, "the taken chord raises the reassign prompt; strokes: $strokes")
 	}
 
 	/**
-	 * Enter on the reassign prompt reassigns the chord and leaves Preferences open.  The prompt only hears Enter
-	 * at all because the chip keeps its focus node once the capture ends: with focus on nothing, no key reaches
-	 * the shell.
+	 * Enter on the reassign prompt reassigns the chord and leaves Preferences open.
 	 */
 	@Test
 	fun enterOnTheReassignPromptReassignsAndLeavesPreferencesOpen() {
@@ -165,7 +239,9 @@ class KeybindingReassignKeysTest {
 		}
 	}
 
-	/** Escape on the reassign prompt cancels the prompt alone: the confirm outranks the overlay it was raised over. */
+	/**
+	 * Escape on the reassign prompt cancels the prompt alone: the confirm outranks the overlay it was raised over.
+	 */
 	@Test
 	fun escapeOnTheReassignPromptCancelsItAndLeavesPreferencesOpen() {
 		runComposeUiTest {
@@ -187,37 +263,105 @@ class KeybindingReassignKeysTest {
 	}
 
 	/**
-	 * Escape while the chip is waiting for a key cancels the capture, not Preferences.  The shell's root handler
-	 * previews every key before the chip does, so without the capture announced to it the overlay arm takes the
-	 * Escape and closes Preferences behind the chip.
+	 * Saving a chord the command does not hold yet binds it, without a prompt.
 	 */
 	@Test
-	fun escapeWhileCapturingCancelsTheCaptureAndLeavesPreferencesOpen() {
+	fun savingAnUnheldChordBindsItWithoutAPrompt() {
 		runComposeUiTest {
 			val overlays = ShellOverlayState().apply { settingsVisible = true }
 			val strokes = mutableListOf<String>()
-			mount(this, overlays, strokes)
-
-			onNodeWithText("Unbound").performClick()
+			val settings = mount(this, overlays, strokes)
+			shortcutEditor.open("test.unbound", ShortcutSlot.Primary)
 			waitForIdle()
-			onNodeWithText("Press a shortcut…").assertExists()
+
 			onNodeWithTag("root").performKeyInput {
-				keyDown(Key.Escape)
-				keyUp(Key.Escape)
+				keyDown(Key.F5)
+				keyUp(Key.F5)
 			}
 			waitForIdle()
+			onNodeWithText("Save Changes").performClick()
+			waitForIdle()
 
-			assertTrue(overlays.settingsVisible, "Escape cancels the capture, not Preferences; strokes: $strokes")
-			onNodeWithText("Unbound").assertExists()
-			onNodeWithText("Press a shortcut…").assertDoesNotExist()
+			assertNull(overlays.pendingConfirm, "an unheld chord is not a conflict; strokes: $strokes")
+			assertEquals("test.unbound", loadKeymap(settings).commandFor(parseKeyChord("F5")!!), "with the chord saved")
+		}
+	}
 
-			// With the capture over, Escape is the overlay's again.
+	/**
+	 * Reassigning a chord marks the command that lost it, so its row stays red until it is given another
+	 * binding - the user can see which setting gave its shortcut away.
+	 */
+	@Test
+	fun theReassignMarksTheCommandThatLostItsBinding() {
+		runComposeUiTest {
+			val overlays = ShellOverlayState().apply { settingsVisible = true }
+			val strokes = mutableListOf<String>()
+			val settings = mount(this, overlays, strokes)
+
+			shortcutEditor.open("test.unbound", ShortcutSlot.Primary)
+			waitForIdle()
 			onNodeWithTag("root").performKeyInput {
-				keyDown(Key.Escape)
-				keyUp(Key.Escape)
+				keyDown(Key.CtrlLeft)
+				keyDown(Key.S)
+				keyUp(Key.S)
+				keyUp(Key.CtrlLeft)
 			}
 			waitForIdle()
-			assertFalse(overlays.settingsVisible, "a second Escape closes Preferences; strokes: $strokes")
+			onNodeWithText("Save Changes").performClick()
+			waitForIdle()
+			assertNotNull(overlays.pendingConfirm, "the taken chord raises the prompt; strokes=$strokes")
+
+			onNodeWithText("Reassign").performClick()
+			waitForIdle()
+
+			assertEquals("test.bound", shortcutEditor.conflicted?.commandId, "the command that lost the chord is marked")
+			assertEquals("test.unbound", loadKeymap(settings).commandFor(parseKeyChord("primary+KeyS")!!), "and the chord moved")
+		}
+	}
+
+	/**
+	 * Giving the marked command a binding clears the mark.
+	 */
+	@Test
+	fun savingABindingClearsTheMark() {
+		runComposeUiTest {
+			val overlays = ShellOverlayState().apply { settingsVisible = true }
+			val strokes = mutableListOf<String>()
+			val settings = mount(this, overlays, strokes)
+
+			shortcutEditor.markConflicted("test.bound", ShortcutSlot.Primary)
+			shortcutEditor.open("test.bound", ShortcutSlot.Primary)
+			waitForIdle()
+			onNodeWithTag("root").performKeyInput {
+				keyDown(Key.F9)
+				keyUp(Key.F9)
+			}
+			waitForIdle()
+			onNodeWithText("Save Changes").performClick()
+			waitForIdle()
+
+			assertNull(shortcutEditor.conflicted, "the mark is cleared once the command has a binding again")
+			assertEquals("test.bound", loadKeymap(settings).commandFor(parseKeyChord("F9")!!), "and the binding is saved")
+		}
+	}
+
+	/**
+	 * Resetting a slot from its row button puts the preset's chord back.
+	 */
+	@Test
+	fun resettingASlotRestoresThePresetChord() {
+		runComposeUiTest {
+			val overlays = ShellOverlayState().apply { settingsVisible = true }
+			val strokes = mutableListOf<String>()
+			val settings = mount(this, overlays, strokes)
+			setPrimaryBinding(settings, "test.unbound", parseKeyChord("F6"))
+
+			// A slot with no binding renders no buttons, so only the two commands that hold a chord have a
+			// reset button - the second of them is this command.
+			onAllNodesWithContentDescription("Reset this shortcut")[1].performClick()
+			waitForIdle()
+
+			assertNull(loadKeymap(settings).slotsFor("test.unbound").primary, "with the slot back at its default")
 		}
 	}
 }

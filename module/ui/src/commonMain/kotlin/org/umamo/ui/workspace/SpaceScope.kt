@@ -1,6 +1,27 @@
 package org.umamo.ui.workspace
 
 /**
+ * Whether two scopes can hold at once: a scope over every space overlaps every other, and two scopes over
+ * named spaces overlap when they share one.
+ *
+ * Two commands whose scopes are disjoint therefore act on different places - the UV editor and the 2D
+ * viewport, say - and the same chord may serve each of them without ever competing.
+ *
+ * @param SpaceScope other The scope to test against.
+ * @return Boolean True when the two scopes share a space.
+ */
+fun SpaceScope.canOverlap(other: SpaceScope): Boolean {
+	val mine = kinds
+	val theirs = other.kinds
+
+	if (mine == null || theirs == null) {
+		return true
+	}
+
+	return mine.any { kind -> kind in theirs }
+}
+
+/**
  * The editor spaces something belongs to: a command, a sidebar panel, or a rule that holds over the work
  * surfaces alone.  Held once so every consumer that means "the work surfaces" reads the same set.
  *
@@ -19,8 +40,18 @@ sealed interface SpaceScope {
 	 */
 	fun appliesIn(kind: SpaceKind?): Boolean
 
+	/**
+	 * The spaces this scope covers, or null when it covers every space.
+	 *
+	 * @return Set<SpaceKind>? The spaces covered, or null for every space.
+	 */
+	val kinds: Set<SpaceKind>?
+
 	/** Belongs to every space, and to no space at all - the scope of a command that routes by nothing. */
 	data object Everywhere : SpaceScope {
+		/** Covers every space, so it names none. */
+		override val kinds: Set<SpaceKind>? get() = null
+
 		/**
 		 * Always applies.
 		 *
@@ -36,7 +67,7 @@ sealed interface SpaceScope {
 	 * @property Set<SpaceKind> kinds The spaces in the scope; never empty, so a scope that is allowed nowhere
 	 *   cannot be declared.
 	 */
-	data class Only(val kinds: Set<SpaceKind>) : SpaceScope {
+	data class Only(override val kinds: Set<SpaceKind>) : SpaceScope {
 		init {
 			require(kinds.isNotEmpty()) { "A scope over no space could never be shown; use Everywhere or name a space" }
 		}
