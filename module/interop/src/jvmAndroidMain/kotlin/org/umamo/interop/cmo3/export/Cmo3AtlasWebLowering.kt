@@ -14,6 +14,7 @@ import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.interop.cmo3.Cmo3TextureFrames
 import org.umamo.interop.cmo3.elementsOf
 import org.umamo.interop.cmo3.idStrOf
 import org.umamo.interop.cmo3.mutableGraphListOf
@@ -678,11 +679,11 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 		}
 
 		/**
-		 * Pack-in drawables: a fresh region input into the EXISTING extension (the shape
-		 * freshTextureInputExtension writes for a created drawable), the page's shared texture, and
-		 * the live input pointer when the document displays from the atlas.  The reconcile runs
-		 * before the drawable lowering, so storedUvsFor then sees the region and writes the repack's
-		 * page-frame coordinates verbatim.
+		 * Pack-in drawables: a fresh region input into the EXISTING extension ([atlasRegionInput], the
+		 * input a created drawable gets), the page's shared texture, and the live input pointer when the
+		 * document displays from the atlas.  The reconcile runs before the drawable lowering, so
+		 * [Cmo3TextureFrames.storedUvsOf] then finds the drawable sampling a page and writes the
+		 * repack's page-frame coordinates verbatim.
 		 */
 		private fun addPackInRegions() {
 			for (candidate in packInCandidates) {
