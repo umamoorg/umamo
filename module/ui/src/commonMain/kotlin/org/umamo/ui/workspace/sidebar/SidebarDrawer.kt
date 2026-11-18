@@ -65,6 +65,7 @@ import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.resources.*
 import org.umamo.ui.sidebar.LocalSidebarRegistry
 import org.umamo.ui.sidebar.SidebarContext
+import org.umamo.ui.theme.LocalRestingPointerIcon
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -195,7 +196,7 @@ private fun SidebarPanels(
 					.padding(vertical = SIDEBAR_EDGE_MARGIN)
 					.width(stackWidth)
 					// Only while a drag is live, so the controls' own hover cursors win otherwise.
-					.holdsHoverIcon(umamoPointerIcon(LocalUmamoCursors.ewScroll), held = resizing),
+					.holdsHoverIcon(umamoPointerIcon(LocalUmamoCursors.ewScroll), held = resizing, resting = LocalRestingPointerIcon.current),
 		) {
 			Box(modifier = Modifier.fillMaxWidth()) {
 				Column(

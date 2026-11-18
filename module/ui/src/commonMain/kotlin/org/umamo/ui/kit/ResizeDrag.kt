@@ -115,11 +115,13 @@ private class ResizeStroke {
  * Holds [icon] over this element and everything inside it while [held], and leaves the descendants' own cursors
  * alone otherwise: the cursor a drag shows for as long as it runs.  The icon is declared on a node present the
  * whole time, because a hover icon that appears only mid-drag is not resolved again until the pointer crosses a
- * node boundary, which mid-drag it may never do.
+ * node boundary, which mid-drag it may never do.  Between drags the node still shows [resting] over whatever
+ * has no cursor of its own, which is why the caller passes the resting pointer rather than the plain one.
  *
- * @param PointerIcon icon The cursor to hold.
- * @param Boolean held Whether a drag is running.
+ * @param PointerIcon icon    The cursor to hold.
+ * @param Boolean     held    Whether a drag is running.
+ * @param PointerIcon resting The cursor between drags: LocalRestingPointerIcon, so the busy pointer reaches inside.
  * @return Modifier This modifier with the hover icon appended.
  */
-fun Modifier.holdsHoverIcon(icon: PointerIcon, held: Boolean): Modifier =
-	pointerHoverIcon(icon = if (held) icon else PointerIcon.Default, overrideDescendants = held)
+fun Modifier.holdsHoverIcon(icon: PointerIcon, held: Boolean, resting: PointerIcon): Modifier =
+	pointerHoverIcon(icon = if (held) icon else resting, overrideDescendants = held)

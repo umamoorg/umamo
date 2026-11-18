@@ -45,7 +45,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
@@ -62,6 +61,7 @@ import org.umamo.ui.kit.menu.TextEditContextMenuArea
 import org.umamo.ui.kit.stackedShape
 import org.umamo.ui.kit.textentry.LocalInlineEditController
 import org.umamo.ui.kit.textentry.textEntrySurface
+import org.umamo.ui.theme.LocalRestingPointerIcon
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -551,9 +551,9 @@ private fun StepChevron(icon: UmamoIcon, onClick: () -> Unit, modifier: Modifier
 			modifier
 				.fillMaxHeight()
 				.width(16.dp)
-				// Takes back the plain pointer from the field's scrub cursor: this edge is a click target, not
-				// a drag zone, and the innermost hover icon wins.
-				.pointerHoverIcon(PointerIcon.Default)
+				// Takes back the resting pointer from the field's scrub cursor: this edge is a click target,
+				// not a drag zone, and the innermost hover icon wins.
+				.pointerHoverIcon(LocalRestingPointerIcon.current)
 				.background(if (hovered) colors.buttonHover else colors.controlBackground)
 				// Opaque fills over the field's own, and the chevrons show exactly WHEN the field is hovered -
 				// so without the tint here a keyed field loses 32dp of its signal at both ends on hover.

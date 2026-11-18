@@ -1,5 +1,6 @@
 package org.umamo.ui.theme
 
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.input.pointer.PointerIcon
 
 /*
@@ -13,6 +14,9 @@ import androidx.compose.ui.input.pointer.PointerIcon
  *
  * Both paths therefore render the SAME UmamoCursor definitions from Cursor.kt; a control never falls back
  * to a stock OS arrow, so the designed set applies outside the viewport too.
+ *
+ * A control that hands back the plain pointer over a cursor of its own shows [LocalRestingPointerIcon]
+ * rather than PointerIcon.Default, so the shell's busy pointer reaches inside it too.
  */
 
 /**
@@ -36,3 +40,12 @@ expect fun umamoPointerIcon(cursor: UmamoCursor): PointerIcon
  * @return PointerIcon A transparent (invisible) cursor, or the default where none can be built.
  */
 expect fun hiddenPointerIcon(): PointerIcon
+
+/**
+ * The pointer a region shows where it has no cursor of its own: the plain pointer, or the wait pointer while
+ * the shell reports the window busy.  A node that hands back the plain pointer over a descendant's cursor (a
+ * drag zone between drags, a click target inside a scrub field) shows this instead of PointerIcon.Default,
+ * because the innermost hover icon wins and the busy pointer would otherwise stop at that node's edge.
+ * Dynamic rather than static, since it changes while the app runs and only its few readers should recompose.
+ */
+val LocalRestingPointerIcon = compositionLocalOf { PointerIcon.Default }

@@ -37,6 +37,7 @@ import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.holdsHoverIcon
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
+import org.umamo.ui.theme.LocalRestingPointerIcon
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.umamoPointerIcon
@@ -158,7 +159,7 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 				.background(colors.panelBackground)
 				// Only while a drag is live: otherwise the label column's own hover cursors, and the separator band's,
 				// keep winning over this.
-				.holdsHoverIcon(umamoPointerIcon(LocalUmamoCursors.ewScroll), held = horizontalDrag)
+				.holdsHoverIcon(umamoPointerIcon(LocalUmamoCursors.ewScroll), held = horizontalDrag, resting = LocalRestingPointerIcon.current)
 				.trackWindowGestures(
 					window = viewState.window,
 					onWindowChange = { window -> viewState.window = window },

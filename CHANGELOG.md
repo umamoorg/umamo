@@ -14,6 +14,7 @@ Umamo is early alpha.
 * Pose Mode: 3D Depth Rotation - The ability to change the lattice surface shape between flat, cylinder, or sphere.  This allows creating rounded rotation poses easily.
 * UI: New Select menu and context menu with Select All of Type and Invert Selection of Type.
 * UI: The command palette now shows each command's icon beside its name.
+* UI: When opening, saving, importing, or exporting the cursor will now show a busy hourglass.
 
 ### Changed
 * UI: Menu bar entries and command buttons are now grayed out exactly when their command is unavailable, such as Import -> Artwork with a MOC3 open.

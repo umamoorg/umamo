@@ -43,6 +43,7 @@ import org.umamo.ui.kit.menu.TopLevelMenu
 import org.umamo.ui.l10n.ProvideAppLocale
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalSelection
+import org.umamo.ui.progress.LocalProgressTracker
 import org.umamo.ui.properties.LocalPropertyTabRegistry
 import org.umamo.ui.properties.PropertyTab
 import org.umamo.ui.properties.defaultPropertyTabRegistry
@@ -52,6 +53,7 @@ import org.umamo.ui.resources.workspace_new_name
 import org.umamo.ui.sidebar.LocalSidebarRegistry
 import org.umamo.ui.sidebar.SidebarRegistry
 import org.umamo.ui.sidebar.rememberSidebarRegistry
+import org.umamo.ui.theme.LocalRestingPointerIcon
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.workspace.LocalSpaceRegistry
@@ -160,16 +162,22 @@ fun EditorShell(
 	// The open document the key ladder hands its arms, read afresh for each key event.
 	val editorSession = LocalEditorSession.current
 	val selection = LocalSelection.current
+	// Whether a tracked operation has run past the grace, read as a flip so a task's steps recompose nothing here.
+	val busyPointer by collectBusyPointerAsState(LocalProgressTracker.current)
 	// The window-wide cursor: hidden under an armed relation pick (the shell draws the eyedropper
-	// itself), the editor's I-beam while text entry is live, and otherwise nothing of its own.
-	// Claiming it here rather than in each viewport is what makes a mode announce itself the
-	// instant it begins, wherever the pointer happens to be sitting.
+	// itself), the editor's I-beam while text entry is live, the wait pointer while a tracked operation
+	// runs, and otherwise nothing of its own.  Claiming it here rather than in each viewport is what makes
+	// a mode announce itself the instant it begins, wherever the pointer happens to be sitting.
 	val cursorClaim =
 		shellCursorClaim(
 			relationPickArmed = controllers.relationPick.request != null,
 			textEntryActive = controllers.inlineEditController.cancel != null,
+			busy = busyPointer,
 		)
 	val claimedPointerIcon = remember(cursorClaim) { cursorClaim.pointerIcon() }
+	// The busy pointer yields to the descendants' cursors, so the regions that hand back the plain pointer
+	// over a cursor of their own read this instead, and the wait pointer reaches inside them.
+	val restingPointerIcon = remember(cursorClaim) { cursorClaim.restingPointerIcon() }
 
 	// The keyboard root: the one focusable node the keyboard dispatches from, with the window's pointer
 	// observers.  Outside the locale key for the same reason as the effects above - a language switch that
@@ -186,7 +194,8 @@ fun EditorShell(
 				// hover icon that appears mid-gesture is not consulted until the pointer next MOVES, and
 				// text entry begins with a click the hand then rests on - the I-beam would never appear.
 				// The unclaimed case resolves to the plain pointer, which is what an unclaimed pointer
-				// already resolves to, so with no mode running the descendants still decide.
+				// already resolves to, so with no mode running the descendants still decide.  Busy does
+				// not override either, and only the icon changes with it, so the hit path never does.
 				.pointerHoverIcon(claimedPointerIcon, overrideDescendants = cursorClaim.overridesDescendants)
 				// The window-space pointer tracker for the shell cursor overlays.  The root surface inside
 				// fills this box from its origin, so the observer and the overlays agree on positions.
@@ -223,6 +232,7 @@ fun EditorShell(
 					LocalPropertyTabRegistry provides propertyTabRegistry,
 					LocalSidebarRegistry provides sidebarRegistry,
 					LocalViewportHost provides viewportHost,
+					LocalRestingPointerIcon provides restingPointerIcon,
 					*controllers.compositionLocals(),
 				) {
 					Surface(modifier = Modifier.fillMaxSize(), color = LocalUmamoColors.current.windowBackground) {

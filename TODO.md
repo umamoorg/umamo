@@ -156,8 +156,6 @@ See format planning document: docs/plan/uma-format.md
 * Glue intensity is keyable but has no Properties home(glue is not selectable).  See Claude Notes § Glue intensity has no editable home.
 
 ## UI
-* Viewport view styles - Top right, in the header area.
-* Viewport loading overlay and mouse busy pointer.
 * AreaHeader/Viewport2DHeaderControls
 	* Font size and icon sizes don't line up resulting in the font being 1px offset.(Lots of manual tweaking is required.)
 * Merge pie menu icons.
