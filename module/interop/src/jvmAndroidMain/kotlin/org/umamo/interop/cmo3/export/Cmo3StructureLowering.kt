@@ -430,7 +430,7 @@ internal class Cmo3StructureLowering(
 
 		// A layer-mode document whose created drawable has no model image keeps the atlas region active:
 		// it is the only input such a drawable has, and leaving the live pointer there is what keeps the
-		// file self-consistent.  The notice names the gap, matching what the property lowering reports
+		// file self-consistent.  The notice names the gap, matching what the document lowering reports
 		// for an EXISTING drawable in the same state - one reason, reported the same way from both paths.
 		if (edited.rendersFromSourceLayers && modelImage == null) {
 			notices.unsupported(ExportEntityCategory.Drawable, subjectName, ExportNoticeReason.NoTextureInputForDisplayMode)
