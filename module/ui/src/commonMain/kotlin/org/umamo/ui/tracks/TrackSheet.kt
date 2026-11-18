@@ -118,9 +118,9 @@ data class TrackLaneHit(
  *   move of a mark drag - what lets an owner preview a whole SELECTION following the one being dragged.
  * @param Function? onMarkDragEnd Invoked with the row, the dragged mark, and its released domain position.  Null
  *   leaves the marks in place: a press on one is then a click however far the pointer travels.
- * @param Function selectedMarkDragDelta A domain offset drawn on every SELECTED mark while a group drag is
- *   in flight, so the rest of the selection travels with the one under the hand instead of jumping on
- *   release.  In this axis's own units; the owner converts, since only it knows what the group is being
+ * @param Function selectedMarkDragDelta A domain offset drawn on every SELECTED mark, and on the selected part
+ *   of every partly-selected one, while a group drag is in flight, so the rest of the selection travels with
+ *   the one under the hand instead of jumping on release.  In this axis's own units; the owner converts, since only it knows what the group is being
  *   dragged along.  NULL means no group drag is in flight - distinct from 0f, which means one IS in flight
  *   but has been clamped to a standstill, and in that case the mark under the hand must stop with the rest
  *   instead of running on and snapping back.  A LAMBDA, read inside the lane's draw: a plain value would
@@ -131,6 +131,8 @@ data class TrackLaneHit(
  *   about a key at a position, the label is about the thing the row names.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit, for hover-aimed commands.
  * @param Function? onLaneBounds Reports each lane's window bounds, so a region gesture can resolve rows.
+ * @param Function? snapTargets The domain values a drag latches onto while Ctrl is held, asked at most once per
+ *   press, when Ctrl is first held, with the row and the mark pressed (null for empty track).
  * @param Dp markRadius Half-extent of a drawn mark, and the inset applied at both ends of the track region.
  */
 @Composable
@@ -154,6 +156,7 @@ fun TrackSheet(
 	labelMenuItems: ((TrackRow) -> List<MenuItem>)? = null,
 	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)? = null,
 	onLaneBounds: ((TrackRow, Rect) -> Unit)? = null,
+	snapTargets: ((TrackRow, TrackKeyMark?) -> List<Float>)? = null,
 	markRadius: Dp = TRACK_MARK_RADIUS,
 ) {
 	val lines = remember(rows, expandedKeys) { flattenTrackRows(rows, expandedKeys) }
@@ -185,6 +188,7 @@ fun TrackSheet(
 					labelMenuItems = labelMenuItems,
 					onLaneHover = onLaneHover,
 					onLaneBounds = onLaneBounds,
+					snapTargets = snapTargets,
 					markRadius = markRadius,
 				)
 			}

@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.TrackKeyRef
+import org.umamo.edit.keyform.TrackKeyDragAnchor
 import org.umamo.edit.keyform.moveTrackKeySelectingIt
 import org.umamo.runtime.model.Parameter
 import org.umamo.ui.action.LocalCommands
@@ -92,8 +93,9 @@ internal fun SectionHeader(name: String, collapsed: Boolean, onToggle: () -> Uni
  * @param Function onStageSelectedKeys Publishes a new selection WITHOUT a step of its own, for a gesture
  *   that commits one immediately afterwards (or has just committed one) - see EditorSession.stageKeySelection.
  * @param Function onDragSelectedKeys Previews (commit = false) or applies (commit = true) a drag of the
- *   WHOLE selection by a fraction of each key's parameter range.  Only the sheet can do this - the
- *   selection spans sections and a section sees only its own projection.
+ *   WHOLE selection by a fraction of each key's parameter range, with the key under the hand as the anchor
+ *   a commit lands exactly.  Only the sheet can do this - the selection spans sections and a section sees
+ *   only its own projection.
  * @param Boolean keysEditable Whether the mode lets keys change (EditorMode.editsKeys).  When it does not, a mark
  *   only selects - the lane gets no drag handlers, so it leaves its marks in place - and the lane menu's rows
  *   are grayed out.
@@ -114,7 +116,7 @@ internal fun KeyformSheetSection(
 	onToggleExpanded: (TrackRow) -> Unit,
 	onSelectedKeysChange: (Set<TrackKeyRef>) -> Unit,
 	onStageSelectedKeys: (Set<TrackKeyRef>) -> Unit,
-	onDragSelectedKeys: (Float, Boolean) -> Unit,
+	onDragSelectedKeys: (Float, TrackKeyDragAnchor?, Boolean) -> Unit,
 	keysEditable: Boolean,
 	selectedMarkDragDelta: () -> Float?,
 	onLaneBounds: (TrackRow, Rect) -> Unit,
@@ -238,7 +240,7 @@ internal fun KeyformSheetSection(
 					}
 
 					groupDragFraction(parameter, selection, draggedKeys, row.key in projection.groupRowKeys, mark, at)?.let { fraction ->
-						onDragSelectedKeys(fraction, false)
+						onDragSelectedKeys(fraction, null, false)
 					}
 				}
 			} else {
@@ -258,8 +260,9 @@ internal fun KeyformSheetSection(
 
 						if (groupFraction != null) {
 							// Commits the LIVE selection, which is the one the drag's start staged: the lane reports a
-							// drag's first move before it can report its release.
-							onDragSelectedKeys(groupFraction, true)
+							// drag's first move before it can report its release.  The anchor lands the keys under the
+							// hand exactly where they were let go, which the fraction alone rounds a few ULPs off.
+							onDragSelectedKeys(groupFraction, TrackKeyDragAnchor(parameter.id, mark.position, releasedAt), true)
 						} else if (!summary && track != null) {
 							// The dragged key ends up selected at the ordinal it lands on.
 							session.moveTrackKeySelectingIt(draggedKeys.single(), track, parameter, releasedAt, selection)
@@ -286,6 +289,25 @@ internal fun KeyformSheetSection(
 				} else {
 					keyableHover?.enter(KeyformHover(track, hit.value, hit.mark?.keyIndex, parameter.id, row.key))
 				}
+			}
+		},
+		// Ctrl latches a scrub onto the keys the section shows, and a key drag onto other rows' keys and the playhead.
+		// Asked at the press, with the same selection the drag itself derives, so the targets leave out exactly
+		// the keys that travel with the hand.
+		snapTargets = { row, mark ->
+			if (mark == null) {
+				scrubSnapTargets(projection.rows, projection.groupRowKeys)
+			} else {
+				val draggedKeys = projection.keysOfMark(parameter.id, row.key, mark.keyIndex)
+				markDragSnapTargets(
+					rows = projection.rows,
+					groupRowKeys = projection.groupRowKeys,
+					parameterId = parameter.id,
+					draggedKeys = draggedKeys,
+					moving = selectionDraggedWith(selectedKeys, draggedKeys),
+					startPosition = mark.position,
+					playhead = playhead,
+				)
 			}
 		},
 		labelMenuItems = { row -> labelMenuItemsFor(row, projection, session, labels) },

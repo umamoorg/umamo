@@ -19,6 +19,7 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -260,6 +261,112 @@ class KeyformGeometryEditsTest {
 		session.undo()
 		assertEquals(listOf(-30f, 0f, 30f), keysOf(session.model.value), "one undo restores both")
 		assertTrue(!session.canUndo.value, "because there was only ever one step")
+	}
+
+	/**
+	 * This suite's model with ParamAngleX over [min]..[max], the drawable keyed at [drawableKeys] and the warp
+	 * at [warpKeys].
+	 *
+	 * @param Float min The parameter's minimum.
+	 * @param Float max The parameter's maximum.
+	 * @param FloatArray drawableKeys The drawable's three keys.
+	 * @param FloatArray warpKeys The warp's three keys.
+	 * @return Pair The model and its parameter.
+	 */
+	private fun rangedModel(min: Float, max: Float, drawableKeys: FloatArray, warpKeys: FloatArray): Pair<PuppetModel, Parameter> {
+		val ranged = parameter.copy(min = min, max = max, default = min)
+		val base = model()
+		val drawable = base.drawables.single()
+		val warp = base.deformers.single() as Deformer.Warp
+		val puppet =
+			base.copy(
+				parameters = listOf(ranged),
+				drawables = listOf(drawable.copy(geometryGrid = KeyformGrid(listOf(KeyformAxis(angleX, drawableKeys)), meshGrid().cells))),
+				deformers =
+					listOf(warp.copy(geometryGrid = KeyformGrid(listOf(KeyformAxis(angleX, warpKeys)), assertNotNull(warp.geometryGrid).cells))),
+			)
+
+		return puppet to ranged
+	}
+
+	/** The warp's geometry axis keys after an edit. */
+	private fun warpKeysOf(puppet: PuppetModel): List<Float> =
+		assertNotNull((puppet.deformers.single() as Deformer.Warp).geometryGrid).axes.single().keys.toList()
+
+	/**
+	 * A stack of keys dragged by the hand lands exactly where the hand let go, though the fraction alone
+	 * rounds it a few ULPs short: 0.5 + 1 * (-0.4) is 0.099999994 in float32.
+	 */
+	@Test
+	fun theHandsStackLandsExactlyWhereItWasLetGo() {
+		val (puppet, ranged) = rangedModel(0f, 1f, floatArrayOf(0f, 0.5f, 1f), floatArrayOf(0f, 0.5f, 1f))
+		val stack =
+			listOf(
+				Triple(KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId)), ranged, 1),
+				Triple(KeyformTrackRef.Geometry(KeyformOwner.Deformer(deformerId)), ranged, 1),
+			)
+		val fraction = (0.1f - 0.5f) / 1f
+
+		val withoutHand = EditorSession(puppet)
+		withoutHand.dragTrackKeys(stack, fraction)
+		assertTrue(keysOf(withoutHand.model.value)[1] != 0.1f, "the fraction alone misses the target, so the hand is what lands it")
+
+		val session = EditorSession(puppet)
+		session.dragTrackKeys(stack, fraction, TrackKeyDragAnchor(angleX, from = 0.5f, to = 0.1f))
+
+		assertEquals(listOf(0f, 0.1f, 1f), keysOf(session.model.value))
+		assertEquals(listOf(0f, 0.1f, 1f), warpKeysOf(session.model.value), "the whole stack lands together")
+	}
+
+	/** A hand that crosses a neighbour still lands exactly, and reports the ordinal it lands on. */
+	@Test
+	fun aHandCrossingANeighbourLandsExactly() {
+		val (puppet, ranged) = rangedModel(-1f, 1f, floatArrayOf(-1f, 0f, 1f), floatArrayOf(-1f, 0f, 1f))
+		val session = EditorSession(puppet)
+		val stack =
+			listOf(
+				Triple(KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId)), ranged, 0),
+				Triple(KeyformTrackRef.Geometry(KeyformOwner.Deformer(deformerId)), ranged, 0),
+			)
+
+		val landed = session.dragTrackKeys(stack, (0.1f + 1f) / 2f, TrackKeyDragAnchor(angleX, from = -1f, to = 0.1f))
+
+		assertEquals(listOf(0f, 0.1f, 1f), keysOf(session.model.value))
+		assertEquals(listOf(1, 1), landed)
+	}
+
+	/** A key that does not start under the hand travels by the fraction, as it always has. */
+	@Test
+	fun theRestOfTheGroupTravelsByTheFraction() {
+		val (puppet, ranged) = rangedModel(0f, 1f, floatArrayOf(0f, 0.5f, 1f), floatArrayOf(0f, 0.7f, 1f))
+		val session = EditorSession(puppet)
+		val keys =
+			listOf(
+				Triple(KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId)), ranged, 1),
+				Triple(KeyformTrackRef.Geometry(KeyformOwner.Deformer(deformerId)), ranged, 1),
+			)
+
+		session.dragTrackKeys(keys, -0.4f, TrackKeyDragAnchor(angleX, from = 0.5f, to = 0.1f))
+
+		assertEquals(0.1f, keysOf(session.model.value)[1])
+		assertTrue(abs(warpKeysOf(session.model.value)[1] - 0.3f) < 1e-6f, "the warp key moved by the same share")
+	}
+
+	/** A wall that stops the group stops the hand short of where it was let go. */
+	@Test
+	fun aWallLimitedGroupIgnoresTheHand() {
+		val (puppet, ranged) = rangedModel(0f, 1f, floatArrayOf(0f, 0.5f, 1f), floatArrayOf(0.2f, 0.6f, 1f))
+		val session = EditorSession(puppet)
+		val keys =
+			listOf(
+				Triple(KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId)), ranged, 1),
+				Triple(KeyformTrackRef.Geometry(KeyformOwner.Deformer(deformerId)), ranged, 0),
+			)
+
+		session.dragTrackKeys(keys, -0.4f, TrackKeyDragAnchor(angleX, from = 0.5f, to = 0.1f))
+
+		assertEquals(0f, warpKeysOf(session.model.value)[0], "the warp key stopped at the wall")
+		assertTrue(abs(keysOf(session.model.value)[1] - 0.3f) < 1e-6f, "and the hand stopped with it, short of 0.1")
 	}
 
 	/**

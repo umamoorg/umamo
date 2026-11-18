@@ -116,9 +116,12 @@
 		* Implementation difficulty: This moves the UV vertex that has been disconnected from its sibling, which is one vertex in the mesh, on top of each other.  We will have to either walk the UV/mesh to find the sibling or store it.  Selected to Adjacent Unselected is only needed if rip is supported in UVs.
 * Relax/Pinch tools - deferred; needs brush machinery (radius cursor, per-stroke commits) that nothing else has yet.
 
-# Mesh and UV Editor Gizmos
+## Mesh and UV Editor Gizmos
 * Improvements
 	* Hold CTRL to enable snapping for rotation and grid placement.
+
+## Pie Menu
+* Restore the cardinal(number pad) layout of the pie menu number and make it a user interface setting.  Sequential and Cardinal.
 
 ## Shortcuts
 https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this demonstrating the shortcuts for Umamo.
@@ -138,9 +141,6 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 ## Parameters
 * Parameter templates:
 	* Need a way to apply these without having to do a fresh import.
-* Parameters Area Improvements
-	* Snap to key on the parameter scrubber, either by the context menu or a snapping option.  The keyform sheet can do this right by clicking on a parameter pip.
-		* I'm leaning towards a snapping option in the area header, but the header is a bit crowded right now.
 
 ## Tooltips
 * Consider swapping to BasicTooltipBox in the future to get rip of the desktop and Android split of TooltipArea.  BasicTooltipBox is more recent as of writing this, July 2026, is being actively iterated against.
