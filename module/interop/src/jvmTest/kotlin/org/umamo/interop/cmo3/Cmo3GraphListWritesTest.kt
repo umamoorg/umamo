@@ -47,7 +47,7 @@ class Cmo3GraphListWritesTest {
 		val bytes =
 			Cmo3FreshFile.assemble(
 				skeleton.root,
-				skeleton.iconEntries.map { icon -> Cmo3FreshFile.PngEntry(icon.path, icon.pngBytes) },
+				skeleton.iconEntries,
 				obfuscateKey = 0x49C74776.toInt(),
 			)
 		val archive = CaffCodec.read(bytes)

@@ -452,20 +452,20 @@ internal object Cmo3PageCropWeb {
 	 * binding per drawable.  The MOC3-origin path: the only raw material a bake leaves is the page,
 	 * so each drawable's patch is sliced back out of it (see the file comment).
 	 *
-	 * @param Cmo3Conversion.AtlasPage page       The page.
-	 * @param Int                      pageIndex  The page's index.
-	 * @param List                     regions    The crop-path drawables on the page, at least one.
-	 * @param CTextureAtlas            atlas      The page's atlas element.
-	 * @param GTexture2D               texture    The page's shared texture.
-	 * @param CropGroup                group      The crop web's model-image group.
-	 * @param Cmo3FreshChainNames      names      The document's shared definitions and naming counters.
-	 * @param MutableList              pngEntries The PNG entry collector.
-	 * @param MutableMap               bindingByDrawableId The binding collector.
-	 * @param Long                     nowMillis  The import timestamp the wrapper records.
+	 * @param Cmo3PageImage       page       The page.
+	 * @param Int                 pageIndex  The page's index.
+	 * @param List                regions    The crop-path drawables on the page, at least one.
+	 * @param CTextureAtlas       atlas      The page's atlas element.
+	 * @param GTexture2D          texture    The page's shared texture.
+	 * @param CropGroup           group      The crop web's model-image group.
+	 * @param Cmo3FreshChainNames names      The document's shared definitions and naming counters.
+	 * @param MutableList         pngEntries The PNG entry collector.
+	 * @param MutableMap          bindingByDrawableId The binding collector.
+	 * @param Long                nowMillis  The import timestamp the wrapper records.
 	 * @return LayeredImageWrapper The stand-in document's wrapper, for the texture manager's raw-image list.
 	 */
 	internal fun cropWeb(
-		page: Cmo3Conversion.AtlasPage,
+		page: Cmo3PageImage,
 		pageIndex: Int,
 		regions: List<Cmo3ImageChainBuilder.DrawableRegion>,
 		atlas: CTextureAtlas,
@@ -580,7 +580,7 @@ internal object Cmo3PageCropWeb {
 	 * @param Cmo3ImageChainBuilder.DrawableRegion region The drawable whose patch this is.
 	 * @param IntArray patch The patch rect on the page, [x0, y0, x1, y1] with an exclusive max.
 	 * @param CAffine pageFit The drawable's fitted page-to-canvas placement.
-	 * @param Cmo3Conversion.AtlasPage page The page.
+	 * @param Cmo3PageImage page The page.
 	 * @param RasterImage decodedPage The page's decoded pixels.
 	 * @param CropDocument document The page's stand-in document.
 	 * @param CTextureAtlas atlas The page's atlas element.
@@ -595,7 +595,7 @@ internal object Cmo3PageCropWeb {
 		region: Cmo3ImageChainBuilder.DrawableRegion,
 		patch: IntArray,
 		pageFit: CAffine,
-		page: Cmo3Conversion.AtlasPage,
+		page: Cmo3PageImage,
 		decodedPage: RasterImage,
 		document: CropDocument,
 		atlas: CTextureAtlas,

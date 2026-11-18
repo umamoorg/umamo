@@ -69,11 +69,8 @@ internal object Cmo3SkeletonBuilder {
 	/** The root parameter group's id string.  CMO3: CParameterGroupId idstr. */
 	internal const val ROOT_PARAMETER_GROUP_ID_STR: String = "ParamGroupRoot"
 
-	/** One embedded PNG the skeleton's icons reference: the archive entry path plus its bytes. */
-	internal class IconEntry(val path: String, val pngBytes: ByteArray)
-
 	/** The built spine: the fresh root object plus the icon PNGs its CImageIcons reference. */
-	internal class BlankSkeleton(val root: CModelSource, val iconEntries: List<IconEntry>)
+	internal class BlankSkeleton(val root: CModelSource, val iconEntries: List<Cmo3FreshFile.PngEntry>)
 
 	/**
 	 * Builds the blank spine for a fresh document.
@@ -101,7 +98,7 @@ internal object Cmo3SkeletonBuilder {
 		val iconPaths = listOf("image.png", "image_0.png", "image_1.png")
 		val icons =
 			Cmo3Icons.MODEL_ICON_SIZES.mapIndexed { sizeIndex, size ->
-				IconEntry(iconPaths[sizeIndex], if (modelThumbnail == null) blankPng(size) else Cmo3Icons.iconPngOf(modelThumbnail, size))
+				Cmo3FreshFile.PngEntry(iconPaths[sizeIndex], if (modelThumbnail == null) blankPng(size) else Cmo3Icons.iconPngOf(modelThumbnail, size))
 			}
 		val root =
 			CModelSource().apply {

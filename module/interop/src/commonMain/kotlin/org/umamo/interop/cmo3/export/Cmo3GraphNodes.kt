@@ -3,15 +3,19 @@ package org.umamo.interop.cmo3.export
 import org.umamo.format.cmo3.model.custom.CFloatColor
 import org.umamo.format.cmo3.model.custom.CLabelColor
 import org.umamo.format.cmo3.model.gen.CLabelColorType
+import org.umamo.format.cmo3.model.gen.CTextureInputExtension
+import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
 import org.umamo.format.cmo3.model.gen.KeyFormMorphTargetSet
 import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraintSet
 import org.umamo.format.cmo3.model.identity.Guid
+import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.format.cmo3.type.CArrayList
 
 /*
  * The small graph nodes an export writes fresh, the same way wherever it needs one: on the blank
- * skeleton, on the shells the structure lowering creates, on the keyform lowering's fresh forms, and
- * where the deformer and drawable lowerings move an entity under the root deformer.
+ * skeleton, on the shells the structure lowering creates, on the keyform lowering's fresh forms,
+ * where the deformer and drawable lowerings move an entity under the root deformer, and on a
+ * drawable that samples an atlas page, whether created or packed into a retained graph.
  */
 
 /**
@@ -76,4 +80,29 @@ internal fun undefinedLabelColor(): CLabelColor =
 		// CMO3: CLabelColor attr customizedColorInt (-1 = none) + CLabelColorType labelType.
 		customizedColorInt = -1
 		labelType = CLabelColorType.UNDEFINED
+	}
+
+/**
+ * A drawable's atlas-region input, sampling a page through the page-pixels-to-canvas placement that
+ * lays the drawable's texture patch over its canvas mesh.  The editor inverts that placement to draw
+ * the mesh over the texture in its atlas and mesh-edit views.
+ *
+ * CMO3: CTextureInput_TextureAtlasRegion fields textureAtlasGuid / inputImageLocalToCanvasTransform,
+ * with the ACTextureInput super's optionalTransformOnCanvas and owner backref.
+ *
+ * @param CTextureInputExtension extension               The drawable's texture-input extension, the input's owner.
+ * @param Any?                   atlasGuid               The page atlas's own guid instance.
+ * @param CAffine                inputImageLocalToCanvas The page-pixels-to-canvas placement.
+ * @return CTextureInput_TextureAtlasRegion The input.
+ */
+internal fun atlasRegionInput(
+	extension: CTextureInputExtension,
+	atlasGuid: Any?,
+	inputImageLocalToCanvas: CAffine,
+): CTextureInput_TextureAtlasRegion =
+	CTextureInput_TextureAtlasRegion().apply {
+		optionalTransformOnCanvas = CAffine()
+		_owner = extension
+		textureAtlasGuid = atlasGuid
+		inputImageLocalToCanvasTransform = inputImageLocalToCanvas
 	}

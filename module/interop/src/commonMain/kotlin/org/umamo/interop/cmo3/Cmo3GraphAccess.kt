@@ -5,6 +5,11 @@ import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CEditableMeshExtension
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
+import org.umamo.format.cmo3.model.gen.KeyOnParameter
+import org.umamo.format.cmo3.model.gen.KeyformBindingSource
+import org.umamo.format.cmo3.model.gen.KeyformGridAccessKey
+import org.umamo.format.cmo3.model.gen.KeyformGridSource
+import org.umamo.format.cmo3.model.gen.KeyformOnGrid
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 
@@ -65,6 +70,38 @@ internal fun displayNameOf(name: String?, fallback: String?): String = name?.tak
  */
 internal fun editableMeshOf(source: CArtMeshSource): GEditableMesh2? =
 	elementsOf(source._extensions).filterIsInstance<CEditableMeshExtension>().firstOrNull()?.editableMesh as? GEditableMesh2
+
+/**
+ * A keyform grid's axes: one binding per parameter, each holding that parameter's key values.
+ *
+ * CMO3: KeyformGridSource field keyformBindings, a list of KeyformBindingSource.
+ *
+ * @param KeyformGridSource grid The grid source.
+ * @return List<KeyformBindingSource> The bindings, in axis order.
+ */
+internal fun gridBindingsOf(grid: KeyformGridSource): List<KeyformBindingSource> = elementsOf(grid.keyformBindings).filterIsInstance<KeyformBindingSource>()
+
+/**
+ * A keyform grid's cells: each one a coordinate and a reference to the form at it.
+ *
+ * CMO3: KeyformGridSource field keyformsOnGrid, a list of KeyformOnGrid.
+ *
+ * @param KeyformGridSource grid The grid source.
+ * @return List<KeyformOnGrid> The cells.
+ */
+internal fun gridCellsOf(grid: KeyformGridSource): List<KeyformOnGrid> = elementsOf(grid.keyformsOnGrid).filterIsInstance<KeyformOnGrid>()
+
+/**
+ * A grid cell's coordinate: one key per bound parameter, naming the binding and the key's index in it.
+ *
+ * CMO3: KeyformOnGrid field accessKey -> KeyformGridAccessKey field _keyOnParameterList, a list of
+ * KeyOnParameter.
+ *
+ * @param KeyformOnGrid cell The cell.
+ * @return List<KeyOnParameter> The keys, empty when the cell carries no access key.
+ */
+internal fun cellKeysOf(cell: KeyformOnGrid): List<KeyOnParameter> =
+	elementsOf((cell.accessKey as? KeyformGridAccessKey)?._keyOnParameterList).filterIsInstance<KeyOnParameter>()
 
 /**
  * Whether a drawable carries a `CTextureInput_TextureAtlasRegion` in its texture-input extension - i.e.

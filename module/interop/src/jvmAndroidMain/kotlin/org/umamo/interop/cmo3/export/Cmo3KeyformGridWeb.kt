@@ -12,7 +12,10 @@ import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.KeyformBundle
+import org.umamo.interop.cmo3.cellKeysOf
 import org.umamo.interop.cmo3.elementsOf
+import org.umamo.interop.cmo3.gridBindingsOf
+import org.umamo.interop.cmo3.gridCellsOf
 import org.umamo.interop.cmo3.idStrOf
 import org.umamo.interop.cmo3.mutableGraphListOf
 import org.umamo.interop.cmo3.uuidOf
@@ -50,8 +53,7 @@ internal class Cmo3KeyformGridWeb(
 	 */
 	fun existingFormsByValues(gridSourceField: Any?, formsField: Any?): Map<String, Any> {
 		val gridSource = gridSourceField as? KeyformGridSource ?: return emptyMap()
-		val bindings =
-			elementsOf(gridSource.keyformBindings).filterIsInstance<KeyformBindingSource>()
+		val bindings = gridBindingsOf(gridSource)
 		val keysByBinding =
 			bindings.associateWith { binding ->
 				elementsOf(binding.keys).mapNotNull { (it as? Number)?.toFloat() }
@@ -63,13 +65,12 @@ internal class Cmo3KeyformGridWeb(
 				.associateBy { form -> uuidOf(form.guid) }
 		val byValues = HashMap<String, Any>()
 
-		for (cell in elementsOf(gridSource.keyformsOnGrid).filterIsInstance<KeyformOnGrid>()) {
+		for (cell in gridCellsOf(gridSource)) {
 			val form = formByUuid[uuidOf(cell.keyformGuid)] ?: continue
 			val values = HashMap<ParameterId, Float>()
-			val keyList = (cell.accessKey as? KeyformGridAccessKey)?._keyOnParameterList
 			var resolvable = true
 
-			for (keyOnParameter in elementsOf(keyList).filterIsInstance<KeyOnParameter>()) {
+			for (keyOnParameter in cellKeysOf(cell)) {
 				val binding = keyOnParameter.binding as? KeyformBindingSource ?: continue
 				val parameterId = parameterByBinding[binding] ?: continue
 				val keys = keysByBinding[binding] ?: continue
@@ -130,7 +131,7 @@ internal class Cmo3KeyformGridWeb(
 					editor.ensureChildSlot(owner, "ACParameterControllableSource", "keyformGridSource", "keyformMorphTargetSet")
 				}
 		val existingBindings =
-			elementsOf(gridSource.keyformBindings).filterIsInstance<KeyformBindingSource>()
+			gridBindingsOf(gridSource)
 				.associateBy { binding -> uuidOf(binding.parameterGuid) }
 		val bindingPerAxis = ArrayList<KeyformBindingSource>(bundle.axes.size)
 
@@ -217,7 +218,7 @@ internal class Cmo3KeyformGridWeb(
 	fun gridFormGuids(gridSourceField: Any?): Set<String> {
 		val gridSource = gridSourceField as? KeyformGridSource ?: return emptySet()
 
-		return elementsOf(gridSource.keyformsOnGrid).filterIsInstance<KeyformOnGrid>()
+		return gridCellsOf(gridSource)
 			.mapNotNull { cell -> uuidOf(cell.keyformGuid) }
 			.toSet()
 	}

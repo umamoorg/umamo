@@ -8,7 +8,6 @@ import org.umamo.format.cmo3.model.gen.CLayeredImage
 import org.umamo.format.cmo3.model.gen.CModelImageGroup
 import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.GTexture2D
-import org.umamo.format.cmo3.model.gen.GTransform2
 import org.umamo.format.cmo3.model.gen.LayerSet
 import org.umamo.format.cmo3.model.gen.LayeredImageWrapper
 import org.umamo.format.cmo3.model.identity.Guid
@@ -386,8 +385,8 @@ internal object Cmo3SourceLayerWeb {
 				Cmo3PageWeb.packedEntry(
 					atlas = atlas,
 					modelImageGuid = modelImage.guid,
-					atlasLocalToCanvas = affineOf(entryHalf),
-					packing = Cmo3PageWeb.writePacking(GTransform2(), tilePlacement),
+					atlasLocalToCanvas = entryHalf,
+					placement = tilePlacement,
 				),
 			)
 

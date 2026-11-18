@@ -11,7 +11,6 @@ import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
 import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.GTexture2D
-import org.umamo.format.cmo3.model.gen.GTransform2
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.type.CAffine
@@ -110,7 +109,7 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 	 * @param List recomposedPages The pages composed for the edited model's packing, in its page order.
 	 * @return Result Whether the reconcile ran, and whether it dropped structure.
 	 */
-	fun reconcile(recomposedPages: List<Cmo3Conversion.AtlasPage>): Result {
+	fun reconcile(recomposedPages: List<Cmo3PageImage>): Result {
 		val plan = classify(recomposedPages) ?: return Result.Declined
 
 		return plan.apply()
@@ -123,7 +122,7 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 	 * @param List recomposedPages The pages composed for the edited model's packing, in its page order.
 	 * @return Plan? What the mutation steps need, or null to decline.
 	 */
-	private fun classify(recomposedPages: List<Cmo3Conversion.AtlasPage>): Plan? {
+	private fun classify(recomposedPages: List<Cmo3PageImage>): Plan? {
 		if (recomposedPages.isEmpty()) {
 			return null
 		}
@@ -413,7 +412,7 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 	 * @property Set                  reconciledTileIds           The lineage roots whose layer web is minted or rewritten.
 	 */
 	private inner class Plan(
-		val recomposedPages: List<Cmo3Conversion.AtlasPage>,
+		val recomposedPages: List<Cmo3PageImage>,
 		val atlasList: MutableList<Any?>,
 		val newPageCount: Int,
 		val siteByTileId: Map<String, AtlasEntrySite>,
@@ -607,8 +606,8 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 					Cmo3PageWeb.packedEntry(
 						atlas = destination,
 						modelImageGuid = modelImage.guid,
-						atlasLocalToCanvas = affineOf(entryHalf),
-						packing = Cmo3PageWeb.writePacking(GTransform2(), newPlacement),
+						atlasLocalToCanvas = entryHalf,
+						placement = newPlacement,
 					)
 				mutableGraphListOf(destination.modelImages)?.add(entry)
 			}
@@ -695,15 +694,7 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 					}
 				// CMO3: CArtMeshSource field texture - the page's shared GTexture2D.
 				candidate.source.texture = pageTextureFor(newPlacement.pageIndex)
-				val region =
-					CTextureInput_TextureAtlasRegion().apply {
-						// CMO3: CTextureInput_TextureAtlasRegion fields textureAtlasGuid +
-						// inputImageLocalToCanvasTransform (ACTextureInput super carries the owner backref).
-						optionalTransformOnCanvas = CAffine()
-						_owner = candidate.extension
-						textureAtlasGuid = destination.guid
-						inputImageLocalToCanvasTransform = affineOf(inputAffine)
-					}
+				val region = atlasRegionInput(candidate.extension, destination.guid, affineOf(inputAffine))
 				mutableGraphListOf(candidate.extension._textureInputs)?.add(region)
 
 				if (!edited.rendersFromSourceLayers) {

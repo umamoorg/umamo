@@ -26,7 +26,6 @@ import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSourceSet
 import org.umamo.format.cmo3.model.gen.CRotationDeformerSource
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
-import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
 import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
 import org.umamo.format.cmo3.model.gen.ColorComposition
 import org.umamo.format.cmo3.model.gen.KeyformGridAccessKey
@@ -406,17 +405,7 @@ internal class Cmo3StructureLowering(
 		val extension = CTextureInputExtension()
 		val atlasRegion =
 			binding.textureAtlasGuid?.let { atlasGuid ->
-				CTextureInput_TextureAtlasRegion().apply {
-					// CMO3: CTextureInput_TextureAtlasRegion fields textureAtlasGuid +
-					// inputImageLocalToCanvasTransform (ACTextureInput super carries the owner backref).
-					// The transform places the atlas page's pixel frame on the canvas so this drawable's
-					// texture patch coincides with its canvas mesh - the editor inverts it to draw the mesh
-					// over the texture in the atlas and mesh-edit views.
-					optionalTransformOnCanvas = CAffine()
-					_owner = extension
-					textureAtlasGuid = atlasGuid
-					inputImageLocalToCanvasTransform = binding.inputImageLocalToCanvasTransform
-				}
+				atlasRegionInput(extension, atlasGuid, checkNotNull(binding.inputImageLocalToCanvasTransform))
 			}
 		val modelImage =
 			binding.modelImageGuid?.let { imageGuid ->

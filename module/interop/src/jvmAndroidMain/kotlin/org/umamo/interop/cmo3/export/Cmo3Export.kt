@@ -119,7 +119,7 @@ object Cmo3Export {
 		edited: PuppetModel,
 		target: Cmo3Model,
 		drawableTextureBindings: Map<String, Cmo3DrawableTextureBinding> = emptyMap(),
-		recomposedPages: List<Cmo3Conversion.AtlasPage> = emptyList(),
+		recomposedPages: List<Cmo3PageImage> = emptyList(),
 		tileRasters: (AtlasTileId) -> RasterImage? = { null },
 		nowMillis: Long = 0L,
 		modelThumbnail: RasterImage? = null,

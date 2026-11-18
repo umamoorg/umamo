@@ -284,6 +284,23 @@ internal object Cmo3PageWeb {
 			atlasLocalToCanvasTransform = atlasLocalToCanvas
 			materialLocalToAtlasTransform = packing
 		}
+
+	/**
+	 * [packedEntry] at a runtime placement: the atlas-to-canvas half from its six components, and the
+	 * packing origin the placement records.
+	 *
+	 * @param CTextureAtlas  atlas              The page the entry lives in.
+	 * @param Any?           modelImageGuid     The model image's own guid instance.
+	 * @param FloatArray     atlasLocalToCanvas The atlas-to-canvas half, all six components.
+	 * @param AtlasPlacement placement          Where the art sits on the page.
+	 * @return ModelImageEntry The entry.
+	 */
+	internal fun packedEntry(
+		atlas: CTextureAtlas,
+		modelImageGuid: Any?,
+		atlasLocalToCanvas: FloatArray,
+		placement: AtlasPlacement,
+	): ModelImageEntry = packedEntry(atlas, modelImageGuid, affineOf(atlasLocalToCanvas), writePacking(GTransform2(), placement))
 }
 
 /**

@@ -71,7 +71,7 @@ internal object Cmo3ImageChainBuilder {
 	 */
 	internal fun populate(
 		root: CModelSource,
-		pages: List<Cmo3Conversion.AtlasPage>,
+		pages: List<Cmo3PageImage>,
 		regionsByPage: List<List<DrawableRegion>>,
 		nowMillis: Long,
 		fromSourceLayers: Boolean = false,
