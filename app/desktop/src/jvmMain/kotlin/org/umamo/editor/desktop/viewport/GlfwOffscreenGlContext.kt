@@ -28,11 +28,17 @@ internal class GlfwOffscreenGlContext : OffscreenGlContext {
 		failure = null
 
 		try {
+			// glfwInit on macOS takes over the NSApplication delegate that AWT's open-file and quit handlers need
+			// (MacAppDelegate.kt), so the delegate is captured first and handed back after.
+			val appKitDelegate = currentAppKitDelegate()
+
 			if (!GLFW.glfwInit()) {
 				failure = "glfwInit failed: ${lastGlfwError()}"
 
 				return false
 			}
+
+			restoreAppKitDelegate(appKitDelegate)
 
 			GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
 			GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
