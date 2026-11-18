@@ -19,7 +19,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.isTertiaryPressed
@@ -63,6 +62,7 @@ import org.umamo.storage.UmamoLog
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.model.DrawableThumbnailProvider
 import org.umamo.ui.model.PuppetRenderSync
+import org.umamo.ui.theme.LocalRestingPointerIcon
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.umamoPointerIcon
@@ -546,6 +546,9 @@ fun rememberPuppetViewportHost(
 					// forever once the cursor set changed (a per-theme override).
 					val panCursor = LocalUmamoCursors.nsewScroll
 					val grabCursor = remember(panCursor) { umamoPointerIcon(panCursor) }
+					// Not the plain pointer between pans: this node is the viewport's innermost hover icon, so
+					// the shell's busy pointer shows over the canvas only through it.
+					val restingCursor = LocalRestingPointerIcon.current
 					var panning by remember(areaId) { mutableStateOf(false) }
 					var overlap by remember(areaId) { mutableStateOf<OverlapState?>(null) }
 					// Where the pointer last was in this area, tracked at the HOST rather than inside a gizmo
@@ -564,7 +567,7 @@ fun rememberPuppetViewportHost(
 							modifier =
 								Modifier
 									.fillMaxSize()
-									.pointerHoverIcon(if (panning) grabCursor else PointerIcon.Default)
+									.pointerHoverIcon(if (panning) grabCursor else restingCursor)
 									.tracksAreaPointer(areaId, areaPointer)
 									.pointerInput(areaId) {
 										viewportNavigation(service, areaId, session) { panning = it }

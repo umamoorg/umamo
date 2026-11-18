@@ -8,8 +8,8 @@ import org.umamo.edit.EditorSession
 import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.cmo3AtlasPages
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
 import org.umamo.render.encodeAtlasPng
 import org.umamo.testkit.skipTest
 import org.umamo.ui.model.SessionAtlasPages

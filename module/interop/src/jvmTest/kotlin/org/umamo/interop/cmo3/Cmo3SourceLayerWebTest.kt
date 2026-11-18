@@ -31,6 +31,18 @@ import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.fittedInto
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.export.Cmo3FreshFile
+import org.umamo.interop.cmo3.export.Cmo3Icons
+import org.umamo.interop.cmo3.export.Cmo3ImageChainBuilder
+import org.umamo.interop.cmo3.export.Cmo3PageImage
+import org.umamo.interop.cmo3.export.Cmo3SkeletonBuilder
+import org.umamo.interop.cmo3.export.Cmo3SourceLayerWeb
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasIngest
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
+import org.umamo.interop.cmo3.import.cmo3SourceArtOf
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
@@ -121,9 +133,9 @@ class Cmo3SourceLayerWebTest {
 			sources = sources,
 		)
 
-	private val page = Cmo3Conversion.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, ByteArray(pageSize * pageSize * 4) { 0x40 })), pageSize, pageSize)
+	private val page = Cmo3PageImage(PngCodec.write(RasterImage(pageSize, pageSize, ByteArray(pageSize * pageSize * 4) { 0x40 })), pageSize, pageSize)
 
-	private fun names(entries: Any?): List<String> = Cmo3Import.elementsOf(entries).filterIsInstance<ACLayerEntry>().map { entry -> entry.name.orEmpty() }
+	private fun names(entries: Any?): List<String> = elementsOf(entries).filterIsInstance<ACLayerEntry>().map { entry -> entry.name.orEmpty() }
 
 	@Test
 	fun theRoutingTakesEveryTileWithARasterAndARowInInventoryOrder() {
@@ -202,7 +214,7 @@ class Cmo3SourceLayerWebTest {
 			)
 		assertEquals(0, chain.cropDrawableCount, "nothing took the crop path")
 		val textureManager = skeleton.root.textureManager as CTextureManager
-		val images = Cmo3Import.elementsOf(textureManager._rawImages).filterIsInstance<LayeredImageWrapper>().map { wrapper -> wrapper.image as CLayeredImage }
+		val images = elementsOf(textureManager._rawImages).filterIsInstance<LayeredImageWrapper>().map { wrapper -> wrapper.image as CLayeredImage }
 		assertEquals(listOf("a.psd", "b.clip"), images.map { image -> image.name }, "one layered image per file, no stand-in")
 		val imageA = images[0]
 		assertEquals("/art/a.psd", (imageA.psdFile as FileRef).textPath)
@@ -214,36 +226,36 @@ class Cmo3SourceLayerWebTest {
 		// The folder tree: Head/Eyes holds the eye, the rest sits at the root, in file order.
 		val rootA = imageA._rootLayer as CLayerGroup
 		assertEquals(listOf("Head", "Hair", "Guide"), names(rootA._children))
-		val head = Cmo3Import.elementsOf(rootA._children).filterIsInstance<CLayerGroup>().single()
-		val eyes = Cmo3Import.elementsOf(head._children).filterIsInstance<CLayerGroup>().single()
+		val head = elementsOf(rootA._children).filterIsInstance<CLayerGroup>().single()
+		val eyes = elementsOf(head._children).filterIsInstance<CLayerGroup>().single()
 		assertEquals("Eyes", eyes.name)
 		assertEquals(listOf("Eye"), names(eyes._children))
 		assertEquals(listOf("root", "Head", "Eyes", "Eye", "Hair", "Guide"), names(imageA.layerSet?.let { set -> (set as LayerSet)._layerEntryList }), "the flat set lists groups and layers in walk order")
 
 		// Each layer's rect is the art frame at the row's origin; the identifier carries the lyid.
-		val eye = Cmo3Import.elementsOf(eyes._children).filterIsInstance<CLayer>().single()
+		val eye = elementsOf(eyes._children).filterIsInstance<CLayer>().single()
 		val eyeBounds = eye.boundsOnImageDoc as CRect
 		assertEquals(listOf(10, 20, 4, 4), listOf(eyeBounds.x, eyeBounds.y, eyeBounds.width, eyeBounds.height))
 		val eyeIdentifier = eye.layerIdentifier as CLayerIdentifier
 		assertEquals("00-00-06-28", eyeIdentifier.layerId, "1576 as four hex bytes")
 		assertEquals(1576, eyeIdentifier.layerIdValue_testImpl)
 		assertEquals("Eye", eyeIdentifier.layerName)
-		val wing = Cmo3Import.elementsOf((images[1]._rootLayer as CLayerGroup)._children).filterIsInstance<CLayer>().single()
+		val wing = elementsOf((images[1]._rootLayer as CLayerGroup)._children).filterIsInstance<CLayer>().single()
 		val wingIdentifier = wing.layerIdentifier as CLayerIdentifier
 		assertNull(wingIdentifier.layerId, "a uuid key has no Photoshop id to write")
 		assertEquals(-1, wingIdentifier.layerIdValue_testImpl)
 
 		// One model image per layer at a pure translation; one group per file.
-		val groups = Cmo3Import.elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()
+		val groups = elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()
 		assertEquals(listOf("a.psd", "b.clip"), groups.map { group -> group.groupName })
-		val imagesA = Cmo3Import.elementsOf(groups[0]._modelImages).filterIsInstance<CModelImage>()
+		val imagesA = elementsOf(groups[0]._modelImages).filterIsInstance<CModelImage>()
 		assertEquals(listOf("Eye", "Hair", "Guide"), imagesA.map { modelImage -> modelImage.name as String })
 		val eyePlacement = imagesA[0]._materialLocalToCanvasTransform as CAffine
 		assertEquals(listOf(1f, 0f, 10f, 0f, 1f, 20f), listOf(eyePlacement.m00, eyePlacement.m01, eyePlacement.m02, eyePlacement.m10, eyePlacement.m11, eyePlacement.m12))
 
 		// Entries for the placed tiles only, off their placements; the guide has none.
-		val atlas = Cmo3Import.elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>().single()
-		val entries = Cmo3Import.elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>()
+		val atlas = elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>().single()
+		val entries = elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>()
 		assertEquals(3, entries.size, "eye, hair, wing")
 		val eyeEntry = assertNotNull(entries.firstOrNull { entry -> entry.modelImageGuid == imagesA[0].guid }, "the eye has an entry")
 		val eyePacking = eyeEntry.materialLocalToAtlasTransform as GTransform2
@@ -299,7 +311,7 @@ class Cmo3SourceLayerWebTest {
 			Cmo3.read(
 				Cmo3FreshFile.assemble(
 					skeleton.root,
-					skeleton.iconEntries.map { icon -> Cmo3FreshFile.PngEntry(icon.path, icon.pngBytes) } + chain.pngEntries,
+					skeleton.iconEntries + chain.pngEntries,
 					obfuscateKey = 0x1234ABCD,
 				),
 			)
@@ -329,12 +341,12 @@ class Cmo3SourceLayerWebTest {
 		val rereadEye = assertNotNull(rereadArt.layers.firstOrNull { layer -> layer.id.raw == "lyid:1576" }, "the eye reads back as a source layer: ${rereadArt.layers.map { layer -> layer.id.raw }}")
 		assertContentEquals(gradient(1).rgba, rereadEye.raster.rgba, "the eye's pixels read back")
 		// Every written drawable carries its icons through the codec, at distinct entries.
-		val rereadMeshes = Cmo3Import.elementsOf((rereadRoot.drawableSourceSet as CDrawableSourceSet)._sources).filterIsInstance<CArtMeshSource>()
+		val rereadMeshes = elementsOf((rereadRoot.drawableSourceSet as CDrawableSourceSet)._sources).filterIsInstance<CArtMeshSource>()
 		val rereadIconPaths = ArrayList<String>()
 
 		for (mesh in rereadMeshes) {
 			for ((icon, size) in listOf(mesh.icon32 to 32, mesh.icon16 to 16)) {
-				val path = assertNotNull(Cmo3Icons.archivePathOf(icon), "${Cmo3Import.idStrOf(mesh.id)} has a ${size}px icon")
+				val path = assertNotNull(Cmo3Icons.archivePathOf(icon), "${idStrOf(mesh.id)} has a ${size}px icon")
 				val decoded = PngCodec.read(assertNotNull(reread.archive.byPath(path), "icon '$path' is embedded").content)
 				assertEquals(size to size, decoded.width to decoded.height)
 				rereadIconPaths.add(path)
@@ -364,16 +376,16 @@ class Cmo3SourceLayerWebTest {
 		}
 
 		// The written guide has the corpus shape, samples the very raster its model image holds, and shows from it.
-		val guideMesh = rereadMeshes.single { mesh -> Cmo3Import.idStrOf(mesh.id) == "Guide" }
+		val guideMesh = rereadMeshes.single { mesh -> idStrOf(mesh.id) == "Guide" }
 		assertEquals(TextureState.MODEL_IMAGE, guideMesh.textureState)
-		val guideExtension = Cmo3Import.elementsOf(guideMesh._extensions).filterIsInstance<CTextureInputExtension>().single()
-		val guideInput = Cmo3Import.elementsOf(guideExtension._textureInputs).single() as CTextureInput_ModelImage
+		val guideExtension = elementsOf(guideMesh._extensions).filterIsInstance<CTextureInputExtension>().single()
+		val guideInput = elementsOf(guideExtension._textureInputs).single() as CTextureInput_ModelImage
 		assertSame(guideInput, guideExtension.currentTextureInputData, "the model image is current")
 		val rereadGuideImage =
-			Cmo3Import.elementsOf((rereadRoot.textureManager as CTextureManager)._modelImageGroups)
+			elementsOf((rereadRoot.textureManager as CTextureManager)._modelImageGroups)
 				.filterIsInstance<CModelImageGroup>()
-				.flatMap { group -> Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
-				.single { modelImage -> Cmo3Import.uuidOf(modelImage.guid) == Cmo3Import.uuidOf(guideInput._modelImageGuid) }
+				.flatMap { group -> elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
+				.single { modelImage -> uuidOf(modelImage.guid) == uuidOf(guideInput._modelImageGuid) }
 		assertSame(rereadGuideImage._filteredImage, (guideMesh.texture as GTexture2D).srcImageResource, "one resource, shared by reference as the editor writes it")
 		assertEquals(Cmo3StoredFrame.Cache, Cmo3TextureFrames(rereadRoot).storedFrameOf(guideMesh), "its coordinates are in the cache frame")
 		assertNull(tileByKey.getValue("lyid:9").placement, "and its tile is still unplaced")

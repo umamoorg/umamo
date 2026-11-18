@@ -11,14 +11,17 @@ import org.umamo.edit.structure.withDrawableDeleted
 import org.umamo.edit.structure.withDrawableDuplicated
 import org.umamo.edit.structure.withPartDeleted
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.cmo3.caff.CaffArchive
+import org.umamo.format.cmo3.caff.CaffCodec
+import org.umamo.format.cmo3.edit
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.DrawableField
 import org.umamo.interop.EntityDiff
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
-import org.umamo.interop.cmo3.Cmo3Export
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.diffPuppetModels
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.OrgChild
@@ -29,6 +32,7 @@ import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertTrue
 
 /**
@@ -136,6 +140,8 @@ class Cmo3ExportStructureRoundTripTest {
 
 	private fun sampleOrSkip(): File = sample ?: skipTest("cmo3.sample not present; skipping structure round-trip test")
 
+	private fun mainXmlOf(cmo3Bytes: ByteArray): ByteArray = CaffCodec.read(cmo3Bytes).firstByTag(CaffArchive.TAG_MAIN_XML)!!.content
+
 	@Test
 	fun parameterCreateAndDeleteSurviveRoundTrip() {
 		val file = sampleOrSkip()
@@ -210,6 +216,24 @@ class Cmo3ExportStructureRoundTripTest {
 				puppet.withDrawableDeleted(puppet.drawables.first().id)
 			}
 		assertLossless(result, "drawable delete")
+	}
+
+	/**
+	 * The export prunes the shared pool once after its deletions, so the written file holds nothing a
+	 * second prune would drop.  Without that prune the deleted drawable's pooled objects stay in the file.
+	 */
+	@Test
+	fun aDeleteLeavesNothingUnreachableInTheSharedPool() {
+		val file = sampleOrSkip()
+		val cmo3 = Cmo3.read(file.readBytes())
+		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
+		val puppet = Cmo3Import.fromModelSource(modelSource)
+		Cmo3Export.apply(puppet.withDrawableDeleted(puppet.drawables.first().id), cmo3)
+		val exported = Cmo3.write(cmo3)
+		val prunedAgain = Cmo3.read(exported)
+		prunedAgain.edit().pruneUnreachableShared()
+
+		assertContentEquals(mainXmlOf(exported), mainXmlOf(Cmo3.write(prunedAgain)), "a second prune changed the written document")
 	}
 
 	@Test

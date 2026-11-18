@@ -10,7 +10,7 @@ import org.lwjgl.opengl.GL20
 import org.lwjgl.opengl.GL30
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.render.eval.DeformerWorld
 import org.umamo.render.eval.MeshBlendState
 import org.umamo.render.eval.RotationWorld

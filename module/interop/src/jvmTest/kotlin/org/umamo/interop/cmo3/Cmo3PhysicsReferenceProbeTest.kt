@@ -58,35 +58,35 @@ class Cmo3PhysicsReferenceProbeTest {
 			val root = Cmo3.read(file).root as? CModelSource ?: continue
 			// CMO3: CModelSource field parameterSourceSet -> CParameterSourceSet field _sources.
 			val parameterSources =
-				Cmo3Import.elementsOf((root.parameterSourceSet as? CParameterSourceSet)?._sources).filterIsInstance<CParameterSource>()
+				elementsOf((root.parameterSourceSet as? CParameterSourceSet)?._sources).filterIsInstance<CParameterSource>()
 			val parameterGuids = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
 			parameterSources.mapNotNullTo(parameterGuids) { source -> source.guid }
-			val parameterUuids = parameterSources.mapNotNull { source -> Cmo3Import.uuidOf(source.guid) }.toSet()
+			val parameterUuids = parameterSources.mapNotNull { source -> uuidOf(source.guid) }.toSet()
 			// CMO3: CModelSource field physicsSettingsSourceSet -> CPhysicsSettingsSourceSet fields
 			// _sourceCubismPhysics / selectedCubismPhysics.
 			val physicsSet = root.physicsSettingsSourceSet as? CPhysicsSettingsSourceSet ?: continue
 			val sourceList = physicsSet._sourceCubismPhysics
 			val selected = physicsSet.selectedCubismPhysics
 			val containerShape =
-				"list=${sourceList?.let { it::class.simpleName }} of ${Cmo3Import.elementsOf(sourceList).map { element -> element?.let { it::class.simpleName } }.toSet()} " +
+				"list=${sourceList?.let { it::class.simpleName }} of ${elementsOf(sourceList).map { element -> element?.let { it::class.simpleName } }.toSet()} " +
 					"selected=${selected?.let { it::class.simpleName }}"
 			containerShapes[containerShape] = (containerShapes[containerShape] ?: 0) + 1
-			val settings = Cmo3Import.elementsOf(sourceList).filterIsInstance<CPhysicsSettingsSource>()
+			val settings = elementsOf(sourceList).filterIsInstance<CPhysicsSettingsSource>()
 			settingCount += settings.size
 
 			fun tally(role: String, reference: Any?) {
 				val shape =
 					"$role ${reference?.let { it::class.simpleName }} " +
 						"sharedGuidObject=${reference != null && reference in parameterGuids} " +
-						"uuidResolves=${Cmo3Import.uuidOf(reference) in parameterUuids}"
+						"uuidResolves=${uuidOf(reference) in parameterUuids}"
 				referenceShapes[shape] = (referenceShapes[shape] ?: 0) + 1
 			}
 
 			for (setting in settings) {
 				// CMO3: CPhysicsSettingsSource fields inputs / outputs -> CPhysicsInput field source,
 				// CPhysicsOutput field destination.
-				Cmo3Import.elementsOf(setting.inputs).filterIsInstance<CPhysicsInput>().forEach { input -> tally("input", input.source) }
-				Cmo3Import.elementsOf(setting.outputs).filterIsInstance<CPhysicsOutput>().forEach { output -> tally("output", output.destination) }
+				elementsOf(setting.inputs).filterIsInstance<CPhysicsInput>().forEach { input -> tally("input", input.source) }
+				elementsOf(setting.outputs).filterIsInstance<CPhysicsOutput>().forEach { output -> tally("output", output.destination) }
 			}
 
 			println("physics references: ${file.name} -> ${settings.size} settings")

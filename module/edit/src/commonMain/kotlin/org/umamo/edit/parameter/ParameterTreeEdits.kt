@@ -7,6 +7,7 @@ import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.findParameterGroup
 import org.umamo.runtime.model.materializedParameterTree
 
 /*
@@ -212,7 +213,7 @@ private fun collectSubjectNodes(tree: List<ParameterNode>, subject: ParameterMov
 		}
 
 		is ParameterMoveSubject.Group -> {
-			val found = findGroupNode(tree, subject.id)
+			val found = findParameterGroup(tree, subject.id)
 
 			if (found == null) {
 				emptyList()
@@ -247,31 +248,6 @@ private fun collectLeafIds(nodes: List<ParameterNode>): Set<ParameterId> {
 	walk(nodes)
 
 	return ids
-}
-
-/**
- * The group node with [groupId] anywhere in [nodes], or null.
- *
- * @param List<ParameterNode> nodes The node list to search.
- * @param ParameterGroupId groupId The group to find.
- * @return ParameterNode.Group? The group node, or null when there is none.
- */
-private fun findGroupNode(nodes: List<ParameterNode>, groupId: ParameterGroupId): ParameterNode.Group? {
-	for (node in nodes) {
-		if (node is ParameterNode.Group) {
-			if (node.id == groupId) {
-				return node
-			}
-
-			val nested = findGroupNode(node.children, groupId)
-
-			if (nested != null) {
-				return nested
-			}
-		}
-	}
-
-	return null
 }
 
 /**

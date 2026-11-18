@@ -4,9 +4,10 @@ import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.interop.ExportReport
-import org.umamo.interop.cmo3.Cmo3Conversion
-import org.umamo.interop.cmo3.Cmo3Export
-import org.umamo.interop.cmo3.modelOrderPages
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.export.Cmo3PageImage
+import org.umamo.interop.cmo3.export.modelOrderPages
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.deriveAtlasTextures
@@ -70,7 +71,7 @@ fun prepareCmo3Export(
 			val recomposedPages =
 				if (effectiveTextures !== document.textures) {
 					effectiveTextures.atlases.map { page ->
-						Cmo3Conversion.AtlasPage(encodeAtlasPng(page), page.width, page.height)
+						Cmo3PageImage(encodeAtlasPng(page), page.width, page.height)
 					}
 				} else {
 					emptyList()
@@ -99,7 +100,7 @@ fun prepareCmo3Export(
 			val result =
 				Cmo3Conversion.freshCmo3(
 					puppet = edited,
-					pages = effectiveTextures.atlases.map { page -> Cmo3Conversion.AtlasPage(encodeAtlasPng(page), page.width, page.height, decoded = page.asRasterImage()) },
+					pages = effectiveTextures.atlases.map { page -> Cmo3PageImage(encodeAtlasPng(page), page.width, page.height, decoded = page.asRasterImage()) },
 					pageIndexByDrawableId = effectiveTextures.atlasIndexByDrawableId,
 					modelName = modelName,
 					nowMillis = nowMillis,
@@ -198,10 +199,10 @@ fun renderCmo3Export(
  * @param Moc3Document document The MOC3-origin document being converted.
  * @return List The pages, in decoded page order.
  */
-internal fun conversionPagesFor(document: Moc3Document): List<Cmo3Conversion.AtlasPage> =
+internal fun conversionPagesFor(document: Moc3Document): List<Cmo3PageImage> =
 	document.pagePngs().mapIndexed { pageIndex, pngBytes ->
 		val decoded = document.textures.atlases[pageIndex]
-		Cmo3Conversion.AtlasPage(pngBytes = pngBytes, width = decoded.width, height = decoded.height, decoded = decoded.asRasterImage())
+		Cmo3PageImage(pngBytes = pngBytes, width = decoded.width, height = decoded.height, decoded = decoded.asRasterImage())
 	}
 
 /**
@@ -211,7 +212,7 @@ internal fun conversionPagesFor(document: Moc3Document): List<Cmo3Conversion.Atl
  * @property Map  pageIndexByDrawableId Each drawable id's page index into [pages].
  */
 internal class ConversionPages(
-	val pages: List<Cmo3Conversion.AtlasPage>,
+	val pages: List<Cmo3PageImage>,
 	val pageIndexByDrawableId: Map<String, Int>,
 )
 
@@ -234,7 +235,7 @@ internal fun conversionPagesFor(document: UmaDocument, edited: PuppetModel, effe
 	val stored = document.storedPages?.takeIf { pageSet -> effectiveTextures === document.textures && pageSet.pageBytes.size == effectiveTextures.atlases.size }
 	val renderPages =
 		effectiveTextures.atlases.mapIndexed { pageIndex, page ->
-			Cmo3Conversion.AtlasPage(stored?.pageBytes?.get(pageIndex) ?: encodeAtlasPng(page), page.width, page.height, decoded = page.asRasterImage())
+			Cmo3PageImage(stored?.pageBytes?.get(pageIndex) ?: encodeAtlasPng(page), page.width, page.height, decoded = page.asRasterImage())
 		}
 
 	if (stored == null) {
@@ -244,12 +245,12 @@ internal fun conversionPagesFor(document: UmaDocument, edited: PuppetModel, effe
 	val derived by lazy { deriveAtlasTextures(edited, document.artRasters, effectiveTextures.premultipliedAlpha) }
 	val resolved =
 		modelOrderPages(edited, renderPages, effectiveTextures.atlasIndexByDrawableId) { modelPageIndex ->
-			derived?.atlases?.getOrNull(modelPageIndex)?.let { page -> Cmo3Conversion.AtlasPage(encodeAtlasPng(page), page.width, page.height, decoded = page.asRasterImage()) }
+			derived?.atlases?.getOrNull(modelPageIndex)?.let { page -> Cmo3PageImage(encodeAtlasPng(page), page.width, page.height, decoded = page.asRasterImage()) }
 				?: run {
 					UmamoLog.warn("CMO3 export: no image shows atlas page ${modelPageIndex + 1}, so it is written transparent")
 					val modelPage = edited.atlas.pages[modelPageIndex]
 					val blank = RasterImage(modelPage.width, modelPage.height, ByteArray(modelPage.width * modelPage.height * 4))
-					Cmo3Conversion.AtlasPage(PngCodec.write(blank), blank.width, blank.height, decoded = blank)
+					Cmo3PageImage(PngCodec.write(blank), blank.width, blank.height, decoded = blank)
 				}
 		}
 

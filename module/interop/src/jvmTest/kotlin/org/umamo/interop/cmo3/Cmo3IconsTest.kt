@@ -4,6 +4,8 @@ import org.umamo.format.cmo3.model.custom.CWritableImage
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.fittedInto
+import org.umamo.interop.cmo3.export.Cmo3FreshFile
+import org.umamo.interop.cmo3.export.Cmo3Icons
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals

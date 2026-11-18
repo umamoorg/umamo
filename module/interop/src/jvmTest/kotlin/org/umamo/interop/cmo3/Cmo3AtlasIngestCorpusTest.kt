@@ -14,6 +14,8 @@ import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.format.psd.PsdReader
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3SourceArtOf
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.atlasBindingFor
 import org.umamo.runtime.model.atlasPixelOf

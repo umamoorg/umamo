@@ -3,8 +3,8 @@ package org.umamo.edit.export
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.ExportReport
-import org.umamo.interop.cmo3.Cmo3Export
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.diffPuppetModels
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId

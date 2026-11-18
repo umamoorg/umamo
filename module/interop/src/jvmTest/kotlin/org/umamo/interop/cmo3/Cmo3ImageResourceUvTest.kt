@@ -16,6 +16,8 @@ import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.atlasPixelOf
 import org.umamo.testkit.skipTest

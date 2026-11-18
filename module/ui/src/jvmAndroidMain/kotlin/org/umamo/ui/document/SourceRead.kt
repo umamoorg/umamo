@@ -8,7 +8,7 @@ import org.umamo.format.art.SourceLayerKind
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.art.documentSourceArtOf
 import org.umamo.interop.art.placedFor
-import org.umamo.interop.cmo3.cmo3SourceArtOf
+import org.umamo.interop.cmo3.import.cmo3SourceArtOf
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.PuppetModel

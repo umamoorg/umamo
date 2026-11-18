@@ -13,6 +13,8 @@ import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.cropped
 import org.umamo.format.raster.fittedInto
+import org.umamo.interop.cmo3.export.Cmo3Icons
+import org.umamo.interop.cmo3.import.walkLayeredImage
 import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
@@ -148,7 +150,7 @@ class Cmo3IconDifferentialTest {
 			)
 		}
 
-		for (wrapper in Cmo3Import.elementsOf(textureManager._rawImages).filterIsInstance<LayeredImageWrapper>()) {
+		for (wrapper in elementsOf(textureManager._rawImages).filterIsInstance<LayeredImageWrapper>()) {
 			val image = wrapper.image as? CLayeredImage ?: continue
 
 			for (walked in walkLayeredImage(image)) {
@@ -159,8 +161,8 @@ class Cmo3IconDifferentialTest {
 			}
 		}
 
-		for (group in Cmo3Import.elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
-			for (modelImage in Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
+		for (group in elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
+			for (modelImage in elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
 				val resource = modelImage._filteredImage as? CImageResource ?: continue
 				val art = PngCodec.read(cmo3.extractLayerPng(resource) ?: continue)
 				compare("model image ${modelImage.name}", art, 16, modelImage.icon16)

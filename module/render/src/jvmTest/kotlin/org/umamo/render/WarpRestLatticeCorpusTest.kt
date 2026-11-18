@@ -2,7 +2,7 @@ package org.umamo.render
 
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.render.eval.DrawableSpaceResolver
 import org.umamo.render.eval.PoseParameters
 import org.umamo.render.eval.RotationWorld

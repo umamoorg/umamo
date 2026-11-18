@@ -12,7 +12,7 @@ import org.umamo.format.moc3.json.Cdi3Json
 import org.umamo.format.moc3.json.Model3Json
 import org.umamo.format.raster.RasterCodec
 import org.umamo.format.raster.rasterToSourceArt
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.restMeshesToCanvasSpace

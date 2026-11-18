@@ -17,8 +17,8 @@ import org.umamo.geometry.locate.TriangleLocator
 import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.interop.art.mesh.ArtMeshSettings
 import org.umamo.interop.art.mesh.generateArtMesh
-import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.cmo3AtlasIngest
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasIngest
 import org.umamo.render.eval.CpuDeformationEvaluator
 import org.umamo.render.eval.DrawableSpaceResolver
 import org.umamo.render.eval.worldToCanvas

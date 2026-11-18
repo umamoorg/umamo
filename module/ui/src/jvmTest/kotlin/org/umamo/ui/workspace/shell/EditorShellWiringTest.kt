@@ -1,9 +1,11 @@
 package org.umamo.ui.workspace.shell
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onAllNodesWithText
@@ -16,6 +18,7 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.settings.Settings
 import org.umamo.storage.OkioAppStorage
+import org.umamo.testkit.skipTest
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.defaultSettingsJson
@@ -25,8 +28,14 @@ import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.repack.AtlasRepackRefusal
 import org.umamo.ui.model.repack.AtlasRepackRefusalReason
 import org.umamo.ui.model.repack.AtlasRepackReport
+import org.umamo.ui.progress.LocalProgressTracker
+import org.umamo.ui.progress.ProgressLabels
+import org.umamo.ui.progress.ProgressTracker
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.workspace_new_name
+import org.umamo.ui.theme.LocalRestingPointerIcon
+import org.umamo.ui.workspace.SpaceDescriptor
+import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.commands.commandFixtureSession
 import org.umamo.ui.workspace.commands.shellCommandTables
 import org.umamo.ui.workspace.layout.InterfaceLayout
@@ -37,7 +46,7 @@ import kotlin.test.assertNotEquals
 
 /**
  * Mounts the whole shell and reads back what it wires: the commands it registers, in the order the palette
- * lists them, and the modal overlays a command raises.
+ * lists them, the modal overlays a command raises, and the resting pointer it hands the area tree.
  *
  * The command tables are tested one by one elsewhere; what only a mounted shell shows is the order its
  * registration effects run in, which is the order every command reaches the registry - and so the palette -
@@ -127,6 +136,48 @@ class EditorShellWiringTest {
 	}
 
 	/**
+	 * A tracked operation past its grace hands every area the wait pointer as its resting pointer, so the
+	 * regions that hand back the plain pointer show it too, and the operation's end hands back the plain one.
+	 */
+	@Test
+	fun aBusyOperationHandsTheAreasTheWaitPointer() =
+		runComposeUiTest {
+			val waitPointer = ShellCursorClaim.Busy.pointerIcon()
+
+			if (waitPointer == PointerIcon.Default) {
+				skipTest("the toolkit bakes no custom cursor here, so the wait pointer cannot be told from the plain one")
+			}
+
+			val settings = bundledSettings()
+			val tracker = ProgressTracker()
+			var restingSeen: PointerIcon? = null
+			val base = defaultSpaceRegistry()
+			val probeSpaces =
+				SpaceKind.entries.associateWith { kind ->
+					val descriptor = base.descriptor(kind)
+					SpaceDescriptor(kind, descriptor.title, descriptor.icon) {
+						val resting = LocalRestingPointerIcon.current
+						SideEffect { restingSeen = resting }
+					}
+				}
+			setContent {
+				CompositionLocalProvider(LocalSettings provides settings, LocalProgressTracker provides tracker) {
+					EditorShell(spaceOverrides = probeSpaces)
+				}
+			}
+			waitForIdle()
+			assertEquals(PointerIcon.Default, runOnIdle { restingSeen }, "with nothing running the areas rest on the plain pointer")
+
+			val task = tracker.begin(ProgressLabels.MODEL_EXPORTING, listOf("rig.cmo3"))
+			mainClock.advanceTimeBy(BUSY_POINTER_GRACE_MS + GRACE_MARGIN_MILLIS)
+			assertEquals(waitPointer, runOnIdle { restingSeen }, "past the grace the areas rest on the wait pointer")
+
+			task.finish()
+			waitForIdle()
+			assertEquals(PointerIcon.Default, runOnIdle { restingSeen }, "the task's end hands back the plain pointer")
+		}
+
+	/**
 	 * Mounts the shell over the bundled default settings, with [session] open.
 	 *
 	 * @param ComposeUiTest   test     The running UI test.
@@ -165,5 +216,8 @@ class EditorShellWiringTest {
 
 		/** The repack alert's line for the one refused tile, in English. */
 		const val REFUSAL_LINE = "Hair - Source artwork layer could not be decoded."
+
+		/** How far past the busy pointer's grace the clock steps: two frames, for the flip and its recomposition. */
+		const val GRACE_MARGIN_MILLIS = 32L
 	}
 }

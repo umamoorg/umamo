@@ -20,9 +20,9 @@ import org.umamo.format.png.PngCodec
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.art.SourceArtImportOptions
-import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.cmo3AtlasPages
-import org.umamo.interop.cmo3.cmo3SourceArtOf
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
+import org.umamo.interop.cmo3.import.cmo3SourceArtOf
 import org.umamo.render.encodeAtlasPng
 import org.umamo.runtime.model.lineageRoot
 import org.umamo.testkit.skipTest

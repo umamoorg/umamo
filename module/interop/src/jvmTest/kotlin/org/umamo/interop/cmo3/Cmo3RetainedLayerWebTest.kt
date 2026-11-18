@@ -29,6 +29,15 @@ import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.fittedInto
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.export.Cmo3Icons
+import org.umamo.interop.cmo3.export.Cmo3PageImage
+import org.umamo.interop.cmo3.export.Cmo3PageWeb
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasIngest
+import org.umamo.interop.cmo3.import.cmo3SourceArtOf
+import org.umamo.interop.cmo3.import.walkLayeredImage
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.ArtSourceLayer
@@ -83,7 +92,7 @@ class Cmo3RetainedLayerWebTest {
 	private fun drawable(id: String, tile: AtlasTile, left: Float, top: Float): Drawable =
 		Drawable(DrawableId(id), id, null, BlendMode.Normal, emptyList(), quad(left, top), null, atlasTileId = tile.id)
 
-	private val page = Cmo3Conversion.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, ByteArray(pageSize * pageSize * 4) { 0x40 })), pageSize, pageSize)
+	private val page = Cmo3PageImage(PngCodec.write(RasterImage(pageSize, pageSize, ByteArray(pageSize * pageSize * 4) { 0x40 })), pageSize, pageSize)
 
 	/**
 	 * A retained graph: an artwork-origin fixture (one file, an eye in Head/Eyes and hair at the root,
@@ -129,10 +138,10 @@ class Cmo3RetainedLayerWebTest {
 	private fun mainXmlOf(model: Cmo3Model): ByteArray = CaffCodec.read(Cmo3.write(model)).firstByTag(CaffArchive.TAG_MAIN_XML)!!.content
 
 	private fun imagesOf(root: CModelSource): List<CLayeredImage> =
-		Cmo3Import.elementsOf((root.textureManager as CTextureManager)._rawImages).filterIsInstance<LayeredImageWrapper>().map { wrapper -> wrapper.image as CLayeredImage }
+		elementsOf((root.textureManager as CTextureManager)._rawImages).filterIsInstance<LayeredImageWrapper>().map { wrapper -> wrapper.image as CLayeredImage }
 
 	private fun meshesOf(root: CModelSource): List<CArtMeshSource> =
-		Cmo3Import.elementsOf((root.drawableSourceSet as CDrawableSourceSet)._sources).filterIsInstance<CArtMeshSource>()
+		elementsOf((root.drawableSourceSet as CDrawableSourceSet)._sources).filterIsInstance<CArtMeshSource>()
 
 	private fun iconPath(icon: Any?): String? = ((icon as? CImageIcon)?.image as? CWritableImage)?.image?.archivePath
 
@@ -171,7 +180,7 @@ class Cmo3RetainedLayerWebTest {
 		val retainedRoot = retained.root as CModelSource
 		val retainedEyeLayer = walkLayeredImage(imagesOf(retainedRoot).single()).first { walked -> walked.key == "lyid:1576" }.layer
 		val eyeIcon64Path = assertNotNull(Cmo3Icons.archivePathOf(retainedEyeLayer.icon64))
-		val eyeLMesh = meshesOf(retainedRoot).first { mesh -> Cmo3Import.idStrOf(mesh.id) == "EyeL" }
+		val eyeLMesh = meshesOf(retainedRoot).first { mesh -> idStrOf(mesh.id) == "EyeL" }
 		val eyeLIcon32Path = assertNotNull(Cmo3Icons.archivePathOf(eyeLMesh.icon32))
 		val eyeLIcon32Before = assertNotNull(retained.archive.byPath(eyeLIcon32Path)).content
 		val modelIcon64Path = assertNotNull(Cmo3Icons.archivePathOf(retainedRoot._icon64))
@@ -213,25 +222,25 @@ class Cmo3RetainedLayerWebTest {
 
 		// The model image and entry: the canvas placement is the new origin, the entry pair composes to it.
 		val modelImages =
-			Cmo3Import.elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()
-				.flatMap { group -> Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
-		val eyeImage = assertNotNull(modelImages.firstOrNull { modelImage -> Cmo3Import.uuidOf(modelImage.guid) == eyeTile.id.raw })
+			elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()
+				.flatMap { group -> elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
+		val eyeImage = assertNotNull(modelImages.firstOrNull { modelImage -> uuidOf(modelImage.guid) == eyeTile.id.raw })
 		val eyePlacement = eyeImage._materialLocalToCanvasTransform as CAffine
 		assertEquals(listOf(1f, 0f, 12f, 0f, 1f, 24f), listOf(eyePlacement.m00, eyePlacement.m01, eyePlacement.m02, eyePlacement.m10, eyePlacement.m11, eyePlacement.m12))
 		assertEquals(6 to 6, (eyeImage._filteredImage as CImageResource).let { resource -> resource.width to resource.height })
-		val atlas = Cmo3Import.elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>().single()
-		val entries = Cmo3Import.elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>()
+		val atlas = elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>().single()
+		val entries = elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>()
 		assertEquals(4, entries.size, "eye, hair, brow, wing")
-		val eyeEntry = assertNotNull(entries.firstOrNull { entry -> Cmo3Import.uuidOf(entry.modelImageGuid) == eyeTile.id.raw })
+		val eyeEntry = assertNotNull(entries.firstOrNull { entry -> uuidOf(entry.modelImageGuid) == eyeTile.id.raw })
 		assertEquals(2f to 8f, ((eyeEntry.materialLocalToAtlasTransform as GTransform2).position as GVector2).let { position -> position.x to position.y })
 		val eyeAtlasToCanvas = eyeEntry.atlasLocalToCanvasTransform as CAffine
 		assertEquals(10f, eyeAtlasToCanvas.m02, 1e-5f, "translate(12, 24) composed with the placement's inverse")
 		assertEquals(16f, eyeAtlasToCanvas.m12, 1e-5f)
-		val groups = Cmo3Import.elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()
+		val groups = elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()
 		assertEquals(listOf("a.psd", "c.clip"), groups.map { group -> group.groupName }, "one group per file")
 
 		// Every icon a minted layer or image references is an archive entry, on a path of its own.
-		val images = Cmo3Import.elementsOf(textureManager._rawImages).filterIsInstance<LayeredImageWrapper>().map { wrapper -> wrapper.image as CLayeredImage }
+		val images = elementsOf(textureManager._rawImages).filterIsInstance<LayeredImageWrapper>().map { wrapper -> wrapper.image as CLayeredImage }
 		val iconPaths = ArrayList<String>()
 
 		for (image in images) {
@@ -257,7 +266,7 @@ class Cmo3RetainedLayerWebTest {
 		val eyeLayerBack = walkLayeredImage(images[0]).first { walked -> walked.key == "lyid:1576" }.layer
 		assertEquals(eyeIcon64Path, Cmo3Icons.archivePathOf(eyeLayerBack.icon64), "the rewritten layer keeps its icon entry")
 		assertContentEquals(gradient(6, 11).fittedInto(64).rgba, PngCodec.read(assertNotNull(reread.archive.byPath(eyeIcon64Path)).content).rgba, "which now holds the new raster's fit")
-		val eyeLBack = meshesOf(rereadRoot).first { mesh -> Cmo3Import.idStrOf(mesh.id) == "EyeL" }
+		val eyeLBack = meshesOf(rereadRoot).first { mesh -> idStrOf(mesh.id) == "EyeL" }
 		assertEquals(eyeLIcon32Path, Cmo3Icons.archivePathOf(eyeLBack.icon32), "EyeL keeps its icon entry")
 		val eyeLIcon32After = assertNotNull(reread.archive.byPath(eyeLIcon32Path)).content
 		assertTrue(!eyeLIcon32After.contentEquals(eyeLIcon32Before), "EyeL's icon was re-rendered")
@@ -269,7 +278,7 @@ class Cmo3RetainedLayerWebTest {
 		)
 
 		for (name in listOf("Brow", "Wing")) {
-			val mesh = meshesOf(rereadRoot).first { candidate -> Cmo3Import.idStrOf(candidate.id) == name }
+			val mesh = meshesOf(rereadRoot).first { candidate -> idStrOf(candidate.id) == name }
 
 			for ((icon, size) in listOf(mesh.icon32 to 32, mesh.icon16 to 16)) {
 				val decoded = PngCodec.read(assertNotNull(reread.archive.byPath(assertNotNull(Cmo3Icons.archivePathOf(icon), "$name has a ${size}px icon"))).content)
@@ -310,17 +319,17 @@ class Cmo3RetainedLayerWebTest {
 		val root = retained.root as CModelSource
 		val textureManager = root.textureManager as CTextureManager
 		val hairImage =
-			Cmo3Import.elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()
-				.flatMap { group -> Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
-				.first { modelImage -> Cmo3Import.uuidOf(modelImage.guid) == hairTile.id.raw }
+			elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()
+				.flatMap { group -> elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
+				.first { modelImage -> uuidOf(modelImage.guid) == hairTile.id.raw }
 		val copyPath = retained.nextImageFileBufPath()
 		val copyPng = PngCodec.write(RasterImage(32, 32, ByteArray(32 * 32 * 4) { 0x22 }))
-		val copy = Cmo3ImageChainBuilder.pageImageResource(copyPath, 32, 32, copyPng.size)
+		val copy = Cmo3PageWeb.pageImageResource(copyPath, 32, 32, copyPng.size)
 		retained.addLayerPng(copy, copyPng)
 		val manager = hairImage.cachedImageManager as CCachedImageManager
 		manager.cachedImages =
 			ArrayList<Any?>(
-				Cmo3Import.elementsOf(manager.cachedImages) +
+				elementsOf(manager.cachedImages) +
 					CCachedImage().apply {
 						_cachedImageResource = copy
 						isSharedImage = false
@@ -338,13 +347,13 @@ class Cmo3RetainedLayerWebTest {
 							}
 					},
 			)
-		val hairMesh = meshesOf(root).first { mesh -> Cmo3Import.idStrOf(mesh.id) == "Hair" }
+		val hairMesh = meshesOf(root).first { mesh -> idStrOf(mesh.id) == "Hair" }
 		hairMesh.texture =
-			Cmo3ImageChainBuilder.pageTexture("Hair", copy).apply {
-				transformImageResource01toLogical01 = Cmo3ImageChainBuilder.paddedFrameAffine(4, 4)
+			Cmo3PageWeb.pageTexture("Hair", copy).apply {
+				transformImageResource01toLogical01 = Cmo3PageWeb.paddedFrameAffine(4, 4)
 				mipmapLevel = 32
 			}
-		val scale = Cmo3ImageChainBuilder.paddedFrameAffine(4, 4)
+		val scale = Cmo3PageWeb.paddedFrameAffine(4, 4)
 		hairMesh.uvs = FloatArray(hairArtUvs.size) { componentIndex -> hairArtUvs[componentIndex] * if (componentIndex % 2 == 0) scale.m00 else scale.m11 }
 
 		return Cmo3.read(Cmo3.write(retained)) to copyPath
@@ -380,15 +389,15 @@ class Cmo3RetainedLayerWebTest {
 		val reread = Cmo3.read(Cmo3.write(retained))
 		val root = reread.root as CModelSource
 		val hairImage =
-			Cmo3Import.elementsOf((root.textureManager as CTextureManager)._modelImageGroups).filterIsInstance<CModelImageGroup>()
-				.flatMap { group -> Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
-				.first { modelImage -> Cmo3Import.uuidOf(modelImage.guid) == hairTile.id.raw }
-		val hairMesh = meshesOf(root).first { mesh -> Cmo3Import.idStrOf(mesh.id) == "Hair" }
+			elementsOf((root.textureManager as CTextureManager)._modelImageGroups).filterIsInstance<CModelImageGroup>()
+				.flatMap { group -> elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
+				.first { modelImage -> uuidOf(modelImage.guid) == hairTile.id.raw }
+		val hairMesh = meshesOf(root).first { mesh -> idStrOf(mesh.id) == "Hair" }
 		val texture = hairMesh.texture as GTexture2D
 		assertSame(hairImage._filteredImage, texture.srcImageResource, "the hair samples its model image's new raster, not the copy")
 		val scale = texture.transformImageResource01toLogical01 as CAffine
 		assertEquals(listOf(6f / 64f, 0f, 0f, 0f, 6f / 64f, 0f), listOf(scale.m00, scale.m01, scale.m02, scale.m10, scale.m11, scale.m12), "with the new size's cache scale")
-		assertEquals(Cmo3ImageChainBuilder.FULL_RESOLUTION_MIPMAP_LEVEL, texture.mipmapLevel)
+		assertEquals(Cmo3PageWeb.FULL_RESOLUTION_MIPMAP_LEVEL, texture.mipmapLevel)
 		// A packed drawable over its raster stores the raster's frame: the edited page coordinates off the
 		// reloaded 6px tile's placement.
 		val storedAfter = hairMesh.uvs as FloatArray
@@ -408,11 +417,11 @@ class Cmo3RetainedLayerWebTest {
 		// The copy is gone from the graph and the archive; the eye still samples the page.
 		assertNull(reread.archive.byPath(copyPath), "the copy's pixels are removed")
 		val cachedResources =
-			Cmo3Import.elementsOf((hairImage.cachedImageManager as CCachedImageManager).cachedImages).filterIsInstance<CCachedImage>().map { cached -> cached._cachedImageResource as? CImageResource }
+			elementsOf((hairImage.cachedImageManager as CCachedImageManager).cachedImages).filterIsInstance<CCachedImage>().map { cached -> cached._cachedImageResource as? CImageResource }
 		assertTrue(cachedResources.none { resource -> resource?.imageFileBuf?.archivePath == copyPath }, "no cache names the copy")
 		assertTrue(meshesOf(root).none { mesh -> ((mesh.texture as? GTexture2D)?.srcImageResource as? CImageResource)?.imageFileBuf?.archivePath == copyPath }, "no texture names the copy")
-		val eyeMesh = meshesOf(root).first { mesh -> Cmo3Import.idStrOf(mesh.id) == "EyeL" }
-		val pageResource = (Cmo3Import.elementsOf((root.textureManager as CTextureManager)._textureAtlases).filterIsInstance<CTextureAtlas>().single().cachedAtlasImage)
+		val eyeMesh = meshesOf(root).first { mesh -> idStrOf(mesh.id) == "EyeL" }
+		val pageResource = (elementsOf((root.textureManager as CTextureManager)._textureAtlases).filterIsInstance<CTextureAtlas>().single().cachedAtlasImage)
 		assertSame(pageResource, (eyeMesh.texture as GTexture2D).srcImageResource, "the eye is untouched")
 	}
 
@@ -497,6 +506,50 @@ class Cmo3RetainedLayerWebTest {
 		val root = retained.root as CModelSource
 		val art = assertNotNull(cmo3SourceArtOf(root, baseline.sources.single().id) { resource -> retained.extractLayerPng(resource) })
 		assertContentEquals(gradient(4, 1).rgba, assertNotNull(art.layers.firstOrNull { layer -> layer.id.raw == "lyid:1576" }).raster.rgba, "the eye's layer still holds the imported pixels")
+	}
+
+	/**
+	 * A main.xml with every uuid renumbered by first occurrence, so two exports of one graph compare
+	 * equal when they minted guids in the same places.
+	 */
+	private fun canonicalXml(mainXml: ByteArray): String {
+		val numbers = HashMap<String, Int>()
+
+		return Regex("""uuid="([^"]*)"""").replace(mainXml.decodeToString()) { match -> "uuid=\"#${numbers.getOrPut(match.groupValues[1]) { numbers.size }}\"" }
+	}
+
+	/**
+	 * A retained page the reconcile could not write into declines the whole web before anything is
+	 * written: the export leaves what an export handed no pages leaves, although a reloaded tile's
+	 * layer would otherwise be rewritten ahead of the pages.
+	 */
+	@Test
+	fun aRetainedPageWithNoImageDeclinesTheWebBeforeAnythingIsWritten() {
+		val (fixture, baseline) = retainedGraph()
+		val retainedBytes = Cmo3.write(fixture)
+		val (edited, eyeReloaded) = eyeRepaintedInPlace(baseline)
+		val pageBreaks =
+			listOf<Pair<String, (CTextureAtlas) -> Unit>>(
+				"no page image" to { atlas -> atlas.cachedAtlasImage = null },
+				"a page image with no archive entry" to { atlas -> (atlas.cachedAtlasImage as CImageResource).imageFileBuf = null },
+			)
+
+		for ((label, breakPage) in pageBreaks) {
+			val (declined, unpaged) =
+				listOf(listOf(page), emptyList()).map { pages ->
+					val retained = Cmo3.read(retainedBytes)
+					val atlases = elementsOf(((retained.root as CModelSource).textureManager as CTextureManager)._textureAtlases)
+					breakPage(atlases.filterIsInstance<CTextureAtlas>().first())
+					val report = Cmo3Export.apply(edited, retained, recomposedPages = pages, tileRasters = { tileId -> if (tileId == eyeReloaded.id) gradient(4, 31) else null }, nowMillis = now)
+					val entries = retained.archive.entries.filter { entry -> entry.tag != CaffArchive.TAG_MAIN_XML }.associate { entry -> entry.path to entry.content.toList() }
+
+					Triple(report.notices, canonicalXml(mainXmlOf(retained)), entries)
+				}
+
+			assertEquals(unpaged.first, declined.first, "$label: the notices of an export handed no pages")
+			assertEquals(unpaged.second, declined.second, "$label: the main.xml of an export handed no pages")
+			assertEquals(unpaged.third, declined.third, "$label: the archive entries of an export handed no pages")
+		}
 	}
 
 	@Test

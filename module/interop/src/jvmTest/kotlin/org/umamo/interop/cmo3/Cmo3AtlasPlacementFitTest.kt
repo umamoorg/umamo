@@ -1,6 +1,7 @@
 package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.interop.cmo3.export.fitAtlasPageToCanvasTransform
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

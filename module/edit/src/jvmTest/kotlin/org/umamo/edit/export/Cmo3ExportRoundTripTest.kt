@@ -53,8 +53,8 @@ import org.umamo.interop.DocumentField
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
-import org.umamo.interop.cmo3.Cmo3Export
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.diffPuppetModels
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode

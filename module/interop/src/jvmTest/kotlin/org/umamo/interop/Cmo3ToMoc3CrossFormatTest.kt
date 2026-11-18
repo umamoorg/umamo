@@ -6,7 +6,7 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.partByDrawable

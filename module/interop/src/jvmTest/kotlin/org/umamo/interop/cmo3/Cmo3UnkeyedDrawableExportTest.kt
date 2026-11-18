@@ -8,6 +8,9 @@ import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.KeyformGridSource
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3PageImage
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -62,7 +65,7 @@ class Cmo3UnkeyedDrawableExportTest {
 		val result =
 			Cmo3Conversion.freshCmo3(
 				puppet = unkeyedPuppet(),
-				pages = listOf(Cmo3Conversion.AtlasPage(page, 8, 8)),
+				pages = listOf(Cmo3PageImage(page, 8, 8)),
 				pageIndexByDrawableId = mapOf("ArtMesh1" to 0),
 				modelName = "unkeyed",
 				nowMillis = 0L,
@@ -71,11 +74,11 @@ class Cmo3UnkeyedDrawableExportTest {
 
 		val root = result.model.root as CModelSource
 		val artMesh =
-			Cmo3Import.elementsOf((root.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>().single()
+			elementsOf((root.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>().single()
 		val gridSource = assertNotNull(artMesh.keyformGridSource as? KeyformGridSource, "the mesh keeps a keyform grid")
-		assertTrue(Cmo3Import.elementsOf(gridSource.keyformBindings).isEmpty(), "an unkeyed mesh binds no parameter")
-		assertEquals(1, Cmo3Import.elementsOf(gridSource.keyformsOnGrid).size, "one default cell")
-		val form = Cmo3Import.elementsOf(artMesh.keyforms).filterIsInstance<CArtMeshForm>().single()
+		assertTrue(elementsOf(gridSource.keyformBindings).isEmpty(), "an unkeyed mesh binds no parameter")
+		assertEquals(1, elementsOf(gridSource.keyformsOnGrid).size, "one default cell")
+		val form = elementsOf(artMesh.keyforms).filterIsInstance<CArtMeshForm>().single()
 		assertTrue(base.contentEquals(form.positions as? FloatArray), "the default form holds the base mesh: ${(form.positions as? FloatArray)?.toList()}")
 
 		val reimported = Cmo3Import.fromModelSource(Cmo3.read(Cmo3.write(result.model)).root as CModelSource)

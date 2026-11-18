@@ -3,7 +3,7 @@ package org.umamo.render.eval
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.ContentBounds
 import org.umamo.render.ViewportCamera

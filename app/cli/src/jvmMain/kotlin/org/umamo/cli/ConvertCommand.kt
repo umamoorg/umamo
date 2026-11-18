@@ -5,8 +5,9 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.png.PngCodec
 import org.umamo.interop.ExportReport
-import org.umamo.interop.cmo3.Cmo3Conversion
-import org.umamo.interop.cmo3.cmo3AtlasPages
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3PageImage
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
 import org.umamo.interop.describeExportNotice
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.render.PuppetTextures
@@ -140,7 +141,7 @@ private fun convertMoc3ToCmo3(loaded: LoadedInput.Moc3Input, outputFile: File) {
 		presentTextureFiles.map { textureFile ->
 			val pngBytes = textureFile.readBytes()
 			val decoded = PngCodec.read(pngBytes)
-			Cmo3Conversion.AtlasPage(pngBytes = pngBytes, width = decoded.width, height = decoded.height)
+			Cmo3PageImage(pngBytes = pngBytes, width = decoded.width, height = decoded.height)
 		}
 	val result =
 		Cmo3Conversion.freshCmo3(
