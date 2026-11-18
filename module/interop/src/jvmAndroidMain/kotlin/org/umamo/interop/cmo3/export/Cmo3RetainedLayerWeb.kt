@@ -39,7 +39,6 @@ import org.umamo.interop.cmo3.uuidOf
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.AtlasTile
-import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.lineageRoot
 import org.umamo.runtime.model.storedToArtAffineForTile
@@ -79,14 +78,16 @@ import kotlin.math.roundToInt
  * @param Cmo3TextureFrames textureFrames The document's texture frames, taken before the export wrote.
  */
 internal class Cmo3RetainedLayerWeb(
-	private val target: Cmo3Model,
+	context: Cmo3ExportContext,
 	private val textureManager: CTextureManager,
-	private val editor: Cmo3GraphEditor,
-	private val edited: PuppetModel,
-	private val tileRasters: (AtlasTileId) -> RasterImage?,
-	private val nowMillis: Long,
-	private val textureFrames: Cmo3TextureFrames,
 ) {
+	private val target = context.target
+	private val editor = context.editor
+	private val edited = context.edited
+	private val tileRasters = context.tileRasters
+	private val nowMillis = context.nowMillis
+	private val textureFrames = context.textureFrames
+
 	/**
 	 * The art a job writes: the tile, its file and inventory row, and its pixels.
 	 *
@@ -753,11 +754,7 @@ internal class Cmo3RetainedLayerWeb(
 					editor.ensureChildSlot(image, "CLayeredImage", "layerSet")
 				}
 
-		return mutableGraphListOf(layerSet._layerEntryList)
-			?: CArrayList<Any?>().also { created ->
-				layerSet._layerEntryList = created
-				editor.ensureChildSlot(layerSet, "LayerSet", "_layerEntryList")
-			}
+		return editor.graphListFor(layerSet, "LayerSet", "_layerEntryList", layerSet._layerEntryList, GraphListKind.CArrayList) { created -> layerSet._layerEntryList = created }
 	}
 
 	/**
@@ -847,9 +844,5 @@ internal class Cmo3RetainedLayerWeb(
 	 */
 	private fun childrenOf(group: ACLayerGroup): MutableList<Any?> =
 		// CMO3: ACLayerGroup field _children.
-		mutableGraphListOf(group._children)
-			?: CArrayList<Any?>().also { created ->
-				group._children = created
-				editor.ensureChildSlot(group, "ACLayerGroup", "_children")
-			}
+		editor.graphListFor(group, "ACLayerGroup", "_children", group._children, GraphListKind.CArrayList) { created -> group._children = created }
 }

@@ -21,9 +21,11 @@ import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.diffPuppetModels
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.Deformer
-import org.umamo.runtime.model.Drawable
-import org.umamo.runtime.model.Parameter
-import org.umamo.runtime.model.Part
+import org.umamo.runtime.model.DeformerId
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ParameterGroupId
+import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 
 /**
@@ -134,18 +136,17 @@ object Cmo3Export {
 		// pass must still know which textures were the editor's reduced copies.
 		val textureFrames = Cmo3TextureFrames(modelSource)
 		val notices = Cmo3ExportNotices()
-		val editor = target.edit()
+		val context = Cmo3ExportContext(target, modelSource, target.edit(), baseline, edited, textureFrames, tileRasters, nowMillis)
 		// The atlas-web reconcile runs before the graph lowering so the stale-page notices know
 		// whether the stored pages already show the new packing.  Strictly diff-gated by the CALLER:
 		// an unedited document passes no pages, and the graph and archive are then never touched.
-		val webResult = Cmo3AtlasWebLowering(target, modelSource, baseline, edited, editor, tileRasters, nowMillis, textureFrames).reconcile(recomposedPages)
-		val pagesRecomposed = webResult.pagesRecomposed
+		val webResult = Cmo3AtlasWebLowering(context).reconcile(recomposedPages)
 
 		// The model icons follow an edited export (the diff is non-empty here): the editor regenerates
 		// them on its own saves, and a thumbnail of the rest pose is what it shows for the file.
 		if (modelThumbnail != null) {
 			(modelSource.textureManager as? CTextureManager)?.let { textureManager ->
-				Cmo3RetainedLayerWeb(target, textureManager, editor, edited, tileRasters, nowMillis, textureFrames).replaceModelIcons(modelSource, modelThumbnail)
+				Cmo3RetainedLayerWeb(context, textureManager).replaceModelIcons(modelSource, modelThumbnail)
 			}
 		}
 
@@ -157,22 +158,68 @@ object Cmo3Export {
 			} else {
 				webResult.mintedBindings + drawableTextureBindings
 			}
+		val structure = lowerStructure(context, diff, notices, bindings)
+		lowerFields(context, promotedDiff(context, diff, structure), notices, webResult)
 
-		// Structural pass - set membership: identity shells for creations, source removal for
-		// deletions.  Category order follows the reference web (parameters/groups first, then parts
-		// and deformers, then the drawables that bind to them, then the glues that bind drawables),
-		// and the structural index is REBUILT between categories so same-export creations resolve.
-		var anyDeleted = webResult.pruneNeeded
-		var structural =
-			Cmo3StructureLowering(
-				modelSource,
-				Cmo3GraphIndex(modelSource),
-				editor,
-				edited,
-				notices,
-				textureFrames,
-				bindings,
-			)
+		if (webResult.pruneNeeded || structure.deletedAnything) {
+			context.editor.pruneUnreachableShared()
+		}
+
+		return notices.report()
+	}
+
+	/**
+	 * What the structural pass did.
+	 *
+	 * @property Set     parameters      The parameters whose shells were synthesized.
+	 * @property Set     parameterGroups The parameter groups whose shells were synthesized.
+	 * @property Set     parts           The parts whose shells were synthesized.
+	 * @property Set     deformers       The deformers whose shells were synthesized.
+	 * @property Set     drawables       The drawables whose shells were synthesized.
+	 * @property Set     glues           The glues whose shells were synthesized.
+	 * @property Boolean deletedAnything True when a source was removed, so the shared pool needs its prune.
+	 */
+	private class StructuralOutcome(
+		val parameters: Set<ParameterId>,
+		val parameterGroups: Set<ParameterGroupId>,
+		val parts: Set<PartId>,
+		val deformers: Set<DeformerId>,
+		val drawables: Set<DrawableId>,
+		val glues: Set<GlueKey>,
+		val deletedAnything: Boolean,
+	)
+
+	/**
+	 * What names one glue in a diff: its two meshes, and its place among the glues between them.
+	 *
+	 * @property DrawableId meshA   The glue's first mesh.
+	 * @property DrawableId meshB   The glue's second mesh.
+	 * @property Int        ordinal The glue's index among the glues of that pair.
+	 */
+	private data class GlueKey(val meshA: DrawableId, val meshB: DrawableId, val ordinal: Int)
+
+	/**
+	 * The structural pass - set membership: an identity shell for every creation, source removal for
+	 * every deletion.
+	 *
+	 * Category order follows the reference web (parameters and groups first, then parts and deformers,
+	 * then the drawables that bind to them, then the glues that bind drawables), and the structural
+	 * index is REBUILT before the drawables and again before the glues so same-export creations resolve.
+	 *
+	 * @param Cmo3ExportContext context  The export's context.
+	 * @param PuppetDiff        diff     The edited model's diff against the baseline.
+	 * @param Cmo3ExportNotices notices  The notice sink.
+	 * @param Map               bindings Per-drawable-id texture webs for created drawables.
+	 * @return StructuralOutcome What was synthesized, and whether anything was deleted.
+	 */
+	private fun lowerStructure(
+		context: Cmo3ExportContext,
+		diff: PuppetDiff,
+		notices: Cmo3ExportNotices,
+		bindings: Map<String, Cmo3DrawableTextureBinding>,
+	): StructuralOutcome {
+		var deletedAnything = false
+		var structural = Cmo3StructureLowering(context, Cmo3GraphIndex(context.modelSource), notices, bindings)
 
 		/**
 		 * Rolls the structural lowering onto a fresh index, carrying the deletion flag forward.
@@ -180,294 +227,239 @@ object Cmo3Export {
 		 * @return Cmo3StructureLowering The replacement instance.
 		 */
 		fun refreshedStructural(): Cmo3StructureLowering {
-			anyDeleted = anyDeleted || structural.deletedAnything
+			deletedAnything = deletedAnything || structural.deletedAnything
 
-			return Cmo3StructureLowering(
-				modelSource,
-				Cmo3GraphIndex(modelSource),
-				editor,
-				edited,
-				notices,
-				textureFrames,
-				bindings,
+			return Cmo3StructureLowering(context, Cmo3GraphIndex(context.modelSource), notices, bindings)
+		}
+
+		val parameters =
+			runStructuralPass(
+				diff.parameters,
+				synthesize = { id -> context.editedParameterById[id]?.let { parameter -> structural.synthesizeParameter(parameter) } ?: false },
+				delete = { id -> structural.deleteParameter(id) },
 			)
-		}
-
-		val editedParameterById = edited.parameters.associateBy(Parameter::id)
-		val editedPartById = edited.parts.associateBy(Part::id)
-		val editedDeformerById = edited.deformers.associateBy(Deformer::id)
-		val editedDrawableById = edited.drawables.associateBy(Drawable::id)
-		val synthesizedParameters = HashSet<Any>()
-		val synthesizedGroups = HashSet<Any>()
-		val synthesizedParts = HashSet<Any>()
-		val synthesizedDeformers = HashSet<Any>()
-		val synthesizedDrawables = HashSet<Any>()
-		val synthesizedGlues = HashSet<Triple<Any, Any, Int>>()
-
-		for (entityDiff in diff.parameters) {
-			when (entityDiff) {
-				is EntityDiff.Created -> {
-					editedParameterById[entityDiff.id]?.let { parameter ->
-						if (structural.synthesizeParameter(parameter)) {
-							synthesizedParameters.add(entityDiff.id)
-						}
-					}
-				}
-
-				is EntityDiff.Deleted -> {
-					structural.deleteParameter(entityDiff.id)
-				}
-
-				is EntityDiff.Changed -> {}
-			}
-		}
-
-		for (entityDiff in diff.parameterGroups) {
-			when (entityDiff) {
-				is EntityDiff.Created -> {
-					if (structural.synthesizeParameterGroup(entityDiff.id)) {
-						synthesizedGroups.add(entityDiff.id)
-					}
-				}
-
-				is EntityDiff.Deleted -> {
-					structural.deleteParameterGroup(entityDiff.id)
-				}
-
-				is EntityDiff.Changed -> {}
-			}
-		}
-
-		for (entityDiff in diff.parts) {
-			when (entityDiff) {
-				is EntityDiff.Created -> {
-					editedPartById[entityDiff.id]?.let { part ->
-						if (structural.synthesizePart(part)) {
-							synthesizedParts.add(entityDiff.id)
-						}
-					}
-				}
-
-				is EntityDiff.Deleted -> {
-					structural.deletePart(entityDiff.id.raw)
-				}
-
-				is EntityDiff.Changed -> {}
-			}
-		}
-
-		for (entityDiff in diff.deformers) {
-			when (entityDiff) {
-				is EntityDiff.Created -> {
-					editedDeformerById[entityDiff.id]?.let { deformer ->
-						if (structural.synthesizeDeformer(deformer)) {
-							synthesizedDeformers.add(entityDiff.id)
-						}
-					}
-				}
-
-				is EntityDiff.Deleted -> {
-					structural.deleteDeformer(entityDiff.id.raw)
-				}
-
-				is EntityDiff.Changed -> {}
-			}
-		}
-
+		val parameterGroups =
+			runStructuralPass(
+				diff.parameterGroups,
+				synthesize = { id -> structural.synthesizeParameterGroup(id) },
+				delete = { id -> structural.deleteParameterGroup(id) },
+			)
+		val parts =
+			runStructuralPass(
+				diff.parts,
+				synthesize = { id -> context.editedPartById[id]?.let { part -> structural.synthesizePart(part) } ?: false },
+				delete = { id -> structural.deletePart(id.raw) },
+			)
+		val deformers =
+			runStructuralPass(
+				diff.deformers,
+				synthesize = { id -> context.editedDeformerById[id]?.let { deformer -> structural.synthesizeDeformer(deformer) } ?: false },
+				delete = { id -> structural.deleteDeformer(id.raw) },
+			)
 		structural = refreshedStructural()
+		val drawables =
+			runStructuralPass(
+				diff.drawables,
+				synthesize = { id -> context.editedDrawableById[id]?.let { drawable -> structural.synthesizeDrawable(drawable) } ?: false },
+				delete = { id -> structural.deleteDrawable(id) },
+			)
+		structural = refreshedStructural()
+		val editedGluesByPair = context.edited.glues.groupBy { glue -> glue.meshA to glue.meshB }
+		val glues =
+			runGlueStructuralPass(
+				diff.glues,
+				synthesize = { created ->
+					editedGluesByPair[created.meshA to created.meshB]?.getOrNull(created.ordinal)?.let { glue -> structural.synthesizeGlue(glue, created.ordinal) } ?: false
+				},
+				delete = { deleted -> structural.deleteGlue(deleted.meshA, deleted.meshB, deleted.ordinal) },
+			)
+		deletedAnything = deletedAnything || structural.deletedAnything
 
-		for (entityDiff in diff.drawables) {
+		return StructuralOutcome(parameters, parameterGroups, parts, deformers, drawables, glues, deletedAnything)
+	}
+
+	/**
+	 * Runs one category's structural pass: synthesizes a shell for each creation, removes the source of
+	 * each deletion, and leaves a change to the field pass.
+	 *
+	 * @param List     diffs      The category's diffs.
+	 * @param Function synthesize Synthesizes the shell of a created entity, true when it now exists.
+	 * @param Function delete     Removes a deleted entity's source.
+	 * @return Set The ids whose shells were synthesized.
+	 */
+	private fun <TId, TField> runStructuralPass(
+		diffs: List<EntityDiff<TId, TField>>,
+		synthesize: (TId) -> Boolean,
+		delete: (TId) -> Unit,
+	): Set<TId> {
+		val synthesized = HashSet<TId>()
+
+		for (entityDiff in diffs) {
 			when (entityDiff) {
 				is EntityDiff.Created -> {
-					editedDrawableById[entityDiff.id]?.let { drawable ->
-						if (structural.synthesizeDrawable(drawable)) {
-							synthesizedDrawables.add(entityDiff.id)
-						}
+					if (synthesize(entityDiff.id)) {
+						synthesized.add(entityDiff.id)
 					}
 				}
 
 				is EntityDiff.Deleted -> {
-					structural.deleteDrawable(entityDiff.id)
+					delete(entityDiff.id)
 				}
 
 				is EntityDiff.Changed -> {}
 			}
 		}
 
-		structural = refreshedStructural()
-		val editedGluesByPair = edited.glues.groupBy { glue -> glue.meshA to glue.meshB }
+		return synthesized
+	}
 
-		for (glueDiff in diff.glues) {
+	/**
+	 * The glues' structural pass, [runStructuralPass] over the glue diff's own shape.
+	 *
+	 * @param List     diffs      The glue diffs.
+	 * @param Function synthesize Synthesizes the shell of a created glue, true when it now exists.
+	 * @param Function delete     Removes a deleted glue's source.
+	 * @return Set The glues whose shells were synthesized.
+	 */
+	private fun runGlueStructuralPass(
+		diffs: List<GlueDiff>,
+		synthesize: (GlueDiff.Created) -> Boolean,
+		delete: (GlueDiff.Deleted) -> Unit,
+	): Set<GlueKey> {
+		val synthesized = HashSet<GlueKey>()
+
+		for (glueDiff in diffs) {
 			when (glueDiff) {
 				is GlueDiff.Created -> {
-					editedGluesByPair[glueDiff.meshA to glueDiff.meshB]?.getOrNull(glueDiff.ordinal)?.let { glue ->
-						if (structural.synthesizeGlue(glue, glueDiff.ordinal)) {
-							synthesizedGlues.add(Triple(glueDiff.meshA, glueDiff.meshB, glueDiff.ordinal))
-						}
+					if (synthesize(glueDiff)) {
+						synthesized.add(GlueKey(glueDiff.meshA, glueDiff.meshB, glueDiff.ordinal))
 					}
 				}
 
 				is GlueDiff.Deleted -> {
-					structural.deleteGlue(glueDiff.meshA, glueDiff.meshB, glueDiff.ordinal)
+					delete(glueDiff)
 				}
 
 				is GlueDiff.Changed -> {}
 			}
 		}
 
-		anyDeleted = anyDeleted || structural.deletedAnything
+		return synthesized
+	}
 
-		// Deletions are done; synthesized creations become Changed-with-every-field so their shells
-		// are populated by the ordinary field lowering (one tested path, no synthesis copy of it).
-		val upgradedDiff =
-			PuppetDiff(
-				parameters =
-					diff.parameters.mapNotNull { entityDiff ->
-						when {
-							entityDiff is EntityDiff.Created && entityDiff.id in synthesizedParameters -> {
-								EntityDiff.Changed(entityDiff.id, setOf(ParameterField.NAME, ParameterField.RANGE))
-							}
+	/**
+	 * The diff the field pass runs on.  Deletions are done and leave it; a synthesized creation becomes
+	 * Changed with every field, so its shell is populated by the ordinary field lowering (one tested
+	 * path, no synthesis copy of it).
+	 *
+	 * @param Cmo3ExportContext context   The export's context.
+	 * @param PuppetDiff        diff      The edited model's diff against the baseline.
+	 * @param StructuralOutcome structure What the structural pass synthesized.
+	 * @return PuppetDiff The diff for the field pass.
+	 */
+	private fun promotedDiff(context: Cmo3ExportContext, diff: PuppetDiff, structure: StructuralOutcome): PuppetDiff =
+		PuppetDiff(
+			parameters = promoteSynthesized(diff.parameters, structure.parameters) { setOf(ParameterField.NAME, ParameterField.RANGE) },
+			parameterGroups =
+				promoteSynthesized(diff.parameterGroups, structure.parameterGroups) {
+					setOf(ParameterGroupField.NAME, ParameterGroupField.INITIALLY_OPEN, ParameterGroupField.CHILDREN)
+				},
+			parts = promoteSynthesized(diff.parts, structure.parts) { ALL_PART_FIELDS },
+			deformers =
+				promoteSynthesized(diff.deformers, structure.deformers) { id ->
+					if (context.editedDeformerById[id] is Deformer.Warp) ALL_WARP_FIELDS else ALL_ROTATION_FIELDS
+				},
+			drawables = promoteSynthesized(diff.drawables, structure.drawables) { ALL_DRAWABLE_FIELDS },
+			glues = promoteSynthesizedGlues(diff.glues, structure.glues),
+			// Tiles have no structural pass: art arrives and leaves with an import, never with a pack,
+			// so a created or deleted tile forwards as-is and takes its notice in the lowering.
+			atlasTiles = diff.atlasTiles,
+			document = diff.document,
+		)
 
-							entityDiff is EntityDiff.Deleted -> {
-								null
-							}
+	/**
+	 * One category's diffs for the field pass: a synthesized creation as a change of [fieldsOf] its id,
+	 * no deletion, and everything else as it is.  A creation whose synthesis failed stays Created, which
+	 * the field pass skips.
+	 *
+	 * @param List     diffs       The category's diffs.
+	 * @param Set      synthesized The ids whose shells were synthesized.
+	 * @param Function fieldsOf    The fields a synthesized entity's shell is populated through.
+	 * @return List The diffs for the field pass.
+	 */
+	private fun <TId, TField> promoteSynthesized(
+		diffs: List<EntityDiff<TId, TField>>,
+		synthesized: Set<TId>,
+		fieldsOf: (TId) -> Set<TField>,
+	): List<EntityDiff<TId, TField>> =
+		diffs.mapNotNull { entityDiff ->
+			when {
+				entityDiff is EntityDiff.Created && entityDiff.id in synthesized -> {
+					EntityDiff.Changed(entityDiff.id, fieldsOf(entityDiff.id))
+				}
 
-							else -> {
-								entityDiff
-							}
-						}
-					},
-				parameterGroups =
-					diff.parameterGroups.mapNotNull { entityDiff ->
-						when {
-							entityDiff is EntityDiff.Created && entityDiff.id in synthesizedGroups -> {
-								EntityDiff.Changed(
-									entityDiff.id,
-									setOf(
-										ParameterGroupField.NAME,
-										ParameterGroupField.INITIALLY_OPEN,
-										ParameterGroupField.CHILDREN,
-									),
-								)
-							}
+				entityDiff is EntityDiff.Deleted -> {
+					null
+				}
 
-							entityDiff is EntityDiff.Deleted -> {
-								null
-							}
-
-							else -> {
-								entityDiff
-							}
-						}
-					},
-				parts =
-					diff.parts.mapNotNull { entityDiff ->
-						when {
-							entityDiff is EntityDiff.Created && entityDiff.id in synthesizedParts -> {
-								EntityDiff.Changed(entityDiff.id, ALL_PART_FIELDS)
-							}
-
-							entityDiff is EntityDiff.Deleted -> {
-								null
-							}
-
-							else -> {
-								entityDiff
-							}
-						}
-					},
-				deformers =
-					diff.deformers.mapNotNull { entityDiff ->
-						when {
-							entityDiff is EntityDiff.Created && entityDiff.id in synthesizedDeformers -> {
-								EntityDiff.Changed(
-									entityDiff.id,
-									if (editedDeformerById[entityDiff.id] is Deformer.Warp) ALL_WARP_FIELDS else ALL_ROTATION_FIELDS,
-								)
-							}
-
-							entityDiff is EntityDiff.Deleted -> {
-								null
-							}
-
-							else -> {
-								entityDiff
-							}
-						}
-					},
-				drawables =
-					diff.drawables.mapNotNull { entityDiff ->
-						when {
-							entityDiff is EntityDiff.Created && entityDiff.id in synthesizedDrawables -> {
-								EntityDiff.Changed(entityDiff.id, ALL_DRAWABLE_FIELDS)
-							}
-
-							entityDiff is EntityDiff.Deleted -> {
-								null
-							}
-
-							else -> {
-								entityDiff
-							}
-						}
-					},
-				glues =
-					diff.glues.mapNotNull { glueDiff ->
-						when {
-							glueDiff is GlueDiff.Created &&
-								Triple<Any, Any, Int>(
-									glueDiff.meshA,
-									glueDiff.meshB,
-									glueDiff.ordinal,
-								) in synthesizedGlues -> {
-								GlueDiff.Changed(glueDiff.meshA, glueDiff.meshB, glueDiff.ordinal, ALL_GLUE_FIELDS)
-							}
-
-							glueDiff is GlueDiff.Deleted -> {
-								null
-							}
-
-							else -> {
-								glueDiff
-							}
-						}
-					},
-				// Tiles have no structural pass: art arrives and leaves with an import, never with a pack,
-				// so a created or deleted tile forwards as-is and takes its notice in the lowering.
-				atlasTiles = diff.atlasTiles,
-				document = diff.document,
-			)
-
-		// Field-lowering pass over a REBUILT index (it must see the shells and forget the removed
-		// sources).  Parameters and groups first (tree rebuilds reference their sources), then
-		// deformer moves (they mutate _childGuids), then parts (whose CHILDREN rebuild anchors on
-		// the moved lists), then drawables, glues, and the document fields.
-		val lowering =
-			Cmo3PropertyLowering(
-				target = target,
-				index = Cmo3GraphIndex(modelSource),
-				editor = editor,
-				baseline = baseline,
-				edited = edited,
-				notices = notices,
-				textureFrames = textureFrames,
-				pagesRecomposed = pagesRecomposed,
-				reconciledTileIds = webResult.reconciledTileIds,
-			)
-		lowering.lowerParameters(upgradedDiff.parameters)
-		lowering.lowerParameterGroups(upgradedDiff.parameterGroups)
-		lowering.lowerDeformers(upgradedDiff.deformers)
-		lowering.lowerParts(upgradedDiff.parts)
-		lowering.lowerDrawables(upgradedDiff.drawables)
-		lowering.flushWeldNotice()
-		lowering.lowerGlues(upgradedDiff.glues)
-		lowering.lowerAtlasTiles(upgradedDiff.atlasTiles)
-		lowering.lowerDocument(upgradedDiff.document)
-
-		if (anyDeleted) {
-			editor.pruneUnreachableShared()
+				else -> {
+					entityDiff
+				}
+			}
 		}
 
-		return notices.report()
+	/**
+	 * The glue diffs for the field pass, [promoteSynthesized] over the glue diff's own shape.
+	 *
+	 * @param List diffs       The glue diffs.
+	 * @param Set  synthesized The glues whose shells were synthesized.
+	 * @return List The diffs for the field pass.
+	 */
+	private fun promoteSynthesizedGlues(diffs: List<GlueDiff>, synthesized: Set<GlueKey>): List<GlueDiff> =
+		diffs.mapNotNull { glueDiff ->
+			when {
+				glueDiff is GlueDiff.Created && GlueKey(glueDiff.meshA, glueDiff.meshB, glueDiff.ordinal) in synthesized -> {
+					GlueDiff.Changed(glueDiff.meshA, glueDiff.meshB, glueDiff.ordinal, ALL_GLUE_FIELDS)
+				}
+
+				glueDiff is GlueDiff.Deleted -> {
+					null
+				}
+
+				else -> {
+					glueDiff
+				}
+			}
+		}
+
+	/**
+	 * The field pass, over an index REBUILT after the structural pass (it must see the shells and forget
+	 * the removed sources).  Parameters and groups first (tree rebuilds reference their sources), then
+	 * deformer moves (they mutate _childGuids), then parts (whose CHILDREN rebuild anchors on the moved
+	 * lists), then drawables, glues, and the document fields.
+	 *
+	 * @param Cmo3ExportContext           context   The export's context.
+	 * @param PuppetDiff                  diff      The promoted diff.
+	 * @param Cmo3ExportNotices           notices   The notice sink.
+	 * @param Cmo3AtlasWebLowering.Result webResult What the atlas-web reconcile did.
+	 */
+	private fun lowerFields(context: Cmo3ExportContext, diff: PuppetDiff, notices: Cmo3ExportNotices, webResult: Cmo3AtlasWebLowering.Result) {
+		val lowering =
+			Cmo3PropertyLowering(
+				context = context,
+				index = Cmo3GraphIndex(context.modelSource),
+				notices = notices,
+				pagesRecomposed = webResult.pagesRecomposed,
+				reconciledTileIds = webResult.reconciledTileIds,
+			)
+		lowering.lowerParameters(diff.parameters)
+		lowering.lowerParameterGroups(diff.parameterGroups)
+		lowering.lowerDeformers(diff.deformers)
+		lowering.lowerParts(diff.parts)
+		lowering.lowerDrawables(diff.drawables)
+		lowering.flushWeldNotice()
+		lowering.lowerGlues(diff.glues)
+		lowering.lowerAtlasTiles(diff.atlasTiles)
+		lowering.lowerDocument(diff.document)
 	}
 }

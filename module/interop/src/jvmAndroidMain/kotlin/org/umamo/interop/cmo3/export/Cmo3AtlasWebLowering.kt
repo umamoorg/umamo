@@ -1,7 +1,5 @@
 package org.umamo.interop.cmo3.export
 
-import org.umamo.format.cmo3.Cmo3GraphEditor
-import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
@@ -17,15 +15,11 @@ import org.umamo.format.cmo3.model.gen.GTransform2
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.type.CAffine
-import org.umamo.format.raster.RasterImage
-import org.umamo.interop.cmo3.Cmo3TextureFrames
 import org.umamo.interop.cmo3.elementsOf
 import org.umamo.interop.cmo3.idStrOf
 import org.umamo.interop.cmo3.mutableGraphListOf
 import org.umamo.interop.cmo3.uuidOf
 import org.umamo.runtime.model.AtlasPlacement
-import org.umamo.runtime.model.AtlasTileId
-import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.composeAffine
 import org.umamo.runtime.model.inversePlacementAffine
 import org.umamo.runtime.model.lineageRoot
@@ -63,17 +57,13 @@ import java.util.IdentityHashMap
  * notices then flow from the property lowering unchanged.  Nothing here may half-write, because the
  * reconcile has no rollback.
  */
-internal class Cmo3AtlasWebLowering(
-	private val target: Cmo3Model,
-	private val modelSource: CModelSource,
-	private val baseline: PuppetModel,
-	private val edited: PuppetModel,
-	private val editor: Cmo3GraphEditor,
-	private val tileRasters: (AtlasTileId) -> RasterImage?,
-	private val nowMillis: Long,
-	// The document's texture frames, taken from the graph before the export changed it.
-	private val textureFrames: Cmo3TextureFrames,
-) {
+internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
+	private val target = context.target
+	private val modelSource = context.modelSource
+	private val baseline = context.baseline
+	private val edited = context.edited
+	private val tileRasters = context.tileRasters
+
 	/**
 	 * What the reconcile did.
 	 *
@@ -150,7 +140,7 @@ internal class Cmo3AtlasWebLowering(
 		val strayEntryAtlasIndices = web.strayEntryAtlasIndices
 		val canvasAffineByTileId = HashMap(web.canvasAffineByTileId)
 		val modelImageByTileId = HashMap<String, CModelImage>(web.modelImageByTileId)
-		val retainedWeb = Cmo3RetainedLayerWeb(target, textureManager, editor, edited, tileRasters, nowMillis, textureFrames)
+		val retainedWeb = Cmo3RetainedLayerWeb(context, textureManager)
 
 		// --- Classify every edited tile; ANY gap declines whole. ---
 		// Every tile is keyed by its LINEAGE ROOT: a reloaded tile (`<guid>~<n>`, AtlasTile.replaces) is

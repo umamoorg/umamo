@@ -1,6 +1,5 @@
 package org.umamo.interop.cmo3.export
 
-import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.gen.ACDeformerSource
 import org.umamo.format.cmo3.model.gen.ACParameterControllableSource
@@ -61,7 +60,6 @@ import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
-import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.findParameterGroup
 import org.umamo.runtime.model.isOriginAtCanvasCenter
 import org.umamo.runtime.model.lineageRoot
@@ -73,7 +71,7 @@ import java.util.IdentityHashMap
  * The flat-property half of the CMO3 export reconcile: every diffed field with a direct CMO3 field
  * to write - names, flags, blend modes, masks, reference reparents, tree orders, parameter ranges
  * and links, and the canvas.  Channel-backed values (statics, keyforms, geometry) dispatch to the
- * shared [Cmo3KeyformLowering]; mesh topology and glue re-binding dispatch to [Cmo3StructureLowering].
+ * shared [Cmo3KeyformLowering]; mesh topology and glue re-binding dispatch to [Cmo3MeshTopologyLowering].
  * Entity creation/deletion runs earlier, in Cmo3Export.apply's structural pass.  A Created diff
  * that still reaches this class means that pass already tried to synthesize the entity, failed,
  * and already reported why - this class has nothing to lower for it and skips it silently.
@@ -86,14 +84,9 @@ import java.util.IdentityHashMap
  * field order (the editor's document order), so an ensured element lands where the editor writes it.
  */
 internal class Cmo3PropertyLowering(
-	private val target: Cmo3Model,
+	context: Cmo3ExportContext,
 	private val index: Cmo3GraphIndex,
-	private val editor: Cmo3GraphEditor,
-	private val baseline: PuppetModel,
-	private val edited: PuppetModel,
 	private val notices: Cmo3ExportNotices,
-	// The document's texture frames, taken from the graph before the export changed it.
-	private val textureFrames: Cmo3TextureFrames,
 	// True when the caller replaced the stored page images with pages recomposed for the edited
 	// placements (the atlas-web reconcile ran); the stale-page notices below are then false and stay
 	// quiet.  Defaults false so every other construction keeps the honest warning.
@@ -102,22 +95,27 @@ internal class Cmo3PropertyLowering(
 	// their metadata (name, size, binding) is reconciled there, so no notice is owed for it.
 	private val reconciledTileIds: Set<String> = emptySet(),
 ) {
-	private val editedParameterById = edited.parameters.associateBy(Parameter::id)
-	private val editedPartById = edited.parts.associateBy(Part::id)
-	private val editedDeformerById = edited.deformers.associateBy(Deformer::id)
-	private val editedDrawableById = edited.drawables.associateBy(Drawable::id)
-	private val baselinePartById = baseline.parts.associateBy(Part::id)
-	private val baselineDeformerById = baseline.deformers.associateBy(Deformer::id)
-	private val baselineDrawableById = baseline.drawables.associateBy(Drawable::id)
+	private val target = context.target
+	private val editor = context.editor
+	private val baseline = context.baseline
+	private val edited = context.edited
+	private val textureFrames = context.textureFrames
+	private val editedParameterById = context.editedParameterById
+	private val editedPartById = context.editedPartById
+	private val editedDeformerById = context.editedDeformerById
+	private val editedDrawableById = context.editedDrawableById
+	private val baselinePartById = context.baselinePartById
+	private val baselineDeformerById = context.baselineDeformerById
+	private val baselineDrawableById = context.baselineDrawableById
 
 	/** Drawables whose canvas mesh or UVs diverged from the imported weld - one aggregated notice. */
 	private val weldDivergedDrawableNames = ArrayList<String>()
 
 	/** The keyform re-bundling engine, shared by the drawable/deformer/part/glue dispatches. */
-	private val keyforms = Cmo3KeyformLowering(index, editor, baseline, notices)
+	private val keyforms = Cmo3KeyformLowering(context, index, notices)
 
-	/** The structural engine, for topology rewrites and glue re-binding on Changed entities. */
-	private val structure = Cmo3StructureLowering(index.modelSource, index, editor, edited, notices, textureFrames)
+	/** The topology engine, for topology rewrites and glue re-binding on Changed entities. */
+	private val topology = Cmo3MeshTopologyLowering(context, index, notices)
 
 	/**
 	 * Lowers each changed parameter's fields onto its graph source.
@@ -345,7 +343,7 @@ internal class Cmo3PropertyLowering(
 										?: rootDeformerSentinel()
 								editor.ensureChildSlot(source, "ACDeformerSource", "targetDeformerGuid")
 								// The forms are read in the new parent's space from now on, reused ones included.
-								keyforms.retagFormSpaces(source, editedDeformer.parent != null)
+								keyforms.formSpaces.retagFormSpaces(source, editedDeformer.parent != null)
 							}
 
 							DeformerField.PART -> {
@@ -441,7 +439,7 @@ internal class Cmo3PropertyLowering(
 	 * @param List<EntityDiff<DrawableId, DrawableField>> diffs The drawable diffs.
 	 */
 	fun lowerDrawables(diffs: List<EntityDiff<DrawableId, DrawableField>>) {
-		structure.expectTopologyRewrites(
+		topology.expectTopologyRewrites(
 			diffs.mapNotNull { diff -> if (diff is EntityDiff.Changed && DrawableField.MESH_TOPOLOGY in diff.fields) diff.id else null },
 		)
 
@@ -487,7 +485,7 @@ internal class Cmo3PropertyLowering(
 										?: rootDeformerSentinel()
 								editor.ensureChildSlot(source, "ACDrawableSource", "targetDeformerGuid", "clipGuidList")
 								// The forms are read in the new parent's space from now on, reused ones included.
-								keyforms.retagFormSpaces(source, editedDrawable.parentDeformerId != null)
+								keyforms.formSpaces.retagFormSpaces(source, editedDrawable.parentDeformerId != null)
 							}
 
 							DrawableField.BLEND_MODE -> {
@@ -504,13 +502,14 @@ internal class Cmo3PropertyLowering(
 
 							DrawableField.MASKED_BY -> {
 								// CMO3: ACDrawableSource field clipGuidList - always drawable GUIDs.
-								writeListField(
+								editor.writeGraphList(
 									owner = source,
 									tag = "ACDrawableSource",
 									property = "clipGuidList",
 									beforeProperty = "invertClippingMask",
 									current = source.clipGuidList,
 									newElements = editedDrawable.maskedBy.mapNotNull { index.drawableByIdStr[it.raw]?.guid },
+									kind = GraphListKind.CArrayList,
 									assign = { list -> source.clipGuidList = list },
 								)
 							}
@@ -540,7 +539,7 @@ internal class Cmo3PropertyLowering(
 								// with no baseline was never welded, so synthesis stays notice-free.
 								val hadBaseline = baselineDrawableById[diff.id] != null
 
-								if (structure.lowerMeshTopology(source, editedDrawable) && hadBaseline) {
+								if (topology.lowerMeshTopology(source, editedDrawable) && hadBaseline) {
 									weldDivergedDrawableNames.add(editedDrawable.name)
 								}
 							}
@@ -592,7 +591,7 @@ internal class Cmo3PropertyLowering(
 			}
 		}
 
-		structure.settleTopologyRewrites()
+		topology.settleTopologyRewrites()
 	}
 
 	/**
@@ -717,7 +716,7 @@ internal class Cmo3PropertyLowering(
 					}
 
 					if (GlueField.PAIRS in diff.fields) {
-						structure.lowerGluePairsFor(editedGlue)
+						topology.lowerGluePairsFor(editedGlue)
 					}
 
 					if (GlueField.CHANNELS in diff.fields || GlueField.INTENSITY in diff.fields) {
@@ -1045,13 +1044,14 @@ internal class Cmo3PropertyLowering(
 			// CMO3: CPartSource field clipGuidList - always drawable GUIDs, so part-typed masks are
 			// expanded to the part's descendant drawables (the same expansion the render tree applies).
 			val expandedMask = editedComposite.maskedBy + editedComposite.maskedByParts.flatMap(::descendantDrawables)
-			writeListField(
+			editor.writeGraphList(
 				owner = source,
 				tag = "CPartSource",
 				property = "clipGuidList",
 				beforeProperty = "invertClippingMask",
 				current = source.clipGuidList,
 				newElements = expandedMask.distinct().mapNotNull { index.drawableByIdStr[it.raw]?.guid },
+				kind = GraphListKind.CArrayList,
 				assign = { list -> source.clipGuidList = list },
 			)
 		}
@@ -1130,13 +1130,14 @@ internal class Cmo3PropertyLowering(
 				newChildList.add(source.guid)
 			}
 		} else {
-			writeListField(
+			editor.writeGraphList(
 				owner = newPartSource,
 				tag = "CPartSource",
 				property = "_childGuids",
 				beforeProperty = "useOffscreen",
 				current = newPartSource._childGuids,
 				newElements = listOf(source.guid),
+				kind = GraphListKind.CArrayList,
 				assign = { list -> newPartSource._childGuids = list },
 			)
 		}
@@ -1195,13 +1196,14 @@ internal class Cmo3PropertyLowering(
 			}
 		}
 
-		writeListField(
+		editor.writeGraphList(
 			owner = source,
 			tag = "CPartSource",
 			property = "_childGuids",
 			beforeProperty = "useOffscreen",
 			current = source._childGuids,
 			newElements = newEntries,
+			kind = GraphListKind.CArrayList,
 			assign = { list -> source._childGuids = list },
 		)
 	}
@@ -1251,13 +1253,14 @@ internal class Cmo3PropertyLowering(
 			}
 		}
 
-		writeListField(
+		editor.writeGraphList(
 			owner = group,
 			tag = "CParameterGroup",
 			property = "_childGuids",
 			beforeProperty = "id",
 			current = group._childGuids,
 			newElements = newEntries,
+			kind = GraphListKind.CArrayList,
 			assign = { list -> group._childGuids = list },
 		)
 	}
@@ -1305,9 +1308,9 @@ internal class Cmo3PropertyLowering(
 			}
 		}
 
-		for (link in edited.parameterLinks) {
-			val horizontalSource = index.parameterByIdStr[link.horizontal.raw] ?: continue
-			val verticalSource = index.parameterByIdStr[link.vertical.raw] ?: continue
+		for ((horizontal, vertical) in edited.parameterLinks) {
+			val horizontalSource = index.parameterByIdStr[horizontal.raw] ?: continue
+			val verticalSource = index.parameterByIdStr[vertical.raw] ?: continue
 			val horizontalIndex = orderedSources.indexOfFirst { it === horizontalSource }
 			val verticalIndex = orderedSources.indexOfFirst { it === verticalSource }
 
@@ -1321,17 +1324,18 @@ internal class Cmo3PropertyLowering(
 			notices.unsupported(
 				ExportEntityCategory.Document,
 				null,
-				ExportNoticeReason.CombinedPairReordered(link.horizontal.raw, link.vertical.raw),
+				ExportNoticeReason.CombinedPairReordered(horizontal.raw, vertical.raw),
 			)
 		}
 
-		writeListField(
+		editor.writeGraphList(
 			owner = sourceSet,
 			tag = "CParameterSourceSet",
 			property = "_sources",
 			beforeProperty = null,
 			current = sourceSet._sources,
 			newElements = orderedSources,
+			kind = GraphListKind.CArrayList,
 			assign = { list -> sourceSet._sources = list },
 		)
 	}
@@ -1510,44 +1514,5 @@ internal class Cmo3PropertyLowering(
 		walk(part.children)
 
 		return drawableIds
-	}
-
-	/**
-	 * Rewrites a collection field in place, or creates a fresh CArrayList and records its slot.
-	 *
-	 * The fresh list's runtime type decides the serialized tag, and every field this helper
-	 * serves (_childGuids, _sources) is carray_list in every corpus model; the official
-	 * editor's deserializers cast such fields to CArrayList, so array_list fails its load.
-	 *
-	 * @param Any      owner          The graph object owning the collection field.
-	 * @param String   tag            The owner's serial tag for the child-slot record.
-	 * @param String   property       The collection field's name.
-	 * @param String?  beforeProperty The sibling field the slot precedes, or null for last.
-	 * @param Any?     current        The current field value.
-	 * @param List     newElements    The elements to write.
-	 * @param Function assign         Assigns the fresh list to the field.
-	 */
-	private fun writeListField(
-		owner: Any,
-		tag: String,
-		property: String,
-		beforeProperty: String?,
-		current: Any?,
-		newElements: List<Any?>,
-		assign: (MutableList<Any?>) -> Unit,
-	) {
-		val mutable = mutableGraphListOf(current)
-
-		if (mutable != null) {
-			mutable.clear()
-			mutable.addAll(newElements)
-
-			return
-		}
-
-		val fresh: MutableList<Any?> = CArrayList()
-		fresh.addAll(newElements)
-		assign(fresh)
-		editor.ensureChildSlot(owner, tag, property, beforeProperty)
 	}
 }
