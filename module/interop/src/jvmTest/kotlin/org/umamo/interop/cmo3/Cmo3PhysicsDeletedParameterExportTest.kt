@@ -10,6 +10,8 @@ import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSource
 import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSourceSet
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.ParameterId
 import org.umamo.testkit.skipTest
 import java.io.File
@@ -38,18 +40,18 @@ class Cmo3PhysicsDeletedParameterExportTest {
 		val cmo3 = Cmo3.read(sample)
 		val root = cmo3.root as CModelSource
 		// CMO3: CModelSource field physicsSettingsSourceSet -> CPhysicsSettingsSourceSet field _sourceCubismPhysics.
-		val settings = Cmo3Import.elementsOf((root.physicsSettingsSourceSet as? CPhysicsSettingsSourceSet)?._sourceCubismPhysics).filterIsInstance<CPhysicsSettingsSource>()
-		val driven = assertNotNull(settings.firstOrNull { setting -> Cmo3Import.elementsOf(setting.outputs).isNotEmpty() }, "${sample.name} carries physics that drives a parameter")
+		val settings = elementsOf((root.physicsSettingsSourceSet as? CPhysicsSettingsSourceSet)?._sourceCubismPhysics).filterIsInstance<CPhysicsSettingsSource>()
+		val driven = assertNotNull(settings.firstOrNull { setting -> elementsOf(setting.outputs).isNotEmpty() }, "${sample.name} carries physics that drives a parameter")
 		// CMO3: CPhysicsOutput field destination - the driven parameter source's own guid.
-		val destination = Cmo3Import.elementsOf(driven.outputs).filterIsInstance<CPhysicsOutput>().first().destination
+		val destination = elementsOf(driven.outputs).filterIsInstance<CPhysicsOutput>().first().destination
 		val parameterSource =
-			Cmo3Import.elementsOf((root.parameterSourceSet as CParameterSourceSet)._sources).filterIsInstance<CParameterSource>().first { source -> source.guid === destination }
-		val deletedId = ParameterId(assertNotNull(Cmo3Import.idStrOf(parameterSource.id)))
+			elementsOf((root.parameterSourceSet as CParameterSourceSet)._sources).filterIsInstance<CParameterSource>().first { source -> source.guid === destination }
+		val deletedId = ParameterId(assertNotNull(idStrOf(parameterSource.id)))
 		val expectedNames =
 			settings.filter { setting ->
-				Cmo3Import.elementsOf(setting.inputs).any { input -> (input as? CPhysicsInput)?.source === destination } ||
-					Cmo3Import.elementsOf(setting.outputs).any { output -> (output as? CPhysicsOutput)?.destination === destination }
-			}.map { setting -> setting.name?.takeIf { name -> name.isNotBlank() } ?: Cmo3Import.idStrOf(setting.id).orEmpty() }
+				elementsOf(setting.inputs).any { input -> (input as? CPhysicsInput)?.source === destination } ||
+					elementsOf(setting.outputs).any { output -> (output as? CPhysicsOutput)?.destination === destination }
+			}.map { setting -> setting.name?.takeIf { name -> name.isNotBlank() } ?: idStrOf(setting.id).orEmpty() }
 
 		val imported = Cmo3Import.fromModelSource(root)
 		val edited = imported.copy(parameters = imported.parameters.filterNot { parameter -> parameter.id == deletedId })

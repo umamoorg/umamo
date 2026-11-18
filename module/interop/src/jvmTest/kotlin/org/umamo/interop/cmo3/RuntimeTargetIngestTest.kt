@@ -2,6 +2,7 @@ package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeFeature
 import org.umamo.runtime.model.RuntimeTarget

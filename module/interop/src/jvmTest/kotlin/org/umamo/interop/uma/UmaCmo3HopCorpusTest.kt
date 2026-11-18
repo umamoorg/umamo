@@ -13,11 +13,13 @@ import org.umamo.format.uma.textures.UmaPixelSource
 import org.umamo.format.uma.textures.UmaRenderPagePixels
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
-import org.umamo.interop.cmo3.Cmo3Conversion
-import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.ModelOrderPages
-import org.umamo.interop.cmo3.cmo3AtlasPages
-import org.umamo.interop.cmo3.modelOrderPages
+import org.umamo.interop.cmo3.elementsOf
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3PageImage
+import org.umamo.interop.cmo3.export.ModelOrderPages
+import org.umamo.interop.cmo3.export.modelOrderPages
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.Drawable
@@ -67,7 +69,7 @@ class UmaCmo3HopCorpusTest {
 	 * @param Map         renderPageByDrawableId Each drawable's render page.
 	 * @return ModelOrderPages The pages and the page map.
 	 */
-	private fun conversionPagesOf(puppet: PuppetModel, pageBytes: List<ByteArray>, renderPageByDrawableId: Map<String, Int>): ModelOrderPages<Cmo3Conversion.AtlasPage> {
+	private fun conversionPagesOf(puppet: PuppetModel, pageBytes: List<ByteArray>, renderPageByDrawableId: Map<String, Int>): ModelOrderPages<Cmo3PageImage> {
 		val resolved =
 			modelOrderPages(puppet, pageBytes, renderPageByDrawableId) { modelPageIndex ->
 				val modelPage = puppet.atlas.pages[modelPageIndex]
@@ -79,10 +81,10 @@ class UmaCmo3HopCorpusTest {
 				val modelPage = puppet.atlas.pages.getOrNull(pageIndex)
 
 				if (modelPage != null) {
-					Cmo3Conversion.AtlasPage(bytes, modelPage.width, modelPage.height)
+					Cmo3PageImage(bytes, modelPage.width, modelPage.height)
 				} else {
 					val decoded = PngCodec.read(bytes)
-					Cmo3Conversion.AtlasPage(bytes, decoded.width, decoded.height, decoded)
+					Cmo3PageImage(bytes, decoded.width, decoded.height, decoded)
 				}
 			}
 
@@ -209,17 +211,17 @@ class UmaCmo3HopCorpusTest {
 
 		val backBindings = back.blendShapes.associateBy { binding -> binding.parameterId }
 
-		for (binding in original.blendShapes) {
-			val backBinding = backBindings[binding.parameterId] ?: return KeyformComparison("$label lost its blend shape on ${binding.parameterId.raw}", compared, flipped)
+		for ((parameterId, keys, _, forms) in original.blendShapes) {
+			val backBinding = backBindings[parameterId] ?: return KeyformComparison("$label lost its blend shape on ${parameterId.raw}", compared, flipped)
 
-			for ((keyIndex, form) in binding.forms.withIndex()) {
+			for ((keyIndex, form) in forms.withIndex()) {
 				form ?: continue
-				val backKeyIndex = backBinding.keys.indexOfFirst { key -> key == binding.keys[keyIndex] }
-				val backForm = backBinding.forms.getOrNull(backKeyIndex) ?: return KeyformComparison("$label lost its blend form at ${binding.keys[keyIndex]}", compared, flipped)
+				val backKeyIndex = backBinding.keys.indexOfFirst { key -> key == keys[keyIndex] }
+				val backForm = backBinding.forms.getOrNull(backKeyIndex) ?: return KeyformComparison("$label lost its blend form at ${keys[keyIndex]}", compared, flipped)
 				val expected = positionsFromDeltas(originalBase, form.positionDeltas)
 				val actual = positionsFromDeltas(backBase, backForm.positionDeltas)
 				firstDifference(expected, actual)?.let { componentIndex ->
-					return KeyformComparison("$label's blend form on ${binding.parameterId.raw} at ${binding.keys[keyIndex]} moved: component $componentIndex is ${actual.getOrNull(componentIndex)}, not ${expected.getOrNull(componentIndex)}", compared, flipped)
+					return KeyformComparison("$label's blend form on ${parameterId.raw} at ${keys[keyIndex]} moved: component $componentIndex is ${actual.getOrNull(componentIndex)}, not ${expected.getOrNull(componentIndex)}", compared, flipped)
 				}
 				compared++
 			}
@@ -332,7 +334,7 @@ class UmaCmo3HopCorpusTest {
 		val exportedRoot = exported.root as CModelSource
 		val back = Cmo3Import.importModelSource(exportedRoot)
 		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases.
-		val atlasCount = Cmo3Import.elementsOf((exportedRoot.textureManager as? CTextureManager)?._textureAtlases).filterIsInstance<CTextureAtlas>().size
+		val atlasCount = elementsOf((exportedRoot.textureManager as? CTextureManager)?._textureAtlases).filterIsInstance<CTextureAtlas>().size
 		assertTrue(atlasCount == maxOf(reopened.atlas.pages.size, pages.size), "$atlasCount atlases for ${reopened.atlas.pages.size} model pages")
 
 		val expected = result.puppet

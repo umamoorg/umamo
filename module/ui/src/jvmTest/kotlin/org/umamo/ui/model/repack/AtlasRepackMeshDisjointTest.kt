@@ -6,8 +6,8 @@ import org.umamo.format.atlas.packAtlas
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.png.PngCodec
-import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.cmo3AtlasIngest
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasIngest
 import org.umamo.render.DecodedImage
 import org.umamo.render.atlasPlacementFromPack
 import org.umamo.runtime.model.AtlasPage

@@ -3,7 +3,7 @@ package org.umamo.render.eval
 import org.junit.Assume
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.ParameterId
 import org.umamo.testkit.skipTest
 import java.io.File

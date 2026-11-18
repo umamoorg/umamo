@@ -25,9 +25,9 @@ import org.umamo.format.raster.RasterImage
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
-import org.umamo.interop.cmo3.Cmo3Conversion
-import org.umamo.interop.cmo3.Cmo3Export
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.export.Cmo3PageImage
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.PuppetModel
@@ -106,7 +106,7 @@ class Cmo3ExportRepackTest {
 		// Same dimensions, so only the bytes move - the resize fields have their own gate below.
 		val pages =
 			resources.map { (_, resource) ->
-				Cmo3Conversion.AtlasPage(marker, resource.width, resource.height)
+				Cmo3PageImage(marker, resource.width, resource.height)
 			}
 
 		val report = Cmo3Export.apply(edited, cmo3, recomposedPages = pages)
@@ -131,7 +131,7 @@ class Cmo3ExportRepackTest {
 		val marker = markerPng()
 		val pages =
 			resources.map { (_, resource) ->
-				Cmo3Conversion.AtlasPage(marker, resource.width / 2, resource.height / 2)
+				Cmo3PageImage(marker, resource.width / 2, resource.height / 2)
 			}
 		val expectedDims = pages.map { page -> page.width to page.height }
 
@@ -170,7 +170,7 @@ class Cmo3ExportRepackTest {
 		// One page more than the EDITED model tracks: the pages are the repack's own output, so a
 		// count disagreeing with the model is caller inconsistency and declines whole.
 		val pages =
-			List(resources.size + 1) { Cmo3Conversion.AtlasPage(marker, 64, 64) }
+			List(resources.size + 1) { Cmo3PageImage(marker, 64, 64) }
 
 		val report = Cmo3Export.apply(edited, cmo3, recomposedPages = pages)
 
@@ -220,7 +220,7 @@ class Cmo3ExportRepackTest {
 		val edited = imported.withAtlasRepack(newPages, placements)
 		val marker = markerPng()
 		val pages =
-			newPages.map { page -> Cmo3Conversion.AtlasPage(marker, page.width, page.height) }
+			newPages.map { page -> Cmo3PageImage(marker, page.width, page.height) }
 
 		val report = Cmo3Export.apply(edited, cmo3, recomposedPages = pages)
 
@@ -320,7 +320,7 @@ class Cmo3ExportRepackTest {
 		assertNotSame(imported, edited, "the placement moved")
 		val marker = markerPng()
 		val pages =
-			pageResourcesOf(modelSource).map { (_, resource) -> Cmo3Conversion.AtlasPage(marker, resource.width, resource.height) }
+			pageResourcesOf(modelSource).map { (_, resource) -> Cmo3PageImage(marker, resource.width, resource.height) }
 
 		val report = Cmo3Export.apply(edited, cmo3, recomposedPages = pages)
 
@@ -364,7 +364,7 @@ class Cmo3ExportRepackTest {
 		val marker = markerPng()
 		val pages =
 			imported.atlas.pages.map { page ->
-				Cmo3Conversion.AtlasPage(marker, page.width, page.height)
+				Cmo3PageImage(marker, page.width, page.height)
 			}
 
 		val report = Cmo3Export.apply(edited, cmo3, recomposedPages = pages)
@@ -453,7 +453,7 @@ class Cmo3ExportRepackTest {
 		val marker = markerPng()
 		val pages =
 			resources.map { (_, resource) ->
-				Cmo3Conversion.AtlasPage(marker, resource.width, resource.height)
+				Cmo3PageImage(marker, resource.width, resource.height)
 			}
 
 		val report = Cmo3Export.apply(edited, cmo3, recomposedPages = pages)
@@ -495,7 +495,7 @@ class Cmo3ExportRepackTest {
 		val marker = markerPng()
 		val pages =
 			resources.map { (_, resource) ->
-				Cmo3Conversion.AtlasPage(marker, resource.width, resource.height)
+				Cmo3PageImage(marker, resource.width, resource.height)
 			}
 
 		val report = Cmo3Export.apply(edited, cmo3, recomposedPages = pages)

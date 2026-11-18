@@ -19,7 +19,10 @@ import org.umamo.interop.DocumentField
 import org.umamo.interop.EntityDiff
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
-import org.umamo.interop.cmo3.Cmo3Conversion.AtlasPage
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3PageImage
+import org.umamo.interop.cmo3.export.fitAtlasPageToCanvasTransform
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.PuppetModel
@@ -93,7 +96,7 @@ class Cmo3ConversionRoundTripTest {
 			textureFiles.map { textureFile ->
 				val pngBytes = textureFile.readBytes()
 				val decoded = PngCodec.read(pngBytes)
-				AtlasPage(pngBytes, decoded.width, decoded.height)
+				Cmo3PageImage(pngBytes, decoded.width, decoded.height)
 			}
 		// The family's cdi3 rides in through the loaders' own lookup, so the display names, the parameter
 		// groups, and the linked pairs all cross the conversion and the residue checks below catch any the
@@ -249,8 +252,7 @@ class Cmo3ConversionRoundTripTest {
 		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases.
 		val textureManager = source.textureManager as? CTextureManager
 		val atlasCount =
-			Cmo3Import
-				.elementsOf(textureManager?._textureAtlases)
+			elementsOf(textureManager?._textureAtlases)
 				.filterIsInstance<CTextureAtlas>()
 				.size
 
@@ -316,8 +318,7 @@ class Cmo3ConversionRoundTripTest {
 		// CMO3: CTextureManager field _textureAtlases -> CTextureAtlas field cachedAtlasImage.
 		val textureManager = source.textureManager as? CTextureManager ?: return
 		val pageResources =
-			Cmo3Import
-				.elementsOf(textureManager._textureAtlases)
+			elementsOf(textureManager._textureAtlases)
 				.filterIsInstance<CTextureAtlas>()
 				.mapNotNull { atlas -> atlas.cachedAtlasImage as? CImageResource }
 
@@ -330,8 +331,7 @@ class Cmo3ConversionRoundTripTest {
 		// CMO3: CDrawableSourceSet field _sources -> CArtMeshSource field texture -> GTexture2D field
 		// srcImageResource.
 		val meshes =
-			Cmo3Import
-				.elementsOf((source.drawableSourceSet as? CDrawableSourceSet)?._sources)
+			elementsOf((source.drawableSourceSet as? CDrawableSourceSet)?._sources)
 				.filterIsInstance<CArtMeshSource>()
 		val strays =
 			meshes.filter { mesh ->

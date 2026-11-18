@@ -84,7 +84,7 @@ internal class Cmo3TextureFrames(private val modelSource: CModelSource) {
 
 		return when {
 			sampled != null && isAtlasPage(sampled) -> Cmo3StoredFrame.Page
-			!Cmo3Import.hasAtlasRegion(source) || samplesReducedCopy(source) -> Cmo3StoredFrame.Cache
+			!hasAtlasRegion(source) || samplesReducedCopy(source) -> Cmo3StoredFrame.Cache
 			else -> Cmo3StoredFrame.Raster
 		}
 	}
@@ -231,7 +231,7 @@ internal class Cmo3TextureFrames(private val modelSource: CModelSource) {
 
 		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases -> CTextureAtlas
 		// field cachedAtlasImage.
-		return Cmo3Import.elementsOf((modelSource.textureManager as? CTextureManager)?._textureAtlases).any { atlas ->
+		return elementsOf((modelSource.textureManager as? CTextureManager)?._textureAtlases).any { atlas ->
 			val page = (atlas as? CTextureAtlas)?.cachedAtlasImage as? CImageResource
 			page != null && (page === resource || (archivePath != null && page.imageFileBuf?.archivePath == archivePath))
 		}
@@ -339,21 +339,21 @@ internal class Cmo3TextureFrames(private val modelSource: CModelSource) {
 			val textureManager = modelSource.textureManager as? CTextureManager ?: return emptyMap()
 			// CMO3: CTextureManager field _textureAtlases -> CTextureAtlas field cachedAtlasImage.
 			val pages =
-				Cmo3Import.elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()
+				elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()
 					.mapNotNull { atlas -> atlas.cachedAtlasImage as? CImageResource }
 					.toHashSet()
 			val ownerByCopy = HashMap<CImageResource, CModelImage>()
 
 			// CMO3: CTextureManager field _modelImageGroups -> CModelImageGroup field _modelImages.
-			for (group in Cmo3Import.elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
-				for (modelImage in Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
+			for (group in elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
+				for (modelImage in elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
 					val raster = modelImage._filteredImage as? CImageResource
 					// CMO3: CModelImage field cachedImageManager -> CCachedImageManager field cachedImages ->
 					// CCachedImage field _cachedImageResource - the raster itself at SCALE_1, and a reduced
 					// copy beside it when the editor made one.
 					val manager = modelImage.cachedImageManager as? CCachedImageManager ?: continue
 
-					for (cached in Cmo3Import.elementsOf(manager.cachedImages).filterIsInstance<CCachedImage>()) {
+					for (cached in elementsOf(manager.cachedImages).filterIsInstance<CCachedImage>()) {
 						val resource = cached._cachedImageResource as? CImageResource ?: continue
 
 						if (resource !== raster && resource !in pages) {

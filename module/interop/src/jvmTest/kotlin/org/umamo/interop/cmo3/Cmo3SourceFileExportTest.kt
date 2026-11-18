@@ -2,6 +2,8 @@ package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test

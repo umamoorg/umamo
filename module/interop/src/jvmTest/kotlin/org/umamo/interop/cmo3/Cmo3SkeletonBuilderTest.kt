@@ -7,6 +7,9 @@ import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.interop.cmo3.export.Cmo3FreshFile
+import org.umamo.interop.cmo3.export.Cmo3SkeletonBuilder
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.testkit.skipTest
@@ -28,7 +31,7 @@ class Cmo3SkeletonBuilderTest {
 		val bytes =
 			Cmo3FreshFile.assemble(
 				skeleton.root,
-				skeleton.iconEntries.map { icon -> Cmo3FreshFile.PngEntry(icon.path, icon.pngBytes) },
+				skeleton.iconEntries,
 				obfuscateKey = 0x49C74776.toInt(),
 			)
 		// The assembled blank doubles as the manual official-editor gate's input: open

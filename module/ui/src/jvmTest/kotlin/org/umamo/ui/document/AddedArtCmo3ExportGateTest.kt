@@ -20,9 +20,9 @@ import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.SourceArtImportOptions
-import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.cmo3AtlasIngest
-import org.umamo.interop.cmo3.cmo3SourceArtOf
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasIngest
+import org.umamo.interop.cmo3.import.cmo3SourceArtOf
 import org.umamo.testkit.skipTest
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.artwork.AddArtworkRequest

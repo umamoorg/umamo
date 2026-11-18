@@ -15,7 +15,7 @@ import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.uma.Uma
 import org.umamo.format.uma.UmaModel
-import org.umamo.interop.cmo3.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3Conversion
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.storage.desktopAppStorage
