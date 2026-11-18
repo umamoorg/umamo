@@ -71,7 +71,7 @@ import java.util.IdentityHashMap
  * The flat-property half of the CMO3 export reconcile: every diffed field with a direct CMO3 field
  * to write - names, flags, blend modes, masks, reference reparents, tree orders, parameter ranges
  * and links, and the canvas.  Channel-backed values (statics, keyforms, geometry) dispatch to the
- * shared [Cmo3KeyformLowering]; mesh topology and glue re-binding dispatch to [Cmo3StructureLowering].
+ * shared [Cmo3KeyformLowering]; mesh topology and glue re-binding dispatch to [Cmo3MeshTopologyLowering].
  * Entity creation/deletion runs earlier, in Cmo3Export.apply's structural pass.  A Created diff
  * that still reaches this class means that pass already tried to synthesize the entity, failed,
  * and already reported why - this class has nothing to lower for it and skips it silently.
@@ -114,8 +114,8 @@ internal class Cmo3PropertyLowering(
 	/** The keyform re-bundling engine, shared by the drawable/deformer/part/glue dispatches. */
 	private val keyforms = Cmo3KeyformLowering(context, index, notices)
 
-	/** The structural engine, for topology rewrites and glue re-binding on Changed entities. */
-	private val structure = Cmo3StructureLowering(context, index, notices)
+	/** The topology engine, for topology rewrites and glue re-binding on Changed entities. */
+	private val topology = Cmo3MeshTopologyLowering(context, index, notices)
 
 	/**
 	 * Lowers each changed parameter's fields onto its graph source.
@@ -343,7 +343,7 @@ internal class Cmo3PropertyLowering(
 										?: rootDeformerSentinel()
 								editor.ensureChildSlot(source, "ACDeformerSource", "targetDeformerGuid")
 								// The forms are read in the new parent's space from now on, reused ones included.
-								keyforms.retagFormSpaces(source, editedDeformer.parent != null)
+								keyforms.formSpaces.retagFormSpaces(source, editedDeformer.parent != null)
 							}
 
 							DeformerField.PART -> {
@@ -439,7 +439,7 @@ internal class Cmo3PropertyLowering(
 	 * @param List<EntityDiff<DrawableId, DrawableField>> diffs The drawable diffs.
 	 */
 	fun lowerDrawables(diffs: List<EntityDiff<DrawableId, DrawableField>>) {
-		structure.expectTopologyRewrites(
+		topology.expectTopologyRewrites(
 			diffs.mapNotNull { diff -> if (diff is EntityDiff.Changed && DrawableField.MESH_TOPOLOGY in diff.fields) diff.id else null },
 		)
 
@@ -485,7 +485,7 @@ internal class Cmo3PropertyLowering(
 										?: rootDeformerSentinel()
 								editor.ensureChildSlot(source, "ACDrawableSource", "targetDeformerGuid", "clipGuidList")
 								// The forms are read in the new parent's space from now on, reused ones included.
-								keyforms.retagFormSpaces(source, editedDrawable.parentDeformerId != null)
+								keyforms.formSpaces.retagFormSpaces(source, editedDrawable.parentDeformerId != null)
 							}
 
 							DrawableField.BLEND_MODE -> {
@@ -539,7 +539,7 @@ internal class Cmo3PropertyLowering(
 								// with no baseline was never welded, so synthesis stays notice-free.
 								val hadBaseline = baselineDrawableById[diff.id] != null
 
-								if (structure.lowerMeshTopology(source, editedDrawable) && hadBaseline) {
+								if (topology.lowerMeshTopology(source, editedDrawable) && hadBaseline) {
 									weldDivergedDrawableNames.add(editedDrawable.name)
 								}
 							}
@@ -591,7 +591,7 @@ internal class Cmo3PropertyLowering(
 			}
 		}
 
-		structure.settleTopologyRewrites()
+		topology.settleTopologyRewrites()
 	}
 
 	/**
@@ -716,7 +716,7 @@ internal class Cmo3PropertyLowering(
 					}
 
 					if (GlueField.PAIRS in diff.fields) {
-						structure.lowerGluePairsFor(editedGlue)
+						topology.lowerGluePairsFor(editedGlue)
 					}
 
 					if (GlueField.CHANNELS in diff.fields || GlueField.INTENSITY in diff.fields) {
@@ -1308,9 +1308,9 @@ internal class Cmo3PropertyLowering(
 			}
 		}
 
-		for (link in edited.parameterLinks) {
-			val horizontalSource = index.parameterByIdStr[link.horizontal.raw] ?: continue
-			val verticalSource = index.parameterByIdStr[link.vertical.raw] ?: continue
+		for ((horizontal, vertical) in edited.parameterLinks) {
+			val horizontalSource = index.parameterByIdStr[horizontal.raw] ?: continue
+			val verticalSource = index.parameterByIdStr[vertical.raw] ?: continue
 			val horizontalIndex = orderedSources.indexOfFirst { it === horizontalSource }
 			val verticalIndex = orderedSources.indexOfFirst { it === verticalSource }
 
@@ -1324,7 +1324,7 @@ internal class Cmo3PropertyLowering(
 			notices.unsupported(
 				ExportEntityCategory.Document,
 				null,
-				ExportNoticeReason.CombinedPairReordered(link.horizontal.raw, link.vertical.raw),
+				ExportNoticeReason.CombinedPairReordered(horizontal.raw, vertical.raw),
 			)
 		}
 
