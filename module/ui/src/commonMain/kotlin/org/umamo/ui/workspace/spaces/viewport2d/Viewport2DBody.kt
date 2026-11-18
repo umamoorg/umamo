@@ -21,7 +21,7 @@ import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.viewport.ApplicationGridMirror
 import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.rememberAnyGestureLive
-import org.umamo.ui.viewport.rememberGestureOwnsAreaPointer
+import org.umamo.ui.viewport.rememberChromeStepsAsideForArea
 import org.umamo.ui.viewport.viewport2d.ViewportSpaceCamera
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalAreaCameraHub
@@ -97,8 +97,9 @@ internal fun Viewport2DBody(scope: AreaScope) {
 	// fields and the snap commands resolve the setting with or without a renderer behind the area.
 	ApplicationGridMirror(viewState.overlays)
 	// The floating chrome stops the pointer reaching the surface, except while one of this area's gestures
-	// owns it: a G started over the surface keeps following the pointer across the drawer.
-	val gestureOwnsPointer = rememberGestureOwnsAreaPointer(session, scope.areaId)
+	// holds it: a G started over the surface keeps following the pointer across the drawer.  The armed
+	// brush is not one of them, so the toolbar and the sidebar stay usable while it is armed.
+	val chromeStepsAside = rememberChromeStepsAsideForArea(session, scope.areaId)
 	val contextMenu = rememberViewportContextMenu(session)
 	val anyGestureLive = rememberAnyGestureLive(session)
 	// The host seam takes only the area id, so the area's overlay visibility reaches its cursor and HUD overlays
@@ -116,7 +117,7 @@ internal fun Viewport2DBody(scope: AreaScope) {
 			if (viewState.toolbar.isShown(chrome.showToolbar)) {
 				// Clipped to the strip's outline after the margin, so only the strip itself keeps the pointer.
 				PointerShield(
-					passPointerThrough = gestureOwnsPointer,
+					passPointerThrough = chromeStepsAside,
 					modifier =
 						Modifier
 							.align(Alignment.CenterStart)
@@ -131,7 +132,7 @@ internal fun Viewport2DBody(scope: AreaScope) {
 				areaId = scope.areaId,
 				space = SpaceKind.Viewport2D,
 				state = viewState.sidebar,
-				passPointerThrough = gestureOwnsPointer,
+				passPointerThrough = chromeStepsAside,
 				modifier = Modifier.align(Alignment.CenterEnd),
 			)
 		}

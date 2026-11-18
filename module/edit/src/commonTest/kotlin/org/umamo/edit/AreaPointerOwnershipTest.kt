@@ -19,7 +19,8 @@ private const val RIGHT_AREA = "area-right"
 
 /**
  * Tests for AreaPointerOwnership.kt: a gesture latched in an area owns that area's pointer and no other's, and a held
- * select drag, which names no area, owns every area's.
+ * select drag, which names no area, owns every area's.  The chrome over an area answers to its own gate, which the
+ * armed deform brush does not hold.
  */
 class AreaPointerOwnershipTest {
 	/** With nothing latched, no area's pointer is owned. */
@@ -111,6 +112,55 @@ class AreaPointerOwnershipTest {
 		assertTrue(gestureOwnsAreaPointer(LEFT_AREA, operatorAreaId = null, selectToolAreaId = null, brushAreaId = null, viewportGestureActive = false, zoomRegionArmedAreaId = LEFT_AREA))
 		assertFalse(
 			gestureOwnsAreaPointer(LEFT_AREA, operatorAreaId = RIGHT_AREA, selectToolAreaId = RIGHT_AREA, brushAreaId = RIGHT_AREA, viewportGestureActive = false, zoomRegionArmedAreaId = RIGHT_AREA),
+			"latches held by another area leave this one alone",
+		)
+	}
+
+	/**
+	 * The armed brush holds the area's pointer - the wheel resizes the brush rather than zooming the surface - but
+	 * not the area's chrome: the toolbar has to switch tools and the sidebar has to reach the brush's own settings
+	 * while it is armed.
+	 */
+	@Test
+	fun anArmedBrushLeavesTheAreasChromeUsable() {
+		val session = EditorSession(meshModel())
+		session.setMode(EditorMode.Edit)
+		session.beginBrush(LEFT_AREA)
+
+		assertTrue(session.gestureOwnsAreaPointer(LEFT_AREA), "the brush still holds the area's navigation")
+		assertFalse(session.chromeStepsAsideForArea(LEFT_AREA), "the toolbar and the sidebar stay usable")
+	}
+
+	/** A drag in flight holds the chrome, so the drag does not press the buttons under it. */
+	@Test
+	fun aDragInFlightHoldsTheAreasChrome() {
+		val session = EditorSession(meshModel())
+		session.setViewportGestureActive(true)
+
+		assertTrue(session.chromeStepsAsideForArea(LEFT_AREA))
+
+		session.setViewportGestureActive(false)
+		assertFalse(session.chromeStepsAsideForArea(LEFT_AREA))
+	}
+
+	/** An armed select tool holds the chrome, as it did before the brush's own rule. */
+	@Test
+	fun anArmedSelectToolHoldsTheAreasChrome() {
+		val session = EditorSession(meshModel())
+		session.beginBoxSelect(LEFT_AREA)
+
+		assertTrue(session.chromeStepsAsideForArea(LEFT_AREA))
+	}
+
+	/** The chrome's rule matches each latch against the asking area alone. */
+	@Test
+	fun theChromeRuleMatchesEachLatchAgainstTheAskingArea() {
+		assertTrue(chromeStepsAsideForArea(LEFT_AREA, operatorAreaId = LEFT_AREA, selectToolAreaId = null, viewportGestureActive = false, zoomRegionArmedAreaId = null))
+		assertTrue(chromeStepsAsideForArea(LEFT_AREA, operatorAreaId = null, selectToolAreaId = LEFT_AREA, viewportGestureActive = false, zoomRegionArmedAreaId = null))
+		assertTrue(chromeStepsAsideForArea(LEFT_AREA, operatorAreaId = null, selectToolAreaId = null, viewportGestureActive = true, zoomRegionArmedAreaId = null))
+		assertTrue(chromeStepsAsideForArea(LEFT_AREA, operatorAreaId = null, selectToolAreaId = null, viewportGestureActive = false, zoomRegionArmedAreaId = LEFT_AREA))
+		assertFalse(
+			chromeStepsAsideForArea(LEFT_AREA, operatorAreaId = RIGHT_AREA, selectToolAreaId = RIGHT_AREA, viewportGestureActive = false, zoomRegionArmedAreaId = RIGHT_AREA),
 			"latches held by another area leave this one alone",
 		)
 	}

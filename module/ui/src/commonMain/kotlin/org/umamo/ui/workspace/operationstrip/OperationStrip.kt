@@ -38,7 +38,7 @@ import org.umamo.ui.kit.sharesPointerWithSiblings
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
-import org.umamo.ui.viewport.rememberGestureOwnsAreaPointer
+import org.umamo.ui.viewport.rememberChromeStepsAsideForArea
 import org.umamo.ui.workspace.LocalOperationStripInset
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.changeLabel
@@ -122,14 +122,14 @@ internal fun OperationStripHost(areaId: String, kind: SpaceKind, content: @Compo
 	}
 
 	if (session != null && record != null) {
-		val gestureOwnsPointer = rememberGestureOwnsAreaPointer(session, areaId)
+		val chromeStepsAside = rememberChromeStepsAsideForArea(session, areaId)
 		// The hit test asks only the space body's direct sibling whether it hands the pointer on, and that is
 		// this box, so it hands the pointer on too while the shield inside it does.
-		val boxModifier = if (gestureOwnsPointer) Modifier.fillMaxSize().sharesPointerWithSiblings() else Modifier.fillMaxSize()
+		val boxModifier = if (chromeStepsAside) Modifier.fillMaxSize().sharesPointerWithSiblings() else Modifier.fillMaxSize()
 		Box(modifier = boxModifier, contentAlignment = Alignment.BottomStart) {
 			// Clipped to the strip's outline after the margin, so only the strip itself keeps the pointer.
 			PointerShield(
-				passPointerThrough = gestureOwnsPointer,
+				passPointerThrough = chromeStepsAside,
 				modifier =
 					Modifier
 						.padding(start = STRIP_MARGIN, bottom = STRIP_MARGIN)

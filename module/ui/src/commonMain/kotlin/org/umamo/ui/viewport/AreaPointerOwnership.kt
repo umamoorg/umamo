@@ -3,18 +3,21 @@ package org.umamo.ui.viewport
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import org.umamo.edit.EditorSession
-import org.umamo.edit.gestureOwnsAreaPointer
+import org.umamo.edit.chromeStepsAsideForArea
 
 /**
- * Whether one of the area's gestures owns the pointer (see [gestureOwnsAreaPointer]), as composition state, so
- * chrome that steps aside for a gesture recomposes the moment one starts or ends.
+ * Whether the chrome floating over one of the area's must step aside for one of the area's gestures (see
+ * [chromeStepsAsideForArea]), as composition state, so chrome recomposes the moment a gesture starts or ends.
+ *
+ * The armed deform brush is not one of them, so the toolbar and the sidebar stay usable while the brush is
+ * armed; a brush drag in flight holds the chrome inert through the in-flight gesture flag.
  *
  * @param EditorSession? session The session whose tool latches are read, or null with no document open.
  * @param String areaId The area asking.
- * @return Boolean True when a gesture owns this area's pointer; false with no session.
+ * @return Boolean True when a gesture holds this area's chrome inert; false with no session.
  */
 @Composable
-internal fun rememberGestureOwnsAreaPointer(session: EditorSession?, areaId: String): Boolean {
+internal fun rememberChromeStepsAsideForArea(session: EditorSession?, areaId: String): Boolean {
 	if (session == null) {
 		return false
 	}
@@ -23,16 +26,14 @@ internal fun rememberGestureOwnsAreaPointer(session: EditorSession?, areaId: Str
 	val objectOperator = session.activeObjectOperator.collectAsState().value
 	val uvOperator = session.activeUvOperator.collectAsState().value
 	val selectTool = session.activeSelectTool.collectAsState().value
-	val brush = session.activeBrush.collectAsState().value
 	val viewportGestureActive = session.viewportGestureActive.collectAsState().value
 	val zoomRegionArmedArea = session.zoomRegionArmedArea.collectAsState().value
 
-	return gestureOwnsAreaPointer(
+	return chromeStepsAsideForArea(
 		areaId = areaId,
 		// The same precedence as the session's activeOperator; at most one of the three runs at a time.
 		operatorAreaId = (meshOperator ?: objectOperator ?: uvOperator)?.areaId,
 		selectToolAreaId = selectTool?.areaId,
-		brushAreaId = brush?.areaId,
 		viewportGestureActive = viewportGestureActive,
 		zoomRegionArmedAreaId = zoomRegionArmedArea,
 	)

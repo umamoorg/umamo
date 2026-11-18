@@ -60,7 +60,7 @@ import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.gizmo.editMeshOverlaySizes
 import org.umamo.ui.viewport.overlapStateFrom
-import org.umamo.ui.viewport.rememberGestureOwnsAreaPointer
+import org.umamo.ui.viewport.rememberChromeStepsAsideForArea
 import org.umamo.ui.viewport.tracksAreaPointer
 import org.umamo.ui.viewport.uv.LocalUvSidebarSurface
 import org.umamo.ui.viewport.uv.PlacementDragStatus
@@ -424,8 +424,8 @@ internal fun UvEditorSpace(scope: AreaScope) {
 		remember(editFrame, geometries, proportionalRadiusDisplay, placementSurface, placementSceneState) {
 			UvSidebarSurface(editFrame, geometries, proportionalRadiusDisplay, placementSurface, placementSceneState)
 		}
-	// The chrome steps aside while a gesture of this area owns the pointer, as the 2D viewport's does.
-	val gestureOwnsPointer = rememberGestureOwnsAreaPointer(session, scope.areaId)
+	// The chrome steps aside while a gesture of this area holds it, as the 2D viewport's does.
+	val chromeStepsAside = rememberChromeStepsAsideForArea(session, scope.areaId)
 
 	// The UV viewport's own contextual menu: right-click anywhere in the viewport for UV operations.  A
 	// context menu is contextual - this holds ONLY UV ops, not area actions.  Nested in the content below,
@@ -580,7 +580,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 				areaId = scope.areaId,
 				space = SpaceKind.UvEditor,
 				state = viewState.sidebar,
-				passPointerThrough = gestureOwnsPointer,
+				passPointerThrough = chromeStepsAside,
 				modifier = Modifier.align(Alignment.CenterEnd),
 			)
 		}
