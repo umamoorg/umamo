@@ -207,7 +207,6 @@ See format planning document: docs/plan/uma-format.md
 
 ## MacOS
 * Zoom with the touchpad on my 2014 Macbook Pro is glitchy.  It will jump around and even go the wrong direction.
-* Attempting to open a second file does not open a second application instance and claims that it can't open UMA file types.
 
 ## CDI3.json
 * Change Drawables to ArtMesh.
