@@ -11,7 +11,7 @@ import org.umamo.format.cmo3.type.CArrayList
 /*
  * The small graph nodes an export writes fresh, the same way wherever it needs one: on the blank
  * skeleton, on the shells the structure lowering creates, on the keyform lowering's fresh forms, and
- * where the property lowering moves an entity under the root deformer.
+ * where the deformer and drawable lowerings move an entity under the root deformer.
  */
 
 /**

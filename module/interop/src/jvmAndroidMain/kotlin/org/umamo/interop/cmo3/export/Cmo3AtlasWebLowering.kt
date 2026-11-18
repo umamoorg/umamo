@@ -54,7 +54,7 @@ import java.util.IdentityHashMap
  * texture binding ([Result.mintedBindings]), which the structural pass binds it through.
  *
  * All or nothing: validation runs first and any gap declines the WHOLE reconcile - the honest
- * notices then flow from the property lowering unchanged.  Nothing here may half-write, because the
+ * notices then flow from the field pass unchanged.  Nothing here may half-write, because the
  * reconcile has no rollback.
  */
 internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
@@ -450,7 +450,7 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 		}
 
 		// 6. Pack-ins: mint the entry the tile never had.  The transforms are written with the same
-		// shared math the property lowering uses, which then rewrites them identically for the
+		// shared math the atlas-tile lowering uses, which then rewrites them identically for the
 		// placement diff - the mint exists so an entry is THERE to rewrite.
 		for ((tileId, newPlacement) in packInPlacementByTileId) {
 			val destination = atlasList[newPlacement.pageIndex] as CTextureAtlas

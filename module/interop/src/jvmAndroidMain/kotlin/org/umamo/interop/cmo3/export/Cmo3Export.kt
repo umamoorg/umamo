@@ -433,10 +433,22 @@ object Cmo3Export {
 		}
 
 	/**
-	 * The field pass, over an index REBUILT after the structural pass (it must see the shells and forget
-	 * the removed sources).  Parameters and groups first (tree rebuilds reference their sources), then
-	 * deformer moves (they mutate _childGuids), then parts (whose CHILDREN rebuild anchors on the moved
-	 * lists), then drawables, glues, and the document fields.
+	 * The field pass: every diffed field with a direct CMO3 field to write, over an index REBUILT after
+	 * the structural pass (it must see the shells and forget the removed sources).  Parameters and
+	 * groups first (tree rebuilds reference their sources), then deformer moves (they mutate
+	 * _childGuids), then parts (whose CHILDREN rebuild anchors on the moved lists), then drawables,
+	 * glues, the atlas tiles, and the document fields.  Every entity's channel-backed values (statics,
+	 * keyforms, geometry) go through the one keyform lowering, and mesh topology and glue re-binding
+	 * through the one topology lowering.
+	 *
+	 * A Created diff that still reaches this pass is one the structural pass tried to synthesize and
+	 * failed, and it has already reported why, so each lowering skips it silently.  Deleted diffs never
+	 * arrive: the structural pass consumes every deletion and [promotedDiff] strips them.
+	 *
+	 * Every assignment that can target an element or attribute the source document omitted pairs with
+	 * the graph editor's ensure call - the writer replays recorded slots, so a bare assignment on a
+	 * read object would otherwise be dropped silently.  Anchors follow the generated model's declared
+	 * field order (the editor's document order), so an ensured element lands where the editor writes it.
 	 *
 	 * @param Cmo3ExportContext           context   The export's context.
 	 * @param PuppetDiff                  diff      The promoted diff.
@@ -444,22 +456,20 @@ object Cmo3Export {
 	 * @param Cmo3AtlasWebLowering.Result webResult What the atlas-web reconcile did.
 	 */
 	private fun lowerFields(context: Cmo3ExportContext, diff: PuppetDiff, notices: Cmo3ExportNotices, webResult: Cmo3AtlasWebLowering.Result) {
-		val lowering =
-			Cmo3PropertyLowering(
-				context = context,
-				index = Cmo3GraphIndex(context.modelSource),
-				notices = notices,
-				pagesRecomposed = webResult.pagesRecomposed,
-				reconciledTileIds = webResult.reconciledTileIds,
-			)
-		lowering.lowerParameters(diff.parameters)
-		lowering.lowerParameterGroups(diff.parameterGroups)
-		lowering.lowerDeformers(diff.deformers)
-		lowering.lowerParts(diff.parts)
-		lowering.lowerDrawables(diff.drawables)
-		lowering.flushWeldNotice()
-		lowering.lowerGlues(diff.glues)
-		lowering.lowerAtlasTiles(diff.atlasTiles)
-		lowering.lowerDocument(diff.document)
+		val index = Cmo3GraphIndex(context.modelSource)
+		val keyforms = Cmo3KeyformLowering(context, index, notices)
+		val topology = Cmo3MeshTopologyLowering(context, index, notices)
+		val panelTree = Cmo3PanelTreeLowering(context, index, notices)
+		val parameters = Cmo3ParameterLowering(context, index, notices, panelTree)
+		parameters.lowerParameters(diff.parameters)
+		parameters.lowerParameterGroups(diff.parameterGroups)
+		Cmo3DeformerLowering(context, index, notices, keyforms).lowerDeformers(diff.deformers)
+		Cmo3PartLowering(context, index, notices, keyforms, panelTree).lowerParts(diff.parts)
+		val drawables = Cmo3DrawableLowering(context, index, notices, keyforms, topology)
+		drawables.lowerDrawables(diff.drawables)
+		drawables.flushWeldNotice()
+		Cmo3GlueLowering(context, index, notices, keyforms, topology).lowerGlues(diff.glues)
+		Cmo3AtlasTileLowering(context, index, notices, webResult.pagesRecomposed, webResult.reconciledTileIds).lowerAtlasTiles(diff.atlasTiles)
+		Cmo3DocumentLowering(context, index, notices, panelTree, webResult.pagesRecomposed).lowerDocument(diff.document)
 	}
 }

@@ -73,7 +73,7 @@ internal class Cmo3KeyformLowering(
 	private val editor = context.editor
 	private val baselineDrawableById = context.baselineDrawableById
 
-	/** The forms' coordinate-space tags; the property lowering retags a re-parented owner's forms through this same instance. */
+	/** The forms' coordinate-space tags; the deformer and drawable lowerings retag a re-parented owner's forms through this same instance. */
 	val formSpaces = Cmo3FormSpaces(context, index)
 
 	private val gridWeb = Cmo3KeyformGridWeb(context, index, notices)
@@ -255,7 +255,7 @@ internal class Cmo3KeyformLowering(
 	) {
 		val subject = editedDrawable.id.raw
 		// The keyform-space base the deltas are measured from (DrawableMesh.localPositions); the canvas mesh is
-		// CArtMeshSource.positions, written by the property lowering.
+		// CArtMeshSource.positions, written by the drawable lowering.
 		val editedBase = editedDrawable.mesh?.localPositions
 
 		if (editedBase == null) {
