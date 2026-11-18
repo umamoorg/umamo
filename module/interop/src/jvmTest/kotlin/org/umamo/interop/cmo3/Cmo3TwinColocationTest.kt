@@ -9,6 +9,7 @@ import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3PageImage
 import org.umamo.interop.cmo3.export.Cmo3TwinColocation
 import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.BlendMode
@@ -50,9 +51,9 @@ class Cmo3TwinColocationTest {
 	/**
 	 * A 32 x 32 page with one opaque block inside the slot the quad samples.
 	 *
-	 * @return Cmo3Conversion.AtlasPage The page.
+	 * @return Cmo3PageImage The page.
 	 */
-	private fun page(): Cmo3Conversion.AtlasPage {
+	private fun page(): Cmo3PageImage {
 		val rgba = ByteArray(pageSize * pageSize * 4)
 
 		for (rowIndex in 12 until 19) {
@@ -61,7 +62,7 @@ class Cmo3TwinColocationTest {
 			}
 		}
 
-		return Cmo3Conversion.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, rgba)), pageSize, pageSize)
+		return Cmo3PageImage(PngCodec.write(RasterImage(pageSize, pageSize, rgba)), pageSize, pageSize)
 	}
 
 	/**
@@ -247,10 +248,10 @@ class Cmo3TwinColocationTest {
 	fun decodedPixelsMustBeThePagesOwnSize() {
 		val page = page()
 		assertFailsWith<IllegalArgumentException> {
-			Cmo3Conversion.AtlasPage(page.pngBytes, pageSize, pageSize, decoded = RasterImage(pageSize / 2, pageSize, ByteArray(pageSize / 2 * pageSize * 4)))
+			Cmo3PageImage(page.pngBytes, pageSize, pageSize, decoded = RasterImage(pageSize / 2, pageSize, ByteArray(pageSize / 2 * pageSize * 4)))
 		}
 		assertFailsWith<IllegalArgumentException> {
-			Cmo3Conversion.AtlasPage(page.pngBytes, pageSize, pageSize, decoded = RasterImage(pageSize, pageSize, ByteArray(pageSize)))
+			Cmo3PageImage(page.pngBytes, pageSize, pageSize, decoded = RasterImage(pageSize, pageSize, ByteArray(pageSize)))
 		}
 	}
 }

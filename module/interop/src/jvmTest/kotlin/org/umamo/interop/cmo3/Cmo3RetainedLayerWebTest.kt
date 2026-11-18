@@ -32,6 +32,7 @@ import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.cmo3.export.Cmo3Conversion
 import org.umamo.interop.cmo3.export.Cmo3Export
 import org.umamo.interop.cmo3.export.Cmo3Icons
+import org.umamo.interop.cmo3.export.Cmo3PageImage
 import org.umamo.interop.cmo3.export.Cmo3PageWeb
 import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.cmo3.import.cmo3AtlasIngest
@@ -91,7 +92,7 @@ class Cmo3RetainedLayerWebTest {
 	private fun drawable(id: String, tile: AtlasTile, left: Float, top: Float): Drawable =
 		Drawable(DrawableId(id), id, null, BlendMode.Normal, emptyList(), quad(left, top), null, atlasTileId = tile.id)
 
-	private val page = Cmo3Conversion.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, ByteArray(pageSize * pageSize * 4) { 0x40 })), pageSize, pageSize)
+	private val page = Cmo3PageImage(PngCodec.write(RasterImage(pageSize, pageSize, ByteArray(pageSize * pageSize * 4) { 0x40 })), pageSize, pageSize)
 
 	/**
 	 * A retained graph: an artwork-origin fixture (one file, an eye in Head/Eyes and hair at the root,

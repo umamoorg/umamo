@@ -36,6 +36,7 @@ import org.umamo.interop.cmo3.export.Cmo3Export
 import org.umamo.interop.cmo3.export.Cmo3FreshFile
 import org.umamo.interop.cmo3.export.Cmo3Icons
 import org.umamo.interop.cmo3.export.Cmo3ImageChainBuilder
+import org.umamo.interop.cmo3.export.Cmo3PageImage
 import org.umamo.interop.cmo3.export.Cmo3SkeletonBuilder
 import org.umamo.interop.cmo3.export.Cmo3SourceLayerWeb
 import org.umamo.interop.cmo3.import.Cmo3Import
@@ -132,7 +133,7 @@ class Cmo3SourceLayerWebTest {
 			sources = sources,
 		)
 
-	private val page = Cmo3Conversion.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, ByteArray(pageSize * pageSize * 4) { 0x40 })), pageSize, pageSize)
+	private val page = Cmo3PageImage(PngCodec.write(RasterImage(pageSize, pageSize, ByteArray(pageSize * pageSize * 4) { 0x40 })), pageSize, pageSize)
 
 	private fun names(entries: Any?): List<String> = elementsOf(entries).filterIsInstance<ACLayerEntry>().map { entry -> entry.name.orEmpty() }
 
@@ -310,7 +311,7 @@ class Cmo3SourceLayerWebTest {
 			Cmo3.read(
 				Cmo3FreshFile.assemble(
 					skeleton.root,
-					skeleton.iconEntries.map { icon -> Cmo3FreshFile.PngEntry(icon.path, icon.pngBytes) } + chain.pngEntries,
+					skeleton.iconEntries + chain.pngEntries,
 					obfuscateKey = 0x1234ABCD,
 				),
 			)

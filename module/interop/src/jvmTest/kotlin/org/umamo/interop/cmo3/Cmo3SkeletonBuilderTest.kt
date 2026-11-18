@@ -31,7 +31,7 @@ class Cmo3SkeletonBuilderTest {
 		val bytes =
 			Cmo3FreshFile.assemble(
 				skeleton.root,
-				skeleton.iconEntries.map { icon -> Cmo3FreshFile.PngEntry(icon.path, icon.pngBytes) },
+				skeleton.iconEntries,
 				obfuscateKey = 0x49C74776.toInt(),
 			)
 		// The assembled blank doubles as the manual official-editor gate's input: open

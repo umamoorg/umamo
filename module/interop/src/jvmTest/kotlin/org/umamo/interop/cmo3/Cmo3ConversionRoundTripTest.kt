@@ -20,7 +20,7 @@ import org.umamo.interop.EntityDiff
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.cmo3.export.Cmo3Conversion
-import org.umamo.interop.cmo3.export.Cmo3Conversion.AtlasPage
+import org.umamo.interop.cmo3.export.Cmo3PageImage
 import org.umamo.interop.cmo3.export.fitAtlasPageToCanvasTransform
 import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.moc3.Moc3Sidecars
@@ -96,7 +96,7 @@ class Cmo3ConversionRoundTripTest {
 			textureFiles.map { textureFile ->
 				val pngBytes = textureFile.readBytes()
 				val decoded = PngCodec.read(pngBytes)
-				AtlasPage(pngBytes, decoded.width, decoded.height)
+				Cmo3PageImage(pngBytes, decoded.width, decoded.height)
 			}
 		// The family's cdi3 rides in through the loaders' own lookup, so the display names, the parameter
 		// groups, and the linked pairs all cross the conversion and the residue checks below catch any the

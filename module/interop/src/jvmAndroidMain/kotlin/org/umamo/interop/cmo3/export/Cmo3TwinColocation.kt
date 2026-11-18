@@ -64,7 +64,7 @@ internal object Cmo3TwinColocation {
 	 */
 	fun colocate(
 		puppet: PuppetModel,
-		pages: List<Cmo3Conversion.AtlasPage>,
+		pages: List<Cmo3PageImage>,
 		pageIndexByDrawableId: Map<String, Int>,
 	): Result {
 		// Group drawables by slot, then by quantized placement within the slot.

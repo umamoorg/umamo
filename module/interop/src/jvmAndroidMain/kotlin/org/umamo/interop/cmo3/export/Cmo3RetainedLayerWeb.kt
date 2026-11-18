@@ -33,6 +33,7 @@ import org.umamo.interop.cmo3.uuidOf
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.AtlasTile
+import org.umamo.runtime.model.identityAffine
 import org.umamo.runtime.model.lineageRoot
 import org.umamo.runtime.model.storedToArtAffineForTile
 import kotlin.math.roundToInt
@@ -417,11 +418,7 @@ internal class Cmo3RetainedLayerWeb(
 	 * @param Any? affine The field value.
 	 * @return FloatArray The values, m00 m01 m02 m10 m11 m12.
 	 */
-	private fun affineValuesOf(affine: Any?): FloatArray {
-		val values = affine as? CAffine ?: return floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f)
-
-		return floatArrayOf(values.m00, values.m01, values.m02, values.m10, values.m11, values.m12)
-	}
+	private fun affineValuesOf(affine: Any?): FloatArray = (affine as? CAffine)?.toAffineArray() ?: identityAffine()
 
 	/**
 	 * Moves a model image to another file: the selector map's key, the current-image env value, and

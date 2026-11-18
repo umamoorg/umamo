@@ -1,12 +1,11 @@
 package org.umamo.interop.cmo3.import
 
 import org.umamo.format.cmo3.model.gen.ACForm
-import org.umamo.format.cmo3.model.gen.KeyOnParameter
-import org.umamo.format.cmo3.model.gen.KeyformBindingSource
-import org.umamo.format.cmo3.model.gen.KeyformGridAccessKey
 import org.umamo.format.cmo3.model.gen.KeyformGridSource
-import org.umamo.format.cmo3.model.gen.KeyformOnGrid
+import org.umamo.interop.cmo3.cellKeysOf
 import org.umamo.interop.cmo3.elementsOf
+import org.umamo.interop.cmo3.gridBindingsOf
+import org.umamo.interop.cmo3.gridCellsOf
 import org.umamo.interop.cmo3.uuidOf
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
@@ -36,7 +35,7 @@ internal fun <TForm : Any> buildGrid(
 	cellPayload: (Any) -> TForm?,
 ): KeyformGrid<TForm>? {
 	val grid = gridSource as? KeyformGridSource ?: return null
-	val bindings = elementsOf(grid.keyformBindings).filterIsInstance<KeyformBindingSource>()
+	val bindings = gridBindingsOf(grid)
 	val axes =
 		bindings.map { binding ->
 			KeyformAxis(
@@ -48,13 +47,12 @@ internal fun <TForm : Any> buildGrid(
 	val axisOfBinding = bindings.withIndex().associate { (index, binding) -> binding to index }
 	val formByUuid = formPool(forms)
 	val cells =
-		elementsOf(grid.keyformsOnGrid).filterIsInstance<KeyformOnGrid>().mapNotNull { cell ->
+		gridCellsOf(grid).mapNotNull { cell ->
 			val form = formByUuid[uuidOf(cell.keyformGuid)] ?: return@mapNotNull null
 			val payload = cellPayload(form) ?: return@mapNotNull null
 			val coordinate = IntArray(axes.size)
-			val keyList = (cell.accessKey as? KeyformGridAccessKey)?._keyOnParameterList
 
-			for (keyOnParameter in elementsOf(keyList).filterIsInstance<KeyOnParameter>()) {
+			for (keyOnParameter in cellKeysOf(cell)) {
 				val axisIndex = axisOfBinding[keyOnParameter.binding] ?: continue
 				coordinate[axisIndex] = keyOnParameter.keyIndex
 			}

@@ -9,6 +9,7 @@ import org.umamo.format.cmo3.model.gen.KeyformGridSource
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3PageImage
 import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
@@ -64,7 +65,7 @@ class Cmo3UnkeyedDrawableExportTest {
 		val result =
 			Cmo3Conversion.freshCmo3(
 				puppet = unkeyedPuppet(),
-				pages = listOf(Cmo3Conversion.AtlasPage(page, 8, 8)),
+				pages = listOf(Cmo3PageImage(page, 8, 8)),
 				pageIndexByDrawableId = mapOf("ArtMesh1" to 0),
 				modelName = "unkeyed",
 				nowMillis = 0L,
