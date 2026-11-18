@@ -68,9 +68,7 @@ internal fun createOffscreenGlContext(): OffscreenGlContext {
  * render thread and the headless self-check alike, so both load them the same way.
  */
 internal fun configureLwjglNatives() {
-	val osName = System.getProperty("os.name").orEmpty().lowercase()
-
-	if (osName.contains("mac") || osName.contains("darwin")) {
+	if (isMacOs()) {
 		// https://javadoc.lwjgl.org/org/lwjgl/glfw/package-summary.html#using-glfw-on-macos-heading
 		Configuration.GLFW_LIBRARY_NAME.set("glfw_async")
 
