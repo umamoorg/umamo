@@ -56,7 +56,6 @@
 * CMO3
 	* ACParameterControllableSource.isVisible was wired up so now the outliner needs this toggle as well.  Deformer editing is not implemented yet so this is minor.
 * MOC3
-	* (Check the bullshit the AI did without my permission.)  CDI3 - Export mesh display names as a separate array.
 	* Reconcile isVisible/isEnabled from MOC3 for deformers.  Maybe for CMO3 too.
 
 ## Deleted References (Unused Data)
@@ -75,7 +74,7 @@
 ## Overlay Toggles
 * Improvements
 	* Objects:
-		* Deformers (Deferred until deformer overlays are built after this work.)
+		* Rotation Deformers, separate from Warp Deformers.  Might end be called bones, skeleton, or something else. (Deferred until rotation deformers are built.)
 
 ## Object and Mesh Editing
 * Improvements
@@ -98,8 +97,6 @@
 * Bugs/Improvements
 	* Rip and Vertex Slide could be implemented for UV.
 		* Do a study to determine if rip functionality is really needed.  It is definitely needed for 3D work, but for 2D work I think it is less useful.  Though I'm curious what people would create with the functionality being available.
-	* Mirror UVs are shown in the command palette when editing a mesh in the 2D viewport.
-		* This is actually kind of useful, but technically breaks the border of the command palette only showing what is available per area.
 	* Pixels outside of the canvas still need to render.
 	* B(Armed box select) is not working in object mode.
 * UV Snap Pie
@@ -121,8 +118,6 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 * Improvements
 	* Parts and deformers still have no editable transform: Needs the deformer → part → mesh cascade.
 	* Do another pass on the keyed parameter/property highlight colors.  Why does off key filled color appear as grey over green?
-	* Transform Position and Size should update the render while scrubbing.  They should also show the rest pose data after changing to edit mode.
-	* Aspect locked properties(Size) should update the other control while one is being scrubbed.
 * Single/multiple relation pickers.
 	* Improvements
 		* Persist list height.(Stored in UMA format, maybe?)
@@ -195,7 +190,6 @@ See format planning document: docs/plan/uma-format.md
 * The settings UI needs a design pass since it is basically just squares and whatever thrown together right now.
 * New Settings
 	* Setting to make Left Click, instead of ALT+Left Click, the default to activate the popup overlap picker.
-	* Mesh Generation default preset - It exists, but it is not placed yet.
 
 ## Keybindings
 * Audit default keybinding maps for Blender and Cubism styles.
