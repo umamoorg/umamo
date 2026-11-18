@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.update
 
 /*
  * The long operations running now, for the status bar to show: opening a document, adding or reloading
- * artwork, generating meshes, packing the atlas.  The tracker lives for the application's life - an open
+ * artwork, generating meshes, packing the atlas, exporting a model.  The tracker lives for the application's life - an open
  * runs before the document it opens has a session, and its progress must outlast the swap - and every
  * update is a compare-and-set on one state flow, so a worker thread can report as freely as the UI thread.
  */
@@ -34,6 +34,9 @@ object ProgressLabels {
 
 	/** Packing the atlas. */
 	const val ATLAS_PACKING = "progress.atlas.packing"
+
+	/** Exporting the model to a file; one argument, the file's name. */
+	const val MODEL_EXPORTING = "progress.model.exporting"
 }
 
 /**

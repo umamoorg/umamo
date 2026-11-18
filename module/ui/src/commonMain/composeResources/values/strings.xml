@@ -736,7 +736,6 @@
 	<string name="notice_document_exported_image">Exported %1$s.</string>
 	<string name="notice_document_save_busy">A save is already in progress.</string>
 	<string name="notice_document_waiting_for_save">Waiting on save to finish…</string>
-	<string name="notice_document_exporting_model">Exporting puppet…</string>
 	<string name="notice_document_exported_model">Exported %1$s.</string>
 	<string name="notice_document_export_busy">An export is already in progress.</string>
 	<string name="notice_document_waiting_for_export">Waiting on export to finish…</string>
@@ -747,6 +746,7 @@
 	<string name="progress_artwork_meshing">Meshing the art…</string>
 	<string name="progress_mesh_generating">Generating meshes…</string>
 	<string name="progress_atlas_packing">Packing the atlas…</string>
+	<string name="progress_model_exporting">Exporting %1$s…</string>
 	<string name="progress_count">%1$d / %2$d</string>
 	<string name="progress_more_tasks">+%1$d more</string>
 	<string name="notice_document_cmo3_loss">Saved as UMA.  The CMO3's physics, guides, keyform notes, random pose, model state sets, user data, and other editor settings are not stored in this UMA.  CMO3 exports from this session still keep them, but a CMO3 exported after reopening the UMA will not.</string>

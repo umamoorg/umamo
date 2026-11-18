@@ -24,6 +24,8 @@ import org.umamo.ui.document.exportedModelFor
 import org.umamo.ui.document.prepareMoc3Export
 import org.umamo.ui.document.renderCmo3Export
 import org.umamo.ui.document.writeMoc3Bundle
+import org.umamo.ui.progress.ProgressLabels
+import org.umamo.ui.progress.track
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.alert_export_failed
 import org.umamo.ui.resources.confirm_export_overwrite
@@ -88,7 +90,8 @@ internal class DocumentExportController(
 	 * replace-write, as a save's do, so a failed write leaves whatever was there rather than half a file.
 	 *
 	 * The model and the page set are read here, on the UI thread, and the seconds of work that turn them into
-	 * bytes run off it, so the editor stays usable and the exporting notice paints while a large model exports.
+	 * bytes run off it, so the editor stays usable and the export's task paints on the status bar while a large
+	 * model exports.
 	 * That holds for a CMO3-origin document too: its reconcile lowers onto a working copy read from the
 	 * document's archive, never onto the graph the open document reads.
 	 *
@@ -109,13 +112,18 @@ internal class DocumentExportController(
 				" (atlas ${if (edited.atlas === puppetDocument.puppet.atlas) "unchanged" else "repacked"});" +
 				" pages ${if (effectiveTextures === puppetDocument.textures) "are the document's own" else "are the session's (${effectiveTextures.atlases.size})"}",
 		)
-		exported.session.emitNotice("notice.document.exportingModel", NoticePlacement.StatusBar)
 		val nowMillis = Clock.System.now().toEpochMilliseconds()
 		val obfuscateKey = Random.nextInt()
-		val rendered = withContext(Dispatchers.Default) { renderCmo3Export(puppetDocument, edited, effectiveTextures, suggestedName, nowMillis, obfuscateKey) }
-		// Once the bytes exist they land: a torn-down composition must not leave half a file.
-		withContext(NonCancellable) { destination.writeReplacing(rendered.bytes) }
-		reportExport(rendered.report)
+		// The task ends before the report is raised, so neither the report nor the exported notice shows
+		// behind it.
+		val report =
+			services.progress.track(ProgressLabels.MODEL_EXPORTING, listOf(destination.name)) {
+				val rendered = withContext(Dispatchers.Default) { renderCmo3Export(puppetDocument, edited, effectiveTextures, suggestedName, nowMillis, obfuscateKey) }
+				// Once the bytes exist they land: a torn-down composition must not leave half a file.
+				withContext(NonCancellable) { destination.writeReplacing(rendered.bytes) }
+				rendered.report
+			}
+		reportExport(report)
 		UmamoLog.info("exported ${destination.absolutePath()}")
 		exported.session.emitNotice("notice.document.exportedModel", NoticePlacement.StatusBar, listOf(destination.name))
 	}
@@ -171,18 +179,19 @@ internal class DocumentExportController(
 		// the picker closing.  Read here, on the UI thread; only the build leaves it.
 		val edited = exportedModelFor(puppetDocument, exported.session)
 		val effectiveTextures = exported.pageBinding().textures
-		exported.session.emitNotice("notice.document.exportingModel", NoticePlacement.StatusBar)
 		val bundle =
 			services.alertingExportFailures(destination.name) {
-				withContext(Dispatchers.Default) {
-					prepareMoc3Export(
-						document = puppetDocument,
-						edited = edited,
-						effectiveTextures = effectiveTextures,
-						// FileKit appends the extension, so the picked handle's own name is authoritative.
-						destinationName = destination.name,
-						options = options,
-					)
+				services.progress.track(ProgressLabels.MODEL_EXPORTING, listOf(destination.name)) {
+					withContext(Dispatchers.Default) {
+						prepareMoc3Export(
+							document = puppetDocument,
+							edited = edited,
+							effectiveTextures = effectiveTextures,
+							// FileKit appends the extension, so the picked handle's own name is authoritative.
+							destinationName = destination.name,
+							options = options,
+						)
+					}
 				}
 			} ?: return
 		// The native save dialog confirmed the picked file only; the rest of the family (manifest, cdi3,
@@ -226,7 +235,10 @@ internal class DocumentExportController(
 		services.alertingExportFailures(destination.name) {
 			// Once the family starts to land it lands whole: a torn-down composition must not leave a moc beside
 			// the textures and sidecars of an older export.
-			val written = withContext(NonCancellable + Dispatchers.IO) { writeMoc3Bundle(destination, bundle) }
+			val written =
+				services.progress.track(ProgressLabels.MODEL_EXPORTING, listOf(destination.name)) {
+					withContext(NonCancellable + Dispatchers.IO) { writeMoc3Bundle(destination, bundle) }
+				}
 			reportExport(bundle.report)
 			UmamoLog.info("exported $written file(s) as ${destination.absolutePath()}")
 			exported.session.emitNotice("notice.document.exportedModel", NoticePlacement.StatusBar, listOf(destination.name))

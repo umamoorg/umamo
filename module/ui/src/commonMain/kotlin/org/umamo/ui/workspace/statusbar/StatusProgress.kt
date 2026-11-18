@@ -81,5 +81,6 @@ internal fun progressText(labelKey: String, arguments: List<String>): String =
 		ProgressLabels.ARTWORK_MESHING -> stringResource(Res.string.progress_artwork_meshing)
 		ProgressLabels.MESH_GENERATING -> stringResource(Res.string.progress_mesh_generating)
 		ProgressLabels.ATLAS_PACKING -> stringResource(Res.string.progress_atlas_packing)
+		ProgressLabels.MODEL_EXPORTING -> stringResource(Res.string.progress_model_exporting, arguments.firstOrNull().orEmpty())
 		else -> labelKey
 	}
