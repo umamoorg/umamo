@@ -146,7 +146,7 @@ object Cmo3Export {
 		// them on its own saves, and a thumbnail of the rest pose is what it shows for the file.
 		if (modelThumbnail != null) {
 			(modelSource.textureManager as? CTextureManager)?.let { textureManager ->
-				Cmo3RetainedLayerWeb(context, textureManager).replaceModelIcons(modelSource, modelThumbnail)
+				Cmo3RetainedIcons(context, Cmo3RetainedArchive(target, textureManager)).replaceModelIcons(modelSource, modelThumbnail)
 			}
 		}
 
