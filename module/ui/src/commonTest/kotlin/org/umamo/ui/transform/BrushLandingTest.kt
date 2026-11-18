@@ -15,6 +15,7 @@ import org.umamo.ui.viewport.viewport2d.latticeRigModel
 import org.umamo.ui.viewport.viewport2d.latticeRigSession
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -47,7 +48,8 @@ class BrushLandingTest {
 	@Test
 	fun aStrokeOverACageMovesThatPointAndLeavesTheRestAlone() {
 		val before = latticeWorld()
-		val landing = brushLanding(latticeRigModel(), stroke(), settings, listOf(cageOwner()))
+		val geometry = captureBrushGeometry(latticeRigModel(), listOf(cageOwner()))
+		val landing = brushLanding(geometry, stroke(), settings)
 
 		val cages = landing as BrushLanding.Cages
 		assertEquals(listOf(LATTICE_RIG_BODY), cages.warpIds, "the brush touched the one cage it was over")
@@ -66,7 +68,8 @@ class BrushLandingTest {
 	@Test
 	fun theFalloffHoldsAPointBackShortOfTheWholeTravel() {
 		val before = latticeWorld()
-		val landing = brushLanding(latticeRigModel(), stroke(), settings, listOf(cageOwner()))
+		val geometry = captureBrushGeometry(latticeRigModel(), listOf(cageOwner()))
+		val landing = brushLanding(geometry, stroke(), settings)
 		val after = (landing as BrushLanding.Cages).world.getValue(LATTICE_RIG_BODY)
 		val travelled = after[0] - before[0]
 
@@ -78,7 +81,8 @@ class BrushLandingTest {
 	@Test
 	fun aStrokeThatReachesNoCageChangesNothing() {
 		val far = BrushStroke.starting(500f, 500f, 15f).stampedTo(510f, 500f, 15f)
-		val landing = brushLanding(latticeRigModel(), far, settings, listOf(cageOwner()))
+		val geometry = captureBrushGeometry(latticeRigModel(), listOf(cageOwner()))
+		val landing = brushLanding(geometry, far, settings)
 
 		val cages = landing as BrushLanding.Cages
 		assertTrue(cages.world.isEmpty(), "the brush reached no cage")
@@ -88,11 +92,21 @@ class BrushLandingTest {
 	@Test
 	fun theLandedModelCarriesTheLatticeWhereTheStrokePutIt() {
 		val model = latticeRigModel()
-		val landing = brushLanding(model, stroke(), settings, listOf(cageOwner()))
+		val geometry = captureBrushGeometry(model, listOf(cageOwner()))
+		val landing = brushLanding(geometry, stroke(), settings)
 		val cages = landing as BrushLanding.Cages
 
 		assertArrayNear(cages.world.getValue(LATTICE_RIG_BODY), warpLatticeAt(cages.reshape.model, emptyMap(), LATTICE_RIG_BODY)!!.world, tolerance, "the lattice lands where the brush put it")
 		assertEquals(0, cages.reshape.unconvertedCount)
+	}
+
+	/** A cage stroke leaves the art where it was, so its preview carries no model to push at the renderer. */
+	@Test
+	fun aCageStrokePreviewsNoModelToPush() {
+		val geometry = captureBrushGeometry(latticeRigModel(), listOf(cageOwner()))
+		val preview = brushPreview(geometry, stroke(), settings)
+
+		assertNull(preview.smearedModel, "a cage stroke moves the rig, not the art")
 	}
 
 	/**

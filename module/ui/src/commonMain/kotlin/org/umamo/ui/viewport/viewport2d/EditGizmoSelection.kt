@@ -4,6 +4,7 @@ import androidx.compose.runtime.State
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.transform.BrushStroke
+import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.LiveMeshPreview
 import org.umamo.ui.viewport.gizmo.MarqueeSelectController
 import org.umamo.ui.viewport.gizmo.MeshPickController
@@ -51,18 +52,28 @@ internal fun editMeshPick(
 /**
  * The deform brush's machinery over the session's geometry (see brushMarquee), publishing what the
  * stroke would do into the window's live preview, which the mesh and the cage follow until the release
- * commits it.
+ * commits it, and pushing the model the stroke would leave behind to the renderer, so the art itself
+ * follows the brush.
  *
  * @param EditorSession session The session owning the brush latch and the model.
  * @param LiveMeshPreview? livePreview The window's live mesh preview, or null outside a shell; a brush
  *   built without one keeps a private slot nothing reads.
+ * @param Function pushPreview Pushes the model the stroke would leave behind to the renderer.
  * @return MarqueeSelectController The brush's controller.
  */
-internal fun editBrushMarquee(session: EditorSession, livePreview: LiveMeshPreview?): MarqueeSelectController<BrushStroke> {
+internal fun editBrushMarquee(
+	session: EditorSession,
+	livePreview: LiveMeshPreview?,
+	pushPreview: (PuppetModel) -> Unit,
+): MarqueeSelectController<BrushStroke> {
 	val preview = livePreview ?: LiveMeshPreview()
 
-	return brushMarquee(session) { brushPreview ->
-		preview.restByDrawable = brushPreview?.restByDrawable?.takeIf { rest -> rest.isNotEmpty() }
-		preview.showLattices(brushPreview?.latticeWorldByDeformer ?: emptyMap(), emptyMap())
-	}
+	return brushMarquee(
+		session = session,
+		publishPreview = { brushPreview ->
+			preview.restByDrawable = brushPreview?.restByDrawable?.takeIf { rest -> rest.isNotEmpty() }
+			preview.showLattices(brushPreview?.latticeWorldByDeformer ?: emptyMap(), emptyMap())
+		},
+		pushPreview = pushPreview,
+	)
 }

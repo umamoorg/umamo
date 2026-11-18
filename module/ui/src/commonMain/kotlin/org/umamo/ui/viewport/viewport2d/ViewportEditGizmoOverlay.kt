@@ -164,9 +164,10 @@ fun ViewportEditGizmoOverlay(
 	val meshPick = remember(areaId) { editMeshPick(session, marquee, liveGeometryState) }
 
 	// The deform brush's machinery, one per area (see editBrushMarquee).  The live preview it writes is
-	// the window's, so the cage follows the stroke wherever it is drawn.
+	// the window's, so the cage follows the stroke wherever it is drawn; the model it pushes is the
+	// renderer's, so the art itself follows the brush.
 	val livePreview = LocalLiveMeshPreview.current
-	val brush = remember(areaId) { editBrushMarquee(session, livePreview) }
+	val brush = remember(areaId) { editBrushMarquee(session, livePreview, service::setModel) }
 
 	// The idle lattice the pointer is over in Pose mode, drawn in the hover color in this area alone, one per area
 	// (see LatticeHover).
