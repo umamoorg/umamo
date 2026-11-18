@@ -754,11 +754,7 @@ internal class Cmo3RetainedLayerWeb(
 					editor.ensureChildSlot(image, "CLayeredImage", "layerSet")
 				}
 
-		return mutableGraphListOf(layerSet._layerEntryList)
-			?: CArrayList<Any?>().also { created ->
-				layerSet._layerEntryList = created
-				editor.ensureChildSlot(layerSet, "LayerSet", "_layerEntryList")
-			}
+		return editor.graphListFor(layerSet, "LayerSet", "_layerEntryList", layerSet._layerEntryList, GraphListKind.CArrayList) { created -> layerSet._layerEntryList = created }
 	}
 
 	/**
@@ -848,9 +844,5 @@ internal class Cmo3RetainedLayerWeb(
 	 */
 	private fun childrenOf(group: ACLayerGroup): MutableList<Any?> =
 		// CMO3: ACLayerGroup field _children.
-		mutableGraphListOf(group._children)
-			?: CArrayList<Any?>().also { created ->
-				group._children = created
-				editor.ensureChildSlot(group, "ACLayerGroup", "_children")
-			}
+		editor.graphListFor(group, "ACLayerGroup", "_children", group._children, GraphListKind.CArrayList) { created -> group._children = created }
 }

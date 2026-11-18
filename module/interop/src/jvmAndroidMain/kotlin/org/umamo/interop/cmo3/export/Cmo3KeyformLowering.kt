@@ -2,9 +2,7 @@ package org.umamo.interop.cmo3.export
 
 import org.umamo.format.cmo3.model.custom.CFloatColor
 import org.umamo.format.cmo3.model.custom.CRotationDeformerForm
-import org.umamo.format.cmo3.model.drawable.CoordType
 import org.umamo.format.cmo3.model.gen.ACDeformerForm
-import org.umamo.format.cmo3.model.gen.ACDeformerSource
 import org.umamo.format.cmo3.model.gen.ACDrawableForm
 import org.umamo.format.cmo3.model.gen.ACForm
 import org.umamo.format.cmo3.model.gen.CArtMeshForm
@@ -16,20 +14,8 @@ import org.umamo.format.cmo3.model.gen.CPartSource
 import org.umamo.format.cmo3.model.gen.CRotationDeformerSource
 import org.umamo.format.cmo3.model.gen.CWarpDeformerForm
 import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
-import org.umamo.format.cmo3.model.gen.ExtendedInterpolationType
-import org.umamo.format.cmo3.model.gen.InterpolationType
-import org.umamo.format.cmo3.model.gen.KeyFormMorphTarget
-import org.umamo.format.cmo3.model.gen.KeyFormMorphTargetSet
-import org.umamo.format.cmo3.model.gen.KeyOnParameter
-import org.umamo.format.cmo3.model.gen.KeyformBindingSource
-import org.umamo.format.cmo3.model.gen.KeyformGridAccessKey
 import org.umamo.format.cmo3.model.gen.KeyformGridSource
-import org.umamo.format.cmo3.model.gen.KeyformOnGrid
-import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraint
-import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraintSet
-import org.umamo.format.cmo3.model.gen.MorphTargetEditBaseParameterMap
 import org.umamo.format.cmo3.model.identity.Guid
-import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.KeyformBundle
@@ -38,14 +24,11 @@ import org.umamo.interop.KeyformBundleResult
 import org.umamo.interop.OutOfSpanPolicy
 import org.umamo.interop.buildKeyformBundle
 import org.umamo.interop.cmo3.elementsOf
-import org.umamo.interop.cmo3.idStrOf
-import org.umamo.interop.cmo3.mutableGraphListOf
 import org.umamo.interop.cmo3.uuidOf
 import org.umamo.runtime.keyform.FormInterpolator
 import org.umamo.runtime.keyform.MeshDeltaInterpolator
 import org.umamo.runtime.keyform.RotationPivotInterpolator
 import org.umamo.runtime.keyform.WarpLatticeInterpolator
-import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
@@ -56,21 +39,19 @@ import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
-import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.deltaReaching
-import java.util.Collections
-import java.util.IdentityHashMap
 
 /*
  * The keyform half of the CMO3 export reconcile: re-bundling Umamo's split representation (a
  * geometry grid plus independent per-channel tracks plus statics) back into CMO3's all-or-nothing
- * keyform cells, and rebuilding the grid web (KeyformGridSource / KeyformBindingSource /
- * KeyformOnGrid / KeyOnParameter / the forms pool) that encodes it.
+ * keyform cells, one owner kind at a time.  The grid web that encodes the cells is
+ * [Cmo3KeyformGridWeb]'s to write, the morph-target set [Cmo3BlendShapeLowering]'s, and the forms'
+ * coordinate-space tags [Cmo3FormSpaces]'.
  *
  * The re-bundling itself is the format-neutral buildKeyformBundle (KeyformBundle.kt), shared with the
  * MOC3 export so both formats union the axes and re-interpolate through the same grid algebra.  What
@@ -90,132 +71,13 @@ internal class Cmo3KeyformLowering(
 	private val notices: Cmo3ExportNotices,
 ) {
 	private val editor = context.editor
-	private val parameterIdByUuid: Map<String, ParameterId> =
-		buildMap {
-			for (source in index.parameterSources) {
-				val uuid = uuidOf(source.guid) ?: continue
-				val idStr = idStrOf(source.id) ?: continue
-				put(uuid, ParameterId(idStr))
-			}
-		}
 	private val baselineDrawableById = context.baselineDrawableById
 
-	/**
-	 * Per-name CoordType instances shared across every form this lowering tags, seeded from the forms
-	 * the graph already carries so a fresh or re-tagged form references the file's own shared def for
-	 * that name (the writer hoists one def per name, the editor's own shape; it never writes a null
-	 * coordType).
-	 */
-	private val coordTypes: HashMap<String, CoordType> by lazy {
-		val byName = HashMap<String, CoordType>()
-		val pools = index.drawableSources.map { source -> source.keyforms } + index.deformerSources.map { source -> keyformsOf(source) }
+	/** The forms' coordinate-space tags; the property lowering retags a re-parented owner's forms through this same instance. */
+	val formSpaces = Cmo3FormSpaces(context, index)
 
-		for (pool in pools) {
-			for (form in elementsOf(pool)) {
-				val coordType = coordTypeOf(form) ?: continue
-				byName.putIfAbsent(coordType.coordName, coordType)
-			}
-		}
-
-		byName
-	}
-
-	/**
-	 * The CoordType a form gets for its owner's binding.
-	 *
-	 * CMO3: ACDrawableForm / ACDeformerForm field coordType - corpus forms carry "DeformerLocal"
-	 * under a parent deformer and "Canvas" at the deformer-tree root (the space the stored positions
-	 * are expressed in).
-	 *
-	 * @param Boolean hasParentDeformer Whether the owning item deforms under a parent deformer.
-	 * @return CoordType The shared per-export instance for that name.
-	 */
-	private fun formCoordType(hasParentDeformer: Boolean): CoordType =
-		coordTypes.getOrPut(if (hasParentDeformer) "DeformerLocal" else "Canvas") {
-			CoordType().apply {
-				coordName = if (hasParentDeformer) "DeformerLocal" else "Canvas"
-			}
-		}
-
-	/**
-	 * The CoordType a fresh form takes: the [template]'s own instance when the sibling is tagged for
-	 * the same binding (the shared def the editor writes), else the shared instance for the owner's
-	 * binding, since a sibling from another owner may sit on the other side of the deformer tree.
-	 *
-	 * @param Any?    template          The sibling form conventions are cloned from, or null.
-	 * @param Boolean hasParentDeformer Whether the owning item deforms under a parent deformer.
-	 * @return CoordType The instance to tag the fresh form with.
-	 */
-	private fun freshFormCoordType(template: Any?, hasParentDeformer: Boolean): CoordType {
-		val wanted = formCoordType(hasParentDeformer)
-
-		return coordTypeOf(template)?.takeIf { templateCoordType -> templateCoordType.coordName == wanted.coordName } ?: wanted
-	}
-
-	/**
-	 * Tags every form of [source] with the space an owner under [hasParentDeformer] stores its
-	 * positions in, so after a rebind the editor reads the positions in the new parent's space.  A form
-	 * already tagged with that name is left as it is, so an unchanged file re-emits its bytes.
-	 *
-	 * CMO3: ACDrawableForm / ACDeformerForm field coordType.
-	 *
-	 * @param Any     source            The drawable or deformer source whose forms are re-tagged.
-	 * @param Boolean hasParentDeformer Whether the owner now deforms under a parent deformer.
-	 */
-	fun retagFormSpaces(source: Any, hasParentDeformer: Boolean) {
-		val pool =
-			when (source) {
-				is CArtMeshSource -> source.keyforms
-				is ACDeformerSource -> keyformsOf(source)
-				else -> return
-			}
-		val coordType = formCoordType(hasParentDeformer)
-
-		for (form in elementsOf(pool)) {
-			if (coordTypeOf(form)?.coordName == coordType.coordName) {
-				continue
-			}
-
-			when (form) {
-				is ACDrawableForm -> {
-					form.coordType = coordType
-					editor.ensureChildSlot(form, "ACDrawableForm", "coordType")
-				}
-
-				is ACDeformerForm -> {
-					form.coordType = coordType
-					editor.ensureChildSlot(form, "ACDeformerForm", "coordType")
-				}
-			}
-		}
-	}
-
-	/**
-	 * The keyforms pool of a deformer source, declared per concrete class rather than on
-	 * ACDeformerSource.
-	 *
-	 * @param ACDeformerSource source The deformer source.
-	 * @return Any? Its keyforms, or null for a kind without one.
-	 */
-	private fun keyformsOf(source: ACDeformerSource): Any? =
-		when (source) {
-			is CWarpDeformerSource -> source.keyforms
-			is CRotationDeformerSource -> source.keyforms
-			else -> null
-		}
-
-	/**
-	 * The CoordType a form carries, or null for a form of another kind or one tagged with nothing.
-	 *
-	 * @param Any? form The form.
-	 * @return CoordType? Its coordType.
-	 */
-	private fun coordTypeOf(form: Any?): CoordType? =
-		when (form) {
-			is ACDrawableForm -> form.coordType
-			is ACDeformerForm -> form.coordType
-			else -> null
-		} as? CoordType
+	private val gridWeb = Cmo3KeyformGridWeb(context, index, notices)
+	private val blendShapes = Cmo3BlendShapeLowering(context, index, notices)
 
 	/**
 	 * [buildKeyformBundle] with CMO3's policy applied: an owner whose split state cannot be expressed
@@ -277,68 +139,6 @@ internal class Cmo3KeyformLowering(
 		}
 
 	/**
-	 * The forms of the CURRENT graph grid keyed by their per-parameter key values, for reuse.
-	 *
-	 * @param Any? gridSourceField The owner's keyformGridSource.
-	 * @param Any? formsField      The owner's keyforms pool.
-	 * @return Map Value-coordinate key to form object.
-	 */
-	private fun existingFormsByValues(gridSourceField: Any?, formsField: Any?): Map<String, Any> {
-		val gridSource = gridSourceField as? KeyformGridSource ?: return emptyMap()
-		val bindings =
-			elementsOf(gridSource.keyformBindings).filterIsInstance<KeyformBindingSource>()
-		val keysByBinding =
-			bindings.associateWith { binding ->
-				elementsOf(binding.keys).mapNotNull { (it as? Number)?.toFloat() }
-			}
-		val parameterByBinding =
-			bindings.associateWith { binding -> parameterIdByUuid[uuidOf(binding.parameterGuid)] }
-		val formByUuid =
-			elementsOf(formsField).filterIsInstance<ACForm>()
-				.associateBy { form -> uuidOf(form.guid) }
-		val byValues = HashMap<String, Any>()
-
-		for (cell in elementsOf(gridSource.keyformsOnGrid).filterIsInstance<KeyformOnGrid>()) {
-			val form = formByUuid[uuidOf(cell.keyformGuid)] ?: continue
-			val values = HashMap<ParameterId, Float>()
-			val keyList = (cell.accessKey as? KeyformGridAccessKey)?._keyOnParameterList
-			var resolvable = true
-
-			for (keyOnParameter in elementsOf(keyList).filterIsInstance<KeyOnParameter>()) {
-				val binding = keyOnParameter.binding as? KeyformBindingSource ?: continue
-				val parameterId = parameterByBinding[binding] ?: continue
-				val keys = keysByBinding[binding] ?: continue
-				val key = keys.getOrNull(keyOnParameter.keyIndex)
-
-				if (key == null) {
-					resolvable = false
-
-					break
-				}
-
-				values[parameterId] = key
-			}
-
-			if (resolvable) {
-				byValues[valueKey(values)] = form
-			}
-		}
-
-		return byValues
-	}
-
-	/**
-	 * A map key for a set of parameter values, the same for the same values in any order.
-	 *
-	 * @param Map<ParameterId, Float> values The parameter values of one grid cell.
-	 * @return String The key, built from each value's exact bits.
-	 */
-	private fun valueKey(values: Map<ParameterId, Float>): String =
-		values.entries
-			.sortedBy { entry -> entry.key.raw }
-			.joinToString("|") { entry -> "${entry.key.raw}=${entry.value.toRawBits()}" }
-
-	/**
 	 * A template form of [TFormClass] from [ownForms], falling back to any owner of the same kind.
 	 *
 	 * @param Any? ownForms The owner's own forms pool, as stored.
@@ -353,166 +153,6 @@ internal class Cmo3KeyformLowering(
 		}
 
 		return null
-	}
-
-	/**
-	 * Rebuilds the grid web from [bundle]: bindings reused per parameter (keys rewritten), fresh
-	 * cell records, and the given per-cell forms.
-	 *
-	 * @param Any           owner       The source object owning keyformGridSource.
-	 * @param String        subject     The owner's id for notices.
-	 * @param Any?          currentGrid The current keyformGridSource.
-	 * @param Function      assignGrid  Assigns a fresh grid source.
-	 * @param KeyformBundle bundle      The re-bundled grid.
-	 * @param List          cellForms   One form object per bundle cell, in cell order.
-	 * @return Boolean True on success.
-	 */
-	private fun writeGridWeb(
-		owner: Any,
-		subject: String,
-		currentGrid: Any?,
-		assignGrid: (Any?) -> Unit,
-		bundle: KeyformBundle,
-		cellForms: List<ACForm>,
-	): Boolean {
-		if (bundle.cells.isEmpty()) {
-			// Only a geometry owner reaches here (buildBundle gives every other unkeyed owner its default
-			// cell): its rest geometry left with its last axis, so there is no form to write and the grid
-			// is removed.  The editor wants a default cell there too; keeping an axis-less rest cell when
-			// the last axis collapses is the model's job (:edit), not this writer's to invent.
-			assignGrid(null)
-			editor.ensureChildSlot(owner, "ACParameterControllableSource", "keyformGridSource", "keyformMorphTargetSet")
-
-			return true
-		}
-
-		val gridSource =
-			currentGrid as? KeyformGridSource
-				?: KeyformGridSource().also {
-					assignGrid(it)
-					editor.ensureChildSlot(owner, "ACParameterControllableSource", "keyformGridSource", "keyformMorphTargetSet")
-				}
-		val existingBindings =
-			elementsOf(gridSource.keyformBindings).filterIsInstance<KeyformBindingSource>()
-				.associateBy { binding -> uuidOf(binding.parameterGuid) }
-		val bindingPerAxis = ArrayList<KeyformBindingSource>(bundle.axes.size)
-
-		for (axis in bundle.axes) {
-			val parameterSource = index.parameterByIdStr[axis.parameterId.raw]
-
-			if (parameterSource == null) {
-				notices.unsupported(ExportEntityCategory.Keyform, subject, ExportNoticeReason.AxisParameterHasNoSource(axis.parameterId.raw))
-
-				return false
-			}
-
-			val binding =
-				existingBindings[uuidOf(parameterSource.guid)]
-					?: KeyformBindingSource().apply {
-						_gridSource = gridSource
-						parameterGuid = parameterSource.guid
-						keys = ArrayList<Any?>()
-						// CMO3: KeyformBindingSource fields interpolationType /
-						// extendedInterpolationType / insertPointCount / extendedInterpolationScale /
-						// description - every corpus binding writes LINEAR / LINEAR / 1 / 1.0 / "".
-						interpolationType = InterpolationType.LINEAR
-						extendedInterpolationType = ExtendedInterpolationType.LINEAR
-						insertPointCount = 1
-						extendedInterpolationScale = 1f
-						description = ""
-					}
-			val keysList = mutableGraphListOf(binding.keys)
-
-			if (keysList != null) {
-				keysList.clear()
-				axis.keys.forEach { key -> keysList.add(key) }
-			} else {
-				binding.keys = ArrayList<Any?>(axis.keys.map { it })
-				editor.ensureChildSlot(binding, "KeyformBindingSource", "keys", "interpolationType")
-			}
-
-			bindingPerAxis.add(binding)
-		}
-
-		// CMO3: KeyformGridSource fields keyformBindings / keyformsOnGrid - array_list in every
-		// corpus model (vs the carray_list keyforms pools).
-		writeCollection(gridSource, "KeyformGridSource", "keyformBindings", "keyformsOnGrid", gridSource.keyformBindings, bindingPerAxis, { ArrayList() }) {
-			gridSource.keyformBindings = it
-		}
-		val cellRecords = ArrayList<Any?>(bundle.cells.size)
-
-		for (cellIndex in bundle.cells.indices) {
-			val cell = bundle.cells[cellIndex]
-			val record =
-				KeyformOnGrid().apply {
-					keyformGuid = cellForms[cellIndex].guid
-					accessKey =
-						KeyformGridAccessKey().apply {
-							_keyOnParameterList =
-								ArrayList<Any?>().apply {
-									for (axisIndex in bundle.axes.indices) {
-										add(
-											KeyOnParameter().apply {
-												binding = bindingPerAxis[axisIndex]
-												keyIndex = cell.coordinate[axisIndex]
-											},
-										)
-									}
-								}
-						}
-				}
-			cellRecords.add(record)
-		}
-
-		writeCollection(gridSource, "KeyformGridSource", "keyformsOnGrid", null, gridSource.keyformsOnGrid, cellRecords, { ArrayList() }) {
-			gridSource.keyformsOnGrid = it
-		}
-
-		return true
-	}
-
-	/**
-	 * Rewrites a collection field in place, or creates a fresh list and records its slot.
-	 *
-	 * The fresh list's runtime type decides the serialized tag (ArrayList = array_list,
-	 * CArrayList = carray_list), and the official editor requires the exact tag per field:
-	 * its deserializers cast carray_list fields to CArrayList, so a wrong tag is a
-	 * ClassCastException on load.  Every corpus model agrees on the tag per field, so each
-	 * call site passes the factory matching what the editor writes there.
-	 *
-	 * @param Any      owner          The graph object owning the collection field.
-	 * @param String   tag            The owner's serial tag for the child-slot record.
-	 * @param String   property       The collection field's name.
-	 * @param String?  beforeProperty The sibling field the slot precedes, or null for last.
-	 * @param Any?     current        The current field value.
-	 * @param List     newElements    The elements to write.
-	 * @param Function freshList      Creates the list when the field is empty; the list type
-	 *                                must match the tag the official editor writes.
-	 * @param Function assign         Assigns the fresh list to the field.
-	 */
-	private fun writeCollection(
-		owner: Any,
-		tag: String,
-		property: String,
-		beforeProperty: String?,
-		current: Any?,
-		newElements: List<Any?>,
-		freshList: () -> MutableList<Any?>,
-		assign: (MutableList<Any?>) -> Unit,
-	) {
-		val mutable = mutableGraphListOf(current)
-
-		if (mutable != null) {
-			mutable.clear()
-			mutable.addAll(newElements)
-
-			return
-		}
-
-		val fresh: MutableList<Any?> = freshList()
-		fresh.addAll(newElements)
-		assign(fresh)
-		editor.ensureChildSlot(owner, tag, property, beforeProperty)
 	}
 
 	/**
@@ -649,7 +289,7 @@ internal class Cmo3KeyformLowering(
 			return
 		}
 
-		val existingForms = existingFormsByValues(source.keyformGridSource, source.keyforms)
+		val existingForms = gridWeb.existingFormsByValues(source.keyformGridSource, source.keyforms)
 		val template =
 			templateForm<CArtMeshForm>(source.keyforms, index.drawableSources.map { it.keyforms })
 
@@ -676,7 +316,7 @@ internal class Cmo3KeyformLowering(
 						// values; the channel lowering overwrites them when a color channel exists.
 						multiplyColor = identityMultiplyColor()
 						screenColor = identityScreenColor()
-						coordType = freshFormCoordType(template, editedDrawable.parentDeformerId != null)
+						coordType = formSpaces.freshFormCoordType(template, editedDrawable.parentDeformerId != null)
 					}
 			val origAbsolute = (existing?.positions as? FloatArray)?.takeIf { it.size == editedBase.size }
 			// The keyform is rebuilt from the keyform-space base as `local + Δ`.  A component whose base and delta
@@ -723,19 +363,19 @@ internal class Cmo3KeyformLowering(
 				gridForms.add(writeMeshForm(existing, (cell.geometry as? MeshDeltaForm)?.positionDeltas, cell.channels))
 			}
 
-			if (!writeGridWeb(source, subject, source.keyformGridSource, { source.keyformGridSource = it }, bundle, gridForms)) {
+			if (!gridWeb.writeGridWeb(source, subject, source.keyformGridSource, { source.keyformGridSource = it }, bundle, gridForms)) {
 				return
 			}
 		} else {
 			// Grid untouched: keep its existing forms for the pool assembly below.
-			val gridGuids = gridFormGuids(source.keyformGridSource)
+			val gridGuids = gridWeb.gridFormGuids(source.keyformGridSource)
 			elementsOf(source.keyforms).filterIsInstance<ACForm>()
 				.filterTo(gridForms) { form -> uuidOf(form.guid) in gridGuids }
 		}
 
 		val morphForms =
 			if (rebuildMorphs) {
-				rebuildMorphTargets(
+				blendShapes.rebuildMorphTargets(
 					ownerSource = source,
 					subject = subject,
 					currentSet = source.keyformMorphTargetSet,
@@ -755,9 +395,9 @@ internal class Cmo3KeyformLowering(
 					)
 				} ?: return
 			} else {
-				existingMorphForms(source.keyformMorphTargetSet, source.keyforms)
+				blendShapes.existingMorphForms(source.keyformMorphTargetSet, source.keyforms)
 			}
-		writePool(source, "CArtMeshSource", "keyforms", "positions", source.keyforms, gridForms, morphForms) {
+		gridWeb.writePool(source, "CArtMeshSource", "keyforms", "positions", source.keyforms, gridForms, morphForms) {
 			source.keyforms = it
 		}
 	}
@@ -781,7 +421,7 @@ internal class Cmo3KeyformLowering(
 		val bundle =
 			buildBundle(ExportEntityCategory.Deformer, subject, editedWarp.geometryGrid, WarpLatticeInterpolator, editedWarp.channelGrids, statics, requireGeometry = true)
 				?: return
-		val existingForms = existingFormsByValues(source.keyformGridSource, source.keyforms)
+		val existingForms = gridWeb.existingFormsByValues(source.keyformGridSource, source.keyforms)
 		val template = templateForm<CWarpDeformerForm>(source.keyforms, index.deformerSources.filterIsInstance<CWarpDeformerSource>().map { it.keyforms })
 
 		/**
@@ -807,7 +447,7 @@ internal class Cmo3KeyformLowering(
 						// values; the channel lowering overwrites them when a color channel exists.
 						multiplyColor = identityMultiplyColor()
 						screenColor = identityScreenColor()
-						coordType = freshFormCoordType(template, editedWarp.parent != null)
+						coordType = formSpaces.freshFormCoordType(template, editedWarp.parent != null)
 					}
 			val newPoints = payload?.controlPoints
 
@@ -840,18 +480,18 @@ internal class Cmo3KeyformLowering(
 				gridForms.add(writeWarpForm(existingForms[valueKey(cell.values)] as? CWarpDeformerForm, cell.geometry as? WarpLatticeForm, cell.channels))
 			}
 
-			if (!writeGridWeb(source, subject, source.keyformGridSource, { source.keyformGridSource = it }, bundle, gridForms)) {
+			if (!gridWeb.writeGridWeb(source, subject, source.keyformGridSource, { source.keyformGridSource = it }, bundle, gridForms)) {
 				return
 			}
 		} else {
-			val gridGuids = gridFormGuids(source.keyformGridSource)
+			val gridGuids = gridWeb.gridFormGuids(source.keyformGridSource)
 			elementsOf(source.keyforms).filterIsInstance<ACForm>()
 				.filterTo(gridForms) { form -> uuidOf(form.guid) in gridGuids }
 		}
 
 		val morphForms =
 			if (rebuildMorphs) {
-				rebuildMorphTargets(source, subject, source.keyformMorphTargetSet, { source.keyformMorphTargetSet = it }, source.keyforms, editedWarp.blendShapes) { existing, payload: WarpForm ->
+				blendShapes.rebuildMorphTargets(source, subject, source.keyformMorphTargetSet, { source.keyformMorphTargetSet = it }, source.keyforms, editedWarp.blendShapes) { existing, payload: WarpForm ->
 					writeWarpForm(
 						existing as? CWarpDeformerForm,
 						WarpLatticeForm(payload.controlPoints),
@@ -863,9 +503,9 @@ internal class Cmo3KeyformLowering(
 					)
 				} ?: return
 			} else {
-				existingMorphForms(source.keyformMorphTargetSet, source.keyforms)
+				blendShapes.existingMorphForms(source.keyformMorphTargetSet, source.keyforms)
 			}
-		writePool(source, "CWarpDeformerSource", "keyforms", null, source.keyforms, gridForms, morphForms) {
+		gridWeb.writePool(source, "CWarpDeformerSource", "keyforms", null, source.keyforms, gridForms, morphForms) {
 			source.keyforms = it
 		}
 	}
@@ -891,7 +531,7 @@ internal class Cmo3KeyformLowering(
 		val bundle =
 			buildBundle(ExportEntityCategory.Deformer, subject, editedRotation.geometryGrid, RotationPivotInterpolator, editedRotation.channelGrids, statics, requireGeometry = true)
 				?: return
-		val existingForms = existingFormsByValues(source.keyformGridSource, source.keyforms)
+		val existingForms = gridWeb.existingFormsByValues(source.keyformGridSource, source.keyforms)
 		val template = templateForm<CRotationDeformerForm>(source.keyforms, index.deformerSources.filterIsInstance<CRotationDeformerSource>().map { it.keyforms })
 
 		/**
@@ -917,7 +557,7 @@ internal class Cmo3KeyformLowering(
 						// values; the channel lowering overwrites them when a color channel exists.
 						multiplyColor = identityMultiplyColor()
 						screenColor = identityScreenColor()
-						coordType = freshFormCoordType(template, editedRotation.parent != null)
+						coordType = formSpaces.freshFormCoordType(template, editedRotation.parent != null)
 					}
 
 			if (payload != null) {
@@ -963,18 +603,18 @@ internal class Cmo3KeyformLowering(
 				gridForms.add(writeRotationForm(existingForms[valueKey(cell.values)] as? CRotationDeformerForm, cell.geometry as? RotationPivotForm, cell.channels))
 			}
 
-			if (!writeGridWeb(source, subject, source.keyformGridSource, { source.keyformGridSource = it }, bundle, gridForms)) {
+			if (!gridWeb.writeGridWeb(source, subject, source.keyformGridSource, { source.keyformGridSource = it }, bundle, gridForms)) {
 				return
 			}
 		} else {
-			val gridGuids = gridFormGuids(source.keyformGridSource)
+			val gridGuids = gridWeb.gridFormGuids(source.keyformGridSource)
 			elementsOf(source.keyforms).filterIsInstance<ACForm>()
 				.filterTo(gridForms) { form -> uuidOf(form.guid) in gridGuids }
 		}
 
 		val morphForms =
 			if (rebuildMorphs) {
-				rebuildMorphTargets(source, subject, source.keyformMorphTargetSet, { source.keyformMorphTargetSet = it }, source.keyforms, editedRotation.blendShapes) { existing, payload: RotationForm ->
+				blendShapes.rebuildMorphTargets(source, subject, source.keyformMorphTargetSet, { source.keyformMorphTargetSet = it }, source.keyforms, editedRotation.blendShapes) { existing, payload: RotationForm ->
 					writeRotationForm(
 						existing as? CRotationDeformerForm,
 						RotationPivotForm(payload.originX, payload.originY, payload.angle, payload.scale),
@@ -988,9 +628,9 @@ internal class Cmo3KeyformLowering(
 					)
 				} ?: return
 			} else {
-				existingMorphForms(source.keyformMorphTargetSet, source.keyforms)
+				blendShapes.existingMorphForms(source.keyformMorphTargetSet, source.keyforms)
 			}
-		writePool(source, "CRotationDeformerSource", "keyforms", "handleLengthOnCanvas", source.keyforms, gridForms, morphForms) {
+		gridWeb.writePool(source, "CRotationDeformerSource", "keyforms", "handleLengthOnCanvas", source.keyforms, gridForms, morphForms) {
 			source.keyforms = it
 		}
 	}
@@ -1027,7 +667,7 @@ internal class Cmo3KeyformLowering(
 			return
 		}
 
-		val existingForms = existingFormsByValues(source.keyformGridSource, source.keyforms)
+		val existingForms = gridWeb.existingFormsByValues(source.keyformGridSource, source.keyforms)
 		val template = templateForm<CPartForm>(source.keyforms, index.userPartSources.map { it.keyforms })
 		val gridForms = ArrayList<ACForm>(bundle.cells.size)
 
@@ -1074,11 +714,11 @@ internal class Cmo3KeyformLowering(
 			gridForms.add(form)
 		}
 
-		if (!writeGridWeb(source, subject, source.keyformGridSource, { source.keyformGridSource = it }, bundle, gridForms)) {
+		if (!gridWeb.writeGridWeb(source, subject, source.keyformGridSource, { source.keyformGridSource = it }, bundle, gridForms)) {
 			return
 		}
 
-		writePool(source, "CPartSource", "keyforms", "enableDrawOrderGroup", source.keyforms, gridForms, emptyList()) {
+		gridWeb.writePool(source, "CPartSource", "keyforms", "enableDrawOrderGroup", source.keyforms, gridForms, emptyList()) {
 			source.keyforms = it
 		}
 	}
@@ -1140,7 +780,7 @@ internal class Cmo3KeyformLowering(
 			return
 		}
 
-		val existingForms = existingFormsByValues(source.keyformGridSource, source.keyforms)
+		val existingForms = gridWeb.existingFormsByValues(source.keyformGridSource, source.keyforms)
 		val template = templateForm<CGlueForm>(source.keyforms, index.glueSources.map { it.keyforms })
 		val gridForms = ArrayList<ACForm>(bundle.cells.size)
 
@@ -1163,213 +803,13 @@ internal class Cmo3KeyformLowering(
 			gridForms.add(form)
 		}
 
-		if (!writeGridWeb(source, subject, source.keyformGridSource, { source.keyformGridSource = it }, bundle, gridForms)) {
+		if (!gridWeb.writeGridWeb(source, subject, source.keyformGridSource, { source.keyformGridSource = it }, bundle, gridForms)) {
 			return
 		}
 
-		writePool(source, "CGlueSource", "keyforms", "targetArtMeshA_guid", source.keyforms, gridForms, emptyList()) {
+		gridWeb.writePool(source, "CGlueSource", "keyforms", "targetArtMeshA_guid", source.keyforms, gridForms, emptyList()) {
 			source.keyforms = it
 		}
-	}
-
-	/**
-	 * The guids of the forms the current grid's cells reference.
-	 *
-	 * @param Any? gridSourceField The owner's grid-source field, as stored.
-	 * @return Set<String> The form guids, empty when there is no grid.
-	 */
-	private fun gridFormGuids(gridSourceField: Any?): Set<String> {
-		val gridSource = gridSourceField as? KeyformGridSource ?: return emptySet()
-
-		return elementsOf(gridSource.keyformsOnGrid).filterIsInstance<KeyformOnGrid>()
-			.mapNotNull { cell -> uuidOf(cell.keyformGuid) }
-			.toSet()
-	}
-
-	/**
-	 * The morph-target form objects the current morph set references, for pool assembly.
-	 *
-	 * @param Any? morphSetField The owner's morph-target set field, as stored.
-	 * @param Any? formsField The owner's keyforms pool field, as stored.
-	 * @return List<ACForm> The referenced forms, in morph-target order.
-	 */
-	private fun existingMorphForms(morphSetField: Any?, formsField: Any?): List<ACForm> {
-		val set = morphSetField as? KeyFormMorphTargetSet ?: return emptyList()
-		val formByUuid =
-			elementsOf(formsField).filterIsInstance<ACForm>()
-				.associateBy { form -> uuidOf(form.guid) }
-
-		return elementsOf(set._morphTargets).filterIsInstance<KeyFormMorphTarget>()
-			.mapNotNull { record -> formByUuid[uuidOf(record.keyformGuid)] }
-	}
-
-	/**
-	 * Rebuilds an owner's morph-target set from the edited blend-shape bindings, reusing records
-	 * and forms matched by (parameter, key value).  The inserted neutral key (null form at value 0)
-	 * is dropped again - CMO3 stores no record for it.
-	 *
-	 * @param Any      ownerSource The source object owning the morph target set.
-	 * @param String   subject     The owner's id for notices.
-	 * @param Any?     currentSet  The current keyformMorphTargetSet, or null when absent.
-	 * @param Function assignSet   Assigns a freshly created morph target set.
-	 * @param Any?     formsField  The owner's keyforms pool, for resolving forms already on disk.
-	 * @param List     bindings    The edited blend-shape bindings to rebuild from.
-	 * @param Function writeForm   Writes or creates the form for one binding's payload.
-	 * @return List? The morph form objects for the pool, or null when a parameter is unresolvable.
-	 */
-	private fun <TForm : Any> rebuildMorphTargets(
-		ownerSource: Any,
-		subject: String,
-		currentSet: Any?,
-		assignSet: (Any?) -> Unit,
-		formsField: Any?,
-		bindings: List<BlendShapeBinding<TForm>>,
-		writeForm: (existing: Any?, payload: TForm) -> ACForm,
-	): List<ACForm>? {
-		val set = currentSet as? KeyFormMorphTargetSet
-
-		if (bindings.isEmpty()) {
-			if (set != null) {
-				// CMO3: KeyFormMorphTargetSet field _morphTargets / MorphTargetBlendWeightConstraintSet
-				// field _constraints - carray_list in every corpus model.
-				writeCollection(set, "KeyFormMorphTargetSet", "_morphTargets", "blendWeightConstraintSet", set._morphTargets, emptyList(), { CArrayList() }) {
-					set._morphTargets = it
-				}
-				(set.blendWeightConstraintSet as? MorphTargetBlendWeightConstraintSet)?.let { constraintSet ->
-					writeCollection(constraintSet, "MorphTargetBlendWeightConstraintSet", "_constraints", null, constraintSet._constraints, emptyList(), { CArrayList() }) {
-						constraintSet._constraints = it
-					}
-				}
-			}
-
-			return emptyList()
-		}
-
-		val targetSet =
-			set
-				?: KeyFormMorphTargetSet().also {
-					it.blendWeightConstraintSet = MorphTargetBlendWeightConstraintSet().apply { _constraints = CArrayList<Any?>() }
-					assignSet(it)
-					editor.ensureChildSlot(ownerSource, "ACParameterControllableSource", "keyformMorphTargetSet", "_extensions")
-				}
-		val formByUuid =
-			elementsOf(formsField).filterIsInstance<ACForm>()
-				.associateBy { form -> uuidOf(form.guid) }
-		val existingRecords =
-			elementsOf(targetSet._morphTargets).filterIsInstance<KeyFormMorphTarget>()
-				.associateBy { record -> "${uuidOf(record.parameterGuid)}@${record.keyValue.toRawBits()}" }
-		val records = ArrayList<Any?>()
-		val morphForms = ArrayList<ACForm>()
-		val constraints = ArrayList<Any?>()
-
-		for ((parameterId, keys, _, forms, limits) in bindings) {
-			val parameterSource = index.parameterByIdStr[parameterId.raw]
-
-			if (parameterSource == null) {
-				notices.unsupported(
-					ExportEntityCategory.Keyform,
-					subject,
-					ExportNoticeReason.BlendShapeParameterHasNoSource(parameterId.raw),
-				)
-
-				return null
-			}
-
-			val parameterUuid = uuidOf(parameterSource.guid)
-
-			for (keyIndex in keys.indices) {
-				val payload = forms[keyIndex] ?: continue
-				val keyValue = keys[keyIndex]
-				val existingRecord = existingRecords["$parameterUuid@${keyValue.toRawBits()}"]
-				val existingForm = existingRecord?.let { record -> formByUuid[uuidOf(record.keyformGuid)] }
-				val form = writeForm(existingForm, payload)
-				morphForms.add(form)
-				val record =
-					existingRecord
-						?: KeyFormMorphTarget().apply {
-							parameterGuid = parameterSource.guid
-							owner = ownerSource
-							// CMO3: KeyFormMorphTarget field editBaseParameterMap - corpus records
-							// carry the wrapper with a null baseParameterMap, never a bare null.
-							editBaseParameterMap =
-								MorphTargetEditBaseParameterMap()
-						}
-				record.keyValue = keyValue
-				record.keyformGuid = form.guid
-				records.add(record)
-			}
-
-			for ((parameterId1, points) in limits) {
-				val constraintSource = index.parameterByIdStr[parameterId1.raw] ?: continue
-
-				for ((value, weight) in points) {
-					constraints.add(
-						MorphTargetBlendWeightConstraint().apply {
-							morphTargetParameterGuid = parameterSource.guid
-							constraintParameterGuid = constraintSource.guid
-							constraintParameterValue = value
-							blendWeight = weight
-						},
-					)
-				}
-			}
-		}
-
-		// CMO3: KeyFormMorphTargetSet field _morphTargets / MorphTargetBlendWeightConstraintSet
-		// field _constraints - carray_list in every corpus model.
-		writeCollection(targetSet, "KeyFormMorphTargetSet", "_morphTargets", "blendWeightConstraintSet", targetSet._morphTargets, records, { CArrayList() }) {
-			targetSet._morphTargets = it
-		}
-		val constraintSet =
-			targetSet.blendWeightConstraintSet as? MorphTargetBlendWeightConstraintSet
-				?: MorphTargetBlendWeightConstraintSet().also {
-					targetSet.blendWeightConstraintSet = it
-					editor.ensureChildSlot(targetSet, "KeyFormMorphTargetSet", "blendWeightConstraintSet")
-				}
-		writeCollection(constraintSet, "MorphTargetBlendWeightConstraintSet", "_constraints", null, constraintSet._constraints, constraints, { CArrayList() }) {
-			constraintSet._constraints = it
-		}
-
-		return morphForms
-	}
-
-	/**
-	 * Writes the owner's keyforms pool: the grid forms in cell order, then the morph forms.
-	 *
-	 * @param Any owner The graph object that owns the pool.
-	 * @param String ownerTag The class level of the owner, by tag.
-	 * @param String property The field that holds the pool.
-	 * @param String? beforeProperty The field the pool is written before, or null.
-	 * @param Any? current The pool as currently stored.
-	 * @param List<ACForm> gridForms The grid forms, in cell order.
-	 * @param List<ACForm> morphForms The morph-target forms.
-	 * @param Function assign Stores a new pool list on the owner.
-	 */
-	private fun writePool(
-		owner: Any,
-		ownerTag: String,
-		property: String,
-		beforeProperty: String?,
-		current: Any?,
-		gridForms: List<ACForm>,
-		morphForms: List<ACForm>,
-		assign: (MutableList<Any?>) -> Unit,
-	) {
-		val gridIdentity = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
-		gridForms.forEach { gridIdentity.add(it) }
-		val pool = ArrayList<Any?>(gridForms.size + morphForms.size)
-		pool.addAll(gridForms)
-
-		for (form in morphForms) {
-			if (form !in gridIdentity) {
-				pool.add(form)
-				gridIdentity.add(form)
-			}
-		}
-
-		// CMO3: ACParameterControllableSource field keyforms - carray_list in every corpus model;
-		// the editor's deserializers cast it to CArrayList, so array_list fails its load.
-		writeCollection(owner, ownerTag, property, beforeProperty, current, pool, { CArrayList() }, assign)
 	}
 
 	/** The no-op interpolator for channel-only owners (parts, glues) whose bundles carry no geometry. */
