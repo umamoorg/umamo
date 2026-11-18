@@ -26,6 +26,7 @@ import org.umamo.ui.progress.ProgressTracker
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.progress_count
 import org.umamo.ui.resources.progress_mesh_generating
+import org.umamo.ui.resources.progress_model_exporting
 import org.umamo.ui.resources.progress_more_tasks
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.workspace.commands.commandFixtureSession
@@ -50,8 +51,9 @@ class StatusProgressTest {
 	 * @property String count      The task's count at one of three.
 	 * @property String more       The one-more-task marker.
 	 * @property String notice     The transient notice.
+	 * @property String exporting  The export task's label for a file named `rig.cmo3`.
 	 */
-	private class StripText(val generating: String, val count: String, val more: String, val notice: String)
+	private class StripText(val generating: String, val count: String, val more: String, val notice: String, val exporting: String)
 
 	/**
 	 * Composes the strip over [tracker] and, when given, [session].
@@ -62,7 +64,7 @@ class StatusProgressTest {
 	 * @return StripText The strings the strip shows.
 	 */
 	private fun composeStrip(test: ComposeUiTest, tracker: ProgressTracker, session: EditorSession?): StripText {
-		var text = StripText("", "", "", "")
+		var text = StripText("", "", "", "", "")
 		test.setContent {
 			text =
 				StripText(
@@ -70,6 +72,7 @@ class StatusProgressTest {
 					stringResource(Res.string.progress_count, 1, 3),
 					stringResource(Res.string.progress_more_tasks, 1),
 					noticeText(noticeKey),
+					stringResource(Res.string.progress_model_exporting, "rig.cmo3"),
 				)
 			UmamoTheme {
 				CompositionLocalProvider(
@@ -118,6 +121,22 @@ class StatusProgressTest {
 			waitForIdle()
 			assertEquals(0, shown(this, text.generating))
 			assertEquals(1, shown(this, text.notice), "and shows once the task ends")
+		}
+
+	@Test
+	fun anExportTaskNamesItsFileAndShowsNoCountBecauseItsLengthIsUnknown() =
+		runComposeUiTest {
+			val tracker = ProgressTracker()
+			val text = composeStrip(this, tracker, session = null)
+			val task = tracker.begin(ProgressLabels.MODEL_EXPORTING, listOf("rig.cmo3"))
+			waitForIdle()
+
+			assertEquals(1, shown(this, text.exporting), "the label carries the file's name")
+			assertEquals(0, shown(this, text.count), "and no count, since the task has no total")
+
+			task.finish()
+			waitForIdle()
+			assertEquals(0, shown(this, text.exporting))
 		}
 
 	@Test
