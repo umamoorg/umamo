@@ -111,16 +111,29 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 	 * @return Result Whether the reconcile ran, and whether it dropped structure.
 	 */
 	fun reconcile(recomposedPages: List<Cmo3Conversion.AtlasPage>): Result {
+		val plan = classify(recomposedPages) ?: return Result.Declined
+
+		return plan.apply()
+	}
+
+	/**
+	 * Validates the reconcile and gathers what its mutation steps need.  Any gap declines the whole
+	 * reconcile, before anything is written.
+	 *
+	 * @param List recomposedPages The pages composed for the edited model's packing, in its page order.
+	 * @return Plan? What the mutation steps need, or null to decline.
+	 */
+	private fun classify(recomposedPages: List<Cmo3Conversion.AtlasPage>): Plan? {
 		if (recomposedPages.isEmpty()) {
-			return Result.Declined
+			return null
 		}
 
 		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases.
-		val textureManager = modelSource.textureManager as? CTextureManager ?: return Result.Declined
-		val atlasList = mutableGraphListOf(textureManager._textureAtlases) ?: return Result.Declined
+		val textureManager = modelSource.textureManager as? CTextureManager ?: return null
+		val atlasList = mutableGraphListOf(textureManager._textureAtlases) ?: return null
 
 		if (atlasList.any { member -> member !is CTextureAtlas }) {
-			return Result.Declined
+			return null
 		}
 
 		val newPageCount = edited.atlas.pages.size
@@ -129,7 +142,7 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 		// indexed.  The patch stays authoritative on dimensions, matching the reuse arm's existing
 		// contract.
 		if (recomposedPages.size != newPageCount) {
-			return Result.Declined
+			return null
 		}
 
 		// --- Gather the web. ---
@@ -175,12 +188,12 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 					mintJobs.add(job)
 					canvasAffineByTileId[tileId] = job.canvasAffine
 				} else if (newPlacement != null) {
-					return Result.Declined
+					return null
 				}
 			} else if (tile.replaces != null) {
 				// A reloaded tile: the root's layer takes the new art, and the canvas placement every
 				// composition below reads is the refreshed row's origin.
-				val job = retainedWeb.rewriteJobFor(tile, modelImage) ?: return Result.Declined
+				val job = retainedWeb.rewriteJobFor(tile, modelImage) ?: return null
 				rewriteJobs.add(job)
 				canvasAffineByTileId[tileId] = job.canvasAffine
 			}
@@ -190,7 +203,7 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 					// A pack-out removes the entry; a drawable still sampling the page through it
 					// would be stranded, so a BOUND pack-out declines (the repack never produces one).
 					if (tileId in boundTileIds) {
-						return Result.Declined
+						return null
 					}
 
 					packOuts.add(site)
@@ -204,11 +217,11 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 				// drawables' region inputs below - possible only when the tile's canvas placement
 				// resolves (a minted tile's is the job's).
 				if (canvasAffineByTileId[tileId] == null) {
-					return Result.Declined
+					return null
 				}
 
 				if (newPlacement.pageIndex !in 0 until newPageCount || inversePlacementAffine(newPlacement) == null) {
-					return Result.Declined
+					return null
 				}
 
 				packInPlacementByTileId[tileId] = newPlacement
@@ -217,11 +230,11 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 			}
 
 			if (newPlacement.pageIndex !in 0 until newPageCount) {
-				return Result.Declined
+				return null
 			}
 
 			if (canvasAffineByTileId[tileId] == null || inversePlacementAffine(newPlacement) == null) {
-				return Result.Declined
+				return null
 			}
 
 			val oldPlacement = baselinePlacementByTileId[tileId]
@@ -239,13 +252,13 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 		// where they sit - which must survive the page-set reconcile.
 		for (atlasIndex in strayEntryAtlasIndices) {
 			if (atlasIndex >= newPageCount) {
-				return Result.Declined
+				return null
 			}
 		}
 
 		for ((tileId, site) in siteByTileId) {
 			if (tileId !in editedTileIds && site.atlasIndex >= newPageCount) {
-				return Result.Declined
+				return null
 			}
 		}
 
@@ -303,7 +316,7 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 				if (region != null) {
 					// A region input over a tile with no entry is an inconsistent web; decline whole
 					// rather than guess which half to trust.
-					return Result.Declined
+					return null
 				}
 
 				packInCandidates.add(PackInCandidate(mesh, extension, tileId))
@@ -318,10 +331,10 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 			if (region == null) {
 				// A bound drawable sampling its art directly while its tile's packing moved: the
 				// re-derived page-frame coordinates have no region input to ride, so decline whole.
-				return Result.Declined
+				return null
 			}
 
-			val input = region.inputImageLocalToCanvasTransform as? CAffine ?: return Result.Declined
+			val input = region.inputImageLocalToCanvasTransform as? CAffine ?: return null
 			candidates.add(RetargetCandidate(mesh, region, input, tileId))
 		}
 
@@ -333,7 +346,7 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 			val found = packInCandidates.count { candidate -> candidate.tileId == tileId }
 
 			if (editedBound != found) {
-				return Result.Declined
+				return null
 			}
 		}
 
@@ -341,95 +354,224 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 		rewriteJobs.mapTo(reconciledTileIds) { job -> job.tileId }
 		mintJobs.mapTo(reconciledTileIds) { job -> job.tileId }
 
-		// --- Mutation.  Validation is complete; anything impossible past here is a caller bug. ---
-		// 0. The layer web: rewrites and mints, so every model image the steps below hang an entry on
-		// or compose against exists and holds the edited art.  A file-side drawable over reconciled
-		// art has its icons re-rendered, since they show the pixels that just changed.
-		val applied = retainedWeb.apply(rewriteJobs, mintJobs)
-		modelImageByTileId.putAll(applied.modelImageByTileId)
+		return Plan(
+			recomposedPages = recomposedPages,
+			atlasList = atlasList,
+			newPageCount = newPageCount,
+			siteByTileId = siteByTileId,
+			canvasAffineByTileId = canvasAffineByTileId,
+			modelImageByTileId = modelImageByTileId,
+			retainedWeb = retainedWeb,
+			changedPlacementByTileId = changedPlacementByTileId,
+			moves = moves,
+			packOuts = packOuts,
+			packInPlacementByTileId = packInPlacementByTileId,
+			rewriteJobs = rewriteJobs,
+			mintJobs = mintJobs,
+			meshByDrawableId = meshByDrawableId,
+			candidates = candidates,
+			packInCandidates = packInCandidates,
+			existingTextureByAtlasIndex = existingTextureByAtlasIndex,
+			fileDrawableIds = fileDrawableIds,
+			reconciledTileIds = reconciledTileIds,
+		)
+	}
 
-		for (drawable in edited.drawables) {
-			val mesh = meshByDrawableId[drawable.id.raw] ?: continue
-			val editedTileId = drawable.atlasTileId ?: continue
+	/**
+	 * What classification gathered for the mutation steps.  Only a reconcile that classification
+	 * accepted has a plan, so only such a reconcile can run them.
+	 *
+	 * @property List                 recomposedPages             The pages composed for the edited model's packing, in its page order.
+	 * @property MutableList          atlasList                   The texture manager's atlas list; model page i is atlas i.
+	 * @property Int                  newPageCount                The edited model's page count.
+	 * @property Map                  siteByTileId                Each tracked entry by its tile's lineage root, as the web stood before the reconcile.
+	 * @property Map                  canvasAffineByTileId        Each tile's canvas placement, a minted tile's included.
+	 * @property MutableMap           modelImageByTileId          Each tile's model image; the layer-web step adds the minted ones.
+	 * @property Cmo3RetainedLayerWeb retainedWeb                 The layer writer the jobs run on.
+	 * @property Map                  changedPlacementByTileId    The old and new placement of every tile whose placement changed.
+	 * @property List                 moves                       Every entry whose tile moved to another page, with its new placement.
+	 * @property List                 packOuts                    Every entry whose tile lost its placement.
+	 * @property Map                  packInPlacementByTileId     The placement of every tile that gains its first entry.
+	 * @property List                 rewriteJobs                 The layer rewrites for reloaded tiles.
+	 * @property List                 mintJobs                    The layer mints for tiles with no model image.
+	 * @property Map                  meshByDrawableId            Every edited drawable's source in the file, by id.
+	 * @property List                 candidates                  Every drawable source whose region input follows its tile's new placement.
+	 * @property List                 packInCandidates            Every drawable source over a packed-in tile.
+	 * @property MutableMap           existingTextureByAtlasIndex Each page's shared texture, as the file's drawables sample it.
+	 * @property Set                  fileDrawableIds             The id of every drawable the file holds.
+	 * @property Set                  reconciledTileIds           The lineage roots whose layer web is minted or rewritten.
+	 */
+	private inner class Plan(
+		val recomposedPages: List<Cmo3Conversion.AtlasPage>,
+		val atlasList: MutableList<Any?>,
+		val newPageCount: Int,
+		val siteByTileId: Map<String, AtlasEntrySite>,
+		val canvasAffineByTileId: Map<String, FloatArray>,
+		val modelImageByTileId: MutableMap<String, CModelImage>,
+		val retainedWeb: Cmo3RetainedLayerWeb,
+		val changedPlacementByTileId: Map<String, Pair<AtlasPlacement?, AtlasPlacement>>,
+		val moves: List<Pair<AtlasEntrySite, AtlasPlacement>>,
+		val packOuts: List<AtlasEntrySite>,
+		val packInPlacementByTileId: Map<String, AtlasPlacement>,
+		val rewriteJobs: List<Cmo3RetainedLayerWeb.RewriteJob>,
+		val mintJobs: List<Cmo3RetainedLayerWeb.MintJob>,
+		val meshByDrawableId: Map<String, CArtMeshSource>,
+		val candidates: List<RetargetCandidate>,
+		val packInCandidates: List<PackInCandidate>,
+		val existingTextureByAtlasIndex: MutableMap<Int, GTexture2D>,
+		val fileDrawableIds: Set<String>,
+		val reconciledTileIds: Set<String>,
+	) {
+		/** Each placement-changed tile's entry transform as it stood before any step wrote. */
+		private val oldEntryHalfByTileId = HashMap<String, FloatArray>()
 
-			if (editedTileId.lineageRoot.raw !in reconciledTileIds) {
-				continue
-			}
+		/** Each retarget candidate's region input as it stood before any step wrote. */
+		private val oldInputByRegion = IdentityHashMap<CTextureInput_TextureAtlasRegion, FloatArray>()
 
-			val raster = tileRasters(editedTileId) ?: continue
-			retainedWeb.replaceDrawableIcons(mesh, raster, Cmo3Icons.artUvsOf(edited, drawable))
-		}
+		/** The shared texture of every page the mint step creates, by page index. */
+		private val mintedTextureByAtlasIndex = HashMap<Int, GTexture2D>()
 
-		// 1. Snapshots, so every rewrite reads pre-mutation values regardless of sharing.
-		val oldEntryHalfByTileId = HashMap<String, FloatArray>()
+		/**
+		 * Runs the mutation steps in order.  Classification validated everything they read, apart from
+		 * the two checks the page-reuse step still makes on a retained page's image; those can decline
+		 * after the layer web is written.
+		 *
+		 * @return Result What the reconcile did.
+		 */
+		fun apply(): Result {
+			val applied = writeLayerWeb()
+			snapshotPreMutationValues()
 
-		for (tileId in changedPlacementByTileId.keys) {
-			val entryHalf = siteByTileId.getValue(tileId).entry.atlasLocalToCanvasTransform as? CAffine ?: continue
-			oldEntryHalfByTileId[tileId] = entryHalf.toAffineArray()
-		}
-
-		val oldInputByRegion = IdentityHashMap<CTextureInput_TextureAtlasRegion, FloatArray>()
-
-		for (candidate in candidates) {
-			oldInputByRegion.getOrPut(candidate.region) { candidate.input.toAffineArray() }
-		}
-
-		// 2. Reuse retained pages in model order: bytes always, the dimension web on a resize.  The
-		// resource is mutated IN PLACE, never replaced - its identity is the storedUvsAddressPages
-		// recovery test.
-		val retainedCount = minOf(atlasList.size, newPageCount)
-
-		for (pageIndex in 0 until retainedCount) {
-			val atlas = atlasList[pageIndex] as CTextureAtlas
-			val page = recomposedPages[pageIndex]
-			// CMO3: CTextureAtlas field cachedAtlasImage - the page's CImageResource.
-			val resource = atlas.cachedAtlasImage as? CImageResource ?: return Result.Declined
-
-			if (resource.imageFileBuf == null) {
+			if (!reuseRetainedPages()) {
 				return Result.Declined
 			}
 
-			target.replaceLayerPng(resource, page.pngBytes)
+			mintPages()
+			rehomeEntries()
+			removePackOuts()
+			mintPackInEntries()
+			val deletedAny = deleteSurplusAtlases()
+			retargetRegionInputs()
+			addPackInRegions()
+			val mintedBindings = createdDrawableBindings()
 
-			if (resource.width != page.width || resource.height != page.height) {
-				// CMO3: CImageResource fields width / height - corpus-verified to equal the decoded PNG's.
-				resource.width = page.width
-				resource.height = page.height
-				// CMO3: CTextureAtlas fields width / height - the page extent the reader trusts.
-				atlas.width = page.width
-				atlas.height = page.height
-				// CMO3: CTextureAtlas field cachedImageManager - rebuilt so the cache raster's
-				// 64-aligned padding transform describes the NEW dimensions.
-				atlas.cachedImageManager = Cmo3PageWeb.paddedCacheManager(resource, page.width, page.height)
+			return Result(pagesRecomposed = true, pruneNeeded = deletedAny || packOuts.isNotEmpty() || applied.releasedCopy, mintedBindings = mintedBindings, reconciledTileIds = reconciledTileIds)
+		}
+
+		/**
+		 * The layer web: rewrites and mints, so every model image the later steps hang an entry on
+		 * or compose against exists and holds the edited art.  A file-side drawable over reconciled
+		 * art has its icons re-rendered, since they show the pixels that just changed.
+		 *
+		 * @return Cmo3RetainedLayerWeb.Applied What the layer web added, for the reconcile's maps.
+		 */
+		private fun writeLayerWeb(): Cmo3RetainedLayerWeb.Applied {
+			val applied = retainedWeb.apply(rewriteJobs, mintJobs)
+			modelImageByTileId.putAll(applied.modelImageByTileId)
+
+			for (drawable in edited.drawables) {
+				val mesh = meshByDrawableId[drawable.id.raw] ?: continue
+				val editedTileId = drawable.atlasTileId ?: continue
+
+				if (editedTileId.lineageRoot.raw !in reconciledTileIds) {
+					continue
+				}
+
+				val raster = tileRasters(editedTileId) ?: continue
+				retainedWeb.icons.replaceDrawableIcons(mesh, raster, Cmo3Icons.artUvsOf(edited, drawable))
+			}
+
+			return applied
+		}
+
+		/**
+		 * Snapshots, so every rewrite reads pre-mutation values regardless of sharing.
+		 */
+		private fun snapshotPreMutationValues() {
+			for (tileId in changedPlacementByTileId.keys) {
+				val entryHalf = siteByTileId.getValue(tileId).entry.atlasLocalToCanvasTransform as? CAffine ?: continue
+				oldEntryHalfByTileId[tileId] = entryHalf.toAffineArray()
+			}
+
+			for (candidate in candidates) {
+				oldInputByRegion.getOrPut(candidate.region) { candidate.input.toAffineArray() }
 			}
 		}
 
-		// 3. Mint pages past the retained count, with the fresh conversion's own builders.
-		val mintedTextureByAtlasIndex = HashMap<Int, GTexture2D>()
+		/**
+		 * Reuse retained pages in model order: bytes always, the dimension web on a resize.  The
+		 * resource is mutated IN PLACE, never replaced - its identity is the storedUvsAddressPages
+		 * recovery test.
+		 *
+		 * @return Boolean False when a retained page has no image to replace, which declines the reconcile.
+		 */
+		private fun reuseRetainedPages(): Boolean {
+			val retainedCount = minOf(atlasList.size, newPageCount)
 
-		for (pageIndex in atlasList.size until newPageCount) {
-			val page = recomposedPages[pageIndex]
-			val path = target.nextImageFileBufPath()
-			val resource = Cmo3PageWeb.pageImageResource(path, page.width, page.height, page.pngBytes.size)
-			target.addLayerPng(resource, page.pngBytes)
-			val atlas = Cmo3PageWeb.pageAtlas(pageIndex, page.width, page.height, resource)
-			atlasList.add(atlas)
-			mintedTextureByAtlasIndex[pageIndex] = Cmo3PageWeb.pageTexture(atlas.name, resource)
+			for (pageIndex in 0 until retainedCount) {
+				val atlas = atlasList[pageIndex] as CTextureAtlas
+				val page = recomposedPages[pageIndex]
+				// CMO3: CTextureAtlas field cachedAtlasImage - the page's CImageResource.
+				val resource = atlas.cachedAtlasImage as? CImageResource ?: return false
+
+				if (resource.imageFileBuf == null) {
+					return false
+				}
+
+				target.replaceLayerPng(resource, page.pngBytes)
+
+				if (resource.width != page.width || resource.height != page.height) {
+					// CMO3: CImageResource fields width / height - corpus-verified to equal the decoded PNG's.
+					resource.width = page.width
+					resource.height = page.height
+					// CMO3: CTextureAtlas fields width / height - the page extent the reader trusts.
+					atlas.width = page.width
+					atlas.height = page.height
+					// CMO3: CTextureAtlas field cachedImageManager - rebuilt so the cache raster's
+					// 64-aligned padding transform describes the NEW dimensions.
+					atlas.cachedImageManager = Cmo3PageWeb.paddedCacheManager(resource, page.width, page.height)
+				}
+			}
+
+			return true
 		}
 
-		// 4. Re-home every cross-page entry: list membership plus the owning-page back-reference.
-		for ((site, newPlacement) in moves) {
-			val destination = atlasList[newPlacement.pageIndex] as CTextureAtlas
-			mutableGraphListOf(site.atlas.modelImages)?.remove(site.entry)
-			mutableGraphListOf(destination.modelImages)?.add(site.entry)
-			// CMO3: ModelImageEntry field atlas - the owning-page back-reference.
-			site.entry.atlas = destination
+		/**
+		 * Mint pages past the retained count, with the fresh conversion's own builders.
+		 */
+		private fun mintPages() {
+			for (pageIndex in atlasList.size until newPageCount) {
+				val page = recomposedPages[pageIndex]
+				val path = target.nextImageFileBufPath()
+				val resource = Cmo3PageWeb.pageImageResource(path, page.width, page.height, page.pngBytes.size)
+				target.addLayerPng(resource, page.pngBytes)
+				val atlas = Cmo3PageWeb.pageAtlas(pageIndex, page.width, page.height, resource)
+				atlasList.add(atlas)
+				mintedTextureByAtlasIndex[pageIndex] = Cmo3PageWeb.pageTexture(atlas.name, resource)
+			}
 		}
 
-		// 5. Pack-outs: the entry leaves its page (import reads placement=null from entry absence);
-		// the tile's CModelImage web stays - the art inventory is untouched.
-		for (site in packOuts) {
-			mutableGraphListOf(site.atlas.modelImages)?.remove(site.entry)
+		/**
+		 * Re-home every cross-page entry: list membership plus the owning-page back-reference.
+		 */
+		private fun rehomeEntries() {
+			for ((site, newPlacement) in moves) {
+				val destination = atlasList[newPlacement.pageIndex] as CTextureAtlas
+				mutableGraphListOf(site.atlas.modelImages)?.remove(site.entry)
+				mutableGraphListOf(destination.modelImages)?.add(site.entry)
+				// CMO3: ModelImageEntry field atlas - the owning-page back-reference.
+				site.entry.atlas = destination
+			}
+		}
+
+		/**
+		 * Pack-outs: the entry leaves its page (import reads placement=null from entry absence);
+		 * the tile's CModelImage web stays - the art inventory is untouched.
+		 */
+		private fun removePackOuts() {
+			for (site in packOuts) {
+				mutableGraphListOf(site.atlas.modelImages)?.remove(site.entry)
+			}
 		}
 
 		/**
@@ -449,143 +591,169 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 			}
 		}
 
-		// 6. Pack-ins: mint the entry the tile never had.  The transforms are written with the same
-		// shared math the atlas-tile lowering uses, which then rewrites them identically for the
-		// placement diff - the mint exists so an entry is THERE to rewrite.
-		for ((tileId, newPlacement) in packInPlacementByTileId) {
-			val destination = atlasList[newPlacement.pageIndex] as CTextureAtlas
-			val modelImage = modelImageByTileId.getValue(tileId)
-			val canvasAffine = canvasAffineByTileId.getValue(tileId)
-			val entryHalf =
-				checkNotNull(atlasLocalToCanvasFor(canvasAffine, newPlacement)) {
-					"pack-in tile '$tileId' lost its composition after validation"
-				}
-			val entry =
-				Cmo3PageWeb.packedEntry(
-					atlas = destination,
-					modelImageGuid = modelImage.guid,
-					atlasLocalToCanvas = affineOf(entryHalf),
-					packing = Cmo3PageWeb.writePacking(GTransform2(), newPlacement),
-				)
-			mutableGraphListOf(destination.modelImages)?.add(entry)
-		}
-
-		// 7. Delete retained atlases past the edited count, highest first.  Validation moved or
-		// removed every tracked entry; a leftover here is a validation bug, not document state.
-		var deletedAny = false
-
-		for (pageIndex in atlasList.size - 1 downTo newPageCount) {
-			val atlas = atlasList[pageIndex] as CTextureAtlas
-			check(elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>().isEmpty()) {
-				"atlas $pageIndex still holds entries after the membership reconcile"
-			}
-			(atlas.cachedAtlasImage as? CImageResource)?.let { resource -> target.removeLayerPng(resource) }
-			atlasList.removeAt(pageIndex)
-			deletedAny = true
-		}
-
-		// 8. Retarget every candidate from the snapshots.
-		for (candidate in candidates) {
-			val (oldPlacement, newPlacement) = changedPlacementByTileId.getValue(candidate.tileId)
-			val site = siteByTileId.getValue(candidate.tileId)
-
-			if (newPlacement.pageIndex != site.atlasIndex) {
+		/**
+		 * Pack-ins: mint the entry the tile never had.  The transforms are written with the same
+		 * shared math the atlas-tile lowering uses, which then rewrites them identically for the
+		 * placement diff - the mint exists so an entry is THERE to rewrite.
+		 */
+		private fun mintPackInEntries() {
+			for ((tileId, newPlacement) in packInPlacementByTileId) {
 				val destination = atlasList[newPlacement.pageIndex] as CTextureAtlas
+				val modelImage = modelImageByTileId.getValue(tileId)
+				val canvasAffine = canvasAffineByTileId.getValue(tileId)
+				val entryHalf =
+					checkNotNull(atlasLocalToCanvasFor(canvasAffine, newPlacement)) {
+						"pack-in tile '$tileId' lost its composition after validation"
+					}
+				val entry =
+					Cmo3PageWeb.packedEntry(
+						atlas = destination,
+						modelImageGuid = modelImage.guid,
+						atlasLocalToCanvas = affineOf(entryHalf),
+						packing = Cmo3PageWeb.writePacking(GTransform2(), newPlacement),
+					)
+				mutableGraphListOf(destination.modelImages)?.add(entry)
+			}
+		}
+
+		/**
+		 * Delete retained atlases past the edited count, highest first.  Validation moved or
+		 * removed every tracked entry; a leftover here is a validation bug, not document state.
+		 *
+		 * @return Boolean True when an atlas was deleted.
+		 */
+		private fun deleteSurplusAtlases(): Boolean {
+			var deletedAny = false
+
+			for (pageIndex in atlasList.size - 1 downTo newPageCount) {
+				val atlas = atlasList[pageIndex] as CTextureAtlas
+				check(elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>().isEmpty()) {
+					"atlas $pageIndex still holds entries after the membership reconcile"
+				}
+				(atlas.cachedAtlasImage as? CImageResource)?.let { resource -> target.removeLayerPng(resource) }
+				atlasList.removeAt(pageIndex)
+				deletedAny = true
+			}
+
+			return deletedAny
+		}
+
+		/**
+		 * Retarget every candidate from the snapshots.
+		 */
+		private fun retargetRegionInputs() {
+			for (candidate in candidates) {
+				val (oldPlacement, newPlacement) = changedPlacementByTileId.getValue(candidate.tileId)
+				val site = siteByTileId.getValue(candidate.tileId)
+
+				if (newPlacement.pageIndex != site.atlasIndex) {
+					val destination = atlasList[newPlacement.pageIndex] as CTextureAtlas
+					// CMO3: CArtMeshSource field texture - the page's shared GTexture2D.
+					candidate.source.texture = pageTextureFor(newPlacement.pageIndex)
+					// CMO3: CTextureInput_TextureAtlasRegion field textureAtlasGuid - repointed at the
+					// destination atlas's own guid object (the official files' shared-ref shape).
+					candidate.region.textureAtlasGuid = destination.guid
+				}
+
+				val canvasAffine = canvasAffineByTileId.getValue(candidate.tileId)
+				val snapshotInput = oldInputByRegion.getValue(candidate.region)
+				val entryOldHalf = oldEntryHalfByTileId[candidate.tileId]
+				// CMO3: CTextureInput_TextureAtlasRegion field inputImageLocalToCanvasTransform - the
+				// PAGE-pixels-to-canvas placement the editor inverts for its mesh-over-patch views.  The
+				// corpus keeps it equal to the entry's atlasLocalToCanvasTransform, so when the old input
+				// matched the entry's old half it is written through the same shared math the entry pair
+				// takes (bit-identical); a drawable carrying its own placement (a shared tile sampled
+				// from two spots) keeps its own via the exact re-fit oldInput
+				// composed-with P_old composed-with P_new-inverse.
+				val newInput =
+					if (entryOldHalf != null && snapshotInput.contentEquals(entryOldHalf)) {
+						atlasLocalToCanvasFor(canvasAffine, newPlacement)
+					} else if (oldPlacement != null) {
+						inversePlacementAffine(newPlacement)?.let { inverseNew ->
+							composeAffine(composeAffine(snapshotInput, placementAffine(oldPlacement)), inverseNew)
+						}
+					} else {
+						atlasLocalToCanvasFor(canvasAffine, newPlacement)
+					}
+				checkNotNull(newInput) { "tile '${candidate.tileId}' lost its input re-fit after validation" }
+				candidate.input.setFromAffineArray(newInput)
+			}
+		}
+
+		/**
+		 * Pack-in drawables: a fresh region input into the EXISTING extension (the shape
+		 * freshTextureInputExtension writes for a created drawable), the page's shared texture, and
+		 * the live input pointer when the document displays from the atlas.  The reconcile runs
+		 * before the drawable lowering, so storedUvsFor then sees the region and writes the repack's
+		 * page-frame coordinates verbatim.
+		 */
+		private fun addPackInRegions() {
+			for (candidate in packInCandidates) {
+				val newPlacement = packInPlacementByTileId.getValue(candidate.tileId)
+				val destination = atlasList[newPlacement.pageIndex] as CTextureAtlas
+				val inputAffine =
+					checkNotNull(atlasLocalToCanvasFor(canvasAffineByTileId.getValue(candidate.tileId), newPlacement)) {
+						"pack-in tile '${candidate.tileId}' lost its input re-fit after validation"
+					}
 				// CMO3: CArtMeshSource field texture - the page's shared GTexture2D.
 				candidate.source.texture = pageTextureFor(newPlacement.pageIndex)
-				// CMO3: CTextureInput_TextureAtlasRegion field textureAtlasGuid - repointed at the
-				// destination atlas's own guid object (the official files' shared-ref shape).
-				candidate.region.textureAtlasGuid = destination.guid
-			}
-
-			val canvasAffine = canvasAffineByTileId.getValue(candidate.tileId)
-			val snapshotInput = oldInputByRegion.getValue(candidate.region)
-			val entryOldHalf = oldEntryHalfByTileId[candidate.tileId]
-			// CMO3: CTextureInput_TextureAtlasRegion field inputImageLocalToCanvasTransform - the
-			// PAGE-pixels-to-canvas placement the editor inverts for its mesh-over-patch views.  The
-			// corpus keeps it equal to the entry's atlasLocalToCanvasTransform, so when the old input
-			// matched the entry's old half it is written through the same shared math the entry pair
-			// takes (bit-identical); a drawable carrying its own placement (a shared tile sampled
-			// from two spots) keeps its own via the exact re-fit oldInput
-			// composed-with P_old composed-with P_new-inverse.
-			val newInput =
-				if (entryOldHalf != null && snapshotInput.contentEquals(entryOldHalf)) {
-					atlasLocalToCanvasFor(canvasAffine, newPlacement)
-				} else if (oldPlacement != null) {
-					inversePlacementAffine(newPlacement)?.let { inverseNew ->
-						composeAffine(composeAffine(snapshotInput, placementAffine(oldPlacement)), inverseNew)
+				val region =
+					CTextureInput_TextureAtlasRegion().apply {
+						// CMO3: CTextureInput_TextureAtlasRegion fields textureAtlasGuid +
+						// inputImageLocalToCanvasTransform (ACTextureInput super carries the owner backref).
+						optionalTransformOnCanvas = CAffine()
+						_owner = candidate.extension
+						textureAtlasGuid = destination.guid
+						inputImageLocalToCanvasTransform = affineOf(inputAffine)
 					}
-				} else {
-					atlasLocalToCanvasFor(canvasAffine, newPlacement)
-				}
-			checkNotNull(newInput) { "tile '${candidate.tileId}' lost its input re-fit after validation" }
-			candidate.input.setFromAffineArray(newInput)
-		}
+				mutableGraphListOf(candidate.extension._textureInputs)?.add(region)
 
-		// 9. Pack-in drawables: a fresh region input into the EXISTING extension (the shape
-		// freshTextureInputExtension writes for a created drawable), the page's shared texture, and
-		// the live input pointer when the document displays from the atlas.  The reconcile runs
-		// before the drawable lowering, so storedUvsFor then sees the region and writes the repack's
-		// page-frame coordinates verbatim.
-		for (candidate in packInCandidates) {
-			val newPlacement = packInPlacementByTileId.getValue(candidate.tileId)
-			val destination = atlasList[newPlacement.pageIndex] as CTextureAtlas
-			val inputAffine =
-				checkNotNull(atlasLocalToCanvasFor(canvasAffineByTileId.getValue(candidate.tileId), newPlacement)) {
-					"pack-in tile '${candidate.tileId}' lost its input re-fit after validation"
+				if (!edited.rendersFromSourceLayers) {
+					// CMO3: CTextureInputExtension field currentTextureInputData - which input the
+					// document's display mode samples.
+					candidate.extension.currentTextureInputData = region
 				}
-			// CMO3: CArtMeshSource field texture - the page's shared GTexture2D.
-			candidate.source.texture = pageTextureFor(newPlacement.pageIndex)
-			val region =
-				CTextureInput_TextureAtlasRegion().apply {
-					// CMO3: CTextureInput_TextureAtlasRegion fields textureAtlasGuid +
-					// inputImageLocalToCanvasTransform (ACTextureInput super carries the owner backref).
-					optionalTransformOnCanvas = CAffine()
-					_owner = candidate.extension
-					textureAtlasGuid = destination.guid
-					inputImageLocalToCanvasTransform = affineOf(inputAffine)
-				}
-			mutableGraphListOf(candidate.extension._textureInputs)?.add(region)
-
-			if (!edited.rendersFromSourceLayers) {
-				// CMO3: CTextureInputExtension field currentTextureInputData - which input the
-				// document's display mode samples.
-				candidate.extension.currentTextureInputData = region
 			}
 		}
 
-		// 10. Bindings for the created drawables: every drawable the file does not hold yet whose tile
-		// has a model image and a placement gets the page's shared texture, the page's atlas, the
-		// model image, the entry's transform as its region input, and its own icons over its patch -
-		// the official relation, and the shape the fresh web hands the structural pass for the same
-		// drawable.
-		val editedPlacementByTileId = edited.atlas.tiles.associateBy({ tile -> tile.id.lineageRoot.raw }, { tile -> tile.placement })
-		val mintedBindings = HashMap<String, Cmo3DrawableTextureBinding>()
+		/**
+		 * Bindings for the created drawables: every drawable the file does not hold yet whose tile
+		 * has a model image and a placement gets the page's shared texture, the page's atlas, the
+		 * model image, the entry's transform as its region input, and its own icons over its patch -
+		 * the official relation, and the shape the fresh web hands the structural pass for the same
+		 * drawable.
+		 *
+		 * @return Map Each created drawable's binding, by drawable id.
+		 */
+		private fun createdDrawableBindings(): Map<String, Cmo3DrawableTextureBinding> {
+			val editedPlacementByTileId = edited.atlas.tiles.associateBy({ tile -> tile.id.lineageRoot.raw }, { tile -> tile.placement })
+			val mintedBindings = HashMap<String, Cmo3DrawableTextureBinding>()
 
-		for (drawable in edited.drawables) {
-			if (drawable.id.raw in fileDrawableIds) {
-				continue
+			for (drawable in edited.drawables) {
+				if (drawable.id.raw in fileDrawableIds) {
+					continue
+				}
+
+				val editedTileId = drawable.atlasTileId ?: continue
+				val tileId = editedTileId.lineageRoot.raw
+				val placement = editedPlacementByTileId[tileId] ?: continue
+				val modelImage = modelImageByTileId[tileId] ?: continue
+				val canvasAffine = canvasAffineByTileId[tileId] ?: continue
+				val entryHalf = atlasLocalToCanvasFor(canvasAffine, placement) ?: continue
+				val destination = atlasList.getOrNull(placement.pageIndex) as? CTextureAtlas ?: continue
+				val icons = tileRasters(editedTileId)?.let { raster -> retainedWeb.icons.drawableIcons(raster, Cmo3Icons.artUvsOf(edited, drawable)) }
+				mintedBindings[drawable.id.raw] =
+					Cmo3DrawableTextureBinding(
+						pageTextureFor(placement.pageIndex),
+						destination.guid as Guid,
+						modelImage.guid as Guid,
+						affineOf(entryHalf),
+						icon32 = icons?.first,
+						icon16 = icons?.second,
+					)
 			}
 
-			val editedTileId = drawable.atlasTileId ?: continue
-			val tileId = editedTileId.lineageRoot.raw
-			val placement = editedPlacementByTileId[tileId] ?: continue
-			val modelImage = modelImageByTileId[tileId] ?: continue
-			val canvasAffine = canvasAffineByTileId[tileId] ?: continue
-			val entryHalf = atlasLocalToCanvasFor(canvasAffine, placement) ?: continue
-			val destination = atlasList.getOrNull(placement.pageIndex) as? CTextureAtlas ?: continue
-			val icons = tileRasters(editedTileId)?.let { raster -> retainedWeb.drawableIcons(raster, Cmo3Icons.artUvsOf(edited, drawable)) }
-			mintedBindings[drawable.id.raw] =
-				Cmo3DrawableTextureBinding(
-					pageTextureFor(placement.pageIndex),
-					destination.guid as Guid,
-					modelImage.guid as Guid,
-					affineOf(entryHalf),
-					icon32 = icons?.first,
-					icon16 = icons?.second,
-				)
+			return mintedBindings
 		}
-
-		return Result(pagesRecomposed = true, pruneNeeded = deletedAny || packOuts.isNotEmpty() || applied.releasedCopy, mintedBindings = mintedBindings, reconciledTileIds = reconciledTileIds)
 	}
 }
