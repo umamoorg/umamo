@@ -23,6 +23,7 @@ internal fun rememberGestureOwnsAreaPointer(session: EditorSession?, areaId: Str
 	val objectOperator = session.activeObjectOperator.collectAsState().value
 	val uvOperator = session.activeUvOperator.collectAsState().value
 	val selectTool = session.activeSelectTool.collectAsState().value
+	val brush = session.activeBrush.collectAsState().value
 	val viewportGestureActive = session.viewportGestureActive.collectAsState().value
 	val zoomRegionArmedArea = session.zoomRegionArmedArea.collectAsState().value
 
@@ -31,16 +32,17 @@ internal fun rememberGestureOwnsAreaPointer(session: EditorSession?, areaId: Str
 		// The same precedence as the session's activeOperator; at most one of the three runs at a time.
 		operatorAreaId = (meshOperator ?: objectOperator ?: uvOperator)?.areaId,
 		selectToolAreaId = selectTool?.areaId,
+		brushAreaId = brush?.areaId,
 		viewportGestureActive = viewportGestureActive,
 		zoomRegionArmedAreaId = zoomRegionArmedArea,
 	)
 }
 
 /**
- * Whether any gesture is live anywhere in the window: a modal operator, an armed select tool or Zoom Region, or an
- * in-flight box drag in whichever area, an open pie, or a parked which-axis question.  A surface's context menu stays
- * shut while one is, even in an area the gesture does not own: the right press belongs to that gesture, and a menu
- * opening beside it would act on a state about to change.
+ * Whether any gesture is live anywhere in the window: a modal operator, an armed select tool, deform brush, or Zoom
+ * Region, or an in-flight box drag in whichever area, an open pie, or a parked which-axis question.  A surface's
+ * context menu stays shut while one is, even in an area the gesture does not own: the right press belongs to that
+ * gesture, and a menu opening beside it would act on a state about to change.
  *
  * @param EditorSession? session The session whose latches are read, or null with no document open.
  * @return Boolean True when a gesture is live; false with no session.
@@ -55,6 +57,7 @@ internal fun rememberAnyGestureLive(session: EditorSession?): Boolean {
 	val objectOperator = session.activeObjectOperator.collectAsState().value
 	val uvOperator = session.activeUvOperator.collectAsState().value
 	val selectTool = session.activeSelectTool.collectAsState().value
+	val brush = session.activeBrush.collectAsState().value
 	val viewportGestureActive = session.viewportGestureActive.collectAsState().value
 	val zoomRegionArmedArea = session.zoomRegionArmedArea.collectAsState().value
 	val pieMenu = session.activePieMenu.collectAsState().value
@@ -64,6 +67,7 @@ internal fun rememberAnyGestureLive(session: EditorSession?): Boolean {
 		objectOperator != null ||
 		uvOperator != null ||
 		selectTool != null ||
+		brush != null ||
 		viewportGestureActive ||
 		zoomRegionArmedArea != null ||
 		pieMenu != null ||

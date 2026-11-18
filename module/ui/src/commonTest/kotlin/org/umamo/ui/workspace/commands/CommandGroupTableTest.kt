@@ -275,6 +275,14 @@ class CommandGroupTableTest {
 		assertEquals(listOf("mesh.proportional.falloff.sharp"), inEffect(CommandFamily.ProportionalFalloff))
 	}
 
+	/** The brush's mode is a session setting the sidebar's tool panel switches, so no command carries it. */
+	@Test
+	fun theBrushModeIsASettingAndNotACommand() {
+		val brushModeCommands = everyCommandTable().map { command -> command.id }.filter { id -> id.startsWith("mesh.deformBrush.mode.") }
+
+		assertEquals(emptyList(), brushModeCommands)
+	}
+
 	/**
 	 * With no document open the pivot and the mode still read as the ones a session starts on, so their header chips
 	 * show the same face before the first file opens; the select modes and the curves belong to controls that are not

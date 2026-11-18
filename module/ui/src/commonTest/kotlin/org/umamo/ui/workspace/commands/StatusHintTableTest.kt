@@ -99,9 +99,9 @@ class StatusHintTableTest {
 
 	/**
 	 * Over a viewport under the default keymap, each mode reads as its own short list: the way into Edit mode and
-	 * the visibility toggle from Object mode, the element domains from Edit mode, and from Pose mode, which works on
-	 * the posed lattices' elements and keys them, Insert Key (I and the K pie as one entry), the way into Edit mode,
-	 * and the element domains.
+	 * the visibility toggle from Object mode, the element domains from Edit mode, and from Pose mode, which works
+	 * on the posed lattices' elements and keys them, Insert Key (I and the K pie as one entry), the way into Edit
+	 * mode, and the element domains.
 	 */
 	@Test
 	fun eachModeSuggestsItsOwnListOverAViewport() {

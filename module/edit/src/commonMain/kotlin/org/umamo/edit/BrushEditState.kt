@@ -45,20 +45,36 @@ fun clampBrushRadius(radiusWorld: Float): Float = radiusWorld.coerceIn(MIN_BRUSH
 fun clampBrushStrength(strength: Float): Float = strength.coerceIn(MIN_BRUSH_STRENGTH, MAX_BRUSH_STRENGTH)
 
 /**
- * The deform brush's configuration: the falloff curve shaping its influence, the radius it reaches, and the
- * strength it carries the points under it with.  Transient session state, never part of
- * [EditorSnapshot]; the last configuration is remembered across off/on toggles and carried by a saved
- * document.
+ * How a deform brush moves the geometry it covers.
+ *
+ * Drag GRABS what the brush covered when the stroke began and carries it along: a grabbed point keeps the
+ * weight it had there, so a point under the brush's centre follows the cursor exactly and one near its
+ * edge follows in part, while a point the brush only flew past on the way keeps its place.  Flow smears
+ * what the brush passes over: every stretch of the stroke leaves the points it went over where it
+ * carried them, each weighted by the falloff over that stretch.
+ */
+enum class BrushMode {
+	Drag,
+	Flow,
+}
+
+/**
+ * The deform brush's configuration: the falloff curve shaping its influence, the radius it reaches, the
+ * strength it carries the points under it with, and the mode it moves them by.  Transient session state,
+ * never part of [EditorSnapshot]; the last configuration is remembered across off/on toggles and carried
+ * by a saved document.
  *
  * @property ProportionalFalloff falloff The falloff curve, shared with proportional editing.
  * @property Float radiusWorld The influence radius, in world units (canvas px).
  * @property Float strength How much of the brush's travel a point under it takes, in [0, 1].
+ * @property BrushMode mode How the brush moves the points it covers.
  */
 data class BrushSettings(
 	val falloff: ProportionalFalloff,
 	val radiusWorld: Float,
 	val strength: Float,
+	val mode: BrushMode = BrushMode.Drag,
 )
 
-/** The configuration a session starts with: the smooth falloff at the default radius and full strength. */
-val DEFAULT_BRUSH_SETTINGS: BrushSettings = BrushSettings(ProportionalFalloff.Smooth, DEFAULT_BRUSH_RADIUS_WORLD, DEFAULT_BRUSH_STRENGTH)
+/** The configuration a session starts with: the smooth falloff at the default radius, full strength, and the drag mode. */
+val DEFAULT_BRUSH_SETTINGS: BrushSettings = BrushSettings(ProportionalFalloff.Smooth, DEFAULT_BRUSH_RADIUS_WORLD, DEFAULT_BRUSH_STRENGTH, BrushMode.Drag)

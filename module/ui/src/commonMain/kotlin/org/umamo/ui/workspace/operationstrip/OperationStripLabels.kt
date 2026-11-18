@@ -3,6 +3,7 @@ package org.umamo.ui.workspace.operationstrip
 import androidx.compose.runtime.Composable
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.BrushMode
 import org.umamo.edit.ParameterUnit
 import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.mesh.LatticeResizeParameterKeys
@@ -165,6 +166,8 @@ internal fun operatorParameterLabel(labelKey: String): String =
 
 		QuadMeshParameterKeys.MARGIN -> stringResource(Res.string.mesh_options_quad_margin)
 
+		BrushParameterKeys.MODE -> stringResource(Res.string.brush_options_mode)
+
 		BrushParameterKeys.STRENGTH -> stringResource(Res.string.brush_options_strength)
 
 		BrushParameterKeys.RADIUS -> stringResource(Res.string.brush_options_radius)
@@ -249,6 +252,7 @@ internal fun operatorParameterDescriptionRes(labelKey: String): StringResource? 
 		MeshGenerationParameterKeys.DEFORMATION_TOLERANCE -> Res.string.mesh_options_deformation_tolerance_description
 		MeshGenerationParameterKeys.INTERIOR_THINNING_LIMIT -> Res.string.mesh_options_interior_thinning_limit_description
 		QuadMeshParameterKeys.MARGIN -> Res.string.mesh_options_quad_margin_description
+		BrushParameterKeys.MODE -> Res.string.brush_options_mode_description
 		BrushParameterKeys.STRENGTH -> Res.string.brush_options_strength_description
 		BrushParameterKeys.RADIUS -> Res.string.brush_options_radius_description
 		BrushParameterKeys.FALLOFF -> Res.string.brush_options_falloff_description
@@ -265,24 +269,28 @@ internal fun operatorParameterDescriptionRes(labelKey: String): StringResource? 
 internal fun operatorParameterDescription(labelKey: String): String = operatorParameterDescriptionRes(labelKey)?.let { resource -> stringResource(resource) } ?: ""
 
 /**
- * The localized label of a choice entry's prefixed key: a falloff curve's, a rotation axis's, a depth
- * surface's, a merge target's, an import anchor's, or a mesh preset's.
+ * The localized label of a choice entry's prefixed key: a brush mode's, a falloff curve's, a rotation axis's, a
+ * depth surface's, a merge target's, an import anchor's, or a mesh preset's.
  *
  * @param String labelKey The entry's label key.
  * @return String? The label, or null when the key carries none of the prefixes.
  */
 @Composable
 private fun choiceLabel(labelKey: String): String? {
-	if (labelKey.startsWith(TransformParameterKeys.FALLOFF_CHOICE_PREFIX)) {
-		val key = labelKey.removePrefix(TransformParameterKeys.FALLOFF_CHOICE_PREFIX)
+	if (labelKey.startsWith(TransformParameterKeys.FALLOFF_CHOICE_PREFIX) || labelKey.startsWith(BrushParameterKeys.FALLOFF_CHOICE_PREFIX)) {
+		val key = labelKey.substringAfterLast('.')
 
 		return ProportionalFalloff.entries.firstOrNull { falloff -> falloff.choiceKey == key }?.let { falloff -> falloffLabel(falloff) }
 	}
 
-	if (labelKey.startsWith(BrushParameterKeys.FALLOFF_CHOICE_PREFIX)) {
-		val key = labelKey.removePrefix(BrushParameterKeys.FALLOFF_CHOICE_PREFIX)
+	if (labelKey.startsWith(BrushParameterKeys.MODE_CHOICE_PREFIX)) {
+		val key = labelKey.removePrefix(BrushParameterKeys.MODE_CHOICE_PREFIX)
 
-		return ProportionalFalloff.entries.firstOrNull { falloff -> falloff.choiceKey == key }?.let { falloff -> falloffLabel(falloff) }
+		return when (BrushMode.entries.firstOrNull { mode -> mode.choiceKey == key }) {
+			BrushMode.Drag -> stringResource(Res.string.brush_mode_drag)
+			BrushMode.Flow -> stringResource(Res.string.brush_mode_flow)
+			null -> null
+		}
 	}
 
 	if (labelKey.startsWith(TransformParameterKeys.AXIS_CHOICE_PREFIX)) {

@@ -1,5 +1,6 @@
 package org.umamo.edit.transform
 
+import org.umamo.edit.BrushMode
 import org.umamo.edit.ProportionalFalloff
 import kotlin.math.ceil
 import kotlin.math.sqrt
@@ -116,56 +117,42 @@ data class BrushStroke(
  * The world offset every point takes from a brush stroke: the brush's travel, weighted by the falloff over
  * each point's distance to the brush.
  *
- * Each stretch between two stamps carries the points the brush covered at the start of it, and the weight
- * is the falloff curve over the distance from a point to that stamp's centre - the same curve, and the same
- * normalized distance, proportional editing weights a vertex by.  A point outside the brush's radius weighs
- * nothing, so it stays exactly where it was.
+ * The two modes weigh the travel differently.  Drag GRABS what is under the brush when the stroke starts:
+ * every point inside that first circle keeps the weight it had there and travels with the brush from then
+ * on, so a point under the brush's centre follows the cursor exactly and one near its edge follows in part.
+ * A point the brush only passes over on its way is NOT grabbed - it keeps its place - so a fast drag over
+ * a mesh does not sweep up everything it flew past.
+ *
+ * Flow SMARS what the brush passes over: every stretch of the stroke leaves the points it went over where
+ * it carried them, which is the original brush, and the points it went over stay deformed.
+ *
+ * The weight is the falloff curve over the distance from a point to the brush - the same curve, and the
+ * same normalized distance, proportional editing weights a vertex by.  A point outside the brush's
+ * radius weighs nothing, so it stays exactly where it was.
  *
  * The strength scales the whole travel, so the same stroke can be re-run at a new strength without the
  * stamps changing.
  *
- * @param List<BrushStamp> stamps The stroke's stamps, in order.
+ * @param BrushStroke stroke The stroke, whose stamps carry the path and whose last centre is where the
+ *   brush is now.
  * @param FloatArray points The points in world space, interleaved x, z.
  * @param Float strength How much of the brush's travel a point under it takes.
  * @param ProportionalFalloff falloff The falloff curve shaping the weights.
+ * @param BrushMode mode How the brush moves the points it covers.
  * @return FloatArray The per-point world offsets, interleaved x, z, the same length as [points].
  */
 fun brushPointOffsets(
-	stamps: List<BrushStamp>,
+	stroke: BrushStroke,
 	points: FloatArray,
 	strength: Float,
 	falloff: ProportionalFalloff,
+	mode: BrushMode,
 ): FloatArray {
 	val offsets = FloatArray(points.size)
-	val pointCount = points.size / 2
 
-	for (stampIndex in 1 until stamps.size) {
-		val previous = stamps[stampIndex - 1]
-		val current = stamps[stampIndex]
-		val deltaX = current.centreX - previous.centreX
-		val deltaZ = current.centreZ - previous.centreZ
-
-		if (deltaX == 0f && deltaZ == 0f) {
-			continue
-		}
-
-		if (previous.radiusWorld <= 0f) {
-			continue
-		}
-
-		for (pointIndex in 0 until pointCount) {
-			val pointX = points[pointIndex * 2]
-			val pointZ = points[pointIndex * 2 + 1]
-			val distanceX = pointX - previous.centreX
-			val distanceZ = pointZ - previous.centreZ
-			val normalizedDistance = sqrt(distanceX * distanceX + distanceZ * distanceZ) / previous.radiusWorld
-			val weight = proportionalWeight(falloff, normalizedDistance, pointIndex)
-
-			if (weight > 0f) {
-				offsets[pointIndex * 2] += deltaX * weight
-				offsets[pointIndex * 2 + 1] += deltaZ * weight
-			}
-		}
+	when (mode) {
+		BrushMode.Drag -> dragPointOffsets(stroke, points, offsets, falloff)
+		BrushMode.Flow -> flowPointOffsets(stroke, points, offsets, falloff)
 	}
 
 	for (componentIndex in offsets.indices) {
@@ -173,4 +160,94 @@ fun brushPointOffsets(
 	}
 
 	return offsets
+}
+
+/**
+ * The offsets a Flow stroke gives its points: every stretch carries the points it went over, weighted by
+ * the falloff over the distance from a point to the stretch's own centre.
+ *
+ * @param BrushStroke stroke The stroke, whose stamps carry the path.
+ * @param FloatArray points The points in world space, interleaved x, z.
+ * @param FloatArray offsets The offsets to fill, interleaved x, z.
+ * @param ProportionalFalloff falloff The falloff curve shaping the weights.
+ */
+private fun flowPointOffsets(
+	stroke: BrushStroke,
+	points: FloatArray,
+	offsets: FloatArray,
+	falloff: ProportionalFalloff,
+) {
+	val stamps = stroke.stamps
+	val pointCount = points.size / 2
+
+	for (stretchIndex in 1 until stamps.size) {
+		val start = stamps[stretchIndex - 1]
+		val end = stamps[stretchIndex]
+		val travelX = end.centreX - start.centreX
+		val travelZ = end.centreZ - start.centreZ
+
+		if (travelX == 0f && travelZ == 0f) {
+			continue
+		}
+
+		if (start.radiusWorld <= 0f) {
+			continue
+		}
+
+		for (pointIndex in 0 until pointCount) {
+			val offsetX = points[pointIndex * 2] - start.centreX
+			val offsetZ = points[pointIndex * 2 + 1] - start.centreZ
+			val normalizedDistance = sqrt(offsetX * offsetX + offsetZ * offsetZ) / start.radiusWorld
+			val weight = proportionalWeight(falloff, normalizedDistance, pointIndex)
+
+			if (weight > 0f) {
+				offsets[pointIndex * 2] += travelX * weight
+				offsets[pointIndex * 2 + 1] += travelZ * weight
+			}
+		}
+	}
+}
+
+/**
+ * The offsets a Drag stroke gives its points: what the brush covered when the stroke began is GRABBED, and
+ * each grabbed point travels with the brush from that first circle to where the brush is now, scaled by the
+ * weight it had there.
+ *
+ * The grab is taken from the stroke's FIRST stamp alone, so the brush's later travel never picks up a point
+ * it merely flew past - that is what makes a fast drag over a mesh deform only what it grabbed.
+ *
+ * @param BrushStroke stroke The stroke, whose first stamp is where the brush began and whose last centre is
+ *   where it is now.
+ * @param FloatArray points The points in world space, interleaved x, z.
+ * @param FloatArray offsets The offsets to fill, interleaved x, z.
+ * @param ProportionalFalloff falloff The falloff curve shaping the weights.
+ */
+private fun dragPointOffsets(
+	stroke: BrushStroke,
+	points: FloatArray,
+	offsets: FloatArray,
+	falloff: ProportionalFalloff,
+) {
+	val stamps = stroke.stamps
+	val grab = stamps.firstOrNull() ?: return
+
+	if (grab.radiusWorld <= 0f) {
+		return
+	}
+
+	val pointCount = points.size / 2
+	val travelX = stroke.lastCentreX - grab.centreX
+	val travelZ = stroke.lastCentreZ - grab.centreZ
+
+	for (pointIndex in 0 until pointCount) {
+		val offsetX = points[pointIndex * 2] - grab.centreX
+		val offsetZ = points[pointIndex * 2 + 1] - grab.centreZ
+		val normalizedDistance = sqrt(offsetX * offsetX + offsetZ * offsetZ) / grab.radiusWorld
+		val weight = proportionalWeight(falloff, normalizedDistance, pointIndex)
+
+		if (weight > 0f) {
+			offsets[pointIndex * 2] = travelX * weight
+			offsets[pointIndex * 2 + 1] = travelZ * weight
+		}
+	}
 }

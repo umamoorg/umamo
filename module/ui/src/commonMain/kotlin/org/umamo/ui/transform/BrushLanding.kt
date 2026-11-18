@@ -157,7 +157,7 @@ private fun brushMeshes(
 	val movedIndices = LinkedHashMap<DrawableId, List<Int>>()
 
 	for (mesh in meshes) {
-		val offsets = brushPointOffsets(stroke.stamps, mesh.world, settings.strength, settings.falloff)
+		val offsets = brushPointOffsets(stroke, mesh.world, settings.strength, settings.falloff, settings.mode)
 		val moved = movedVerticesOf(offsets)
 
 		if (moved.isEmpty()) {
@@ -204,7 +204,7 @@ private fun brushCages(
 	val world = LinkedHashMap<DeformerId, FloatArray>()
 
 	for ((warpId, lattice) in latticeWorld) {
-		val offsets = brushPointOffsets(stroke.stamps, lattice, settings.strength, settings.falloff)
+		val offsets = brushPointOffsets(stroke, lattice, settings.strength, settings.falloff, settings.mode)
 
 		if (offsets.all { component -> component == 0f }) {
 			continue

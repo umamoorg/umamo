@@ -1,5 +1,6 @@
 package org.umamo.edit.transform
 
+import org.umamo.edit.BrushMode
 import org.umamo.edit.ProportionalFalloff
 import kotlin.math.abs
 import kotlin.test.Test
@@ -7,9 +8,13 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Pins the deform brush's arithmetic: a stroke's travel carries the points the brush passed over and
- * leaves the others where they were, the strength scales that travel, the falloff shapes how fast the
- * influence fades, and the same stamps re-run at another strength.
+ * Pins the deform brush's arithmetic: a stroke's travel carries the points the brush covered and leaves
+ * the others where they were, the strength scales that travel, the falloff shapes how fast the influence
+ * fades, and the same stamps re-run at another strength.
+ *
+ * The two modes weigh the travel differently.  Drag GRABS what the brush covered when the stroke began and
+ * carries it from there on with the weight it was grabbed with, so a point the brush only flew past keeps
+ * its place; Flow smears every stretch over the points it went over and lets them go as the brush moves on.
  */
 class BrushPointsTest {
 	// How close a weight may sit to the value a test expects.
@@ -27,7 +32,7 @@ class BrushPointsTest {
 		BrushStroke.starting(fromX, 0f, radiusWorld).stampedTo(toX, 0f, radiusWorld)
 
 	/**
-	 * The offset a point at (pointX, 0) takes from a stroke of [radiusWorld] that walks the brush from
+	 * The offset a point at (pointX, pointZ) takes from a stroke of [radiusWorld] that walks the brush from
 	 * [fromX] to [toX].
 	 *
 	 * @param Float pointX The point's x.
@@ -36,6 +41,8 @@ class BrushPointsTest {
 	 * @param Float radiusWorld The brush's radius.
 	 * @param Float strength The strength.
 	 * @param ProportionalFalloff falloff The falloff curve.
+	 * @param BrushMode mode How the brush moves the points it covers.
+	 * @param Float pointZ The point's z (up).
 	 * @return Float The point's x offset.
 	 */
 	private fun offsetOf(
@@ -45,11 +52,13 @@ class BrushPointsTest {
 		radiusWorld: Float,
 		strength: Float,
 		falloff: ProportionalFalloff = ProportionalFalloff.Smooth,
-	): Float = brushPointOffsets(stroke(fromX, toX, radiusWorld).stamps, floatArrayOf(pointX, 0f), strength, falloff)[0]
+		mode: BrushMode = BrushMode.Drag,
+		pointZ: Float = 0f,
+	): Float = brushPointOffsets(stroke(fromX, toX, radiusWorld), floatArrayOf(pointX, pointZ), strength, falloff, mode)[0]
 
-	/** A point the brush passed over travels with it. */
+	/** A point the brush was over travels with it. */
 	@Test
-	fun aPointTheBrushPassesOverTravelsWithIt() {
+	fun aPointTheBrushIsOverTravelsWithIt() {
 		assertEquals(10f, offsetOf(pointX = 0f, fromX = 0f, toX = 10f, radiusWorld = 50f, strength = 1f), tolerance)
 	}
 
@@ -63,7 +72,7 @@ class BrushPointsTest {
 	@Test
 	fun aBrushThatNeverTravelsMovesNothing() {
 		val still = BrushStroke.starting(0f, 0f, 50f)
-		val offsets = brushPointOffsets(still.stamps, floatArrayOf(0f, 0f), 1f, ProportionalFalloff.Smooth)
+		val offsets = brushPointOffsets(still, floatArrayOf(0f, 0f), 1f, ProportionalFalloff.Smooth, BrushMode.Drag)
 
 		assertEquals(0f, offsets[0], tolerance)
 	}
@@ -77,10 +86,10 @@ class BrushPointsTest {
 	/** The same stamps re-run at another strength land over the same stroke, further or shorter. */
 	@Test
 	fun theSameStampsReRunAtAnotherStrength() {
-		val stamps = stroke(0f, 10f, 50f).stamps
+		val walked = stroke(0f, 10f, 50f)
 		val lattice = floatArrayOf(0f, 0f)
-		val full = brushPointOffsets(stamps, lattice, 1f, ProportionalFalloff.Smooth)
-		val half = brushPointOffsets(stamps, lattice, 0.5f, ProportionalFalloff.Smooth)
+		val full = brushPointOffsets(walked, lattice, 1f, ProportionalFalloff.Smooth, BrushMode.Drag)
+		val half = brushPointOffsets(walked, lattice, 0.5f, ProportionalFalloff.Smooth, BrushMode.Drag)
 
 		assertEquals(full[0] * 0.5f, half[0], tolerance)
 	}
@@ -113,5 +122,104 @@ class BrushPointsTest {
 		assertTrue(gaps.isNotEmpty(), "the drag laid stamps")
 		assertTrue(gaps.all { gap -> gap <= 10f + tolerance }, "no stamp is more than half a radius from the next")
 		assertEquals(100f, walked.stamps.last().centreX, tolerance, "the last stamp is where the brush ended")
+	}
+
+	/** In drag mode, a point the brush catches under its centre travels the brush's whole remaining travel. */
+	@Test
+	fun inDragModeAPointCaughtUnderTheCentreFollowsTheCursor() {
+		val dragged = offsetOf(pointX = 0f, fromX = 0f, toX = 10f, radiusWorld = 50f, strength = 1f, mode = BrushMode.Drag)
+
+		assertEquals(10f, dragged, tolerance, "the point the brush was over travels the cursor's travel")
+	}
+
+	/** In drag mode, a point the brush never reaches stays exactly where it was. */
+	@Test
+	fun inDragModeAPointTheBrushNeverReachesStaysPut() {
+		val dragged = offsetOf(pointX = 100f, fromX = 0f, toX = 10f, radiusWorld = 50f, strength = 1f, mode = BrushMode.Drag)
+
+		assertEquals(0f, dragged, tolerance)
+	}
+
+	/**
+	 * In drag mode, a point caught at the brush's edge keeps the weight it was caught with, so it travels
+	 * the rest of the stroke in part.  The brush runs from 0 to 100 with a radius of 50, and the point sits
+	 * 48 above the path's start, so the first stretch catches it with a fiftieth of its weight.
+	 */
+	@Test
+	fun inDragModeAPointCaughtWithAPartialWeightTravelsInPart() {
+		val dragged =
+			offsetOf(
+				pointX = 0f,
+				fromX = 0f,
+				toX = 100f,
+				radiusWorld = 50f,
+				strength = 1f,
+				falloff = ProportionalFalloff.Linear,
+				mode = BrushMode.Drag,
+				pointZ = 48f,
+			)
+
+		assertEquals(4f, dragged, tolerance, "the point keeps the weight it was caught with")
+	}
+
+	/**
+	 * In flow mode, the same point is smeared by the one stretch that reached it and released as the brush
+	 * goes on, where the drag mode carries it for the rest of the stroke.
+	 */
+	@Test
+	fun inFlowModeTheSamePointIsSmearedByTheStretchesThatReachedIt() {
+		val flowed =
+			offsetOf(
+				pointX = 0f,
+				fromX = 0f,
+				toX = 100f,
+				radiusWorld = 50f,
+				strength = 1f,
+				falloff = ProportionalFalloff.Linear,
+				mode = BrushMode.Flow,
+				pointZ = 48f,
+			)
+
+		assertEquals(1f, flowed, tolerance, "the first stretch carried it, and the later ones let it go")
+	}
+
+	/**
+	 * In flow mode, a point under the path accumulates the motion of the stretches that went over it: the
+	 * stretch it lies on carries it whole, and the stretches beside it carry it in part.
+	 */
+	@Test
+	fun inFlowModeAPointUnderThePathAccumulatesTheStretchesMotion() {
+		val flowed =
+			offsetOf(
+				pointX = 50f,
+				fromX = 0f,
+				toX = 100f,
+				radiusWorld = 50f,
+				strength = 1f,
+				falloff = ProportionalFalloff.Linear,
+				mode = BrushMode.Flow,
+			)
+
+		assertEquals(50f, flowed, tolerance, "the stretch over the point carries it whole, the two beside it in part")
+	}
+
+	/** In flow mode, a point the brush never reaches stays exactly where it was. */
+	@Test
+	fun inFlowModeAPointTheBrushNeverReachesStaysPut() {
+		val flowed = offsetOf(pointX = 100f, fromX = 0f, toX = 10f, radiusWorld = 50f, strength = 1f, mode = BrushMode.Flow)
+
+		assertEquals(0f, flowed, tolerance)
+	}
+
+	/**
+	 * In drag mode, a point the brush only flew past on the way is NOT grabbed: the grab is taken from the
+	 * circle the brush had when the stroke began, so a fast drag over a mesh leaves everything it passed
+	 * over where it was.
+	 */
+	@Test
+	fun inDragModeAPointTheBrushOnlyPassesOverIsNotGrabbed() {
+		val dragged = offsetOf(pointX = 40f, fromX = 0f, toX = 100f, radiusWorld = 20f, strength = 1f, mode = BrushMode.Drag)
+
+		assertEquals(0f, dragged, tolerance, "the point the brush flew past keeps its place")
 	}
 }

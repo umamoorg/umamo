@@ -33,8 +33,8 @@ import org.umamo.runtime.model.meshOf
  * @property Boolean                proportionalEnabled  Whether proportional editing is on.
  * @property ProportionalEditState? proportionalSettings The proportional falloff, radius, and connected flag - kept
  *   while proportional editing is off, since a toggle brings them back - or null for the defaults.
- * @property BrushSettings?        brushSettings       The deform brush's falloff, radius, and strength, or null for
- *   the defaults.
+ * @property BrushSettings?        brushSettings       The deform brush's mode, falloff, radius, and strength, or
+ *   null for the defaults.
  */
 data class SessionViewState(
 	val selection: Selection = Selection(),

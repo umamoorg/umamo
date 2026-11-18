@@ -2,6 +2,7 @@ package org.umamo.edit
 
 import org.umamo.edit.SessionTestModels.meshModel
 import org.umamo.edit.transform.beginBoxSelect
+import org.umamo.edit.transform.beginBrush
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.runtime.model.DrawableId
 import kotlin.test.Test
@@ -60,6 +61,21 @@ class AreaPointerOwnershipTest {
 		assertFalse(session.gestureOwnsAreaPointer(LEFT_AREA))
 	}
 
+	/** An armed deform brush owns the pointer of the area it was armed in. */
+	@Test
+	fun anArmedBrushOwnsItsOwnArea() {
+		val session = EditorSession(meshModel())
+		session.setMode(EditorMode.Edit)
+		session.beginBrush(LEFT_AREA)
+		assertEquals(LEFT_AREA, assertNotNull(session.activeBrush.value, "precondition: the brush armed").areaId)
+
+		assertTrue(session.gestureOwnsAreaPointer(LEFT_AREA))
+		assertFalse(session.gestureOwnsAreaPointer(RIGHT_AREA), "a bystander area keeps its pointer")
+
+		session.clearBrush()
+		assertFalse(session.gestureOwnsAreaPointer(LEFT_AREA))
+	}
+
 	/** An armed Zoom Region owns the pointer of the area it was armed for. */
 	@Test
 	fun anArmedZoomRegionOwnsItsOwnArea() {
@@ -89,11 +105,12 @@ class AreaPointerOwnershipTest {
 	/** The rule itself matches each latch against the asking area alone. */
 	@Test
 	fun theRuleMatchesEachLatchAgainstTheAskingArea() {
-		assertTrue(gestureOwnsAreaPointer(LEFT_AREA, operatorAreaId = LEFT_AREA, selectToolAreaId = null, viewportGestureActive = false, zoomRegionArmedAreaId = null))
-		assertTrue(gestureOwnsAreaPointer(LEFT_AREA, operatorAreaId = null, selectToolAreaId = LEFT_AREA, viewportGestureActive = false, zoomRegionArmedAreaId = null))
-		assertTrue(gestureOwnsAreaPointer(LEFT_AREA, operatorAreaId = null, selectToolAreaId = null, viewportGestureActive = false, zoomRegionArmedAreaId = LEFT_AREA))
+		assertTrue(gestureOwnsAreaPointer(LEFT_AREA, operatorAreaId = LEFT_AREA, selectToolAreaId = null, brushAreaId = null, viewportGestureActive = false, zoomRegionArmedAreaId = null))
+		assertTrue(gestureOwnsAreaPointer(LEFT_AREA, operatorAreaId = null, selectToolAreaId = LEFT_AREA, brushAreaId = null, viewportGestureActive = false, zoomRegionArmedAreaId = null))
+		assertTrue(gestureOwnsAreaPointer(LEFT_AREA, operatorAreaId = null, selectToolAreaId = null, brushAreaId = LEFT_AREA, viewportGestureActive = false, zoomRegionArmedAreaId = null))
+		assertTrue(gestureOwnsAreaPointer(LEFT_AREA, operatorAreaId = null, selectToolAreaId = null, brushAreaId = null, viewportGestureActive = false, zoomRegionArmedAreaId = LEFT_AREA))
 		assertFalse(
-			gestureOwnsAreaPointer(LEFT_AREA, operatorAreaId = RIGHT_AREA, selectToolAreaId = RIGHT_AREA, viewportGestureActive = false, zoomRegionArmedAreaId = RIGHT_AREA),
+			gestureOwnsAreaPointer(LEFT_AREA, operatorAreaId = RIGHT_AREA, selectToolAreaId = RIGHT_AREA, brushAreaId = RIGHT_AREA, viewportGestureActive = false, zoomRegionArmedAreaId = RIGHT_AREA),
 			"latches held by another area leave this one alone",
 		)
 	}

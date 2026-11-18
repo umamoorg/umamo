@@ -172,10 +172,10 @@ interface SessionToolSettings {
 	fun setProportionalEdit(state: ProportionalEditState?)
 
 	/**
-	 * The deform brush's configuration: the falloff curve shaping its influence, the radius it reaches,
-	 * and the strength it carries the points under it with.  Transient editor state like [pivotMode] - it
-	 * survives mode switches but is never snapshotted; a saved document carries it, so a rigger reopens
-	 * with the brush they last dialled in.
+	 * The deform brush's configuration: the mode it moves the points under it by, the falloff curve shaping
+	 * its influence, the radius it reaches, and the strength it carries them with.  Transient editor state like
+	 * [pivotMode] - it survives mode switches but is never snapshotted; a saved document carries it, so a
+	 * rigger reopens with the brush they last dialled in.
 	 */
 	val brushSettings: StateFlow<BrushSettings>
 

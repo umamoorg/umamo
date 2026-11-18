@@ -61,7 +61,7 @@ class BrushStrokeCommitTest {
 	 */
 	private fun smeared(model: PuppetModel, stroke: BrushStroke): PuppetModel {
 		// The warp sits at the model's root, so its parent space is the space the brush measures in.
-		val offsets = brushPointOffsets(stroke.stamps, square(), 1f, ProportionalFalloff.Smooth)
+		val offsets = brushPointOffsets(stroke, square(), 1f, ProportionalFalloff.Smooth, BrushMode.Drag)
 
 		return model.copy(
 			deformers =

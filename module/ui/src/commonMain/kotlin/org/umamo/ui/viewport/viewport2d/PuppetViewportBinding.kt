@@ -755,14 +755,14 @@ private suspend fun PointerInputScope.viewportNavigation(
 			val event = awaitPointerEvent()
 			val change = event.changes.firstOrNull() ?: continue
 
-			// THIS AREA'S modal operator (G / S / R), armed Box / Circle select tool, or armed Zoom Region
-			// - or an in-flight un-armed box drag (area-less: pointer capture pins its events to the
-			// dragging overlay) - owns the pointer: the overlay above consumes the event, but this
-			// navigation layer does not check isConsumed, so it must skip pan / zoom explicitly -
-			// otherwise a Circle MMB-erase would also pan, its wheel-resize would also zoom, and an
-			// object G / S / R grab would pan.  A gesture latched in ANOTHER area does not block: its
-			// events never reach here, so this area keeps panning and zooming during it (Blender
-			// parity).
+			// THIS AREA'S modal operator (G / S / R), armed Box / Circle select tool, armed deform
+			// brush, or armed Zoom Region - or an in-flight un-armed box drag (area-less: pointer
+			// capture pins its events to the dragging overlay) - owns the pointer: the overlay above
+			// consumes the event, but this navigation layer does not check isConsumed, so it must skip
+			// pan / zoom explicitly - otherwise a Circle MMB-erase would also pan, its wheel-resize
+			// would also zoom, and an object G / S / R grab would pan.  A gesture latched in ANOTHER
+			// area does not block: its events never reach here, so this area keeps panning and
+			// zooming during it (Blender parity).
 			if (session.gestureOwnsAreaPointer(areaId)) {
 				continue
 			}

@@ -7,7 +7,9 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import org.umamo.edit.BrushMode
 import org.umamo.edit.Cursor2d
+import org.umamo.edit.DEFAULT_BRUSH_SETTINGS
 import org.umamo.edit.DEFAULT_PROPORTIONAL_EDIT_STATE
 import org.umamo.edit.DepthSurface
 import org.umamo.edit.EditorMode
@@ -140,6 +142,23 @@ class SessionStateJsonTest {
 		assertEquals("pose", sessionStateJson(SessionViewState(mode = EditorMode.Pose), defaultPose, model)["mode"]?.jsonPrimitive?.content)
 		assertEquals("edit", sessionStateJson(SessionViewState(mode = EditorMode.Edit), defaultPose, model)["mode"]?.jsonPrimitive?.content)
 		assertTrue(sessionStateJson(SessionViewState(mode = EditorMode.Object), defaultPose, model)["mode"] is JsonNull)
+	}
+
+	/**
+	 * The Deform brush's mode round-trips under its UMA §7.4 wire name, and the mode a session starts on is
+	 * the default, so it writes nothing.
+	 */
+	@Test
+	fun everyBrushModeRoundTripsUnderItsWireName() {
+		val flow = SessionViewState(brushSettings = DEFAULT_BRUSH_SETTINGS.copy(mode = BrushMode.Flow))
+
+		assertEquals(flow, sessionViewStateOf(sessionStateJson(flow, defaultPose, model)), "the flow mode round-trips")
+
+		val block = sessionStateJson(flow, defaultPose, model)["brush"] as JsonObject
+		assertEquals("flow", block["mode"]?.jsonPrimitive?.content)
+
+		val drag = sessionStateJson(SessionViewState(brushSettings = DEFAULT_BRUSH_SETTINGS.copy(mode = BrushMode.Drag)), defaultPose, model)
+		assertTrue(drag["brush"] is JsonNull, "the drag mode is the default and writes nothing")
 	}
 
 	/** Every falloff curve round-trips under its UMA §7.4 wire name, the two-word one in lower camel case. */

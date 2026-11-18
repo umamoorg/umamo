@@ -6,13 +6,16 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import org.umamo.edit.BrushMode
 import org.umamo.edit.BrushSettings
 import org.umamo.edit.Cursor2d
 import org.umamo.edit.DEFAULT_BRUSH_SETTINGS
 import org.umamo.edit.DEFAULT_PROPORTIONAL_EDIT_STATE
 import org.umamo.edit.DepthSurface
 import org.umamo.edit.EditorMode
+import org.umamo.edit.MAX_BRUSH_RADIUS_WORLD
 import org.umamo.edit.MAX_BRUSH_STRENGTH
+import org.umamo.edit.MIN_BRUSH_RADIUS_WORLD
 import org.umamo.edit.MIN_BRUSH_STRENGTH
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.ParameterSelection
@@ -98,11 +101,12 @@ fun sessionStateJson(viewState: SessionViewState, pose: Pose, model: PuppetModel
 				}
 			} ?: JsonNull,
 		)
-		// UMA §7.4: `brush` - the Deform brush's falloff, radius, and strength, left out at the defaults.
+		// UMA §7.4: `brush` - the Deform brush's mode, falloff, radius, and strength, left out at the defaults.
 		put(
 			"brush",
 			viewState.brushSettings?.takeIf { settings -> settings != DEFAULT_BRUSH_SETTINGS }?.let { settings ->
 				buildJsonObject {
+					put("mode", JsonPrimitive(brushModeWireName(settings.mode)))
 					put("falloff", JsonPrimitive(falloffWireName(settings.falloff)))
 					put("radius", JsonPrimitive(settings.radiusWorld))
 					put("strength", JsonPrimitive(settings.strength))
@@ -167,8 +171,9 @@ fun sessionViewStateOf(tree: JsonObject?): SessionViewState? {
 			brush?.let { block ->
 				BrushSettings(
 					falloff = stringOf(block, "falloff")?.let { wireName -> ProportionalFalloff.entries.firstOrNull { falloff -> falloffWireName(falloff) == wireName } } ?: DEFAULT_BRUSH_SETTINGS.falloff,
-					radiusWorld = finiteFloatOf(block["radius"])?.takeIf { radius -> radius > 0f } ?: DEFAULT_BRUSH_SETTINGS.radiusWorld,
+					radiusWorld = finiteFloatOf(block["radius"])?.coerceIn(MIN_BRUSH_RADIUS_WORLD, MAX_BRUSH_RADIUS_WORLD) ?: DEFAULT_BRUSH_SETTINGS.radiusWorld,
 					strength = finiteFloatOf(block["strength"])?.coerceIn(MIN_BRUSH_STRENGTH, MAX_BRUSH_STRENGTH) ?: DEFAULT_BRUSH_SETTINGS.strength,
+					mode = stringOf(block, "mode")?.let { wireName -> BrushMode.entries.firstOrNull { mode -> brushModeWireName(mode) == wireName } } ?: DEFAULT_BRUSH_SETTINGS.mode,
 				)
 			},
 	)
@@ -276,6 +281,19 @@ private fun pivotWireName(mode: TransformPivotMode): String =
 		TransformPivotMode.IndividualOrigins -> "individualOrigins"
 		TransformPivotMode.ActiveElement -> "activeElement"
 		TransformPivotMode.Cursor -> "cursor"
+	}
+
+/**
+ * A brush mode's name in the editor entry.
+ *
+ * @param BrushMode mode The mode.
+ * @return String The wire name.
+ */
+private fun brushModeWireName(mode: BrushMode): String =
+	// UMA §7.4: `brush.mode`.
+	when (mode) {
+		BrushMode.Drag -> "drag"
+		BrushMode.Flow -> "flow"
 	}
 
 /**

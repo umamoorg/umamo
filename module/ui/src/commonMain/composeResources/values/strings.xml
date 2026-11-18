@@ -1063,9 +1063,12 @@
 	<string name="transform_options_proportional_size">Proportional Size</string>
 	<string name="transform_options_connected">Connected Only</string>
 	<!-- The Deform brush's rows on the operation settings strip. -->
+	<string name="brush_options_mode">Mode</string>
 	<string name="brush_options_strength">Strength</string>
 	<string name="brush_options_radius">Brush Radius</string>
 	<string name="brush_options_falloff">Falloff</string>
+	<string name="brush_mode_drag">Drag</string>
+	<string name="brush_mode_flow">Flow</string>
 	<string name="transform_options_slide_factor">Factor</string>
 	<!-- A Pose-mode Rotate's depth rows and their choices. -->
 	<string name="transform_options_axis">Axis</string>
@@ -1210,6 +1213,7 @@
 	<string name="transform_options_falloff_description">The curve the proportional influence follows as it fades out toward the edge of Proportional Size.</string>
 	<string name="transform_options_proportional_size_description">How far the proportional influence reaches from the selection, in pixels.</string>
 	<string name="transform_options_connected_description">Limits the proportional influence to vertices that are connected to the selected meshes.</string>
+	<string name="brush_options_mode_description">How the brush moves what it covers: Drag grabs what the brush covers when the stroke starts and carries it, Flow smears what the brush passes over.</string>
 	<string name="brush_options_strength_description">How much of the brush's travel a lattice point under it takes.  1 carries it along exactly.</string>
 	<string name="brush_options_radius_description">How far the brush reaches, in pixels of the model.</string>
 	<string name="brush_options_falloff_description">The curve the brush's influence follows as it fades out toward the edge of Brush Radius.</string>

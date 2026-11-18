@@ -16,7 +16,8 @@ import org.umamo.ui.workspace.SpaceScope
  *
  * The brush's settings are not commands of their own: the operation settings strip carries them, so a
  * finished stroke can be re-run at another strength, falloff, or radius, and the settings a stroke landed
- * with are the ones the next stroke starts from.
+ * with are the ones the next stroke starts from.  The mode is switched beside them, in the sidebar's tool
+ * settings, so the brush's settings live in one place.
  *
  * @param EditorSession? editorSession The open document's session, or null (every command then no-ops).
  * @param CommandRouting routing Resolves which area the pointer means at dispatch time.

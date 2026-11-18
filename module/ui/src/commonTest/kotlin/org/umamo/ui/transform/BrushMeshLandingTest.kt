@@ -40,7 +40,7 @@ class BrushMeshLandingTest {
 	 *
 	 * @return BrushStroke The stroke.
 	 */
-	private fun stroke(): BrushStroke = BrushStroke.starting(-10f, 0f, 15f).stampedTo(10f, 0f, 15f)
+	private fun stroke(): BrushStroke = BrushStroke.starting(-5f, 0f, 15f).stampedTo(10f, 0f, 15f)
 
 	/**
 	 * A stroke over the rig's art, as the mesh the brush smears.
@@ -74,11 +74,12 @@ class BrushMeshLandingTest {
 	}
 
 	/**
-	 * A stroke over a mesh's lower edge moves the vertex the brush passed over and leaves the rest of the
-	 * mesh where it was.
+	 * A stroke GRABS what the brush covered when it began and leaves the rest of the mesh where it was: the
+	 * vertex under the brush at the start travels with it, and the vertex the brush only brushed past on the
+	 * way out stays put, however far the stroke went.
 	 */
 	@Test
-	fun aStrokeOverAMeshMovesTheVerticesItCoversAndLeavesTheRest() {
+	fun aStrokeOverAMeshMovesTheVerticesItGrabbedAndLeavesTheRest() {
 		val model = latticeRigModel()
 		val before = model.meshOf(LATTICE_RIG_ART)!!.positions
 		val geometry = captureBrushGeometry(model, listOf(artOwner()))
@@ -86,7 +87,7 @@ class BrushMeshLandingTest {
 
 		val meshes = landing as BrushLanding.Meshes
 		assertEquals(setOf(LATTICE_RIG_ART), meshes.rest.keys, "the brush smeared the mesh")
-		assertEquals(listOf(0), meshes.movedIndices.getValue(LATTICE_RIG_ART), "the vertex the brush passed over moved")
+		assertEquals(listOf(0), meshes.movedIndices.getValue(LATTICE_RIG_ART), "the vertex the brush grabbed moved")
 
 		val after = meshes.rest.getValue(LATTICE_RIG_ART).positions
 		assertTrue(after[0] != before[0], "the vertex under the brush changed place")
@@ -142,7 +143,7 @@ class BrushMeshLandingTest {
 		val meshes = landing as BrushLanding.Meshes
 		assertEquals(setOf(LATTICE_RIG_ART, secondArt), meshes.rest.keys, "the brush smeared both layers")
 		assertEquals(listOf(0), meshes.movedIndices.getValue(LATTICE_RIG_ART), "the first layer's corner moved")
-		assertEquals(listOf(0), meshes.movedIndices.getValue(secondArt), "and the second layer's corner moved too")
+		assertTrue(meshes.movedIndices.getValue(secondArt).contains(0), "and the second layer's corner moved too")
 
 		assertTrue(meshes.rest.getValue(LATTICE_RIG_ART).positions[0] != artBefore[0], "the first layer's vertex changed place")
 		assertTrue(meshes.rest.getValue(secondArt).positions[0] != layerBefore[0], "and the second layer's vertex too")
