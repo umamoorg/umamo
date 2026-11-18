@@ -12,9 +12,9 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Pins the relation-pick slot's resolve contract: only an accepted kind resolves (and does so exactly
- * once, clearing the request first), a click on the wrong kind leaves the pick armed rather than silently
- * ending it, and cancelling clears without firing.
+ * Pins the relation-pick slot's resolve contract: only an accepted kind the field admits resolves (and does
+ * so exactly once, clearing the request first), a click on anything else leaves the pick armed rather than
+ * silently ending it, and cancelling clears without firing.
  */
 class RelationPickTest {
 	private val drawable = SelectionTarget.Drawable(DrawableId("d1"))
@@ -113,6 +113,46 @@ class RelationPickTest {
 		assertEquals(listOf<SelectionTarget>(drawable), picked)
 		// The pick is over, so the surface owns its clicks again.
 		assertEquals(PickClickOutcome.Ignored, controller.click(part))
+	}
+
+	@Test
+	fun aTargetTheFieldDoesNotAdmitReadsAsNothingUnderThePointer() {
+		val controller = RelationPickController()
+		val own = SelectionTarget.Deformer(DeformerId("own"))
+		controller.arm(setOf(PickKind.Deformer), admits = { target -> target != own }) { }
+
+		controller.hover(own)
+		assertNull(controller.hoveredTarget, "the badge never names a target the click would refuse")
+
+		controller.hover(deformer)
+		assertEquals(deformer, controller.hoveredTarget)
+	}
+
+	@Test
+	fun aTargetTheFieldDoesNotAdmitLeavesThePickArmed() {
+		val controller = RelationPickController()
+		val picked = mutableListOf<SelectionTarget>()
+		val own = SelectionTarget.Deformer(DeformerId("own"))
+		controller.arm(setOf(PickKind.Deformer), admits = { target -> target != own }) { target -> picked.add(target) }
+
+		assertFalse(controller.resolve(own), "a deformer cannot be bound as its own parent")
+		assertTrue(picked.isEmpty())
+		assertNotNull(controller.request, "the refused click does not end the pick")
+
+		assertTrue(controller.resolve(deformer))
+		assertEquals(listOf<SelectionTarget>(deformer), picked)
+	}
+
+	@Test
+	fun anArmedPickSwallowsAClickOnATargetItDoesNotAdmit() {
+		val controller = RelationPickController()
+		val own = SelectionTarget.Part(PartId("own"))
+		controller.arm(setOf(PickKind.Part), admits = { target -> target != own }) { }
+
+		// Swallowed, not Ignored: falling through would select the part and swap the arming field away.
+		assertEquals(PickClickOutcome.Swallowed, controller.click(own))
+		assertNotNull(controller.request)
+		assertEquals(PickClickOutcome.Resolved, controller.click(part))
 	}
 
 	@Test

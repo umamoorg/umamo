@@ -38,6 +38,21 @@ fun interface CommandAvailability {
 }
 
 /**
+ * Reports whether a command applies when run with a given argument.
+ *
+ * A `fun interface` so a table passes a lambda reading live state, evaluated fresh at each query.
+ */
+fun interface CommandArgumentAvailability {
+	/**
+	 * Reports whether the command applies when run with [argument].
+	 *
+	 * @param Any? argument What the command would run with, or null for none (a chord, the palette).
+	 * @return Boolean True when it may be shown enabled and invoked so.
+	 */
+	fun isAvailableFor(argument: Any?): Boolean
+}
+
+/**
  * Reports whether a command is the one in effect: the pivot that is current, the select mode in use.  It is what a
  * control listing a family lights, and whose glyph its chip wears, without knowing what the family sets.
  *
@@ -89,6 +104,9 @@ data class CommandChoice(val label: String, val argument: Any?)
  * @property StringResource? title The localized menu/palette label, or null for commands never shown in UI (e.g. test-only).
  * @property CommandAvailability availability Whether the command currently applies (palette filter +
  *   dispatch guard); defaults to always.
+ * @property CommandArgumentAvailability? availableFor Whether it applies run with a given argument, on top of
+ *   [availability], or null for a command whose argument never changes that.  Asked with null for a chord, the
+ *   palette, and the status bar, so a command that only makes sense with an argument answers false there.
  * @property SpaceScope spaces The editor spaces the command belongs to (palette filter + status bar
  *   suggestion, never a dispatch guard); defaults to everywhere.  Read off what the handler's routing
  *   actually does, never narrower: a handler that reaches back to a surface the pointer has left (the lone
@@ -117,6 +135,7 @@ data class Command(
 	val id: String,
 	val title: StringResource?,
 	val availability: CommandAvailability = CommandAvailability.Always,
+	val availableFor: CommandArgumentAvailability? = null,
 	val spaces: SpaceScope = SpaceScope.Everywhere,
 	val hint: CommandHint? = null,
 	val table: CommandTable? = null,
@@ -135,6 +154,15 @@ data class Command(
 
 	/** The label of the command's row in a listing of its group: its [groupLabel], else its [title]. */
 	val rowLabel: StringResource? get() = groupLabel ?: title
+
+	/**
+	 * Whether the command applies when run with [argument]: its [availability], and its [availableFor] over that
+	 * argument.
+	 *
+	 * @param Any? argument What it would run with, or null for none.
+	 * @return Boolean True when it may be shown enabled and invoked so.
+	 */
+	fun isAvailable(argument: Any? = null): Boolean = availability.isAvailable() && availableFor?.isAvailableFor(argument) != false
 
 	/**
 	 * Reports whether the command is the one in effect.

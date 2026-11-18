@@ -57,7 +57,7 @@ internal fun CommandButton(commandId: String, modifier: Modifier = Modifier) {
 		onClick = { commands.invoke(command.id) },
 		modifier = modifier,
 		primary = false,
-		enabled = command.availability.isAvailable(),
+		enabled = command.isAvailable(),
 	)
 }
 
@@ -131,6 +131,6 @@ internal fun CommandIconButton(
 		size = size,
 		glyphSize = glyphSize,
 		active = lit,
-		enabled = command.availability.isAvailable(),
+		enabled = command.isAvailable(),
 	)
 }

@@ -138,7 +138,7 @@ class CommandRegistry {
 	fun invoke(id: String, argument: Any? = null): Boolean {
 		val command = commandsById[id] ?: return false
 
-		if (!command.availability.isAvailable()) {
+		if (!command.isAvailable(argument)) {
 			return false
 		}
 

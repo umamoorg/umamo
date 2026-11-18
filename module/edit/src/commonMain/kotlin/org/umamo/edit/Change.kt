@@ -947,6 +947,20 @@ sealed interface VisibilityChange : Change {
 	}
 }
 
+/** Changes that bind a relation of many objects at once. */
+sealed interface RelationChange : Change {
+	/**
+	 * Gives several objects the binding one of them holds - its owning part, its parent deformer, or one of its
+	 * clip masks - as one step.
+	 *
+	 * @property List<SelectionTarget> targets The objects that took the binding.
+	 */
+	data class CopyToSelected(val targets: List<SelectionTarget>) : RelationChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.relation.copyToSelected"
+	}
+}
+
 /**
  * A keyform authoring edit: binding a channel to a parameter, capturing a key, or removing one.
  *

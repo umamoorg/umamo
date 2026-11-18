@@ -10,7 +10,7 @@ import org.umamo.ui.workspace.SpaceKind
  * @param SpaceKind? kind The space the pointer last touched, or null before it touched any.
  * @return Boolean True when the command is listed and suggested there.
  */
-internal fun Command.isOfferedIn(kind: SpaceKind?): Boolean = spaces.appliesIn(kind) && availability.isAvailable()
+internal fun Command.isOfferedIn(kind: SpaceKind?): Boolean = spaces.appliesIn(kind) && isAvailable()
 
 /**
  * The commands the palette offers over a surface of [hoveredKind]: titled, currently available, and

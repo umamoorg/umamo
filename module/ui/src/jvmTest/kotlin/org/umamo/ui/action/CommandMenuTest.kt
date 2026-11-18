@@ -365,6 +365,19 @@ class CommandMenuTest {
 	}
 
 	/**
+	 * A row aimed at one thing grays when its command does not apply to that thing, though the command applies at
+	 * large: the argument is what the menu was opened on.
+	 */
+	@Test
+	fun anInlineGroupsRowGraysWhenItsCommandDoesNotApplyToItsArgument() {
+		val save = Command("file.save", title = null, availableFor = { argument -> argument == "bravo" }, group = CommandFamily.MergeTarget, groupLabel = Res.string.menu_file_save, handler = {})
+		val registry = registryOf(save)
+
+		assertEquals(listOf("Save"), menuOutline(commandMenuOf(listOf(CommandMenuRow.Members(CommandFamily.MergeTarget, argument = "bravo")), registry)))
+		assertEquals(listOf("Save (off)"), menuOutline(commandMenuOf(listOf(CommandMenuRow.Members(CommandFamily.MergeTarget, argument = "alpha")), registry)))
+	}
+
+	/**
 	 * A site that has to set something up for its command to read wraps the dispatch: the wrapper runs around the
 	 * command, once, and the row is otherwise the command's own.
 	 */

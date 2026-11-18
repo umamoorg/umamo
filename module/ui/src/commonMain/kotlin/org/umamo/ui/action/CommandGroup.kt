@@ -75,6 +75,7 @@ enum class CommandTable : CommandGroup {
 	Object,
 	Overlay,
 	Proportional,
+	Relation,
 	Select,
 	Sidebar,
 	Snap,
@@ -165,6 +166,9 @@ enum class CommandFamily(val heading: StringResource, private val parentOf: () -
 
 	/** The editor modes, one member per mode. */
 	EditorMode(Res.string.group_editor_mode),
+
+	/** What is done to a relation field or one row of a relation list: a Properties field's own menu. */
+	Relation(Res.string.group_relation),
 	;
 
 	override val parent: CommandListing? get() = parentOf()
@@ -257,4 +261,16 @@ enum class CommandSection(override val parent: CommandFamily, val ruled: Boolean
 
 	/** The texture-space snaps that move the UV editor's cursor. */
 	UvSnapCursor(CommandFamily.UvSnap),
+
+	/** Selecting what a relation binds. */
+	RelationSelect(CommandFamily.Relation),
+
+	/** Unbinding a relation field, and arming its eyedropper. */
+	RelationBind(CommandFamily.Relation),
+
+	/** Taking one row out of a relation list. */
+	RelationRemove(CommandFamily.Relation),
+
+	/** Giving the selection the binding a relation holds. */
+	RelationCopy(CommandFamily.Relation),
 }

@@ -150,6 +150,7 @@ internal fun recordingRegistryOf(tables: List<Command>, dispatched: MutableList<
 			registry.register(
 				command.copy(
 					availability = CommandAvailability.Always,
+					availableFor = null,
 					handler = { argument -> dispatched.add(if (argument == null) command.id else "${command.id}($argument)") },
 				),
 			)

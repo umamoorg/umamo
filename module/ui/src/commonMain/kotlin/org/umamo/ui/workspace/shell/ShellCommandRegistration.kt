@@ -42,6 +42,7 @@ import org.umamo.ui.workspace.commands.objectCommands
 import org.umamo.ui.workspace.commands.overlayCommands
 import org.umamo.ui.workspace.commands.proportionalCommands
 import org.umamo.ui.workspace.commands.registerAll
+import org.umamo.ui.workspace.commands.relationCommands
 import org.umamo.ui.workspace.commands.selectCommands
 import org.umamo.ui.workspace.commands.sidebarCommands
 import org.umamo.ui.workspace.commands.snapCommands
@@ -222,20 +223,23 @@ internal fun RegisterShellCommands(
 	DisposableEffect(commandRegistry, editorSession, selection) {
 		val cleanup =
 			commandRegistry.registerAll(
-				historyCommands(editorSession, availability, operationStrip) +
-					objectCommands(editorSession, selection, availability) +
-					transformCommands(editorSession, routing, availability) +
-					selectCommands(editorSession, routing, keyformSheetViews, availability) +
-					snapCommands(editorSession, routing, availability, areaOverlays) +
-					uvCommands(editorSession, routing, availability) +
-					topologyCommands(editorSession, routing, availability) +
-					meshGenerationCommands(availability, routing, generateMesh, generateQuadMesh) +
-					latticeCommands(editorSession, routing, availability) +
-					proportionalCommands(editorSession, availability) +
-					displayCommands(editorSession, availability) +
-					atlasCommands(availability, routing, repackAtlas) +
-					fileArtworkCommands(routing) { currentArtwork } +
-					fileImageExportCommands(routing) { currentExportImage },
+				buildList {
+					addAll(historyCommands(editorSession, availability, operationStrip))
+					addAll(objectCommands(editorSession, selection, availability))
+					addAll(relationCommands(editorSession, controllers.relationPick, routing, availability))
+					addAll(transformCommands(editorSession, routing, availability))
+					addAll(selectCommands(editorSession, routing, keyformSheetViews, availability))
+					addAll(snapCommands(editorSession, routing, availability, areaOverlays))
+					addAll(uvCommands(editorSession, routing, availability))
+					addAll(topologyCommands(editorSession, routing, availability))
+					addAll(meshGenerationCommands(availability, routing, generateMesh, generateQuadMesh))
+					addAll(latticeCommands(editorSession, routing, availability))
+					addAll(proportionalCommands(editorSession, availability))
+					addAll(displayCommands(editorSession, availability))
+					addAll(atlasCommands(availability, routing, repackAtlas))
+					addAll(fileArtworkCommands(routing) { currentArtwork })
+					addAll(fileImageExportCommands(routing) { currentExportImage })
+				},
 			)
 		onDispose { cleanup() }
 	}

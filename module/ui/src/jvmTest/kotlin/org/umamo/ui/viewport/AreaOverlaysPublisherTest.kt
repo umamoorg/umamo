@@ -5,9 +5,14 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
 import org.umamo.render.FrameOverlays
 import org.umamo.ui.LocalSettings
+import org.umamo.ui.workspace.LocalRelationPick
+import org.umamo.ui.workspace.PickKind
+import org.umamo.ui.workspace.RelationPickController
 import org.umamo.ui.workspace.commands.inMemorySettings
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -174,5 +179,36 @@ class AreaOverlaysPublisherTest {
 			waitForIdle()
 
 			assertEquals(FrameOverlays(gridLines = true, axes = false, meshOverlay = true, wireframe = false, allLattices = false), service.areaOverlays("uv")?.frame)
+		}
+
+	/** A pick that takes a deformer draws every lattice in a 2D area while it is armed; the area's own value returns after. */
+	@Test
+	fun anArmedDeformerPickDrawsEveryLattice() =
+		runComposeUiTest {
+			val service = StubPuppetViewportService()
+			val relationPick = RelationPickController()
+			val viewportState = ViewportOverlayState(OverlaySurface.Viewport2D)
+			val uvState = ViewportOverlayState(OverlaySurface.UvEditor)
+			setContent {
+				CompositionLocalProvider(LocalSettings provides inMemorySettings(), LocalRelationPick provides relationPick) {
+					AreaOverlaysPublisher(service, "area", viewportState)
+					AreaOverlaysPublisher(service, "uv", uvState)
+				}
+			}
+			waitForIdle()
+			val uvBefore = service.areaOverlays("uv")
+
+			relationPick.arm(setOf(PickKind.Part)) {}
+			waitForIdle()
+			assertFalse(assertNotNull(service.areaOverlays("area")).frame.allLattices, "a part pick has no lattice to click")
+
+			relationPick.arm(setOf(PickKind.Deformer)) {}
+			waitForIdle()
+			assertTrue(assertNotNull(service.areaOverlays("area")).frame.allLattices, "every lattice is there to click")
+			assertEquals(uvBefore, service.areaOverlays("uv"), "a UV area draws no lattice")
+
+			relationPick.cancel()
+			waitForIdle()
+			assertEquals(viewportDefaults, service.areaOverlays("area")?.frame, "the area's own value returns")
 		}
 }
