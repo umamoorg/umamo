@@ -507,6 +507,50 @@ class Cmo3RetainedLayerWebTest {
 		assertContentEquals(gradient(4, 1).rgba, assertNotNull(art.layers.firstOrNull { layer -> layer.id.raw == "lyid:1576" }).raster.rgba, "the eye's layer still holds the imported pixels")
 	}
 
+	/**
+	 * A main.xml with every uuid renumbered by first occurrence, so two exports of one graph compare
+	 * equal when they minted guids in the same places.
+	 */
+	private fun canonicalXml(mainXml: ByteArray): String {
+		val numbers = HashMap<String, Int>()
+
+		return Regex("""uuid="([^"]*)"""").replace(mainXml.decodeToString()) { match -> "uuid=\"#${numbers.getOrPut(match.groupValues[1]) { numbers.size }}\"" }
+	}
+
+	/**
+	 * A retained page the reconcile could not write into declines the whole web before anything is
+	 * written: the export leaves what an export handed no pages leaves, although a reloaded tile's
+	 * layer would otherwise be rewritten ahead of the pages.
+	 */
+	@Test
+	fun aRetainedPageWithNoImageDeclinesTheWebBeforeAnythingIsWritten() {
+		val (fixture, baseline) = retainedGraph()
+		val retainedBytes = Cmo3.write(fixture)
+		val (edited, eyeReloaded) = eyeRepaintedInPlace(baseline)
+		val pageBreaks =
+			listOf<Pair<String, (CTextureAtlas) -> Unit>>(
+				"no page image" to { atlas -> atlas.cachedAtlasImage = null },
+				"a page image with no archive entry" to { atlas -> (atlas.cachedAtlasImage as CImageResource).imageFileBuf = null },
+			)
+
+		for ((label, breakPage) in pageBreaks) {
+			val (declined, unpaged) =
+				listOf(listOf(page), emptyList()).map { pages ->
+					val retained = Cmo3.read(retainedBytes)
+					val atlases = elementsOf(((retained.root as CModelSource).textureManager as CTextureManager)._textureAtlases)
+					breakPage(atlases.filterIsInstance<CTextureAtlas>().first())
+					val report = Cmo3Export.apply(edited, retained, recomposedPages = pages, tileRasters = { tileId -> if (tileId == eyeReloaded.id) gradient(4, 31) else null }, nowMillis = now)
+					val entries = retained.archive.entries.filter { entry -> entry.tag != CaffArchive.TAG_MAIN_XML }.associate { entry -> entry.path to entry.content.toList() }
+
+					Triple(report.notices, canonicalXml(mainXmlOf(retained)), entries)
+				}
+
+			assertEquals(unpaged.first, declined.first, "$label: the notices of an export handed no pages")
+			assertEquals(unpaged.second, declined.second, "$label: the main.xml of an export handed no pages")
+			assertEquals(unpaged.third, declined.third, "$label: the archive entries of an export handed no pages")
+		}
+	}
+
 	@Test
 	fun anUneditedApplyLeavesTheGraphByteIdentical() {
 		val (retained, baseline) = retainedGraph()

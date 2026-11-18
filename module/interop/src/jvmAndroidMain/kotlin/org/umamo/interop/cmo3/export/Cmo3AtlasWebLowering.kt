@@ -145,6 +145,17 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 			return null
 		}
 
+		// Every retained page the reuse step overwrites must hold an image to write into.
+		for (pageIndex in 0 until minOf(atlasList.size, newPageCount)) {
+			// CMO3: CTextureAtlas field cachedAtlasImage - the page's CImageResource, whose imageFileBuf
+			// names its archive entry.
+			val resource = (atlasList[pageIndex] as CTextureAtlas).cachedAtlasImage as? CImageResource ?: return null
+
+			if (resource.imageFileBuf == null) {
+				return null
+			}
+		}
+
 		// --- Gather the web. ---
 		// The model-image and canvas-placement maps are LOCAL copies: the layer web below extends them
 		// with what it mints and moves, and every composition after that reads the extended state.
@@ -432,20 +443,15 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 		private val mintedTextureByAtlasIndex = HashMap<Int, GTexture2D>()
 
 		/**
-		 * Runs the mutation steps in order.  Classification validated everything they read, apart from
-		 * the two checks the page-reuse step still makes on a retained page's image; those can decline
-		 * after the layer web is written.
+		 * Runs the mutation steps in order.  Classification validated everything they read, so none of
+		 * them declines: anything impossible past this point is a caller bug.
 		 *
 		 * @return Result What the reconcile did.
 		 */
 		fun apply(): Result {
 			val applied = writeLayerWeb()
 			snapshotPreMutationValues()
-
-			if (!reuseRetainedPages()) {
-				return Result.Declined
-			}
-
+			reuseRetainedPages()
 			mintPages()
 			rehomeEntries()
 			removePackOuts()
@@ -502,22 +508,16 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 		 * Reuse retained pages in model order: bytes always, the dimension web on a resize.  The
 		 * resource is mutated IN PLACE, never replaced - its identity is the storedUvsAddressPages
 		 * recovery test.
-		 *
-		 * @return Boolean False when a retained page has no image to replace, which declines the reconcile.
 		 */
-		private fun reuseRetainedPages(): Boolean {
+		private fun reuseRetainedPages() {
 			val retainedCount = minOf(atlasList.size, newPageCount)
 
 			for (pageIndex in 0 until retainedCount) {
 				val atlas = atlasList[pageIndex] as CTextureAtlas
 				val page = recomposedPages[pageIndex]
-				// CMO3: CTextureAtlas field cachedAtlasImage - the page's CImageResource.
-				val resource = atlas.cachedAtlasImage as? CImageResource ?: return false
-
-				if (resource.imageFileBuf == null) {
-					return false
-				}
-
+				// CMO3: CTextureAtlas field cachedAtlasImage - the page's CImageResource, which classification
+				// checked holds an archive entry.
+				val resource = atlas.cachedAtlasImage as CImageResource
 				target.replaceLayerPng(resource, page.pngBytes)
 
 				if (resource.width != page.width || resource.height != page.height) {
@@ -532,8 +532,6 @@ internal class Cmo3AtlasWebLowering(private val context: Cmo3ExportContext) {
 					atlas.cachedImageManager = Cmo3PageWeb.paddedCacheManager(resource, page.width, page.height)
 				}
 			}
-
-			return true
 		}
 
 		/**
