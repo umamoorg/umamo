@@ -27,6 +27,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalFocusManager
@@ -117,8 +118,10 @@ fun Checkbox(
  * @param Function  onValueChange Edit callback.
  * @param Modifier  modifier      Layout modifier.
  * @param String?   placeholder   Optional dimmed hint shown while the field is empty.
+ * @param Function? leading       Optional control pinned inside the field's leading edge (a search glyph).
  * @param Function? trailing      Optional control pinned inside the field's trailing edge (a clear
  *   affordance, a unit label).  It takes its width out of the text's, so it never overlaps the value.
+ * @param Shape?    shape         The field's outline, or null for the kit's own small corners.
  */
 @Composable
 fun TextField(
@@ -126,7 +129,9 @@ fun TextField(
 	onValueChange: (String) -> Unit,
 	modifier: Modifier = Modifier,
 	placeholder: String? = null,
+	leading: (@Composable () -> Unit)? = null,
 	trailing: (@Composable () -> Unit)? = null,
+	shape: Shape? = null,
 ) {
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
@@ -169,9 +174,9 @@ fun TextField(
 				gesture
 					.then(modifier)
 					.textEntrySurface(controller)
-					.clip(shapes.small)
+					.clip(shape ?: shapes.small)
 					.background(colors.controlBackground)
-					.border(1.dp, colors.controlBorder, shapes.small)
+					.border(1.dp, colors.controlBorder, shape ?: shapes.small)
 					.padding(horizontal = 6.dp, vertical = 4.dp)
 					.onFocusChanged { focusState ->
 						// hasFocus (not isFocused): BasicTextField focuses an internal child, so this node only
@@ -188,6 +193,11 @@ fun TextField(
 					},
 			decorationBox = { innerTextField ->
 				Row(verticalAlignment = Alignment.CenterVertically) {
+					if (leading != null) {
+						leading()
+						Spacer(modifier = Modifier.width(4.dp))
+					}
+
 					// The weighted box IS the text viewport - BasicTextField scrolls the caret into THIS box - so
 					// a trailing control takes its width out of the text's rather than sitting on top of it.  An
 					// overlaid control would hide the caret exactly when the value outgrows the field.

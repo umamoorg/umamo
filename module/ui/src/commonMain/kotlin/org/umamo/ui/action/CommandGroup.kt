@@ -59,32 +59,37 @@ internal fun CommandListing.sectionIn(family: CommandFamily): CommandSection? {
 /**
  * Everything one command table registers: one entry per table file in the command tables package, named after it.
  * A table function builds its list through commandTable, which is what places its commands here.
+ *
+ * Each table carries the label the shortcut configurator groups its commands under: the domain the commands
+ * belong to, in the words a rigger would use for it rather than the name of the file that registers them.
+ *
+ * @property StringResource label The table's user-facing name.
  */
-enum class CommandTable : CommandGroup {
-	Atlas,
-	Chrome,
-	Display,
-	Document,
-	File,
-	History,
-	Keyform,
-	Lattice,
-	Log,
-	MeshGeneration,
-	Mode,
-	Object,
-	Overlay,
-	Proportional,
-	Select,
-	Sidebar,
-	Snap,
-	Topology,
-	Transform,
-	Update,
-	Uv,
-	View,
-	ViewportChrome,
-	Workspace,
+enum class CommandTable(val label: StringResource) : CommandGroup {
+	Atlas(Res.string.command_table_atlas),
+	Chrome(Res.string.command_table_application),
+	Display(Res.string.command_table_display),
+	Document(Res.string.command_table_document),
+	File(Res.string.command_table_file),
+	History(Res.string.command_table_history),
+	Keyform(Res.string.command_table_keyform),
+	Lattice(Res.string.command_table_lattice),
+	Log(Res.string.command_table_logs),
+	MeshGeneration(Res.string.command_table_mesh),
+	Mode(Res.string.command_table_modes),
+	Object(Res.string.command_table_objects),
+	Overlay(Res.string.command_table_overlays),
+	Proportional(Res.string.command_table_proportional),
+	Select(Res.string.command_table_select),
+	Sidebar(Res.string.command_table_sidebar),
+	Snap(Res.string.command_table_snaps),
+	Topology(Res.string.command_table_topology),
+	Transform(Res.string.command_table_transform),
+	Update(Res.string.command_table_updates),
+	Uv(Res.string.command_table_uv),
+	View(Res.string.command_table_view),
+	ViewportChrome(Res.string.command_table_viewport),
+	Workspace(Res.string.command_table_workspaces),
 	;
 
 	override val parent: CommandGroup? get() = null

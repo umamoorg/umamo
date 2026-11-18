@@ -17,13 +17,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -80,6 +90,16 @@ fun SettingsWindow(onDismiss: () -> Unit) {
 	val colors = LocalUmamoColors.current
 	val typography = LocalUmamoTypography.current
 	var category by remember { mutableStateOf(SettingsCategory.Interface) }
+	val shortcutEditor = LocalShortcutEditor.current
+	val focusRequester = remember { FocusRequester() }
+
+	// The card takes the keyboard when the window opens: it is modal, and a key event only reaches the
+	// handlers on the focused node's ancestors, so the focus has to be inside the window for its own routing
+	// to run.  The card holds it and not the scrim: a focused clickable answers Space and Enter, and the
+	// scrim's click is the dismissal.
+	LaunchedEffect(Unit) {
+		focusRequester.requestFocus()
+	}
 	Box(
 		// indication = null: the kit's convention everywhere interactive.  Without it the full-size scrim
 		// renders the default hover/press indication - a second dimming layer that toggles as the pointer
@@ -88,7 +108,21 @@ fun SettingsWindow(onDismiss: () -> Unit) {
 			Modifier
 				.fillMaxSize()
 				.background(colors.overlayScrim)
-				.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
+				.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss)
+				// The find shortcut, on the window rather than on the panel: a key event only reaches the
+				// handlers on the FOCUSED node's ancestors, and the focus is rarely inside the panel.
+				.onPreviewKeyEvent { event ->
+					val find =
+						event.type == KeyEventType.KeyDown &&
+							event.key == Key.F &&
+							(event.isCtrlPressed || event.isMetaPressed)
+
+					if (find) {
+						shortcutEditor.searchField?.requestFocus()
+					}
+
+					find
+				},
 		contentAlignment = Alignment.Center,
 	) {
 		Surface(
@@ -96,11 +130,15 @@ fun SettingsWindow(onDismiss: () -> Unit) {
 			// exactly as the confirm dialog and command palette cards do.
 			modifier =
 				Modifier
-					.fillMaxWidth(0.82f)
-					.fillMaxHeight(0.82f)
-					.widthIn(max = 760.dp)
+					.fillMaxWidth(0.9f)
+					.fillMaxHeight(0.9f)
+					.widthIn(max = 1000.dp)
 					.heightIn(max = 560.dp)
-					.clickable(enabled = false, onClick = {}),
+					.focusRequester(focusRequester)
+					// A clickable that does nothing, not a disabled one: a disabled clickable stops
+					// handling presses but does not consume them, so a press on the card's background would
+					// fall through to the scrim and close Preferences.
+					.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
 			color = colors.panelBackground,
 			shape = LocalUmamoShapes.current.medium,
 			border = BorderStroke(1.dp, colors.panelBorder),
@@ -131,6 +169,19 @@ fun SettingsWindow(onDismiss: () -> Unit) {
 					}
 				}
 			}
+		}
+
+		// The shortcut editor opens under the cell it was opened from, so it is drawn outside the card: a
+		// scrim that stopped at the card would leave the category rail live under an editor that owns the
+		// keyboard.  The catcher closes it on a click anywhere else, and the editor itself sits over that.
+		shortcutEditor.request?.let { request ->
+			Box(
+				modifier =
+					Modifier
+						.fillMaxSize()
+						.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { shortcutEditor.close() },
+			)
+			ShortcutBindingPopup(request = request, onDismiss = { shortcutEditor.close() })
 		}
 	}
 }

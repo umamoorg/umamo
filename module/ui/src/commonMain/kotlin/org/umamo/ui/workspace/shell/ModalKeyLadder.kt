@@ -133,6 +133,18 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 				false
 			}
 
+			// A shortcut editor open over Preferences owns the keyboard: Escape closes the editor before
+			// Preferences does, and every other key is inert so a shortcut cannot fire behind it.  It sits BELOW
+			// the capture arm, because a capture inside the editor is the topmost thing then - the capture takes
+			// Escape for itself and leaves the editor open, and the next Escape closes the editor.
+			shortcutEditor.request != null -> {
+				if (isEscapeDown) {
+					shortcutEditor.close()
+				}
+
+				true
+			}
+
 			// A number field being drag-scrubbed claims Escape: the field never takes focus, so the key would
 			// otherwise fall to the arms below, which close the overlay the field sits in (Preferences, the
 			// export options) or clear the selection that put its row on screen - and either unmounts the

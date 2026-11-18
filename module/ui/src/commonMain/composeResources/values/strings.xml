@@ -1312,10 +1312,48 @@
 	<string name="settings_keybindings_reset">Reset to Preset</string>
 	<string name="settings_keybindings_press_shortcut">Press a shortcut…</string>
 	<string name="settings_keybindings_unbound">Unbound</string>
-	<string name="settings_keybindings_clear">Clear shortcut</string>
 	<!-- %1$s is the shortcut, %2$s is the command it is already bound to. -->
 	<string name="settings_keybindings_conflict">%1$s is already bound to “%2$s”.  Reassign it?</string>
 	<string name="settings_keybindings_reassign">Reassign</string>
+	<!-- The shortcut configurator: the grouped list, its search, and the per-slot cell editor. -->
+<!-- %1$s is the platform's primary modifier label ("Ctrl" or "⌘"). -->
+	<string name="settings_keybindings_search">Search shortcuts  (%1$s+F)</string>
+	<string name="settings_keybindings_slot_primary">Shortcut</string>
+	<string name="settings_keybindings_slot_alternative">Alternative</string>
+	<string name="settings_keybindings_save">Save Changes</string>
+	<string name="settings_keybindings_reset_slot">Reset this shortcut</string>
+	<string name="settings_keybindings_unbind_slot">Unbind this shortcut</string>
+	<string name="settings_keybindings_type_hint">Type on your keyboard</string>
+	<!-- %1$s is the shortcut, %2$s is the command that already holds it. -->
+	<string name="settings_keybindings_conflict_used">%1$s is already used by “%2$s”.</string>
+	<string name="settings_keybindings_shared">%1$s is also used by “%2$s”, which works elsewhere. The two never apply at the same time.</string>
+	<!-- The group headings of the shortcut configurator, one per command table: the domain a command
+	belongs to.  The table names are the repository's own, so a group reads as the kind of work the
+	command does rather than as the file that registers it. -->
+	<string name="command_table_application">Application</string>
+	<string name="command_table_atlas">Texture Atlas</string>
+	<string name="command_table_display">Display</string>
+	<string name="command_table_document">Document</string>
+	<string name="command_table_file">File</string>
+	<string name="command_table_history">History</string>
+	<string name="command_table_keyform">Keyform</string>
+	<string name="command_table_lattice">Lattice</string>
+	<string name="command_table_logs">Logs</string>
+	<string name="command_table_mesh">Mesh Generation</string>
+	<string name="command_table_modes">Modes</string>
+	<string name="command_table_objects">Objects</string>
+	<string name="command_table_overlays">Overlays</string>
+	<string name="command_table_proportional">Proportional Editing</string>
+	<string name="command_table_select">Select</string>
+	<string name="command_table_sidebar">Sidebar</string>
+	<string name="command_table_snaps">Snaps</string>
+	<string name="command_table_topology">Topology</string>
+	<string name="command_table_transform">Transform</string>
+	<string name="command_table_updates">Updates</string>
+	<string name="command_table_uv">UV Editor</string>
+	<string name="command_table_view">View</string>
+	<string name="command_table_viewport">Viewport</string>
+	<string name="command_table_workspaces">Workspaces</string>
 	<!-- Placeholder section (the real editor lands with the pen backend). -->
 	<string name="settings_pen_coming_soon">Pen configuration is coming soon.</string>
 	<string name="settings_import_parameter_template">Parameter Template</string>

@@ -22,7 +22,9 @@ import org.umamo.ui.model.mesh.MeshGenerationRunState
 import org.umamo.ui.model.mesh.MeshGenerationSessionOptions
 import org.umamo.ui.model.repack.AtlasRepackSessionOptions
 import org.umamo.ui.settings.LocalQuickSetup
+import org.umamo.ui.settings.LocalShortcutEditor
 import org.umamo.ui.settings.QuickSetupState
+import org.umamo.ui.settings.ShortcutEditorController
 import org.umamo.ui.viewport.LiveMeshPreview
 import org.umamo.ui.viewport.LocalLiveMeshPreview
 import org.umamo.ui.workspace.AppAlertQueues
@@ -113,6 +115,9 @@ internal class ShellControllers(
 
 	/** Shared with the controls that bind the next key press, which own every key while they wait. */
 	val keyCapture = KeyCaptureController()
+
+	/** Shared with the shortcut editor in the settings window, so the key ladder can route Escape to it. */
+	val shortcutEditor = ShortcutEditorController()
 
 	/**
 	 * Shared with the row-dragging panels (outliner, parameters): while a row drag is in flight its cancel is
@@ -235,6 +240,7 @@ internal class ShellControllers(
 			LocalMenuBarController provides menuBarController,
 			LocalInlineEditController provides inlineEditController,
 			LocalKeyCapture provides keyCapture,
+			LocalShortcutEditor provides shortcutEditor,
 			LocalRowDragCancel provides rowDragCancel,
 			LocalScrubCancel provides scrubCancel,
 			LocalSplitterDragCancel provides splitterDragCancel,
@@ -271,6 +277,7 @@ internal class ShellControllers(
 			menuBarController = menuBarController,
 			inlineEditController = inlineEditController,
 			keyCapture = keyCapture,
+			shortcutEditor = shortcutEditor,
 			editorSession = editorSession,
 			selection = selection,
 			dragController = dragController,

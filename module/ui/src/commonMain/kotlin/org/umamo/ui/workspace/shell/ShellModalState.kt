@@ -8,6 +8,7 @@ import org.umamo.ui.kit.menu.MenuBarController
 import org.umamo.ui.kit.textentry.InlineEditController
 import org.umamo.ui.kit.textentry.KeyCaptureController
 import org.umamo.ui.model.SelectionHandle
+import org.umamo.ui.settings.ShortcutEditorController
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.RelationPickController
 import org.umamo.ui.workspace.ShellOverlayState
@@ -39,6 +40,7 @@ import org.umamo.ui.workspace.rowdrag.RowDragCancelController
  * @property KeyformSheetViews keyformSheets The open keyform sheets; an armed marquee claims Escape.
  * @property CommandRegistry commandRegistry The registry pie picks and the fallthrough dispatch into.
  * @property Keymap keymap The active keymap for the fallthrough dispatch.
+ * @property ShortcutEditorController shortcutEditor The shortcut editor's seam; an open editor claims Escape.
  */
 internal class ShellModalState(
 	val overlays: ShellOverlayState = ShellOverlayState(),
@@ -55,4 +57,5 @@ internal class ShellModalState(
 	val keyformSheets: KeyformSheetViews = KeyformSheetViews(),
 	val commandRegistry: CommandRegistry = CommandRegistry(),
 	val keymap: Keymap = Keymap(emptyMap()),
+	val shortcutEditor: ShortcutEditorController = ShortcutEditorController(),
 )

@@ -3,6 +3,7 @@ package org.umamo.ui.kit.field
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -32,24 +33,31 @@ val SEARCH_FIELD_MIN_WIDTH = 72.dp
  * @param String   value                   The current query.
  * @param Function onValueChange           Edit callback; the clear affordance reports an empty string.
  * @param Modifier modifier                The layout modifier.
- * @param Dp       width                   The box's width; [SEARCH_FIELD_WIDTH] unless a caller needs otherwise.
+ * @param Dp?      width                   The box's width; [SEARCH_FIELD_WIDTH] unless a caller needs otherwise,
+ *   or null to let the caller's own width stand.
  * @param String   placeholder             The dimmed hint shown while the query is empty.
  * @param String   clearContentDescription The clear affordance's accessible label and hover tooltip.
+ * @param Function? leading                Optional control pinned inside the field's leading edge (a search glyph).
+ * @param Shape?    shape                  The field's outline, or null for the kit's own small corners.
  */
 @Composable
 fun SearchField(
 	value: String,
 	onValueChange: (String) -> Unit,
 	modifier: Modifier = Modifier,
-	width: Dp = SEARCH_FIELD_WIDTH,
+	width: Dp? = SEARCH_FIELD_WIDTH,
 	placeholder: String = stringResource(Res.string.search_hint),
 	clearContentDescription: String = stringResource(Res.string.search_clear),
+	leading: (@Composable () -> Unit)? = null,
+	shape: Shape? = null,
 ) {
 	TextField(
 		value = value,
 		onValueChange = onValueChange,
-		modifier = modifier.width(width),
+		modifier = if (width != null) modifier.width(width) else modifier,
 		placeholder = placeholder,
+		leading = leading,
+		shape = shape,
 		trailing =
 			if (value.isEmpty()) {
 				null

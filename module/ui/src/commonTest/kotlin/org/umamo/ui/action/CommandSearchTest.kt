@@ -75,4 +75,60 @@ class CommandSearchTest {
 		assertEquals(3, commandMatchScore("Fit View", "view.fit", "view."))
 		assertNull(commandMatchScore("Fit View", "view.fit", "xyzzy"))
 	}
+
+	/**
+	 * The configurator's ranking adds two tiers to the palette's: the group a command is listed under, and
+	 * the accelerator it is bound to - so a search for a group name or for a chord finds the command.
+	 */
+	@Test
+	fun theConfiguratorTiersReachTheGroupAndTheChord() {
+		// A query that reaches only the group, and one that reaches only the accelerator.
+		assertEquals(4, shortcutMatchScore("Fit View", "view.fit", "Viewport", "", "viewport"))
+		assertEquals(5, shortcutMatchScore("Fit View", "view.fit", "View", "Ctrl+Shift+=", "ctrl"))
+		assertNull(shortcutMatchScore("Fit View", "view.fit", "View", "Ctrl+Shift+=", "xyzzy"))
+	}
+
+	/**
+	 * The configurator ranks the same way the palette does, on the tiers it shares with it.
+	 */
+	@Test
+	fun theConfiguratorRanksLikeThePalette() {
+		val entries =
+			listOf(
+				ConfigRow("view.zoomActualSize", "Actual Size", "View", ""),
+				ConfigRow("workspace.prev", "Previous Workspace", "Workspace", ""),
+			)
+
+		// "workspace" is in the group of the second row only, so it reaches the group tier.
+		assertEquals(listOf("Previous Workspace"), rankShortcut(entries, "workspace"))
+		assertEquals(emptyList(), rankShortcut(entries, "xyzzy"))
+	}
+
+	/**
+	 * The configurator's ranking drops the non-matches and keeps the order.
+	 */
+	private fun rankShortcut(entries: List<ConfigRow>, query: String): List<String> =
+		rankShortcutMatches(
+			entries,
+			query,
+			labelOf = { entry -> entry.label },
+			idOf = { entry -> entry.id },
+			groupOf = { entry -> entry.group },
+			shortcutOf = { entry -> entry.shortcut },
+		).map { entry -> entry.label }
+
+	/**
+	 * A row the configurator ranks: a command, its label, its group, and the accelerator it is bound to.
+	 *
+	 * @property String id The command's dotted id.
+	 * @property String label The command's name.
+	 * @property String group The group the command is listed under.
+	 * @property String shortcut The accelerator the command is bound to.
+	 */
+	private data class ConfigRow(
+		val id: String,
+		val label: String,
+		val group: String,
+		val shortcut: String,
+	)
 }
