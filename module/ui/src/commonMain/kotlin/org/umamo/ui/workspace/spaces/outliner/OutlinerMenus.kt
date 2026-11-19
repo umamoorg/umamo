@@ -52,7 +52,7 @@ internal fun outlinerRowMenuItems(
 
 		if (inObjectMode) {
 			add(MenuItem.Separator)
-			add(MenuItem.Action(labels.createWarp, onSelect = { commands.invoke(CREATE_WARP_COMMAND) }, enabled = commands[CREATE_WARP_COMMAND]?.availability?.isAvailable() == true))
+			add(MenuItem.Action(labels.createWarp, onSelect = { commands.invoke(CREATE_WARP_COMMAND) }, enabled = commands[CREATE_WARP_COMMAND]?.isAvailable() == true))
 		}
 
 		add(MenuItem.Separator)

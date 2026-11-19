@@ -375,7 +375,7 @@ internal fun commandMenuItem(
 	argument: Any? = null,
 	around: (dispatch: () -> Unit) -> Unit = { dispatch -> dispatch() },
 ): MenuItem {
-	val available = command.availability.isAvailable()
+	val available = command.isAvailable(argument)
 	val choices = command.choices
 
 	if (choices != null) {

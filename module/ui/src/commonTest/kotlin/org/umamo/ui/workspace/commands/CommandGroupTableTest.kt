@@ -87,6 +87,7 @@ class CommandGroupTableTest {
 				CommandFamily.ViewportTool to listOf(CommandSection.ToolSelect, CommandSection.ToolTransform),
 				CommandFamily.Snap to listOf(CommandSection.SnapCursor, CommandSection.SnapSelection),
 				CommandFamily.UvSnap to listOf(CommandSection.UvSnapSelection, CommandSection.UvSnapCursor),
+				CommandFamily.Relation to listOf(CommandSection.RelationSelect, CommandSection.RelationBind, CommandSection.RelationRemove, CommandSection.RelationCopy),
 			)
 		assertEquals(CommandSection.entries.map { section -> section.parent }.toSet(), sectioned.keys, "every sectioned family is pinned here")
 

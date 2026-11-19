@@ -123,6 +123,7 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 		* Persist list height.(Stored in UMA format, maybe?)
 		* Deformer pickAt().
 		* Context Menus
+		* Change icon on picker to an eyedropper.
 
 ## Parameters
 * Parameter templates:

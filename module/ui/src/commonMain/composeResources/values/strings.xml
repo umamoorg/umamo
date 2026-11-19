@@ -379,6 +379,7 @@
 	<string name="group_editor_mode">Mode</string>
 	<string name="group_uv_mirror">Mirror</string>
 	<string name="group_keyform_key">Keyframe</string>
+	<string name="group_relation">Relation</string>
 	<string name="group_viewport_tools">Tools</string>
 	<string name="cmd_mesh_grab">Grab Vertices</string>
 	<string name="cmd_mesh_scale">Scale Vertices</string>
@@ -454,6 +455,7 @@
 	<string name="history_drawable_move">Move Mesh</string>
 	<string name="history_visibility_hide_unselected">Hide Unselected</string>
 	<string name="history_visibility_unhide_all">Unhide All</string>
+	<string name="history_relation_copy_to_selected">Copy Relation to Selected</string>
 	<string name="history_deformer_rename">Rename Deformer</string>
 	<string name="history_deformer_selectable">Toggle Deformer Selectability</string>
 	<string name="history_deformer_move">Move Deformer</string>
@@ -687,6 +689,11 @@
 	<string name="cmd_view_frame_selected">Frame Selected</string>
 	<string name="cmd_switch_object_under_cursor">Switch Editing Object</string>
 	<string name="cmd_outliner_select_hierarchy">Select Hierarchy</string>
+	<string name="cmd_relation_select">Select</string>
+	<string name="cmd_relation_clear">Clear</string>
+	<string name="cmd_relation_pick">Pick</string>
+	<string name="cmd_relation_remove">Remove</string>
+	<string name="cmd_relation_copy_to_selected">Copy to Selected</string>
 	<string name="outliner_menu_select_hierarchy">Select Hierarchy</string>
 
 	<!-- Topology operators (Shift+D / M / V / J), their history labels, and their refusal notices. -->
@@ -877,6 +884,7 @@
 	<!-- %1$s is the drawable's name. -->
 	<string name="notice_reparent_place_not_kept">%1$s was moved to its new parent but could not keep its place: The new deformers could not map its position.</string>
 	<string name="notice_reparent_places_not_kept">%1$d object(s) were moved to their new parent but could not keep their place: The new deformers could not map their positions.</string>
+	<string name="notice_relation_copy_skipped">%1$d selected object(s) were skipped: They can not take this relation.</string>
 
 	<!-- Pie menu center titles (the pie's name, Blender-style). -->
 	<string name="pie_title_pivot">Pivot Point</string>

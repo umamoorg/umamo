@@ -93,7 +93,7 @@ data class MeshOverlayPalette(
 				faceActive = OverlayColor.fromArgb(0xFF7DE400L),
 				warning = OverlayColor.fromArgb(0xFFFF5A5AL),
 				pinnedPlacement = OverlayColor.fromArgb(0xFFB266FFL),
-				latticeIdle = OverlayColor.fromArgb(0x80404040L),
+				latticeIdle = OverlayColor.fromArgb(0x80FFFFFFL),
 				latticeSelected = OverlayColor.fromArgb(0xFF338CFFL),
 				latticeActive = OverlayColor.fromArgb(0xFF7DE400L),
 				latticePending = OverlayColor.fromArgb(0xFFDF8431L),

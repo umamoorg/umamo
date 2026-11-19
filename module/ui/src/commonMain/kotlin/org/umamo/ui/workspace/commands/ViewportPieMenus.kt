@@ -37,7 +37,7 @@ fun pieMenuEntriesFor(
 	commands: CommandRegistry,
 ): List<PieMenuEntry> =
 	commands.inGroup(pieFamilyOf(kind)).mapNotNull { member ->
-		member.rowLabel?.let { label -> PieMenuEntry(member.id, label, enabled = member.availability.isAvailable(), icon = member.icon) }
+		member.rowLabel?.let { label -> PieMenuEntry(member.id, label, enabled = member.isAvailable(), icon = member.icon) }
 	}
 
 /**

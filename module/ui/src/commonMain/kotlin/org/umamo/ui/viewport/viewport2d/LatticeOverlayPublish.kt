@@ -18,6 +18,8 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDeformerIds
 import org.umamo.ui.viewport.PuppetViewportService
+import org.umamo.ui.workspace.PickKind
+import org.umamo.ui.workspace.RelationPickRequest
 
 /*
  * The 2D viewport's warp lattices: which warps the renderer draws a lattice over, in which role, and which of them
@@ -46,6 +48,10 @@ internal fun latticeOverlaySizes(density: Density): MeshOverlaySizes =
  * area that shows every deformer.  Edit mode draws none, showing only what it edits, and Pose mode leaves the warps
  * being posed to the session's cage, which draws their points.
  *
+ * While a relation pick that takes a deformer is armed, an idle lattice is listed only when the pick would bind its
+ * warp, so one the field refuses (the owner's own subtree) is neither drawn nor hit and the lattices left are the
+ * choices.  A selected or active lattice stays whatever the pick says, so the owner's own lattice keeps its place.
+ *
  * @param EditorMode mode The editor mode.
  * @param Selection selection The object selection.
  * @param PuppetModel model The model.
@@ -53,6 +59,7 @@ internal fun latticeOverlaySizes(density: Density): MeshOverlaySizes =
  * @param MeshOverlaySizes sizes The dot and line sizes.
  * @param Set<DeformerId> posedIds The warps the Pose-mode session shapes, which its cage draws.
  * @param Set<DeformerId> pendingIds The warps holding an unkeyed Pose-mode shape.
+ * @param RelationPickRequest? pick The armed relation pick, or null for none.
  * @return LatticeOverlay? The lattices, or null when there is none to draw.
  */
 internal fun latticeOverlayOf(
@@ -63,12 +70,14 @@ internal fun latticeOverlayOf(
 	sizes: MeshOverlaySizes,
 	posedIds: Set<DeformerId> = emptySet(),
 	pendingIds: Set<DeformerId> = emptySet(),
+	pick: RelationPickRequest? = null,
 ): LatticeOverlay? {
 	if (mode == EditorMode.Edit) {
 		return null
 	}
 
 	val roles = LinkedHashMap<DeformerId, LatticeRole>()
+	val choosing = pick?.takeIf { request -> PickKind.Deformer in request.accepts }
 
 	for (deformer in model.deformers) {
 		if (deformer !is Deformer.Warp || deformer.id !in shownDeformers || (mode == EditorMode.Pose && deformer.id in posedIds)) {
@@ -76,12 +85,18 @@ internal fun latticeOverlayOf(
 		}
 
 		val target = SelectionTarget.Deformer(deformer.id)
-		roles[deformer.id] =
+		val role =
 			when {
 				selection.active == target -> LatticeRole.Active
 				target in selection -> LatticeRole.Selected
 				else -> LatticeRole.Idle
 			}
+
+		if (role == LatticeRole.Idle && choosing != null && !choosing.takes(target)) {
+			continue
+		}
+
+		roles[deformer.id] = role
 	}
 
 	if (roles.isEmpty()) {
@@ -98,19 +113,22 @@ internal fun latticeOverlayOf(
  * @param PuppetViewportService service The render service to publish to.
  * @param EditorSession session The session to derive from.
  * @param Flow<MeshOverlaySizes> sizes The lattice sizes, re-emitted when the density changes.
+ * @param Flow<RelationPickRequest?> picks The armed relation pick, re-emitted as one arms or ends.
  */
 internal suspend fun publishLatticeOverlay(
 	service: PuppetViewportService,
 	session: EditorSession,
 	sizes: Flow<MeshOverlaySizes>,
+	picks: Flow<RelationPickRequest?>,
 ) {
 	val shownModels = session.model.map { model -> model to model.visibleDeformerIds() }
 	val posedAndPending =
 		combine(session.meshSelection, session.pendingLatticeEdits) { meshSelection, pending ->
 			meshSelection.deformerIds.toHashSet() to pending.keys
 		}
-	combine(session.mode, session.selection, shownModels, sizes, posedAndPending) { mode, selection, (model, shownDeformers), latticeSizes, (posedIds, pendingIds) ->
-		latticeOverlayOf(mode, selection, model, shownDeformers, latticeSizes, posedIds, pendingIds)
+	val sizesAndPick = combine(sizes, picks) { latticeSizes, pick -> latticeSizes to pick }
+	combine(session.mode, session.selection, shownModels, sizesAndPick, posedAndPending) { mode, selection, (model, shownDeformers), (latticeSizes, pick), (posedIds, pendingIds) ->
+		latticeOverlayOf(mode, selection, model, shownDeformers, latticeSizes, posedIds, pendingIds, pick)
 	}
 		.distinctUntilChanged { previous, next -> sameLatticeOverlay(previous, next) }
 		.collect { overlay -> service.setLatticeOverlay(overlay) }

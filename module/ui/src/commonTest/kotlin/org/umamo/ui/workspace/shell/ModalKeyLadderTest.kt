@@ -32,6 +32,7 @@ import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.KeyChord
 import org.umamo.ui.action.Keymap
+import org.umamo.ui.action.keyName
 import org.umamo.ui.document.DocumentOpenError
 import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.kit.field.ScrubCancelController
@@ -1050,6 +1051,54 @@ class ModalKeyLadderTest {
 
 		assertNull(relationPick.request)
 		assertFalse(selection.selection.isEmpty, "abandoning a pick must never also wipe the selection")
+	}
+
+	@Test
+	fun anyBindableKeyEndsAnArmedRelationPickWithoutRunningItsCommand() {
+		// A shortcut run under the pick starts beneath its hidden cursor and badge: a grab, a mode switch, an undo.
+		val strokes =
+			listOf(
+				ShellKeyStroke(Key.G, isDown = true),
+				ShellKeyStroke(Key.Tab, isDown = true),
+				ShellKeyStroke(Key.Z, isDown = true, primaryModifier = true),
+				ShellKeyStroke(Key.Enter, isDown = true),
+			)
+
+		strokes.forEach { stroke ->
+			val relationPick = RelationPickController()
+			relationPick.arm(accepts = emptySet()) {}
+			val registry = RecordingRegistry("bound.command")
+			val chord = KeyChord(assertNotNull(keyName(stroke.key), "fixture: ${stroke.key} must be bindable"), primaryModifier = stroke.primaryModifier)
+			val state = ShellModalState(relationPick = relationPick, commandRegistry = registry.registry, keymap = Keymap(mapOf(chord to "bound.command")))
+
+			assertTrue(handleModalKeyLadder(stroke, state), "${stroke.key} is swallowed")
+
+			assertNull(relationPick.request, "${stroke.key} ends the pick")
+			assertFalse(registry.invoked, "${stroke.key} does not also run its binding")
+		}
+	}
+
+	@Test
+	fun aModifierAloneLeavesAnArmedRelationPickArmed() {
+		// Alt+click reaches a stack of targets, so holding Alt must not end the pick it is for.
+		listOf(Key.AltLeft, Key.ShiftLeft, Key.CtrlLeft, Key.MetaLeft).forEach { key ->
+			val relationPick = RelationPickController()
+			relationPick.arm(accepts = emptySet()) {}
+
+			press(key, ShellModalState(relationPick = relationPick), alt = key == Key.AltLeft)
+
+			assertNotNull(relationPick.request, "$key alone keeps the pick armed")
+		}
+	}
+
+	@Test
+	fun aKeyUpLeavesAnArmedRelationPickArmed() {
+		val relationPick = RelationPickController()
+		relationPick.arm(accepts = emptySet()) {}
+
+		press(Key.G, ShellModalState(relationPick = relationPick), isDown = false)
+
+		assertNotNull(relationPick.request, "only a press ends the pick")
 	}
 
 	@Test

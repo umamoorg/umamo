@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +40,8 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
@@ -48,6 +51,7 @@ import org.umamo.ui.kit.Surface
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.button.IconButton
+import org.umamo.ui.kit.menu.TextEditContextMenuArea
 import org.umamo.ui.kit.textentry.LocalInlineEditController
 import org.umamo.ui.kit.textentry.textEntrySurface
 import org.umamo.ui.theme.LocalUmamoColors
@@ -75,7 +79,9 @@ private val RELATION_DROPDOWN_MIN_WIDTH = 140.dp
  * `[type glyph] [current relation, or the typed query] [x] [eyedropper]`
  *
  * Like [NumberField] and [HexColorField] it lends its cancel hook to [LocalInlineEditController] while
- * focused, so the shell's root key handler yields keystrokes to the field instead of firing shortcuts.
+ * focused, so the shell's root key handler yields keystrokes to the field instead of firing shortcuts, and opens
+ * the kit's text menu, so a right-click shows the enclosing area's menu (the caller's relation menu) above the
+ * clipboard rows rather than Compose's own.
  *
  * @param T The candidate entity type.
  * @param Object? selected The currently bound entity, or null when unbound.
@@ -114,24 +120,32 @@ fun <T> RelationField(
 	val listState = rememberLazyListState()
 
 	var focused by remember { mutableStateOf(false) }
-	var query by remember { mutableStateOf("") }
+	var query by remember { mutableStateOf(TextFieldValue()) }
 	var highlighted by remember { mutableStateOf(0) }
 	var anchorWidthPx by remember { mutableStateOf(0) }
+	// Whether the text field has composed with the query since focus landed.  Until it has it still holds the
+	// read-out, and what it sends (the focusing tap placing its caret in the bound name) is about that text, not an
+	// edit of the query.  Only read in callbacks, so writing it after composition recomposes nothing.
+	val queryShown = remember { mutableStateOf(false) }
+	SideEffect {
+		queryShown.value = focused
+	}
 
 	val selectedLabel = selected?.let(label) ?: ""
 	// The field is a search box while focused and a read-out of the binding otherwise.
-	val fieldText = if (focused) query else selectedLabel
+	val fieldValue = if (focused) query else TextFieldValue(selectedLabel)
+	val searchText = query.text
 	val filtered =
-		if (query.isBlank()) {
+		if (searchText.isBlank()) {
 			candidates
 		} else {
-			candidates.filter { candidate -> label(candidate).contains(query.trim(), ignoreCase = true) }
+			candidates.filter { candidate -> label(candidate).contains(searchText.trim(), ignoreCase = true) }
 		}
 	// Filtering can shrink the list under the highlight, so clamp at read rather than on every edit.
 	val safeIndex = highlighted.coerceIn(0, maxOf(0, filtered.size - 1))
 	val open = focused
 
-	LaunchedEffect(query) {
+	LaunchedEffect(searchText) {
 		highlighted = 0
 	}
 	LaunchedEffect(safeIndex, open, filtered.size) {
@@ -150,7 +164,7 @@ fun <T> RelationField(
 
 	val commit: (T?) -> Unit = { value ->
 		onSelect(value)
-		query = ""
+		query = TextFieldValue()
 
 		// ONLY when this field actually holds focus.  The clear "x" is shown while unfocused, and clearing
 		// focus from there would null the shell root's focus owner - killing every keyboard shortcut until
@@ -194,7 +208,7 @@ fun <T> RelationField(
 						}
 
 						Key.Escape -> {
-							query = ""
+							query = TextFieldValue()
 							focusManager.clearFocus()
 							true
 						}
@@ -225,45 +239,63 @@ fun <T> RelationField(
 				Spacer(modifier = Modifier.width(4.dp))
 			}
 
-			BasicTextField(
-				value = fieldText,
-				onValueChange = { newText -> query = newText },
-				textStyle = typography.bodySmall.copy(color = colors.text),
-				singleLine = true,
-				cursorBrush = SolidColor(colors.text),
-				modifier =
-					Modifier
-						.weight(1f)
-						.textEntrySurface(controller)
-						.onFocusChanged { focusState ->
-							// hasFocus (not isFocused): BasicTextField focuses an internal child.
-							if (focusState.hasFocus) {
-								if (!focused) {
-									focused = true
-									query = ""
-									controller.cancel = { focusManager.clearFocus() }
-								}
-							} else if (focused) {
-								focused = false
-								query = ""
-								controller.cancel = null
-							}
-						},
-				decorationBox = { inner ->
-					Box(contentAlignment = Alignment.CenterStart) {
-						if (fieldText.isEmpty()) {
-							Text(
-								text = placeholder,
-								style = typography.bodySmall,
-								color = colors.textMuted,
-								maxLines = 1,
-							)
-						}
-
-						inner()
+			// The kit's text menu, so a right-click shows whatever the enclosing area offers (a Properties row's
+			// relation menu) above the clipboard rows.  Over the read-out the whole bound name is the selection, so
+			// Copy copies it; while searching the menu edits the query.
+			TextEditContextMenuArea(
+				value = if (focused) query else TextFieldValue(selectedLabel, selection = TextRange(0, selectedLabel.length)),
+				onValueChange = { edited ->
+					if (focused) {
+						query = edited
 					}
 				},
-			)
+				modifier = Modifier.weight(1f),
+				readOnly = !focused,
+			) { gesture ->
+				BasicTextField(
+					value = fieldValue,
+					onValueChange = { newValue ->
+						if (queryShown.value) {
+							query = newValue
+						}
+					},
+					textStyle = typography.bodySmall.copy(color = colors.text),
+					singleLine = true,
+					cursorBrush = SolidColor(colors.text),
+					modifier =
+						gesture
+							.textEntrySurface(controller)
+							.fillMaxWidth()
+							.onFocusChanged { focusState ->
+								// hasFocus (not isFocused): BasicTextField focuses an internal child.
+								if (focusState.hasFocus) {
+									if (!focused) {
+										focused = true
+										query = TextFieldValue()
+										controller.cancel = { focusManager.clearFocus() }
+									}
+								} else if (focused) {
+									focused = false
+									query = TextFieldValue()
+									controller.cancel = null
+								}
+							},
+					decorationBox = { inner ->
+						Box(contentAlignment = Alignment.CenterStart) {
+							if (fieldValue.text.isEmpty()) {
+								Text(
+									text = placeholder,
+									style = typography.bodySmall,
+									color = colors.textMuted,
+									maxLines = 1,
+								)
+							}
+
+							inner()
+						}
+					},
+				)
+			}
 
 			if (selected != null && !focused) {
 				IconButton(

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import org.umamo.edit.EditorSession
 import org.umamo.settings.Settings
 import org.umamo.ui.LocalSettings
+import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.viewport.LiveMeshPreview
 import org.umamo.ui.viewport.LocalLiveMeshPreview
@@ -32,10 +34,12 @@ import org.umamo.ui.viewport.gizmo.LocalModalDriveDispatcher
 import org.umamo.ui.viewport.gizmo.RIGHT_AREA
 import org.umamo.ui.viewport.gizmo.gizmoAreaTag
 import org.umamo.ui.viewport.tracksAreaPointer
+import org.umamo.ui.workspace.LocalRelationPick
+import org.umamo.ui.workspace.RelationPickController
 import org.umamo.ui.workspace.commands.inMemorySettings
 
 /*
- * The viewport gizmo overlays, with the Zoom Region overlay above them, mounted the way
+ * The viewport gizmo overlays, with the Zoom Region and relation-pick overlays above them, mounted the way
  * PuppetViewportBinding mounts them, twice: two areas side by side over ONE session and ONE render
  * service, so a case can check that a gesture belongs to the area it started in.  The render service is
  * the stub, which records what the overlays push and never renders, and the camera is the rig's.  Density
@@ -66,6 +70,9 @@ internal class GizmoOverlayFixture(
 	/** Every overlap picker an overlay asked for, as the area, the anchor, and the candidates. */
 	val overlapRequests = ArrayList<Triple<String, Offset, List<ObjectPickCandidate>>>()
 
+	/** The relation-pick slot the pick overlays read, as the shell provides one per window. */
+	val relationPick = RelationPickController()
+
 	/**
 	 * The areas whose overlays are mounted.  Taking an area out unmounts its overlays mid-gesture the way
 	 * a mode switch or a closing area does, while the area's box, its tag, and the host's pointer record
@@ -90,9 +97,12 @@ internal fun ComposeUiTest.mountGizmoOverlays(session: EditorSession, beside: (@
 			LocalSettings provides fixture.settings,
 			LocalModalDriveDispatcher provides fixture.driveDispatcher,
 			LocalLiveMeshPreview provides fixture.livePreview,
+			LocalRelationPick provides fixture.relationPick,
 		) {
 			UmamoTheme {
-				CompositionLocalProvider(LocalDensity provides Density(1f)) {
+				// The model as the document publishes it, per commit, for the overlays that read the local.
+				val puppet by session.model.collectAsState()
+				CompositionLocalProvider(LocalDensity provides Density(1f), LocalPuppet provides puppet) {
 					Row {
 						for (areaId in listOf(LEFT_AREA, RIGHT_AREA)) {
 							key(areaId) {
@@ -133,6 +143,12 @@ internal fun ComposeUiTest.mountGizmoOverlays(session: EditorSession, beside: (@
 											camera = RIG_CAMERA,
 											widthPx = RIG_AREA_WIDTH,
 											heightPx = RIG_AREA_HEIGHT,
+										)
+										// Topmost, as the binding mounts it; inert unless a relation pick is armed.
+										ViewportPickOverlay(
+											areaId = areaId,
+											service = fixture.service,
+											onOverlapRequest = { anchor, candidates -> fixture.overlapRequests.add(Triple(areaId, anchor, candidates)) },
 										)
 									}
 								}

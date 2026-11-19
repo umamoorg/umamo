@@ -35,7 +35,7 @@ import org.umamo.ui.workspace.rowdrag.RowDragCancelController
  * @property SplitterDragCancelController splitterDragCancel The divider-drag seam; an in-flight divider drag claims Escape.
  * @property RowDragCancelController rowDragCancel The row-drag seam; an in-flight drag claims Escape.
  * @property ScrubCancelController scrubCancel The number-field scrub seam; an in-flight scrub claims Escape.
- * @property RelationPickController relationPick The relation-pick seam; an armed eyedropper claims Escape.
+ * @property RelationPickController relationPick The relation-pick seam; any bindable key ends an armed eyedropper.
  * @property KeyformSheetViews keyformSheets The open keyform sheets; an armed marquee claims Escape.
  * @property CommandRegistry commandRegistry The registry pie picks and the fallthrough dispatch into.
  * @property Keymap keymap The active keymap for the fallthrough dispatch.
