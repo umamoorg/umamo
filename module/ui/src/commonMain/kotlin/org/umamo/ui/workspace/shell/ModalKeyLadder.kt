@@ -265,10 +265,8 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 				true
 			}
 
-			// An armed relation pick (a Properties field's eyedropper) owns Escape: cancel the pick before the
-			// clear-selection branch below, so abandoning a pick never also wipes the user's selection.  Like
-			// the zoom region this is mode-agnostic, and it resolves from the outliner as well as a viewport.
-			isEscapeDown && relationPick.request != null -> {
+			// An armed relation pick should end on end input.
+			stroke.isDown && relationPick.request != null && keyName(stroke.key) != null -> {
 				relationPick.cancel()
 				true
 			}
