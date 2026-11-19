@@ -331,4 +331,28 @@ class CommandRegistryTest {
 		assertTrue(registry.invoke("test.scoped"), "the registry knows nothing about where the pointer is")
 		assertEquals(1, runCount)
 	}
+
+	/**
+	 * A dispatch observer hears each command that runs, before its handler, and nothing that runs nothing; its cleanup
+	 * stops it.
+	 */
+	@Test
+	fun aDispatchObserverHearsEachCommandThatRunsBeforeItsHandler() {
+		val registry = CommandRegistry()
+		val heard = ArrayList<String>()
+		registry.register(Command("test.run", title = null, handler = { heard += "handler" }))
+		registry.register(Command("test.gated", title = null, availability = { false }, handler = { heard += "gated handler" }))
+		val stopObserving = registry.observeDispatch { command -> heard += command.id }
+
+		registry.invoke("test.run")
+		registry.invoke("test.gated")
+		registry.invoke("does.not.exist")
+
+		assertEquals(listOf("test.run", "handler"), heard, "told first, and only of a command that ran")
+
+		stopObserving()
+		registry.invoke("test.run")
+
+		assertEquals(listOf("test.run", "handler", "handler"), heard, "the cleanup stops the observer")
+	}
 }

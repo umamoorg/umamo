@@ -287,7 +287,7 @@ class RelationPickController {
 	 */
 	fun isPickingFor(owner: Any?): Boolean = owner != null && request?.owner == owner
 
-	/** Cancels the in-flight pick, if any (Escape, a right-click, or the arming field going away). */
+	/** Cancels the in-flight pick, if any (a key press, any command, a right-click, or the arming field going away). */
 	fun cancel() {
 		request = null
 		hoveredTarget = null
