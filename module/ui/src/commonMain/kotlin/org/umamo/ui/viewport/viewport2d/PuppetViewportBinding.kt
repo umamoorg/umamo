@@ -315,8 +315,7 @@ fun rememberPuppetViewportHost(
 	}
 	// The warp lattices every 2D area draws over the art in Object and Pose mode: which warps, in which role.  The
 	// renderer reads their points off the pose it draws, so only a mode, selection, model, or armed-pick change
-	// publishes.  The pick slot is the shell's and the host is built outside the shell, so the host learns it through
-	// its areas, like the live preview below.
+	// publishes.
 	val latticeSizes = rememberUpdatedState(latticeOverlaySizes(LocalDensity.current))
 	val relationPickLink = remember(service) { mutableStateOf<RelationPickController?>(null) }
 	LaunchedEffect(service, session) {

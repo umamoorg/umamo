@@ -31,13 +31,6 @@ import org.umamo.ui.workspace.PickKind
  * Mounted ABOVE the Object gizmo - that overlay owns the primary button in Object mode and would otherwise
  * change the selection before the pick ever saw the click.
  *
- * Self-gated on the shell's [org.umamo.ui.workspace.RelationPickController], and NOT scoped to one area: a
- * pick may be resolved from any viewport or from the outliner, whichever the user clicks first.  A click takes
- * the drawn warp lattice under it when the pick takes a deformer (while one is armed, every lattice it would bind
- * is drawn and no other idle one: see AreaOverlaysPublisher and latticeOverlayOf), and otherwise the art under it,
- * as the kind the pick accepts: the drawable itself, its owning part, or its parent deformer.  An Alt click lists
- * that whole stack in the overlap picker.
- *
  * Where no lattice is drawn, a deformer is reached through its art alone: Edit mode draws no lattice layer, Pose
  * mode leaves the warps being posed to the session's cage, and rotation deformers are not drawn at all.
  *
