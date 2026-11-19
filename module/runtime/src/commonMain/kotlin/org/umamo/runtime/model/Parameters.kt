@@ -28,11 +28,11 @@ data class Parameter(
 	val default: Float,
 	val kind: ParameterKind = ParameterKind.NORMAL,
 	/**
-	 * Whether the axis WRAPS at its limits instead of clamping - a value past [max] re-enters at [min].
+	 * Whether the axis wraps past its limits instead of clamping: a value past [max] re-enters from
+	 * [min], and one below [min] from [max].  Exactly [max] stays [max].
 	 *
-	 * Used for continuously-cycling rigs (a spinning wheel, a looping tail).  MOC3 §5.5 s54.  The
-	 * evaluator does not honor it yet, so it feeds the runtime-target feature scan and MOC3
-	 * round-trip fidelity rather than driving deformation.
+	 * Used for continuously-cycling rigs (a spinning wheel, a looping tail).  MOC3 §5.5 section 54.
+	 * The evaluator reads every value through `wrapOrClamp`.
 	 */
 	val repeat: Boolean = false,
 )

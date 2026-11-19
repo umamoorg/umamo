@@ -5,6 +5,7 @@ import org.umamo.edit.KeyformChange
 import org.umamo.edit.Pose
 import org.umamo.runtime.eval.colorAt
 import org.umamo.runtime.eval.flagAt
+import org.umamo.runtime.eval.poseValueLookup
 import org.umamo.runtime.eval.scalarAt
 import org.umamo.runtime.keyform.ChannelValueInterpolator
 import org.umamo.runtime.keyform.axisIndexOf
@@ -193,8 +194,7 @@ fun PuppetModel.withChannelKeyCaptured(
 
 	val grids = channelGridsOf(target.owner) ?: return this
 	val staticValue = staticValueOf(target.owner, target.channel) ?: return this
-	val defaults = parameters.associate { it.id to it.default }
-	val poseValue: (ParameterId) -> Float = { id -> pose[id] ?: defaults[id] ?: 0f }
+	val poseValue = poseValueLookup(pose)
 
 	val existing = grids[target.channel]
 	val bound: KeyformGrid<ChannelValue> =
