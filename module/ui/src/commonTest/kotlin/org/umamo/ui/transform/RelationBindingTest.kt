@@ -150,7 +150,7 @@ class RelationBindingTest {
 		val session = EditorSession(model())
 
 		session.bindRelation(RelationSlot.ParentDeformer(SelectionTarget.Deformer(outer)), SelectionTarget.Deformer(inner))
-		session.bindRelation(RelationSlot.OwningPart(SelectionTarget.Drawable(DrawableId("a"))), SelectionTarget.Part(left))
+		session.bindRelation(RelationSlot.ParentPart(SelectionTarget.Drawable(DrawableId("a"))), SelectionTarget.Part(left))
 		session.bindRelation(RelationSlot.Masks(SelectionTarget.Drawable(DrawableId("a"))), SelectionTarget.Drawable(DrawableId("a")))
 		session.bindRelation(RelationSlot.ParentDeformer(SelectionTarget.Deformer(inner)), SelectionTarget.Deformer(outer))
 
@@ -203,11 +203,11 @@ class RelationBindingTest {
 	}
 
 	@Test
-	fun copyingAnOwningPartMovesEveryPeerAndPassesOverOneAlreadyThere() {
+	fun copyingAParentPartMovesEveryPeerAndPassesOverOneAlreadyThere() {
 		val owner = SelectionTarget.Drawable(DrawableId("c"))
 		val session = sessionSelecting(model(), listOf(owner, SelectionTarget.Drawable(DrawableId("a")), SelectionTarget.Drawable(DrawableId("b"))))
 
-		session.copyRelationToSelected(RelationSlot.OwningPart(owner))
+		session.copyRelationToSelected(RelationSlot.ParentPart(owner))
 
 		val partOf = session.model.value.partByDrawable()
 		assertEquals(right, partOf[DrawableId("a")])

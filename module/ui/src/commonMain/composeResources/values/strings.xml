@@ -691,7 +691,7 @@
 	<string name="cmd_outliner_select_hierarchy">Select Hierarchy</string>
 	<string name="cmd_relation_select">Select</string>
 	<string name="cmd_relation_clear">Clear</string>
-	<string name="cmd_relation_pick">Pick from Viewport</string>
+	<string name="cmd_relation_pick">Pick</string>
 	<string name="cmd_relation_remove">Remove</string>
 	<string name="cmd_relation_copy_to_selected">Copy to Selected</string>
 	<string name="outliner_menu_select_hierarchy">Select Hierarchy</string>

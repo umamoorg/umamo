@@ -1,9 +1,14 @@
 package org.umamo.ui.workspace
 
 import org.umamo.edit.SelectionTarget
+import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.DeformerId
+import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.PuppetModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -14,12 +19,113 @@ import kotlin.test.assertTrue
 /**
  * Pins the relation-pick slot's resolve contract: only an accepted kind the field admits resolves (and does
  * so exactly once, clearing the request first), a click on anything else leaves the pick armed rather than
- * silently ending it, and cancelling clears without firing.
+ * silently ending it, and cancelling clears without firing.  A drawable stands for its part or its parent
+ * deformer in a pick that does not take drawables, read from the model as it is when the pointer reaches it.
  */
 class RelationPickTest {
 	private val drawable = SelectionTarget.Drawable(DrawableId("d1"))
 	private val part = SelectionTarget.Part(PartId("p1"))
 	private val deformer = SelectionTarget.Deformer(DeformerId("w1"))
+
+	/**
+	 * A one-drawable rig: [drawable] in [part], deformed by [deformer].
+	 *
+	 * @return PuppetModel The rig.
+	 */
+	private fun rig(): PuppetModel =
+		PuppetModel(
+			parameters = emptyList(),
+			parts = listOf(Part(part.id, "P", listOf(OrgChild.Drawable(drawable.id)))),
+			deformers = emptyList(),
+			drawables =
+				listOf(
+					Drawable(
+						id = drawable.id,
+						name = "D",
+						parentDeformerId = deformer.id,
+						blendMode = BlendMode.Normal,
+						maskedBy = emptyList(),
+						mesh = null,
+						geometryGrid = null,
+					),
+				),
+			rootChildren = listOf(OrgChild.Part(part.id)),
+			rootPartId = null,
+		)
+
+	@Test
+	fun aDrawableStandsForItsParentDeformerInADeformerPick() {
+		val controller = RelationPickController()
+		val model = rig()
+		val picked = mutableListOf<SelectionTarget>()
+		controller.arm(setOf(PickKind.Deformer), model = { model }) { target -> picked.add(target) }
+
+		controller.hover(drawable)
+		assertEquals(deformer, controller.hoveredTarget, "the badge names the deformer a click binds")
+
+		// The hover was reported as the drawable, so the surface withdraws it as the drawable.
+		controller.unhover(drawable)
+		assertNull(controller.hoveredTarget)
+
+		assertEquals(PickClickOutcome.Resolved, controller.click(drawable))
+		assertEquals(listOf<SelectionTarget>(deformer), picked)
+	}
+
+	@Test
+	fun aDrawableStandsForItsParentPartInAPartPick() {
+		val controller = RelationPickController()
+		val model = rig()
+		val picked = mutableListOf<SelectionTarget>()
+		controller.arm(setOf(PickKind.Part), model = { model }) { target -> picked.add(target) }
+
+		assertTrue(controller.resolve(drawable))
+		assertEquals(listOf<SelectionTarget>(part), picked)
+	}
+
+	@Test
+	fun aRefusedDrawableNeverBindsItsPartInstead() {
+		val controller = RelationPickController()
+		val model = rig()
+		controller.arm(setOf(PickKind.Drawable, PickKind.Part), admits = { target -> target != drawable }, model = { model }) { }
+
+		controller.hover(drawable)
+		assertNull(controller.hoveredTarget, "a pick that takes drawables reads a drawable as itself")
+		assertEquals(PickClickOutcome.Swallowed, controller.click(drawable))
+	}
+
+	@Test
+	fun aStandInTheFieldDoesNotAdmitIsAMiss() {
+		val controller = RelationPickController()
+		val model = rig()
+		controller.arm(setOf(PickKind.Deformer), admits = { target -> target != deformer }, model = { model }) { }
+
+		controller.hover(drawable)
+		assertNull(controller.hoveredTarget)
+		assertEquals(PickClickOutcome.Swallowed, controller.click(drawable))
+	}
+
+	@Test
+	fun withoutAModelADrawableStandsOnlyForItself() {
+		val controller = RelationPickController()
+		controller.arm(setOf(PickKind.Deformer)) { }
+
+		assertEquals(PickClickOutcome.Swallowed, controller.click(drawable))
+	}
+
+	@Test
+	fun theStandInFollowsTheModel() {
+		val controller = RelationPickController()
+		var model = rig()
+		controller.arm(setOf(PickKind.Deformer), model = { model }) { }
+
+		controller.hover(drawable)
+		assertEquals(deformer, controller.hoveredTarget)
+
+		val other = SelectionTarget.Deformer(DeformerId("w2"))
+		model = model.copy(drawables = model.drawables.map { held -> held.copy(parentDeformerId = other.id) })
+		controller.hover(drawable)
+		assertEquals(other, controller.hoveredTarget, "an edit made while armed is read, not the model the pick was armed over")
+	}
 
 	@Test
 	fun kindsMapFromTargets() {

@@ -6,6 +6,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import org.umamo.render.FrameOverlays
 import org.umamo.runtime.model.DeformerId
+import org.umamo.ui.workspace.LocalRelationPick
+import org.umamo.ui.workspace.PickKind
 
 /*
  * The per-area render options the editor hands the render service: each work-surface area's grid geometry
@@ -50,6 +52,16 @@ fun AreaOverlays.withHoveredLattice(deformerId: DeformerId?): AreaOverlays =
 	if (frame.hoveredLattice == deformerId) this else copy(frame = frame.copy(hoveredLattice = deformerId))
 
 /**
+ * These options with every warp lattice drawn ([FrameOverlays.allLattices]), or this value itself when they already
+ * draw them: what a 2D area shows while a relation pick that takes a deformer is armed, so a lattice the area's
+ * Deformers overlay hides is there to click.  The lattice overlay lists only the lattices that pick would bind, so
+ * those are the ones drawn.  The Show Overlays master and a lattice opacity of 0 still hide them.
+ *
+ * @return AreaOverlays The options with every lattice drawn.
+ */
+fun AreaOverlays.withEveryLattice(): AreaOverlays = if (frame.allLattices) this else copy(frame = frame.copy(allLattices = true))
+
+/**
  * The render options an area's overlay state asks for over the application's grid for its surface, each overlay
  * following the state only on a surface that has a row for it.  A null state (no area, as in a standalone shell)
  * shows everything on the application's grid.
@@ -78,7 +90,7 @@ fun areaOverlaysFor(state: ViewportOverlayState?, applicationGrid: GridConfig): 
 /**
  * Keeps the render service's copy of an area's render options current: the area's overlay state over the
  * application's grid setting for its surface (a null state is a 2D viewport's), seeded as the area registers
- * and pushed again whenever either changes.
+ * and pushed again whenever either changes, or a relation pick that takes a deformer arms or ends.
  *
  * @param PuppetViewportService service The render service the area registered with.
  * @param String                areaId  The area.
@@ -88,8 +100,12 @@ fun areaOverlaysFor(state: ViewportOverlayState?, applicationGrid: GridConfig): 
 fun AreaOverlaysPublisher(service: PuppetViewportService, areaId: String, state: ViewportOverlayState?) {
 	// The setting directly, never the state's mirror of it (ApplicationGridMirror): the mirror is written after
 	// composition, so reading it back here would cost a second composition and push per setting change.
-	val applicationGrid = rememberApplicationGrid(state?.surface ?: OverlaySurface.Viewport2D)
-	val overlays = areaOverlaysFor(state, applicationGrid)
+	val surface = state?.surface ?: OverlaySurface.Viewport2D
+	val applicationGrid = rememberApplicationGrid(surface)
+	// While a relation pick that takes a deformer is armed, a 2D area draws every lattice the pick would bind, so
+	// there is one to click; the area's own value returns as the pick ends.
+	val pickShowsLattices = surface == OverlaySurface.Viewport2D && LocalRelationPick.current.request?.accepts?.contains(PickKind.Deformer) == true
+	val overlays = areaOverlaysFor(state, applicationGrid).let { own -> if (pickShowsLattices) own.withEveryLattice() else own }
 	// A composition-time seed, like the registration it follows in the host, so the slot carries the area's value
 	// before the resize that triggers its first render.
 	remember(areaId, service) { service.setAreaOverlays(areaId, overlays) }

@@ -53,7 +53,7 @@ class ViewportPickOverlayTest {
 			fixture.service.stackByArea[LEFT_AREA] = listOf(PickCandidate(LATTICE_RIG_ART, 0f, 1f))
 			val selection = session.selection.value
 			val picked = ArrayList<SelectionTarget>()
-			runOnIdle { fixture.relationPick.arm(setOf(PickKind.Deformer)) { target -> picked.add(target) } }
+			runOnIdle { fixture.relationPick.arm(setOf(PickKind.Deformer), model = { fixture.session.model.value }) { target -> picked.add(target) } }
 
 			clickIn(LEFT_AREA, point)
 
@@ -67,7 +67,7 @@ class ViewportPickOverlayTest {
 			val fixture = mountGizmoOverlays(headArtSession())
 			fixture.service.stackByArea[LEFT_AREA] = listOf(PickCandidate(LATTICE_RIG_ART, 0f, 1f))
 			val picked = ArrayList<SelectionTarget>()
-			runOnIdle { fixture.relationPick.arm(setOf(PickKind.Deformer)) { target -> picked.add(target) } }
+			runOnIdle { fixture.relationPick.arm(setOf(PickKind.Deformer), model = { fixture.session.model.value }) { target -> picked.add(target) } }
 
 			moveIn(LEFT_AREA, listOf(point))
 			assertEquals(SelectionTarget.Deformer(LATTICE_RIG_HEAD), fixture.relationPick.hoveredTarget, "the badge names the art's deformer")
@@ -86,7 +86,7 @@ class ViewportPickOverlayTest {
 			fixture.service.stackByArea[LEFT_AREA] = listOf(PickCandidate(LATTICE_RIG_ART, 0f, 1f))
 			val selection = session.selection.value
 			val picked = ArrayList<SelectionTarget>()
-			runOnIdle { fixture.relationPick.arm(setOf(PickKind.Deformer)) { target -> picked.add(target) } }
+			runOnIdle { fixture.relationPick.arm(setOf(PickKind.Deformer), model = { fixture.session.model.value }) { target -> picked.add(target) } }
 
 			clickIn(LEFT_AREA, point)
 
@@ -141,7 +141,7 @@ class ViewportPickOverlayTest {
 			fixture.service.latticeStackByArea[LEFT_AREA] = listOf(LATTICE_RIG_HEAD, LATTICE_RIG_BODY)
 			fixture.service.stackByArea[LEFT_AREA] = listOf(PickCandidate(LATTICE_RIG_ART, 0f, 1f))
 			val picked = ArrayList<SelectionTarget>()
-			runOnIdle { fixture.relationPick.arm(setOf(PickKind.Deformer)) { target -> picked.add(target) } }
+			runOnIdle { fixture.relationPick.arm(setOf(PickKind.Deformer), model = { fixture.session.model.value }) { target -> picked.add(target) } }
 
 			withKeyHeld(LEFT_AREA, Key.AltLeft) { clickIn(LEFT_AREA, point) }
 

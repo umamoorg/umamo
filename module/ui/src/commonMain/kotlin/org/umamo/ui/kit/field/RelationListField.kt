@@ -33,6 +33,8 @@ import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.dragResizes
+import org.umamo.ui.kit.menu.ContextMenuArea
+import org.umamo.ui.kit.menu.MenuItem
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
@@ -85,6 +87,8 @@ private val RELATION_GRIP_HEIGHT = 10.dp
  *   leaves the composition whenever its row does (a tab change, a folded section, another selection), so only a
  *   caller-held height survives that.
  * @param Function? onHeightChange Receives each dragged height, for a caller that holds it.
+ * @param Function? entryMenu A bound row's context menu, as the builder to call when it opens, or null for rows with
+ *   none.
  */
 @Composable
 fun <T> RelationListField(
@@ -104,6 +108,7 @@ fun <T> RelationListField(
 	pickDescription: String = "",
 	height: Dp? = null,
 	onHeightChange: ((Dp) -> Unit)? = null,
+	entryMenu: (@Composable (T) -> (() -> List<MenuItem>))? = null,
 ) {
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
@@ -146,12 +151,20 @@ fun <T> RelationListField(
 				} else {
 					for (entry in entries) {
 						key(keyOf(entry)) {
-							RelationBoundRow(
-								label = label(entry),
-								icon = icon(entry),
-								removeDescription = removeDescription,
-								onRemove = { onRemove(entry) },
-							)
+							val row: @Composable () -> Unit = {
+								RelationBoundRow(
+									label = label(entry),
+									icon = icon(entry),
+									removeDescription = removeDescription,
+									onRemove = { onRemove(entry) },
+								)
+							}
+
+							if (entryMenu != null) {
+								ContextMenuArea(itemsOnOpen = entryMenu(entry), modifier = Modifier.fillMaxWidth(), content = row)
+							} else {
+								row()
+							}
 						}
 					}
 				}

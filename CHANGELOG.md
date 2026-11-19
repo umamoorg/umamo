@@ -12,6 +12,8 @@ Umamo is early alpha.
 * Parameters: Hold control while scrubbing the slider to snap to a key.
 * Pose Mode: 3D Depth Rotation - The ability to set the Y axis depth forwards or backwards to set the Y origin of a warp lattice rotation.
 * Pose Mode: 3D Depth Rotation - The ability to change the lattice surface shape between flat, cylinder, or sphere.  This allows creating rounded rotation poses easily.
+* Properties: Parent Deformer relation picker can now pick from deformers in the 2D Viewport and the Outliner.
+* Properties: Add context menus to relation pickers(Masked By, Parent Deformer, Parent Part).
 * UI: New Select menu and context menu with Select All of Type and Invert Selection of Type.
 * UI: The command palette now shows each command's icon beside its name.
 * UI: When opening, saving, importing, or exporting the cursor will now show a busy hourglass.

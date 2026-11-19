@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performClick
@@ -13,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.UmamoTheme
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -50,5 +53,32 @@ class RelationFieldTest {
 			waitForIdle()
 
 			assertTrue(onAllNodes(hasText("tu") and hasSetTextAction()).fetchSemanticsNodes().isNotEmpty(), "typing edits the query")
+		}
+
+	@Test
+	fun theTextRunsUpToTheClearButton() =
+		runComposeUiTest {
+			setContent {
+				UmamoTheme {
+					Box(modifier = Modifier.width(240.dp)) {
+						RelationField(
+							selected = "lattice",
+							candidates = listOf("lattice", "turn"),
+							label = { candidate -> candidate },
+							icon = { LocalUmamoIcons.warpDeformer },
+							onSelect = {},
+							modifier = Modifier.width(240.dp),
+							clearDescription = "Clear",
+						)
+					}
+				}
+			}
+			waitForIdle()
+
+			val text = onNode(hasSetTextAction()).getBoundsInRoot()
+			val clear = onNode(hasContentDescription("Clear")).getBoundsInRoot()
+
+			// The short read-out alone would leave the text field a fraction of the row.
+			assertEquals(clear.left, text.right, "the text field ends where the clear button starts")
 		}
 }

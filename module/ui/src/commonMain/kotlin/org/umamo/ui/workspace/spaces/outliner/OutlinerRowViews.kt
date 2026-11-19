@@ -297,9 +297,8 @@ private fun OutlinerRowBody(
 	// Plain (non-snapshot) holder for the row's layout coordinates so onGloballyPositioned never forces a
 	// recompose; the hover effect reads the live window bounds from it on demand to anchor the preview.
 	val boundsHolder = remember { RowCoordinatesHolder() }
-	// While a relation pick is armed, report this row as what a click here would bind, so the shell's badge
-	// names it exactly as it does for a viewport hover.  Withdrawn on leaving, and only if still ours.
 	val relationPick = LocalRelationPick.current
+
 	LaunchedEffect(hovered, node.target) {
 		val target = node.target ?: return@LaunchedEffect
 
@@ -309,10 +308,8 @@ private fun OutlinerRowBody(
 			relationPick.unhover(target)
 		}
 	}
-	// Report this row's hover so the space can pop (after its rest delay) an art preview beside it: a
-	// drawable previews its own art mesh, a part the combined art of everything under it; deformers have no
-	// art, and the synthetic root rows have no entity to report.  A row's target is fixed for its list key,
-	// so the branch never flips under a live row.
+
+	// Report this row's hover so the space can pop (after its rest delay) an art preview beside it.
 	val hoverTarget = node.target
 
 	if (hoverTarget != null) {

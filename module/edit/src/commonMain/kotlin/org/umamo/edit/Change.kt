@@ -950,7 +950,7 @@ sealed interface VisibilityChange : Change {
 /** Changes that bind a relation of many objects at once. */
 sealed interface RelationChange : Change {
 	/**
-	 * Gives several objects the binding one of them holds - its owning part, its parent deformer, or one of its
+	 * Gives several objects the binding one of them holds - its parent part, its parent deformer, or one of its
 	 * clip masks - as one step.
 	 *
 	 * @property List<SelectionTarget> targets The objects that took the binding.

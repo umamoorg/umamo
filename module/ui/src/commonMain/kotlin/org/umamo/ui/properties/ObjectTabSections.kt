@@ -10,35 +10,28 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.Pose
+import org.umamo.edit.SelectionTarget
 import org.umamo.edit.property.previewDeformerBaseAngle
 import org.umamo.edit.property.setDeformerBaseAngle
-import org.umamo.edit.property.setDeformerPart
+import org.umamo.edit.relation.RelationSlot
 import org.umamo.edit.shownPose
-import org.umamo.edit.structure.moveOrgChild
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
-import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.deformerSelfAndDescendants
-import org.umamo.runtime.model.parentPartByPart
-import org.umamo.runtime.model.partByDrawable
-import org.umamo.runtime.model.partSelfAndDescendants
 import org.umamo.ui.kit.field.AspectLockFieldPair
 import org.umamo.ui.kit.field.NumberField
 import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.resources.*
 import org.umamo.ui.transform.ItemWorldTransform
 import org.umamo.ui.transform.drawableWorldTransform
-import org.umamo.ui.transform.moveDeformerKeepingRest
 import org.umamo.ui.transform.moved
 import org.umamo.ui.transform.previewDrawableWorldCenter
 import org.umamo.ui.transform.previewDrawableWorldSize
 import org.umamo.ui.transform.previewWarpWorldCenter
 import org.umamo.ui.transform.previewWarpWorldSize
-import org.umamo.ui.transform.setDrawableParentKeepingRest
 import org.umamo.ui.transform.setDrawableWorldCenterAdjustable
 import org.umamo.ui.transform.setDrawableWorldSizeAdjustable
 import org.umamo.ui.transform.setWarpWorldCenterAdjustable
@@ -380,7 +373,7 @@ internal fun DeformerBaseAngleField(deformer: Deformer.Rotation, session: Editor
 	}
 }
 
-/** Object > Relations: owning part, parent deformer, masks / children of the shown item. */
+/** Object > Relations: Parent part, parent deformer, masks/children of the shown item. */
 internal val RelationsSection =
 	PropertySection(
 		id = "object.relations",
@@ -389,82 +382,47 @@ internal val RelationsSection =
 			val drawable = context.activeDrawable()
 			val deformer = context.activeDeformer()
 			val part = context.activePart()
-			val session = context.session
 
-			if (drawable != null) {
-				listOf(
-					PropertyRow(terms = listOf(Res.string.properties_part_ref)) { _ ->
-						// Part membership lives only in the org tree, so re-homing a drawable is a tree move.
-						// Note it appends at the destination, which changes draw order (Cubism does the same).
-						PartRelationRow(
-							labelRes = Res.string.properties_part_ref,
-							descriptionRes = Res.string.properties_part_ref_description,
-							context = context,
-							selectedPartId = context.puppet.partByDrawable()[drawable.id],
-							owner = "drawable.part:${drawable.id.raw}",
-						) { partId -> session?.moveOrgChild(OrgChild.Drawable(drawable.id), partId, null) }
-					},
-					PropertyRow(terms = listOf(Res.string.properties_parent_deformer)) { _ ->
-						// Read here, called in the commit: the answer is the pointer's state as the pick lands.
-						val stripArea = LocalOperationStripArea.current
-						DeformerRelationRow(
-							labelRes = Res.string.properties_parent_deformer,
-							descriptionRes = Res.string.properties_parent_deformer_description,
-							context = context,
-							selectedDeformerId = drawable.parentDeformerId,
-							owner = "drawable.parentDeformer:${drawable.id.raw}",
-						) { deformerId -> session?.setDrawableParentKeepingRest(drawable.id, deformerId, stripArea()) }
-					},
-				)
-			} else if (deformer != null) {
-				// Computed once for the row rather than per candidate, so filtering the list stays linear.
-				val cyclicParents = context.puppet.deformerSelfAndDescendants(deformer.id)
-				listOf(
-					PropertyRow(terms = listOf(Res.string.properties_part_ref)) { _ ->
-						PartRelationRow(
-							labelRes = Res.string.properties_part_ref,
-							descriptionRes = Res.string.properties_part_ref_description,
-							context = context,
-							selectedPartId = deformer.partId,
-							owner = "deformer.part:${deformer.id.raw}",
-						) { partId -> session?.setDeformerPart(deformer.id, partId) }
-					},
-					PropertyRow(terms = listOf(Res.string.properties_parent_deformer)) { _ ->
-						val stripArea = LocalOperationStripArea.current
-						DeformerRelationRow(
-							labelRes = Res.string.properties_parent_deformer,
-							descriptionRes = Res.string.properties_parent_deformer_description,
-							context = context,
-							selectedDeformerId = deformer.parent,
-							// Nesting a deformer inside its own subtree would make the hierarchy a cycle, so
-							// those candidates are dropped rather than offered and then silently refused by
-							// withDeformerMoved.  Same query the move guard uses, so the two cannot disagree.
-							excluding = { candidate -> candidate.id in cyclicParents },
-							owner = "deformer.parent:${deformer.id.raw}",
-						) { parentId -> session?.moveDeformerKeepingRest(deformer.id, parentId, null, stripArea()) }
-					},
-				)
-			} else if (part != null) {
-				// A part nested under another part shows (and can rebind) its owner; a top-level part reads
-				// as unbound, and clearing the field moves it back out to the root.
-				val parentOf = context.puppet.parentPartByPart()
-				// Computed once for the row, not per candidate: withOrgChildMoved refuses a move into this set
-				// anyway, and filtering on the same query keeps an illegal target out of the list entirely.
-				val cyclicOwners = context.puppet.partSelfAndDescendants(part.id)
-				listOf(
-					PropertyRow(terms = listOf(Res.string.properties_part_ref)) { _ ->
-						PartRelationRow(
-							labelRes = Res.string.properties_part_ref,
-							descriptionRes = Res.string.properties_part_ref_description,
-							context = context,
-							selectedPartId = parentOf[part.id],
-							excluding = { candidate -> candidate.id in cyclicOwners },
-							owner = "part.parent:${part.id.raw}",
-						) { parentId -> session?.moveOrgChild(OrgChild.Part(part.id), parentId, null) }
-					},
-				)
-			} else {
+			// Each row is one relation slot of the shown item: its eligible candidates (a part or a deformer never nests
+			// inside its own subtree) and its writes come from the slot, so the list, the eyedropper, and the menu agree.
+			val owner =
+				when {
+					drawable != null -> SelectionTarget.Drawable(drawable.id)
+					deformer != null -> SelectionTarget.Deformer(deformer.id)
+					part != null -> SelectionTarget.Part(part.id)
+					else -> null
+				}
+
+			if (owner == null) {
 				emptyList()
+			} else {
+				buildList {
+					add(
+						PropertyRow(terms = listOf(Res.string.properties_part_ref)) { _ ->
+							// A part shows (and can rebind) the part it is nested in; a top-level one reads as unbound,
+							// and clearing the field moves it back out to the root.
+							PartRelationRow(
+								labelRes = Res.string.properties_part_ref,
+								descriptionRes = Res.string.properties_part_ref_description,
+								context = context,
+								slot = RelationSlot.ParentPart(owner),
+							)
+						},
+					)
+
+					if (owner !is SelectionTarget.Part) {
+						add(
+							PropertyRow(terms = listOf(Res.string.properties_parent_deformer)) { _ ->
+								DeformerRelationRow(
+									labelRes = Res.string.properties_parent_deformer,
+									descriptionRes = Res.string.properties_parent_deformer_description,
+									context = context,
+									slot = RelationSlot.ParentDeformer(owner),
+								)
+							},
+						)
+					}
+				}
 			}
 		},
 	)
