@@ -79,7 +79,8 @@ import org.umamo.ui.workspace.statusbar.StatusBar
  *  - EditorShell.kt: the wiring.  It builds the controllers, registers the commands, reclaims focus, and
  *    lays out the window: the menu and tab row, the area tree, the status bar, then the overlays.
  *  - ShellControllers.kt: everything the shell remembers for its lifetime, and the locals they back.
- *  - ShellCommandRegistration.kt: the shell's own command tables, registered in palette order.
+ *  - ShellCommandRegistration.kt: the shell's own command tables, registered in palette order, and the
+ *    observer that ends a relation pick on any command.
  *  - ShellFocus.kt: keeping the keyboard on the root.
  *  - ModalKeyLadder.kt, over ShellModalState.kt and ShellKeyStroke.kt: the Escape / Enter ladder that
  *    runs before the keymap.
@@ -153,10 +154,11 @@ fun EditorShell(
 	// The split arm distance is in dp; convert it once to the px the controller hit-tests in.
 	controllers.dragController.splitThresholdPx = with(LocalDensity.current) { SPLIT_ARM_DISTANCE.toPx() }
 
-	// Both outside the locale key below, which rebuilds everything inside it on a language switch: the
+	// All outside the locale key below, which rebuilds everything inside it on a language switch: the
 	// command groups must not re-register (the palette order would shuffle) and the focus effects must not
 	// restart.  Registration comes first, so the palette lists the shell's groups in the order declared there.
 	RegisterShellCommands(commandRegistry, controllers, artwork, exportImage)
+	EndRelationPickOnCommand(commandRegistry, controllers.relationPick)
 	ReclaimShellFocus(controllers, languageTag)
 
 	// The open document the key ladder hands its arms, read afresh for each key event.

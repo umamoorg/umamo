@@ -19,6 +19,9 @@ import androidx.compose.runtime.staticCompositionLocalOf
 class CommandRegistry {
 	private val commandsById = LinkedHashMap<String, Command>()
 
+	/** Told of each command about to run; see [observeDispatch]. */
+	private val dispatchObservers = mutableListOf<(Command) -> Unit>()
+
 	/**
 	 * Counts every change to the table, as snapshot state - what a composable listing [all] reads so that
 	 * it recomposes when the table changes.
@@ -142,9 +145,24 @@ class CommandRegistry {
 			return false
 		}
 
+		// A copy, so an observer that stops observing as it is told cannot disturb the walk.
+		dispatchObservers.toList().forEach { observer -> observer(command) }
 		command.handler.run(argument)
 
 		return true
+	}
+
+	/**
+	 * Tells [observer] of every command this registry runs, before its handler, until the returned cleanup is called:
+	 * The seam for an interaction that any command must end, however it was dispatched.
+	 *
+	 * @param Function observer Receives the command about to run.
+	 * @return Function The cleanup that stops the observer.
+	 */
+	fun observeDispatch(observer: (Command) -> Unit): () -> Unit {
+		dispatchObservers += observer
+
+		return { dispatchObservers -= observer }
 	}
 
 	private companion object {
