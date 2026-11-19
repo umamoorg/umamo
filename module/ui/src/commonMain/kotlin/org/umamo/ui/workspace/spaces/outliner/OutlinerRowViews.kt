@@ -297,8 +297,9 @@ private fun OutlinerRowBody(
 	// Plain (non-snapshot) holder for the row's layout coordinates so onGloballyPositioned never forces a
 	// recompose; the hover effect reads the live window bounds from it on demand to anchor the preview.
 	val boundsHolder = remember { RowCoordinatesHolder() }
-	// While a relation pick is armed, report this row as what a click here would bind, so the shell's badge
-	// names it exactly as it does for a viewport hover.  Withdrawn on leaving, and only if still ours.
+	// While a relation pick is armed, report this row's entity, which the pick names as what a click here would
+	// bind (a drawable row its part or its parent deformer, as its art does in a viewport), so the shell's badge
+	// reads exactly as it does for a viewport hover.  Withdrawn on leaving, and only if still ours.
 	val relationPick = LocalRelationPick.current
 	LaunchedEffect(hovered, node.target) {
 		val target = node.target ?: return@LaunchedEffect

@@ -132,7 +132,7 @@ class RelationFieldMenuUiTest {
 			}
 			waitForIdle()
 
-			for (label in listOf("Select", "Clear", "Pick from Viewport", "Copy to Selected", "Copy", "Select All")) {
+			for (label in listOf("Select", "Clear", "Pick", "Copy to Selected", "Copy", "Select All")) {
 				assertTrue(menuShows(label), "the menu shows $label")
 			}
 		}

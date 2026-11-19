@@ -46,20 +46,22 @@ internal class LatticeHover(
 			return
 		}
 
-		publish(selectableLatticeUnder(service, areaId, change.position, model()))
+		show(selectableLatticeUnder(service, areaId, change.position, model()))
 	}
 
 	/** Clears the hover, publishing only when one was shown. */
 	fun clear() {
-		publish(null)
+		show(null)
 	}
 
 	/**
-	 * Publishes [deformerId] as the area's hover when it differs from the one shown.
+	 * Publishes [deformerId] as the area's hover when it differs from the one shown: what [track] lands on, and what
+	 * a layer resolving the lattice by its own rule (an armed relation pick, which skips the selectable filter) hands
+	 * over directly.
 	 *
 	 * @param DeformerId? deformerId The hovered warp, or null for none.
 	 */
-	private fun publish(deformerId: DeformerId?) {
+	fun show(deformerId: DeformerId?) {
 		if (deformerId == hovered) {
 			return
 		}

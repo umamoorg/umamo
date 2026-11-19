@@ -588,7 +588,7 @@ internal val PartSection =
 						)
 						add(
 							PropertyRow(terms = listOf(Res.string.properties_field_masked_by)) { rowContext ->
-								PartMaskEditor(part, composite, rowContext)
+								PartMaskEditor(part, rowContext)
 							},
 						)
 						add(

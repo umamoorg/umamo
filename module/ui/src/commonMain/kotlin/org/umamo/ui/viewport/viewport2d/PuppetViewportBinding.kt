@@ -87,6 +87,8 @@ import org.umamo.ui.viewport.rememberViewportOverlayColors
 import org.umamo.ui.viewport.resyncAfterElementGesture
 import org.umamo.ui.viewport.toMeshOverlayPalette
 import org.umamo.ui.viewport.tracksAreaPointer
+import org.umamo.ui.workspace.LocalRelationPick
+import org.umamo.ui.workspace.RelationPickController
 import org.umamo.ui.workspace.ViewportHost
 
 /*
@@ -312,10 +314,13 @@ fun rememberPuppetViewportHost(
 		publishMeshOverlay(service, session, snapshotFlow { meshOverlaySizes.value }, wireframeDemand.wanted)
 	}
 	// The warp lattices every 2D area draws over the art in Object and Pose mode: which warps, in which role.  The
-	// renderer reads their points off the pose it draws, so only a mode, selection, or model change publishes.
+	// renderer reads their points off the pose it draws, so only a mode, selection, model, or armed-pick change
+	// publishes.  The pick slot is the shell's and the host is built outside the shell, so the host learns it through
+	// its areas, like the live preview below.
 	val latticeSizes = rememberUpdatedState(latticeOverlaySizes(LocalDensity.current))
+	val relationPickLink = remember(service) { mutableStateOf<RelationPickController?>(null) }
 	LaunchedEffect(service, session) {
-		publishLatticeOverlay(service, session, snapshotFlow { latticeSizes.value })
+		publishLatticeOverlay(service, session, snapshotFlow { latticeSizes.value }, snapshotFlow { relationPickLink.value?.request })
 	}
 	// The cage of the warps an Edit or Pose session shapes, drawn from positions of its own: the lattice as the shown
 	// pose draws it, or the points a rest drag has moved (the art stays put) or the forms a posed drag previews (the
@@ -520,8 +525,10 @@ fun rememberPuppetViewportHost(
 					AreaOverlaysPublisher(service, areaId, overlayState)
 					WireframeDemandPublisher(wireframeDemand, areaId, overlayState)
 					val livePreview = LocalLiveMeshPreview.current
+					val relationPick = LocalRelationPick.current
 					SideEffect {
 						livePreviewLink.value = livePreview
+						relationPickLink.value = relationPick
 					}
 					val cameraFlow = remember(areaId, service) { service.cameraFlow(areaId) }
 					DisposableEffect(areaId, service) {
@@ -649,9 +656,16 @@ fun rememberPuppetViewportHost(
 							// The relation-pick overlay sits above the gizmos so an armed eyedropper claims the
 							// click before Object mode's pick would change the selection.  It self-gates on the
 							// shell's pick slot, so it is inert (and passes input through) whenever none is armed.
+							// Its Alt stack opens the same popup, whose row binds the pick and selects nothing.
 							ViewportPickOverlay(
 								areaId = areaId,
 								service = service,
+								onOverlapRequest = { position, candidates ->
+									overlap =
+										overlapStateFrom(service, session.model.value, position, candidates) { target ->
+											relationPick.resolve(target)
+										}
+								},
 							)
 							// The 2D cursor marker: a control's world-anchored marker (not HUD chrome), so it
 							// draws in its own layer above the gizmo chrome and below the HUD text.  Locked to

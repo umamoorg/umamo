@@ -3,17 +3,25 @@ package org.umamo.ui.viewport.viewport2d
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isAltPressed
 import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import org.umamo.edit.SelectionTarget
-import org.umamo.runtime.model.partByDrawable
+import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.model.LocalPuppet
+import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.PuppetViewportService
+import org.umamo.ui.viewport.gizmo.AltPickResolution
+import org.umamo.ui.viewport.gizmo.resolveAltOverlapPick
 import org.umamo.ui.workspace.LocalRelationPick
 import org.umamo.ui.workspace.PickKind
 
@@ -24,55 +32,110 @@ import org.umamo.ui.workspace.PickKind
  * change the selection before the pick ever saw the click.
  *
  * Self-gated on the shell's [org.umamo.ui.workspace.RelationPickController], and NOT scoped to one area: a
- * pick may be resolved from any viewport or from the outliner, whichever the user clicks first.
- * [PuppetViewportService.pickAt] hit-tests drawables only, so a Part request resolves through the picked
- * drawable's owning part, and a Deformer-only request stays outliner-only.
+ * pick may be resolved from any viewport or from the outliner, whichever the user clicks first.  A click takes
+ * the drawn warp lattice under it when the pick takes a deformer (while one is armed, every lattice it would bind
+ * is drawn and no other idle one: see AreaOverlaysPublisher and latticeOverlayOf), and otherwise the art under it,
+ * as the kind the pick accepts: the drawable itself, its owning part, or its parent deformer.  An Alt click lists
+ * that whole stack in the overlap picker.
+ *
+ * Where no lattice is drawn, a deformer is reached through its art alone: Edit mode draws no lattice layer, Pose
+ * mode leaves the warps being posed to the session's cage, and rotation deformers are not drawn at all.
  *
  * @param String areaId The viewport area this overlay covers.
- * @param PuppetViewportService service The render service (for the hit test).
+ * @param PuppetViewportService service The render service (the lattice and art hit tests, and the hover).
+ * @param Function onOverlapRequest Opens the overlap picker over an Alt click's stack of two or more targets.
  * @param Modifier modifier The layout modifier.
  */
 @Composable
-fun ViewportPickOverlay(areaId: String, service: PuppetViewportService, modifier: Modifier = Modifier) {
+fun ViewportPickOverlay(
+	areaId: String,
+	service: PuppetViewportService,
+	onOverlapRequest: (Offset, List<ObjectPickCandidate>) -> Unit,
+	modifier: Modifier = Modifier,
+) {
 	val picker = LocalRelationPick.current
 	val request = picker.request
 	val puppet = LocalPuppet.current
+	val requestOverlap by rememberUpdatedState(onOverlapRequest)
 
 	if (request == null || puppet == null) {
 		return
 	}
 
-	// Whether a click HERE can bind anything.  A deformer-only pick cannot - the hit test is drawable-only -
-	// but the overlay still mounts, because the alternative is worse: with no overlay the click falls through
-	// to the object gizmo, changes the selection, and swaps the arming field out from under the live pick.
-	// Same rule the outliner follows via PickClickOutcome.Swallowed - while ANY pick is armed, the viewport
-	// must not select.
-	val resolvableHere = PickKind.Drawable in request.accepts || PickKind.Part in request.accepts
+	// Below the early return on purpose: the pick's end takes this effect out of the composition, and with it the
+	// lattice hover this overlay lit, so no highlight outlives the pick.  The model is only track()'s, unused here.
+	val latticeHover = remember(areaId, service) { LatticeHover(areaId, service) { puppet } }
+	DisposableEffect(latticeHover, request) {
+		onDispose { latticeHover.clear() }
+	}
 
-	// Built once per model, not per pointer event: a Part pick calls this on every Move, and partByDrawable
-	// walks the whole org tree allocating a fresh map.
-	val partOfDrawable = remember(puppet) { puppet.partByDrawable() }
+	val takesDeformers = PickKind.Deformer in request.accepts
 
 	/**
-	 * Resolves the entity a click at this position would bind, or null for a miss.  The selectability filter
-	 * the Object gizmo applies is deliberately skipped - an eyedropper may bind an unselectable object.
+	 * What a click on [drawableId]'s art binds: the first accepted kind it stands for, as the outliner's row for it
+	 * binds (RelationPickRequest.targetFor), or null when it stands for none the pick takes.
 	 *
-	 * @param Float x The pointer's x in the area, in pixels.
-	 * @param Float y The pointer's y in the area, in pixels.
+	 * @param DrawableId drawableId The drawable whose art is under the pointer.
 	 * @return SelectionTarget? The target, or null for a miss.
 	 */
-	fun targetAt(x: Float, y: Float): SelectionTarget? {
-		if (!resolvableHere) {
+	fun artTarget(drawableId: DrawableId): SelectionTarget? = request.targetFor(SelectionTarget.Drawable(drawableId))
+
+	/**
+	 * The first drawn lattice under [position] the pick takes, so a refused one (the owner's own) gives way to the
+	 * one beneath it; null when the pick takes no deformer or none is there.  The selectability filter the Object
+	 * gizmo applies is deliberately skipped - an eyedropper may bind an unselectable object.
+	 *
+	 * @param Offset position The pointer in the area, in pixels.
+	 * @return SelectionTarget.Deformer? The lattice's warp, or null.
+	 */
+	fun latticeAt(position: Offset): SelectionTarget.Deformer? {
+		if (!takesDeformers) {
 			return null
 		}
 
-		val hit = service.pickAt(areaId, x, y) ?: return null
-
-		return if (PickKind.Drawable in request.accepts) {
-			SelectionTarget.Drawable(hit)
-		} else {
-			partOfDrawable[hit]?.let { partId -> SelectionTarget.Part(partId) }
+		return latticesUnder(service, areaId, position).firstNotNullOfOrNull { deformerId ->
+			SelectionTarget.Deformer(deformerId).takeIf { candidate -> request.takes(candidate) }
 		}
+	}
+
+	/**
+	 * What the front-most art under [position] binds ([artTarget]), or null for a miss.
+	 *
+	 * @param Offset position The pointer in the area, in pixels.
+	 * @return SelectionTarget? The target, or null.
+	 */
+	fun artAt(position: Offset): SelectionTarget? = service.pickAt(areaId, position.x, position.y)?.let { drawableId -> artTarget(drawableId) }
+
+	/**
+	 * Everything an Alt click at [position] could bind, in the Object pick's stack order (lattices, then art front to
+	 * back), each entry as the target the pick takes for it and each target once.
+	 *
+	 * @param Offset position The pointer in the area, in pixels.
+	 * @return List<ObjectPickCandidate> The candidates.
+	 */
+	fun stackAt(position: Offset): List<ObjectPickCandidate> =
+		viewportPickStack(service, areaId, position)
+			.mapNotNull { candidate ->
+				val target =
+					when (val hit = candidate.target) {
+						is SelectionTarget.Deformer -> hit.takeIf { lattice -> takesDeformers && request.takes(lattice) }
+						is SelectionTarget.Drawable -> artTarget(hit.id)
+						is SelectionTarget.Part -> null
+					}
+				target?.let { taken -> ObjectPickCandidate(taken, candidate.centrality) }
+			}.distinctBy { candidate -> candidate.target }
+
+	/**
+	 * Publishes what the pointer at [position] is over, to the shell's badge and, for a lattice, as this area's
+	 * lattice hover.  Only a lattice the pointer is on lights up; a deformer reached through its art keeps its
+	 * lattice plain.
+	 *
+	 * @param Offset? position The pointer in the area, or null once it has left.
+	 */
+	fun hoverAt(position: Offset?) {
+		val lattice = position?.let { pointer -> latticeAt(pointer) }
+		picker.hover(lattice ?: position?.let { pointer -> artAt(pointer) })
+		latticeHover.show(lattice?.id)
 	}
 
 	Box(
@@ -80,7 +143,7 @@ fun ViewportPickOverlay(areaId: String, service: PuppetViewportService, modifier
 			modifier
 				.fillMaxSize()
 				.clipToBounds()
-				.pointerInput(areaId, request) {
+				.pointerInput(areaId, request, puppet) {
 					awaitPointerEventScope {
 						while (true) {
 							val event = awaitPointerEvent()
@@ -91,11 +154,11 @@ fun ViewportPickOverlay(areaId: String, service: PuppetViewportService, modifier
 							// while a pick is armed - a deliberate, short-lived interaction.
 							when (event.type) {
 								PointerEventType.Move, PointerEventType.Enter -> {
-									picker.hover(targetAt(change.position.x, change.position.y))
+									hoverAt(change.position)
 								}
 
 								PointerEventType.Exit -> {
-									picker.hover(null)
+									hoverAt(null)
 								}
 
 								else -> {}
@@ -116,11 +179,27 @@ fun ViewportPickOverlay(areaId: String, service: PuppetViewportService, modifier
 								continue
 							}
 
-							// Consume every primary press, hit or miss - and also when nothing here is resolvable at
-							// all: the gizmo beneath must never see it, or a missed (or unresolvable) pick would
-							// change the selection.  A miss leaves the pick armed to try again.
+							// Consume every primary press, hit or miss: the gizmo beneath must never see it, or a missed
+							// pick would change the selection.  A miss leaves the pick armed to try again.
 							change.consume()
-							targetAt(change.position.x, change.position.y)?.let { target -> picker.resolve(target) }
+
+							if (event.keyboardModifiers.isAltPressed) {
+								when (val resolution = resolveAltOverlapPick(stackAt(change.position))) {
+									is AltPickResolution.ShowOverlap -> {
+										requestOverlap(change.position, resolution.candidates)
+									}
+
+									is AltPickResolution.SelectSingle -> {
+										picker.resolve(resolution.target)
+									}
+
+									AltPickResolution.None -> {}
+								}
+
+								continue
+							}
+
+							(latticeAt(change.position) ?: artAt(change.position))?.let { target -> picker.resolve(target) }
 						}
 					}
 				},

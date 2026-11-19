@@ -87,14 +87,14 @@ class RelationMenuTest {
 	fun aBoundFieldsMenuIsSelectClearPickAndCopy() {
 		val menu = commandMenuOf(relationFieldMenu(RelationSlot.ParentDeformer(bound)), registryOver(session(listOf(bound, unbound))))
 
-		assertEquals(listOf("Select", "---", "Clear", "Pick from Viewport", "---", "Copy to Selected"), menuOutline(menu))
+		assertEquals(listOf("Select", "---", "Clear", "Pick", "---", "Copy to Selected"), menuOutline(menu))
 	}
 
 	@Test
 	fun anUnboundFieldWithNothingElseSelectedGraysAllButPick() {
 		val menu = commandMenuOf(relationFieldMenu(RelationSlot.ParentDeformer(unbound)), registryOver(session(listOf(unbound))))
 
-		assertEquals(listOf("Select (off)", "---", "Clear (off)", "Pick from Viewport", "---", "Copy to Selected (off)"), menuOutline(menu))
+		assertEquals(listOf("Select (off)", "---", "Clear (off)", "Pick", "---", "Copy to Selected (off)"), menuOutline(menu))
 	}
 
 	@Test
