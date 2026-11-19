@@ -124,8 +124,6 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 		* Deformer pickAt().
 		* Context Menus
 		* Change icon on picker to an eyedropper.
-	* Bugs
-		* Needs to cancel picking when changing modes.
 
 ## Parameters
 * Parameter templates:

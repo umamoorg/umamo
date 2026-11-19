@@ -12,9 +12,8 @@ Umamo is early alpha.
 * Parameters: Hold control while scrubbing the slider to snap to a key.
 * Pose Mode: 3D Depth Rotation - The ability to set the Y axis depth forwards or backwards to set the Y origin of a warp lattice rotation.
 * Pose Mode: 3D Depth Rotation - The ability to change the lattice surface shape between flat, cylinder, or sphere.  This allows creating rounded rotation poses easily.
-* Properties: The Parent Deformer eyedropper now picks from the viewport.  While it is armed, every warp lattice it can take shows, and the ones it cannot (a deformer's own subtree) are hidden; click a lattice, or click art or a drawable's Outliner row to take the deformer that deforms it.  Alt+click lists everything under the pointer.
-* Properties: The Part eyedropper takes a drawable's Outliner row as its part, as clicking its art in the viewport does.
-* Properties: Relation fields and Masked By rows have a context menu with Select, Clear (Remove for a row), Pick, and Copy to Selected.
+* Properties: Parent Deformer relation picker can now pick from deformers in the 2D Viewport and the Outliner.
+* Properties: Add context menus to relation pickers(Masked By, Parent Deformer, Parent Part).
 * UI: New Select menu and context menu with Select All of Type and Invert Selection of Type.
 * UI: The command palette now shows each command's icon beside its name.
 * UI: When opening, saving, importing, or exporting the cursor will now show a busy hourglass.
@@ -27,8 +26,6 @@ Umamo is early alpha.
 * UI: Rename Workspace, Duplicate Workspace, and Delete Workspace are now in the Command Registry.
 
 ### Fixed
-* Properties: A relation field's eyedropper no longer accepts what its list leaves out, such as a deformer's own subtree as its parent.
-* Properties: Choosing the part or parent deformer an object already has no longer moves it to the end of its siblings.
 * Keyform Sheet: Zooming or panning the sheet in the middle of a scrub or a key drag no longer drops the gesture.
 * Keymap: PrimaryModifer+Q(Ctrl+Q on Linux, Cmd+Q on MacOS) now closes the application.
 * File: Opening the application with a supplied file no longer fails to show a notice if the file is damaged.
