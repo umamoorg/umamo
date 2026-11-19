@@ -31,9 +31,6 @@ import org.umamo.ui.workspace.PickKind
  * Mounted ABOVE the Object gizmo - that overlay owns the primary button in Object mode and would otherwise
  * change the selection before the pick ever saw the click.
  *
- * Where no lattice is drawn, a deformer is reached through its art alone: Edit mode draws no lattice layer, Pose
- * mode leaves the warps being posed to the session's cage, and rotation deformers are not drawn at all.
- *
  * @param String areaId The viewport area this overlay covers.
  * @param PuppetViewportService service The render service (the lattice and art hit tests, and the hover).
  * @param Function onOverlapRequest Opens the overlap picker over an Alt click's stack of two or more targets.
