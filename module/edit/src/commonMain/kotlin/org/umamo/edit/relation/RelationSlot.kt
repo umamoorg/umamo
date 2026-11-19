@@ -25,14 +25,14 @@ sealed interface RelationSlot {
 	val owner: SelectionTarget
 
 	/**
-	 * The part that holds [owner]: a drawable's or a deformer's part, or a part's parent part.
+	 * A parent part of a drawable or deformer.
 	 *
 	 * @property SelectionTarget owner The drawable, deformer, or part.
 	 */
-	data class OwningPart(override val owner: SelectionTarget) : RelationSlot
+	data class ParentPart(override val owner: SelectionTarget) : RelationSlot
 
 	/**
-	 * The deformer that deforms [owner]: a drawable's parent deformer, or a deformer's parent.
+	 * A parent deformer of a drawable or deformer.
 	 *
 	 * @property SelectionTarget owner The drawable or deformer.
 	 */
@@ -63,7 +63,7 @@ sealed interface RelationSlot {
  */
 fun RelationSlot.withOwner(peer: SelectionTarget): RelationSlot =
 	when (this) {
-		is RelationSlot.OwningPart -> copy(owner = peer)
+		is RelationSlot.ParentPart -> copy(owner = peer)
 		is RelationSlot.ParentDeformer -> copy(owner = peer)
 		is RelationSlot.Masks -> copy(owner = peer)
 		is RelationSlot.Mask -> copy(owner = peer)
@@ -78,7 +78,7 @@ fun RelationSlot.withOwner(peer: SelectionTarget): RelationSlot =
  */
 fun PuppetModel.relationBound(slot: RelationSlot): SelectionTarget? =
 	when (slot) {
-		is RelationSlot.OwningPart -> owningPartOf(slot.owner)?.let { partId -> SelectionTarget.Part(partId) }
+		is RelationSlot.ParentPart -> parentPartOf(slot.owner)?.let { partId -> SelectionTarget.Part(partId) }
 		is RelationSlot.ParentDeformer -> parentDeformerOf(slot.owner)?.let { deformerId -> SelectionTarget.Deformer(deformerId) }
 		is RelationSlot.Masks -> null
 		is RelationSlot.Mask -> slot.entry.takeIf { entry -> entry in masksOf(slot.owner) }
@@ -108,7 +108,7 @@ fun PuppetModel.relationAdmitter(slot: RelationSlot): (SelectionTarget) -> Boole
 	val owner = slot.owner
 
 	return when (slot) {
-		is RelationSlot.OwningPart -> {
+		is RelationSlot.ParentPart -> {
 			val known = parts.mapTo(HashSet()) { part -> part.id }
 			val cyclic = (owner as? SelectionTarget.Part)?.let { part -> partSelfAndDescendants(part.id) }.orEmpty()
 			val admitter: (SelectionTarget) -> Boolean = { candidate -> candidate is SelectionTarget.Part && candidate.id in known && candidate.id !in cyclic }
@@ -143,7 +143,7 @@ fun relationPeers(slot: RelationSlot, selection: Selection): List<SelectionTarge
  * @param SelectionTarget owner The object.
  * @return PartId? The part, or null at the root or for an object the model does not hold.
  */
-private fun PuppetModel.owningPartOf(owner: SelectionTarget): PartId? =
+private fun PuppetModel.parentPartOf(owner: SelectionTarget): PartId? =
 	when (owner) {
 		is SelectionTarget.Drawable -> partByDrawable()[owner.id]
 		is SelectionTarget.Deformer -> deformerById[owner.id]?.partId

@@ -72,7 +72,7 @@ class RelationPickTest {
 	}
 
 	@Test
-	fun aDrawableStandsForItsOwningPartInAPartPick() {
+	fun aDrawableStandsForItsParentPartInAPartPick() {
 		val controller = RelationPickController()
 		val model = rig()
 		val picked = mutableListOf<SelectionTarget>()

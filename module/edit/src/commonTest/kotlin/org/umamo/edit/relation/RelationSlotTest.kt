@@ -78,10 +78,10 @@ class RelationSlotTest {
 	fun eachSlotReadsWhatItBinds() {
 		val model = model()
 
-		assertEquals(SelectionTarget.Part(inner), model.relationBound(RelationSlot.OwningPart(SelectionTarget.Drawable(face))))
-		assertEquals(SelectionTarget.Part(outer), model.relationBound(RelationSlot.OwningPart(SelectionTarget.Part(inner))))
-		assertNull(model.relationBound(RelationSlot.OwningPart(SelectionTarget.Part(outer))), "a top-level part binds no owner")
-		assertEquals(SelectionTarget.Part(outer), model.relationBound(RelationSlot.OwningPart(SelectionTarget.Deformer(child))))
+		assertEquals(SelectionTarget.Part(inner), model.relationBound(RelationSlot.ParentPart(SelectionTarget.Drawable(face))))
+		assertEquals(SelectionTarget.Part(outer), model.relationBound(RelationSlot.ParentPart(SelectionTarget.Part(inner))))
+		assertNull(model.relationBound(RelationSlot.ParentPart(SelectionTarget.Part(outer))), "a top-level part binds no owner")
+		assertEquals(SelectionTarget.Part(outer), model.relationBound(RelationSlot.ParentPart(SelectionTarget.Deformer(child))))
 		assertEquals(SelectionTarget.Deformer(child), model.relationBound(RelationSlot.ParentDeformer(SelectionTarget.Drawable(face))))
 		assertEquals(SelectionTarget.Deformer(root), model.relationBound(RelationSlot.ParentDeformer(SelectionTarget.Deformer(child))))
 		assertEquals(SelectionTarget.Drawable(brow), model.relationBound(RelationSlot.Mask(SelectionTarget.Drawable(eye), SelectionTarget.Drawable(brow))))
@@ -92,7 +92,7 @@ class RelationSlotTest {
 	@Test
 	fun nothingNestsInsideItsOwnSubtree() {
 		val model = model()
-		val partParent = RelationSlot.OwningPart(SelectionTarget.Part(outer))
+		val partParent = RelationSlot.ParentPart(SelectionTarget.Part(outer))
 		val deformerParent = RelationSlot.ParentDeformer(SelectionTarget.Deformer(root))
 
 		assertFalse(model.relationAdmits(partParent, SelectionTarget.Part(outer)), "a part in itself")
@@ -103,7 +103,7 @@ class RelationSlotTest {
 		assertTrue(model.relationAdmits(deformerParent, SelectionTarget.Deformer(turn)))
 		assertTrue(model.relationAdmits(RelationSlot.ParentDeformer(SelectionTarget.Drawable(face)), SelectionTarget.Deformer(root)), "a drawable may take any deformer")
 		assertFalse(model.relationAdmits(RelationSlot.ParentDeformer(SelectionTarget.Drawable(face)), SelectionTarget.Part(outer)), "only the kind the slot holds")
-		assertFalse(model.relationAdmits(RelationSlot.OwningPart(SelectionTarget.Drawable(face)), SelectionTarget.Part(PartId("gone"))), "nor an object the model lacks")
+		assertFalse(model.relationAdmits(RelationSlot.ParentPart(SelectionTarget.Drawable(face)), SelectionTarget.Part(PartId("gone"))), "nor an object the model lacks")
 	}
 
 	@Test

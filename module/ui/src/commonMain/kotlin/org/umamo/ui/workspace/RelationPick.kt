@@ -54,7 +54,7 @@ fun SelectionTarget.pickKind(): PickKind =
  */
 fun pickKindsOf(slot: RelationSlot): Set<PickKind> =
 	when (slot) {
-		is RelationSlot.OwningPart -> setOf(PickKind.Part)
+		is RelationSlot.ParentPart -> setOf(PickKind.Part)
 		is RelationSlot.ParentDeformer -> setOf(PickKind.Deformer)
 		is RelationSlot.Masks, is RelationSlot.Mask -> if (slot.owner is SelectionTarget.Part) setOf(PickKind.Drawable, PickKind.Part) else setOf(PickKind.Drawable)
 	}

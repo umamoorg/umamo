@@ -48,14 +48,14 @@ internal fun deformerIcon(deformer: Deformer): UmamoIcon =
  * @param StringResource labelRes The row's localized label.
  * @param StringResource descriptionRes What the relation means, as the label's tooltip.
  * @param PropertyContext context The context supplying the model and the session.
- * @param RelationSlot.OwningPart slot The relation, which is also the field's identity.
+ * @param RelationSlot.ParentPart slot The relation, which is also the field's identity.
  */
 @Composable
 internal fun PartRelationRow(
 	labelRes: StringResource,
 	descriptionRes: StringResource,
 	context: PropertyContext,
-	slot: RelationSlot.OwningPart,
+	slot: RelationSlot.ParentPart,
 ) {
 	val relationPick = LocalRelationPick.current
 	// Asked as the binding lands, so the strip follows the pointer's state then.

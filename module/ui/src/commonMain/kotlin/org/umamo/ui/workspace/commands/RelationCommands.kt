@@ -64,7 +64,7 @@ internal fun relationCommands(
 			"relation.clear",
 			title = Res.string.cmd_relation_clear,
 			availability = availability.hasDocument,
-			availableFor = { argument -> (slotOf(argument) is RelationSlot.OwningPart || slotOf(argument) is RelationSlot.ParentDeformer) && boundOf(argument) != null },
+			availableFor = { argument -> (slotOf(argument) is RelationSlot.ParentPart || slotOf(argument) is RelationSlot.ParentDeformer) && boundOf(argument) != null },
 			group = CommandSection.RelationBind,
 		) { argument ->
 			slotOf(argument)?.let { slot -> editorSession?.bindRelation(slot, null, routing.operationStripArea()) }
@@ -101,7 +101,7 @@ internal fun relationCommands(
 				val hasPeers = slot != null && editorSession != null && relationPeers(slot, editorSession.selection.value).isNotEmpty()
 
 				when (slot) {
-					is RelationSlot.OwningPart, is RelationSlot.ParentDeformer -> hasPeers
+					is RelationSlot.ParentPart, is RelationSlot.ParentDeformer -> hasPeers
 					is RelationSlot.Mask -> hasPeers && boundOf(argument) != null
 					is RelationSlot.Masks, null -> false
 				}

@@ -14,7 +14,7 @@ import org.umamo.edit.relation.relationPeers
 import org.umamo.edit.relation.withMaskAdded
 import org.umamo.edit.relation.withMaskRemoved
 import org.umamo.edit.relation.withOwner
-import org.umamo.edit.relation.withOwningPart
+import org.umamo.edit.relation.withParentPart
 import org.umamo.edit.structure.moveOrgChild
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.OrgChild
@@ -50,13 +50,13 @@ internal fun EditorSession.bindRelation(slot: RelationSlot, target: SelectionTar
 
 	// Re-binding what a single relation holds would still move it: a tree move appends at the destination, and a
 	// deformer re-nested under its own parent goes to the end of its siblings.
-	if ((slot is RelationSlot.OwningPart || slot is RelationSlot.ParentDeformer) && current.relationBound(slot) == target) {
+	if ((slot is RelationSlot.ParentPart || slot is RelationSlot.ParentDeformer) && current.relationBound(slot) == target) {
 		return
 	}
 
 	when (slot) {
-		is RelationSlot.OwningPart -> {
-			bindOwningPart(slot.owner, (target as? SelectionTarget.Part)?.id)
+		is RelationSlot.ParentPart -> {
+			bindParentPart(slot.owner, (target as? SelectionTarget.Part)?.id)
 		}
 
 		is RelationSlot.ParentDeformer -> {
@@ -129,9 +129,9 @@ internal fun EditorSession.copyRelationToSelected(slot: RelationSlot, areaId: St
 	val change = RelationChange.CopyToSelected(taking)
 
 	when (slot) {
-		is RelationSlot.OwningPart -> {
+		is RelationSlot.ParentPart -> {
 			val partId = (binding as? SelectionTarget.Part)?.id
-			mutate(change) { model -> taking.fold(model) { bound, peer -> bound.withOwningPart(peer, partId) } }
+			mutate(change) { model -> taking.fold(model) { bound, peer -> bound.withParentPart(peer, partId) } }
 		}
 
 		is RelationSlot.ParentDeformer -> {
@@ -155,7 +155,7 @@ internal fun EditorSession.copyRelationToSelected(slot: RelationSlot, areaId: St
  * @param SelectionTarget owner The drawable, part, or deformer.
  * @param PartId? partId The part, or null for the top level.
  */
-private fun EditorSession.bindOwningPart(owner: SelectionTarget, partId: PartId?) {
+private fun EditorSession.bindParentPart(owner: SelectionTarget, partId: PartId?) {
 	when (owner) {
 		// Part membership lives only in the org tree, so re-homing a drawable is a tree move.  It appends at the
 		// destination, which changes draw order (Cubism does the same).

@@ -24,7 +24,7 @@ import org.umamo.runtime.model.PuppetModel
  * @param PartId? partId The part that holds it, or null.
  * @return PuppetModel The model with the binding made.
  */
-fun PuppetModel.withOwningPart(owner: SelectionTarget, partId: PartId?): PuppetModel =
+fun PuppetModel.withParentPart(owner: SelectionTarget, partId: PartId?): PuppetModel =
 	when (owner) {
 		is SelectionTarget.Drawable -> withOrgChildMoved(OrgChild.Drawable(owner.id), partId, null)
 		is SelectionTarget.Part -> withOrgChildMoved(OrgChild.Part(owner.id), partId, null)

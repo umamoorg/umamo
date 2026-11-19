@@ -405,7 +405,7 @@ internal val RelationsSection =
 								labelRes = Res.string.properties_part_ref,
 								descriptionRes = Res.string.properties_part_ref_description,
 								context = context,
-								slot = RelationSlot.OwningPart(owner),
+								slot = RelationSlot.ParentPart(owner),
 							)
 						},
 					)
