@@ -238,6 +238,8 @@ Sketch:
 ## Color Space and Management
 Right now the goal is to support sRGB from ingest to output with full correctness.  Eventually we want to be able to add linear color space, HDR, and so on.  While vtubers typically are 100% sRGB(art, edit, broadcast) some game developers may opt for different color spaces and require that flexibility.  I'm tentatively planning this work for Q1 2027.
 
+## Stable Pad
+* Build Firmware ^_~
 
 # Claude Notes
 
