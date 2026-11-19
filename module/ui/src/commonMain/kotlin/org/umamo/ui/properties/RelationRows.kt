@@ -24,8 +24,7 @@ import org.umamo.ui.workspace.pickingFor
 
 /*
  * The single-value relation rows - bind the active item to a part or to a deformer - plus the deformer type
- * glyph they and the Data tab share.  The multi-value lists live in MaskEditors.kt.  Each row is one relation slot:
- * its list, its eyedropper, and every write go through the slot's rule and its one write path (bindRelation).
+ * glyph they and the Data tab share.  The multi-value lists live in MaskEditors.kt.
  */
 
 /**
@@ -83,10 +82,7 @@ internal fun PartRelationRow(
 }
 
 /**
- * A labelled row binding the active item to a deformer, through the shared relation picker: the field lists
- * every deformer the slot admits (never the owner's own subtree), and its eyedropper takes one from a viewport
- * click (a drawn lattice, else the parent deformer of the clicked art) or an outliner row.  The binding keeps the
- * item where it rests and offers Keep in Place on the operation strip.
+ * A labelled row binding the active item to a deformer, through the shared relation picker.
  *
  * @param StringResource labelRes The row's localized label.
  * @param StringResource descriptionRes What the relation means, as the label's tooltip.

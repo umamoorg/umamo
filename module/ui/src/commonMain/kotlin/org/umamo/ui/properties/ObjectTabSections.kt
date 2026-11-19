@@ -373,7 +373,7 @@ internal fun DeformerBaseAngleField(deformer: Deformer.Rotation, session: Editor
 	}
 }
 
-/** Object > Relations: owning part, parent deformer, masks / children of the shown item. */
+/** Object > Relations: Parent part, parent deformer, masks/children of the shown item. */
 internal val RelationsSection =
 	PropertySection(
 		id = "object.relations",

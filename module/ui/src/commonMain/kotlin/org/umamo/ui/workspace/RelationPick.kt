@@ -46,7 +46,7 @@ fun SelectionTarget.pickKind(): PickKind =
 	}
 
 /**
- * The kinds a pick for [slot] accepts: a part for an owning part, a deformer for a parent deformer, and for clip masks
+ * The kinds a pick for [slot] accepts: A part for an parent part, a deformer for a parent deformer, and for clip masks
  * whatever may clip the owner (drawables, and parts too for a part's composite).
  *
  * @param RelationSlot slot The relation.
@@ -110,7 +110,7 @@ class RelationPickRequest(
 	/**
 	 * What a click on [entity] binds, or null when that is nothing this pick takes.  A part or a deformer stands for
 	 * itself.  A drawable stands for its art, which binds the first kind the pick accepts: the drawable itself, its
-	 * owning part, or its parent deformer.  Deliberately one mapping and not a fallback chain, so a refused drawable
+	 * parent part, or its parent deformer.  Deliberately one mapping and not a fallback chain, so a refused drawable
 	 * never binds its whole part instead.  Every surface that resolves a pick reads this, so a drawable binds the same
 	 * thing whether its art in a viewport or its row in the outliner is clicked.
 	 *
@@ -129,7 +129,7 @@ class RelationPickRequest(
 	}
 
 	/**
-	 * What a drawable's art stands for in a pick that does not take the drawable itself: its owning part, or its
+	 * What a drawable's art stands for in a pick that does not take the drawable itself: Tts parent part, or its
 	 * parent deformer, by the kind the pick accepts.
 	 *
 	 * @param DrawableId drawableId The drawable.
@@ -148,8 +148,8 @@ class RelationPickRequest(
 }
 
 /**
- * The owning part and the parent deformer of each drawable in [model], each table built on first use and kept for the
- * model's life: a viewport asks on every pointer move, and the owning parts take a walk of the whole org tree.
+ * The parent part and the parent deformer of each drawable in [model], each table built on first use and kept for the
+ * model's life: a viewport asks on every pointer move, and the parent parts take a walk of the whole org tree.
  *
  * @property PuppetModel model The model the tables describe.
  */

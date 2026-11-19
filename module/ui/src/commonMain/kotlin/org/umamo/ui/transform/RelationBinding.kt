@@ -76,7 +76,7 @@ internal fun EditorSession.bindRelation(slot: RelationSlot, target: SelectionTar
 }
 
 /**
- * Gives the selected objects of [slot]'s owner's kind the binding the owner holds, as one undo step: its owning part
+ * Gives the selected objects of [slot]'s owner's kind the binding the owner holds, as one undo step: Its parent part
  * or its parent deformer (an unbound one included), or a mask row's entry added to each one's masks.  An object that
  * already holds it is passed over; one the binding is refused for (it would nest inside itself, or it takes no such
  * mask) is skipped, and one notice says how many were.  A parent deformer's copy keeps every object where it rests and

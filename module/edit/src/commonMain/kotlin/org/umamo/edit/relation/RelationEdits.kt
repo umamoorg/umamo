@@ -11,7 +11,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 
 /*
- * The relation writes that move no art: an object's owning part and its clip masks.  A parent deformer's write keeps
+ * The relation writes that move no art: an object's parent part and its clip masks.  A parent deformer's write keeps
  * the moved object where it rests, which needs :render's eval, so it lives beside the other keep-in-place re-parents.
  */
 

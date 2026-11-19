@@ -203,7 +203,7 @@ class RelationBindingTest {
 	}
 
 	@Test
-	fun copyingAnParentPartMovesEveryPeerAndPassesOverOneAlreadyThere() {
+	fun copyingAParentPartMovesEveryPeerAndPassesOverOneAlreadyThere() {
 		val owner = SelectionTarget.Drawable(DrawableId("c"))
 		val session = sessionSelecting(model(), listOf(owner, SelectionTarget.Drawable(DrawableId("a")), SelectionTarget.Drawable(DrawableId("b"))))
 

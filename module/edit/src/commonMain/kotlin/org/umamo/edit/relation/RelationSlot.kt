@@ -11,7 +11,7 @@ import org.umamo.runtime.model.partByDrawable
 import org.umamo.runtime.model.partSelfAndDescendants
 
 /*
- * The relations an object's Properties fields bind - its owning part, its parent deformer, its clip masks - as
+ * The relations an object's Properties fields bind - its parent part, its parent deformer, its clip masks - as
  * data, with the one eligibility rule each answers to.  The field's list, its eyedropper, its context menu, and Copy
  * to Selected all read these, so none of them can offer a binding another would refuse.
  */
@@ -25,7 +25,7 @@ sealed interface RelationSlot {
 	val owner: SelectionTarget
 
 	/**
-	 * A parent part of a drawable or deformer.
+	 * A parent part of a part, drawable, or deformer.
 	 *
 	 * @property SelectionTarget owner The drawable, deformer, or part.
 	 */
@@ -70,7 +70,7 @@ fun RelationSlot.withOwner(peer: SelectionTarget): RelationSlot =
 	}
 
 /**
- * What [slot] binds now: the owning part or the parent deformer, or the row's entry while the owner still holds
+ * What [slot] binds now: the parent part or the parent deformer, or the row's entry while the owner still holds
  * it; null when it binds nothing, and always for a whole mask list, which binds many.
  *
  * @param RelationSlot slot The relation.
