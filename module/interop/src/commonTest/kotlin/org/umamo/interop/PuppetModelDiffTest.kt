@@ -172,6 +172,7 @@ class PuppetModelDiffTest {
 		assertEquals(setOf(ParameterField.NAME), fieldsAfter { entity -> entity.copy(name = "Renamed") })
 		assertEquals(setOf(ParameterField.RANGE), fieldsAfter { entity -> entity.copy(max = 2f) })
 		assertEquals(setOf(ParameterField.KIND), fieldsAfter { entity -> entity.copy(kind = ParameterKind.BLEND_SHAPE) })
+		assertEquals(setOf(ParameterField.REPEAT), fieldsAfter { entity -> entity.copy(repeat = true) })
 	}
 
 	/** A one-ULP float nudge is a reported change - the diff is bit-exact, never tolerance-based. */

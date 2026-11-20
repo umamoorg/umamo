@@ -169,6 +169,16 @@ class SessionStateJsonTest {
 		assertEquals(defaultPose, initialLiveParams(model).values, "a plain open is every default")
 	}
 
+	/** A saved value outside a repeating axis's range wraps back into it at open, as the evaluator reads it. */
+	@Test
+	fun aSavedPoseWrapsOnARepeatingAxis() {
+		val repeating = model.copy(parameters = model.parameters.map { parameter -> if (parameter.id == angleX) parameter.copy(repeat = true) else parameter })
+
+		val live = initialLiveParams(repeating, mapOf(angleX to 99f))
+
+		assertEquals(-21f, live.values[angleX], "99 is 129 past min on a 60-wide axis, which wraps to 9 past min")
+	}
+
 	/** Every member the wrong shape: nothing throws, and the state is the defaults (UMA §7.1). */
 	@Test
 	fun membersOfTheWrongShapeAreSkipped() {

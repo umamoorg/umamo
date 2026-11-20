@@ -17,6 +17,7 @@
 2.) Fix Platform Bugs - Linux and MacOS
 3.) Proper Bone and Skeleton System
 4.) Rotation Deformer Gizmos and Editing
+5.) Github Issues and Pull Requests
 
 ## 0.7.0 Goals
 5.) Glue Gizmos and Editing - Part of all of this may end up happening with "Proper Bone and Skeleton System" in 0.6.0.

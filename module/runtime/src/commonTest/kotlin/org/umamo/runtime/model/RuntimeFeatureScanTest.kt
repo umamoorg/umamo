@@ -170,6 +170,13 @@ class RuntimeFeatureScanTest {
 	}
 
 	@Test
+	fun repeatingParameterReportsBelowFiveThree() {
+		val repeating = model(parameters = listOf(Parameter(parameterId, "Param", 0f, 1f, 0f, repeat = true)))
+		assertEquals(setOf(RuntimeFeature.ParameterRepeat), repeating.unsupportedFeaturesInUse(RuntimeTarget.Cubism50))
+		assertEquals(emptySet(), repeating.unsupportedFeaturesInUse(RuntimeTarget.Cubism53))
+	}
+
+	@Test
 	fun partMasksAreNotAFeature() {
 		// Part-typed composite masks decompose to drawable ids at the CMO3/MOC3 boundary, so their use
 		// is never reported under any target - only the offscreen composite itself is a 5.3 feature.

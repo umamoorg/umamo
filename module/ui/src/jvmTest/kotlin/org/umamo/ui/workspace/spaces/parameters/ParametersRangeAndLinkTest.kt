@@ -5,14 +5,15 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.DpSize
 import org.umamo.runtime.model.ParameterLink
+import org.umamo.runtime.model.RuntimeTarget
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * Pins the two document edits a row offers besides its name: the range editor's three fields, and the
- * link that folds two sliders into one pad.
+ * Pins the document edits a row offers besides its name: the range editor's three fields and its Repeat
+ * checkbox, and the link that folds two sliders into one pad.
  */
 @OptIn(ExperimentalTestApi::class)
 class ParametersRangeAndLinkTest {
@@ -65,6 +66,74 @@ class ParametersRangeAndLinkTest {
 			assertEquals(1f, harness.committed(PanelIds.bodyX), "the pose sat on 2, outside the new range")
 			assertEquals(cursorBefore + 1, harness.historyCursor)
 			assertTrue(showsText("1.00"))
+		}
+
+	/** The Repeat checkbox turns the flag on and off, a step each, and a click on it leaves the keyform target alone. */
+	@Test
+	fun theRepeatCheckboxIsOneStepEachWay() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			clickAt(panelBoundsOfText(PanelNames.BODY_X).center)
+			val cursorBefore = harness.historyCursor
+			val targetBefore = harness.session.parameterSelection.value
+
+			clickAt(panelBoundsOfText(harness.text.repeat).center)
+
+			assertTrue(parameterOf(harness, PanelIds.bodyX).repeat)
+			assertEquals(cursorBefore + 1, harness.historyCursor)
+			assertEquals(targetBefore, harness.session.parameterSelection.value, "a click on the checkbox must not reach the island")
+
+			clickAt(panelBoundsOfText(harness.text.repeat).center)
+
+			assertFalse(parameterOf(harness, PanelIds.bodyX).repeat)
+			assertEquals(cursorBefore + 2, harness.historyCursor)
+		}
+
+	/** A pad's editor holds a Repeat per axis, and each sets its own axis. */
+	@Test
+	fun aPadsRepeatCheckboxesSetTheirOwnAxis() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			harness.panelSize = DpSize(PANEL_WIDTH, PANEL_HEIGHT_WITH_SPACE)
+			mountParametersPanel(harness)
+			// Folding the group above lifts the pad, so the editor under it sits well inside the panel.
+			clickAt(panelBoundsOfText(PanelNames.FACE).center)
+			clickAt(panelBoundsOfText(PanelNames.ANGLE_X).center)
+			val checkboxes = onAllNodesWithText(harness.text.repeat, useUnmergedTree = true)
+			assertEquals(2, checkboxes.fetchSemanticsNodes().size)
+
+			clickAt(panelBoundsOf(checkboxes[1]).center)
+
+			assertTrue(parameterOf(harness, PanelIds.angleY).repeat)
+			assertFalse(parameterOf(harness, PanelIds.angleX).repeat)
+		}
+
+	/** A runtime below 5.3 offers no Repeat on a parameter that does not repeat. */
+	@Test
+	fun aRuntimeWithoutRepeatShowsNoCheckbox() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness(runtimeTarget = RuntimeTarget.Cubism50)
+			mountParametersPanel(harness)
+			clickAt(panelBoundsOfText(PanelNames.BODY_X).center)
+
+			assertTrue(showsText(harness.text.rangeMinimum), "the range editor has to be open for the checkbox's absence to mean anything")
+			assertFalse(showsText(harness.text.repeat))
+		}
+
+	/** Below 5.3 a parameter that already repeats shows its checkbox until it is turned off. */
+	@Test
+	fun aRuntimeWithoutRepeatShowsAFlagUntilItIsOff() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness(model = panelFixtureModel(RuntimeTarget.Cubism50, repeating = setOf(PanelIds.bodyX)))
+			mountParametersPanel(harness)
+			clickAt(panelBoundsOfText(PanelNames.BODY_X).center)
+			assertTrue(showsText(harness.text.repeat), "a flag the target cannot author still shows")
+
+			clickAt(panelBoundsOfText(harness.text.repeat).center)
+
+			assertFalse(parameterOf(harness, PanelIds.bodyX).repeat)
+			assertFalse(showsText(harness.text.repeat), "once off, the target has nothing to offer")
 		}
 
 	/** A link folds a slider and the one below it into a pad; an unlink splits them again. */

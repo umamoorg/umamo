@@ -466,6 +466,7 @@
 	<string name="history_parameter_select">Select Parameter</string>
 	<string name="history_parameter_value">Adjust Parameter</string>
 	<string name="history_parameter_range">Edit Parameter Range</string>
+	<string name="history_parameter_repeat">Toggle Parameter Repeat</string>
 	<string name="history_parameter_link">Link Parameters</string>
 	<string name="history_parameter_unlink">Unlink Parameters</string>
 	<string name="history_parameter_move">Move Parameter</string>
@@ -694,6 +695,7 @@
 	<string name="cmd_relation_pick">Pick</string>
 	<string name="cmd_relation_remove">Remove</string>
 	<string name="cmd_relation_copy_to_selected">Copy to Selected</string>
+	<string name="cmd_parameter_toggle_repeat">Toggle Repeat</string>
 	<string name="outliner_menu_select_hierarchy">Select Hierarchy</string>
 
 	<!-- Topology operators (Shift+D / M / V / J), their history labels, and their refusal notices. -->
@@ -1283,6 +1285,7 @@
 	<string name="parameter_range_min">Min</string>
 	<string name="parameter_range_default">Default</string>
 	<string name="parameter_range_max">Max</string>
+	<string name="parameter_range_repeat">Repeat</string>
 
 	<!-- Settings window. Opened by the edit.preferences command (Edit menu / Ctrl+, / palette). -->
 	<string name="cmd_preferences">Settings</string>

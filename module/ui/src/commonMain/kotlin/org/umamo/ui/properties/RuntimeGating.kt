@@ -75,3 +75,13 @@ fun alphaBlendModeOptionsFor(target: RuntimeTarget, current: AlphaBlendMode): Li
 
 	return AlphaBlendMode.entries.filter { mode -> mode == AlphaBlendMode.Over || mode == current }
 }
+
+/**
+ * Whether a parameter's Repeat control shows: where the target supports repeating parameters, or where the parameter
+ * already repeats, so a flag imported under an older target can still be seen and turned off.
+ *
+ * @param RuntimeTarget target The document's runtime target.
+ * @param Boolean repeat Whether the parameter repeats now.
+ * @return Boolean True when the Repeat checkbox and the Toggle Repeat entry should show.
+ */
+fun showsParameterRepeat(target: RuntimeTarget, repeat: Boolean): Boolean = target.supports(RuntimeFeature.ParameterRepeat) || repeat

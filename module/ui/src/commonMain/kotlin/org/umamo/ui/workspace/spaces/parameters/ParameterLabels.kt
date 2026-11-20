@@ -25,6 +25,7 @@ import org.umamo.ui.resources.*
  * @param String deleteParameter        The menu entry that deletes a parameter.
  * @param String defaultGroupName       The name a created group starts with.
  * @param String defaultParameterName   The name a created parameter starts with.
+ * @param String repeat                 The range editor's checkbox that makes an axis wrap past its limits.
  */
 @Immutable
 internal data class ParameterLabels(
@@ -41,6 +42,7 @@ internal data class ParameterLabels(
 	val deleteParameter: String,
 	val defaultGroupName: String,
 	val defaultParameterName: String,
+	val repeat: String,
 )
 
 /**
@@ -64,4 +66,5 @@ internal fun parameterLabels(): ParameterLabels =
 		deleteParameter = stringResource(Res.string.parameter_menu_delete),
 		defaultGroupName = stringResource(Res.string.parameter_group_default_name),
 		defaultParameterName = stringResource(Res.string.parameter_default_name),
+		repeat = stringResource(Res.string.parameter_range_repeat),
 	)

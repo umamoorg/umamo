@@ -3,6 +3,7 @@ package org.umamo.edit.parameter
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterChange
 import org.umamo.edit.ParameterSelection
+import org.umamo.runtime.eval.wrapOrClamp
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.PuppetModel
@@ -10,7 +11,7 @@ import org.umamo.runtime.model.PuppetModel
 /**
  * A copy of this model with parameter [id]'s range set to [min]..[max], normalized so the minimum never
  * exceeds the maximum whatever the entry order, and its default clamped into it.  The live pose is editor
- * state outside the model, so re-clamping it is the session's concern.
+ * state outside the model, so bringing it back into range is the session's concern.
  *
  * @param ParameterId id The parameter to retarget.
  * @param Float min The requested minimum.
@@ -36,6 +37,21 @@ fun PuppetModel.withParameterRange(id: ParameterId, min: Float, default: Float, 
 	}
 
 	return copy(parameters = updated)
+}
+
+/**
+ * A copy of this model with parameter [id]'s repeat set to [repeat].
+ *
+ * @param ParameterId id The parameter to change.
+ * @param Boolean repeat Whether the axis wraps past its limits.
+ * @return PuppetModel This model with the flag updated, or this same instance when it already holds or [id] is unknown.
+ */
+fun PuppetModel.withParameterRepeat(id: ParameterId, repeat: Boolean): PuppetModel {
+	if (parameters.none { parameter -> parameter.id == id && parameter.repeat != repeat }) {
+		return this
+	}
+
+	return copy(parameters = parameters.map { parameter -> if (parameter.id == id) parameter.copy(repeat = repeat) else parameter })
 }
 
 /**
@@ -83,7 +99,7 @@ fun PuppetModel.withParameterLink(horizontal: ParameterId, vertical: ParameterId
 }
 
 /**
- * Sets parameter [id]'s range and default, and re-clamps its live pose value into the new range, as one
+ * Sets parameter [id]'s range and default, and brings its live pose value back into the new range, as one
  * undo step so undo restores both together.
  *
  * @param ParameterId id The parameter to retarget.
@@ -98,15 +114,16 @@ fun EditorSession.setParameterRange(id: ParameterId, min: Float, default: Float,
 		return
 	}
 
-	// Re-clamp the live value into the resulting (normalized) range so the pose stays valid.
+	// The live value comes back into the resulting (normalized) range the way the evaluator reads it, so the
+	// pose stays valid: clamped on a normal axis, wrapped on a repeating one.
 	val parameter = newModel.parameters.firstOrNull { it.id == id }
 	val newPose =
 		if (parameter != null) {
 			val current = pose.value[id]
-			val clamped = current?.coerceIn(parameter.min, parameter.max)
+			val inRange = current?.let { value -> parameter.wrapOrClamp(value) }
 
-			if (clamped != null && clamped != current) {
-				pose.value + (id to clamped)
+			if (inRange != null && inRange != current) {
+				pose.value + (id to inRange)
 			} else {
 				pose.value
 			}
@@ -115,6 +132,17 @@ fun EditorSession.setParameterRange(id: ParameterId, min: Float, default: Float,
 		}
 	val change = ParameterChange.SetRange(id, parameter?.min ?: min, parameter?.default ?: default, parameter?.max ?: max)
 	commitStep(change, model = newModel, pose = newPose)
+}
+
+/**
+ * Turns parameter [id]'s repeat on or off as one undo step.  The pose is untouched, since a value inside the
+ * range is valid on either kind of axis, and a request that changes nothing records no step.
+ *
+ * @param ParameterId id The parameter to change.
+ * @param Boolean repeat Whether the axis wraps past its limits.
+ */
+fun EditorSession.setParameterRepeat(id: ParameterId, repeat: Boolean) {
+	mutate(ParameterChange.SetRepeat(id, repeat)) { current -> current.withParameterRepeat(id, repeat) }
 }
 
 /**
