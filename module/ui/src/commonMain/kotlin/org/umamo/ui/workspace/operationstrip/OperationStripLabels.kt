@@ -5,17 +5,22 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.ParameterUnit
 import org.umamo.edit.ProportionalFalloff
+import org.umamo.edit.TargetShape
 import org.umamo.edit.mesh.LatticeResizeParameterKeys
 import org.umamo.edit.mesh.MergeParameterKeys
 import org.umamo.edit.mesh.MergeTarget
 import org.umamo.edit.mesh.parameterKey
 import org.umamo.edit.structure.RehomeParameterKeys
 import org.umamo.edit.structure.WarpCreationParameterKeys
+import org.umamo.edit.transform.CylinderAxis
 import org.umamo.edit.transform.RotationAxis
+import org.umamo.edit.transform.ToShapeParameterKeys
 import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.choiceKey
+import org.umamo.edit.transform.cylinderAxisOf
 import org.umamo.edit.transform.depthSurfaceOf
 import org.umamo.edit.transform.rotationAxisOf
+import org.umamo.edit.transform.targetShapeOf
 import org.umamo.interop.art.ArtworkAnchor
 import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.ui.model.artwork.ImportParameterKeys
@@ -113,6 +118,15 @@ internal fun operatorParameterLabel(labelKey: String): String =
 		TransformParameterKeys.DEPTH_SURFACE -> stringResource(Res.string.transform_options_depth_surface)
 
 		MergeParameterKeys.TARGET -> stringResource(Res.string.merge_options_target)
+
+		// To Shape's Axis and Factor read as the depth rotation's Axis and the slide's Factor do.
+		ToShapeParameterKeys.SHAPE -> stringResource(Res.string.to_shape_options_shape)
+
+		ToShapeParameterKeys.AXIS -> stringResource(Res.string.transform_options_axis)
+
+		ToShapeParameterKeys.DEGREES -> stringResource(Res.string.to_shape_options_degrees)
+
+		ToShapeParameterKeys.FACTOR -> stringResource(Res.string.transform_options_slide_factor)
 
 		LatticeResizeParameterKeys.ROWS -> stringResource(Res.string.lattice_options_rows)
 
@@ -217,6 +231,10 @@ internal fun operatorParameterDescriptionRes(labelKey: String): StringResource? 
 		TransformParameterKeys.PIVOT_DEPTH -> Res.string.transform_options_pivot_depth_description
 		TransformParameterKeys.DEPTH_SURFACE -> Res.string.transform_options_depth_surface_description
 		MergeParameterKeys.TARGET -> Res.string.merge_options_target_description
+		ToShapeParameterKeys.SHAPE -> Res.string.to_shape_options_shape_description
+		ToShapeParameterKeys.AXIS -> Res.string.to_shape_options_axis_description
+		ToShapeParameterKeys.DEGREES -> Res.string.to_shape_options_degrees_description
+		ToShapeParameterKeys.FACTOR -> Res.string.to_shape_options_factor_description
 		LatticeResizeParameterKeys.ROWS -> Res.string.lattice_options_rows_description
 		RehomeParameterKeys.KEEP_IN_PLACE -> Res.string.rehome_options_keep_in_place_description
 		WarpCreationParameterKeys.ROWS -> Res.string.create_warp_options_rows_description
@@ -256,7 +274,7 @@ internal fun operatorParameterDescription(labelKey: String): String = operatorPa
 
 /**
  * The localized label of a choice entry's prefixed key: a falloff curve's, a rotation axis's, a depth
- * surface's, a merge target's, an import anchor's, or a mesh preset's.
+ * surface's, a To Shape surface's or cylinder axis's, a merge target's, an import anchor's, or a mesh preset's.
  *
  * @param String labelKey The entry's label key.
  * @return String? The label, or null when the key carries none of the prefixes.
@@ -284,6 +302,27 @@ private fun choiceLabel(labelKey: String): String? {
 		val key = labelKey.removePrefix(TransformParameterKeys.DEPTH_SURFACE_CHOICE_PREFIX)
 
 		return depthSurfaceOf(key).takeIf { surface -> surface.choiceKey == key }?.let { surface -> depthSurfaceLabel(surface) }
+	}
+
+	// To Shape's surfaces and axes are named as the depth rotation's are (Cylinder, Sphere, X, Z).
+	if (labelKey.startsWith(ToShapeParameterKeys.SHAPE_CHOICE_PREFIX)) {
+		val key = labelKey.removePrefix(ToShapeParameterKeys.SHAPE_CHOICE_PREFIX)
+
+		return when (targetShapeOf(key).takeIf { shape -> shape.choiceKey == key }) {
+			TargetShape.Cylinder -> stringResource(Res.string.transform_depth_surface_cylinder)
+			TargetShape.Sphere -> stringResource(Res.string.transform_depth_surface_sphere)
+			null -> null
+		}
+	}
+
+	if (labelKey.startsWith(ToShapeParameterKeys.AXIS_CHOICE_PREFIX)) {
+		val key = labelKey.removePrefix(ToShapeParameterKeys.AXIS_CHOICE_PREFIX)
+
+		return when (cylinderAxisOf(key).takeIf { axis -> axis.choiceKey == key }) {
+			CylinderAxis.X -> stringResource(Res.string.transform_axis_x)
+			CylinderAxis.Z -> stringResource(Res.string.transform_axis_z)
+			null -> null
+		}
 	}
 
 	if (labelKey.startsWith(ImportParameterKeys.ANCHOR_CHOICE_PREFIX)) {

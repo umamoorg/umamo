@@ -5,7 +5,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonObject
 import org.umamo.edit.DeformerChange
 import org.umamo.edit.EditorSession
-import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.mesh.commitLatticeReshape
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.uma.UmaModel
@@ -71,7 +71,7 @@ class LatticeReshapeExportGateTest {
 			target[pointIndex * 2] += cellWidth * 0.3f
 			target[pointIndex * 2 + 1] -= cellWidth * 0.2f
 			val reshape = latticeReshapeOf(base, mapOf(warp.id to target))
-			session.commitLatticeReshape(DeformerChange.ReshapeLattice(listOf(warp.id), MeshOperatorKind.Grab), reshape.model, reshape.unconvertedCount)
+			session.commitLatticeReshape(DeformerChange.ReshapeLattice(listOf(warp.id), ElementEditKind.Grab), reshape.model, reshape.unconvertedCount)
 			val after = session.model.value
 			assertNotSame(base, after, "the reshape landed")
 			assertEquals(0, reshape.unconvertedCount, "a drag inside a cell folds nothing")

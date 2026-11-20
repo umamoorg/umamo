@@ -3,7 +3,7 @@ package org.umamo.ui.transform
 import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.DeformerChange
 import org.umamo.edit.EditorSession
-import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.mesh.commitLatticeReshape
 import org.umamo.edit.mesh.reportLatticeChildrenMoved
 import org.umamo.runtime.model.DeformerId
@@ -12,7 +12,8 @@ import org.umamo.runtime.model.WarpLatticeForm
 /*
  * Where a finished lattice edit lands, by the stage it was made at (ElementEditStage): a rest reshape of every form
  * with the children kept in place, or pending lattices at the pose.  The one place a confirm, a strip adjustment, a
- * slide, a snap, and a typed median commit or amend a lattice edit, so none of them asks which mode it ran in.
+ * slide, a snap, a typed median, and a To Shape commit or amend a lattice edit, so none of them asks which mode it ran
+ * in.
  */
 
 /** A lattice edit lowered for the stage it was made at. */
@@ -49,13 +50,13 @@ internal sealed interface LatticeLanding {
  * pending lattices at the pose.
  *
  * @param LatticeLanding landing The landing.
- * @param MeshOperatorKind kind The operator the edit ran as.
+ * @param ElementEditKind kind What the edit did to the points.
  * @return Boolean True when a step was recorded; a landing that changes nothing records none, and so has no step for
  *   the operation strip to amend.
  */
 internal fun EditorSession.commitLatticeLanding(
 	landing: LatticeLanding,
-	kind: MeshOperatorKind,
+	kind: ElementEditKind,
 ): Boolean =
 	when (landing) {
 		is LatticeLanding.Reshape -> {

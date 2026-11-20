@@ -20,6 +20,11 @@ internal class SessionRequestBus : SessionRequests {
 	/** The geometry-dependent snap requests (see [SessionRequests.snapRequests]). */
 	override val snapRequests: SharedFlow<SnapRequest> = mutableSnapRequests.asSharedFlow()
 
+	private val mutableToShapeRequests = MutableSharedFlow<ToShapeRequest>(extraBufferCapacity = 4)
+
+	/** The To Shape requests (see [SessionRequests.toShapeRequests]). */
+	override val toShapeRequests: SharedFlow<ToShapeRequest> = mutableToShapeRequests.asSharedFlow()
+
 	private val mutableSelectLinkedRequests = MutableSharedFlow<SelectLinkedRequest>(extraBufferCapacity = 4)
 
 	/** The Select Linked requests (see [SessionRequests.selectLinkedRequests]). */
@@ -68,6 +73,16 @@ internal class SessionRequestBus : SessionRequests {
 	 */
 	override fun requestSnap(kind: SnapKind, areaId: String?) {
 		mutableSnapRequests.tryEmit(SnapRequest(kind, areaId))
+	}
+
+	/**
+	 * Requests a To Shape (see [SessionRequests.requestToShape]).
+	 *
+	 * @param TargetShape shape The surface to wrap the selected points onto.
+	 * @param String? areaId The executing overlay's area, resolved at command dispatch; null no-ops.
+	 */
+	override fun requestToShape(shape: TargetShape, areaId: String?) {
+		mutableToShapeRequests.tryEmit(ToShapeRequest(shape, areaId))
 	}
 
 	/**
@@ -213,6 +228,17 @@ data class UvPageRequest(val kind: UvPageKind, val areaId: String?)
  *   viewport (then no collector matches and the request is a clean no-op).
  */
 data class SnapRequest(val kind: SnapKind, val areaId: String?)
+
+/**
+ * One To Shape request: the surface its command named, and which viewport area's overlay executes it.  The area is
+ * resolved ONCE at command dispatch and carried in the payload, as [SnapRequest]'s is, so exactly one of the open
+ * viewports runs it; that viewport's operation strip then carries the rows that switch the shape after the fact.
+ *
+ * @property TargetShape shape The surface the selected points wrap onto first.
+ * @property String? areaId The viewport area whose overlay executes, or null when the pointer is not on a viewport
+ *   (then no collector matches and the request is a clean no-op).
+ */
+data class ToShapeRequest(val shape: TargetShape, val areaId: String?)
 
 /**
  * The geometry-dependent snap operations (Blender's Shift+S) the viewport overlay executes: the

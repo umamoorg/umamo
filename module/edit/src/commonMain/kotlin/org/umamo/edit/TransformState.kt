@@ -83,6 +83,16 @@ const val PIVOT_DEPTH_LIMIT = 100_000f
 fun clampPivotDepth(depthWorld: Float): Float = if (depthWorld.isNaN()) 0f else depthWorld.coerceIn(-PIVOT_DEPTH_LIMIT, PIVOT_DEPTH_LIMIT)
 
 /**
+ * The surface To Shape bends the selected points round, seen from the front: Cylinder bends the selection round one
+ * axis, so its sides foreshorten toward two edges, and Sphere bends it out from the pivot every way, so it rounds toward
+ * a circle - the surfaces a depth rotation turns ([DepthSurface]).
+ */
+enum class TargetShape {
+	Cylinder,
+	Sphere,
+}
+
+/**
  * Which radial pie menu is open over the viewport, or none (null in the session flow).  The pie
  * entries dispatch through the command registry; the session only coordinates which pie is showing
  * (a transient latch like the modal operators).
