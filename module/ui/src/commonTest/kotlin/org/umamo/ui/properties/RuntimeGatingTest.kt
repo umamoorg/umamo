@@ -214,6 +214,20 @@ class RuntimeGatingTest {
 		assertTrue(Res.string.properties_field_quad_transform in cubism33Terms)
 	}
 
+	/** Repeat shows from 5.3 up and with no target, and below that only on a parameter that already repeats. */
+	@Test
+	fun theRepeatControlShowsFromFiveThreeOrWhileTheFlagIsOn() {
+		for (target in listOf(RuntimeTarget.NoTarget, RuntimeTarget.Cubism53, RuntimeTarget.Ayagami53)) {
+			assertTrue(showsParameterRepeat(target, repeat = false), "$target supports repeating parameters")
+			assertTrue(showsParameterRepeat(target, repeat = true))
+		}
+
+		for (target in listOf(RuntimeTarget.Cubism50, RuntimeTarget.Ayagami50)) {
+			assertFalse(showsParameterRepeat(target, repeat = false), "$target has no repeating parameters to offer")
+			assertTrue(showsParameterRepeat(target, repeat = true), "a flag $target cannot author still shows, so it can be turned off")
+		}
+	}
+
 	@Test
 	fun runtimeSectionBuildsTheSelectorAndTheListRow() {
 		val rows = RuntimeSection.rows(drawableContext(RuntimeTarget.Cubism50))

@@ -74,6 +74,7 @@ enum class CommandTable : CommandGroup {
 	Mode,
 	Object,
 	Overlay,
+	Parameter,
 	Proportional,
 	Relation,
 	Select,

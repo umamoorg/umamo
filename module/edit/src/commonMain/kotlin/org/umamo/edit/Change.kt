@@ -569,7 +569,7 @@ sealed interface ParameterChange : Change {
 	/**
 	 * Sets a parameter's range (minimum / maximum) and default.  Document content - it changes the model
 	 * and marks the document dirty.  The default is clamped within the range, and the live pose value is
-	 * re-clamped into the new range as part of the same undo step.
+	 * brought back into the new range as part of the same undo step.
 	 *
 	 * @property ParameterId id The parameter whose range changed.
 	 * @property Float min The new minimum (normalized so it does not exceed [max]).
@@ -579,6 +579,18 @@ sealed interface ParameterChange : Change {
 	data class SetRange(val id: ParameterId, val min: Float, val default: Float, val max: Float) : ParameterChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.parameter.range"
+	}
+
+	/**
+	 * Turns a parameter's repeat on or off.  Document content - it changes the model and marks the document
+	 * dirty.  The live pose is untouched: a value inside the range is valid on either kind of axis.
+	 *
+	 * @property ParameterId id The parameter whose repeat changed.
+	 * @property Boolean repeat Whether the axis now wraps past its limits.
+	 */
+	data class SetRepeat(val id: ParameterId, val repeat: Boolean) : ParameterChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.parameter.repeat"
 	}
 
 	/**

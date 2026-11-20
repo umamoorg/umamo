@@ -36,6 +36,7 @@ class ParametersMenuTest {
 	private fun everyEntry(harness: ParametersPanelHarness): List<String> =
 		listOf(
 			harness.text.rename,
+			harness.text.toggleRepeat,
 			harness.text.deleteParameter,
 			harness.text.deleteGroup,
 			harness.text.addKeyFormParameter,
@@ -43,7 +44,7 @@ class ParametersMenuTest {
 			harness.text.newGroup,
 		)
 
-	/** A slider row offers its own two entries, then the entries every menu ends with. */
+	/** A slider row offers its own three entries, then the entries every menu ends with. */
 	@Test
 	fun aSliderRowsMenu() =
 		runComposeUiTest {
@@ -55,6 +56,7 @@ class ParametersMenuTest {
 			assertEquals(
 				listOf(
 					harness.text.rename,
+					harness.text.toggleRepeat,
 					harness.text.deleteParameter,
 					harness.text.addKeyFormParameter,
 					harness.text.addBlendShapeParameter,
@@ -84,6 +86,70 @@ class ParametersMenuTest {
 			clickMenuEntry(PanelNames.ANGLE_Y)
 			assertTrue(harness.session.model.value.parameters.none { parameter -> parameter.id == PanelIds.angleY })
 			assertNotNull(harness.session.model.value.parameters.firstOrNull { parameter -> parameter.id == PanelIds.angleX })
+		}
+
+	/** Toggle Repeat from a slider's menu flips that parameter's flag, a step each way. */
+	@Test
+	fun toggleRepeatFromASlidersMenu() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val cursorBefore = harness.historyCursor
+
+			secondaryClickAt(panelBoundsOfText(PanelNames.BODY_X).center)
+			clickMenuEntry(harness.text.toggleRepeat)
+
+			assertTrue(parameterOf(harness, PanelIds.bodyX).repeat)
+			assertEquals(cursorBefore + 1, harness.historyCursor)
+
+			secondaryClickAt(panelBoundsOfText(PanelNames.BODY_X).center)
+			clickMenuEntry(harness.text.toggleRepeat)
+
+			assertFalse(parameterOf(harness, PanelIds.bodyX).repeat)
+			assertEquals(cursorBefore + 2, harness.historyCursor)
+		}
+
+	/** A pad's Toggle Repeat asks which axis, and sets that one alone. */
+	@Test
+	fun aPadsToggleRepeatAsksWhichAxis() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+
+			secondaryClickAt(panelBoundsOfText(PanelNames.ANGLE_X).center)
+			hoverMenuEntry(harness.text.toggleRepeat)
+			assertTrue(popupShows(PanelNames.ANGLE_X), "the flyout has to list both axes by name")
+			assertTrue(popupShows(PanelNames.ANGLE_Y))
+			clickMenuEntry(PanelNames.ANGLE_Y)
+
+			assertTrue(parameterOf(harness, PanelIds.angleY).repeat)
+			assertFalse(parameterOf(harness, PanelIds.angleX).repeat)
+		}
+
+	/** A runtime below 5.3 offers no Toggle Repeat on a parameter that does not repeat. */
+	@Test
+	fun aRuntimeWithoutRepeatOffersNoToggle() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness(runtimeTarget = RuntimeTarget.Cubism50)
+			mountParametersPanel(harness)
+
+			secondaryClickAt(panelBoundsOfText(PanelNames.BODY_X).center)
+
+			assertTrue(popupShows(harness.text.rename), "the menu has to be open for its absence to mean anything")
+			assertFalse(popupShows(harness.text.toggleRepeat))
+		}
+
+	/** Below 5.3 a parameter that already repeats still offers the toggle, so the flag can be turned off. */
+	@Test
+	fun aRuntimeWithoutRepeatStillOffersToTurnAFlagOff() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness(model = panelFixtureModel(RuntimeTarget.Cubism50, repeating = setOf(PanelIds.bodyX)))
+			mountParametersPanel(harness)
+
+			secondaryClickAt(panelBoundsOfText(PanelNames.BODY_X).center)
+			clickMenuEntry(harness.text.toggleRepeat)
+
+			assertFalse(parameterOf(harness, PanelIds.bodyX).repeat)
 		}
 
 	/** A group header offers group entries only. */
