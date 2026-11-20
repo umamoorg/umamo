@@ -202,7 +202,7 @@ private fun ContextBindsZone() {
 		} else {
 			hints.map { hint ->
 				val chordRun = hint.chords.joinToString(separator = "/") { chord -> formatAccelerator(chord) }
-				"$chordRun ${stringResource(hint.label)}"
+				"($chordRun) ${stringResource(hint.label)}"
 			}
 		}
 

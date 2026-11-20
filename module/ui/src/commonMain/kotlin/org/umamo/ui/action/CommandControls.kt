@@ -97,6 +97,9 @@ internal fun CommandIconButton(
  * goes by under its family's heading: a button stands with no heading over it.  Draws nothing for a command with no
  * glyph to wear.
  *
+ * The hover card carries the command's accelerator too, read from the keymap, so a rebind shows up on
+ * every button at once.
+ *
  * @param Command command The command.
  * @param Modifier modifier The layout modifier.
  * @param IconButtonAppearance appearance Flat glyph, or a filled chip.
@@ -120,11 +123,14 @@ internal fun CommandIconButton(
 ) {
 	val commands = LocalCommands.current
 	val glyph = icon ?: command.icon ?: return
+	// Read after the early return: a command with no glyph draws nothing, and must not need a keymap.
+	val keymap = LocalKeymap.current
 	val lit = command.isOn()
 	IconButton(
 		icon = glyph,
 		onClick = { around { commands.invoke(command.id) } },
 		contentDescription = description ?: command.title?.let { title -> stringResource(title) } ?: command.id,
+		accelerator = command.accelerator(keymap),
 		// A command that can be the one in effect says so to assistive technology as well as by its fill.
 		modifier = if (command.state != null) modifier.semantics { selected = lit } else modifier,
 		appearance = appearance,

@@ -9,12 +9,13 @@ import androidx.compose.ui.Modifier
  * [modifier] is carried through.  A long-press tooltip using [TooltipCard] will land with the Android
  * target, at which point [text] starts being used.
  *
- * @param String   text     The tooltip label (unused until long-press tooltips land).
- * @param Modifier modifier The layout modifier, applied to the wrapper.
- * @param Function content  The control the tooltip describes.
+ * @param String   text       The tooltip label (unused until long-press tooltips land).
+ * @param String?  accelerator The key that runs the control (unused until long-press tooltips land).
+ * @param Modifier modifier   The layout modifier, applied to the wrapper.
+ * @param Function content    The control the tooltip describes.
  */
 @Composable
-actual fun Tooltip(text: String, modifier: Modifier, content: @Composable () -> Unit) {
+actual fun Tooltip(text: String, accelerator: String?, modifier: Modifier, content: @Composable () -> Unit) {
 	Box(modifier = modifier) {
 		content()
 	}

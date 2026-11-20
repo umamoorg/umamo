@@ -73,6 +73,7 @@ private val SEGMENT_ICON_LABEL_GAP = 6.dp
  *   would leave it nameless to a screen reader and silent on hover at once.
  * @property String? label Text drawn beside the glyph, or null for an icon-only segment.  A label equal to
  *   [contentDescription] makes the hover label redundant, so the segment shows none.
+ * @property String? accelerator The key that runs the segment, shown beside the hover label; null for none.
  */
 data class ButtonGroupItem(
 	val icon: UmamoIcon,
@@ -80,6 +81,7 @@ data class ButtonGroupItem(
 	val onClick: () -> Unit,
 	val contentDescription: String,
 	val label: String? = null,
+	val accelerator: String? = null,
 )
 
 /**
@@ -165,7 +167,7 @@ private fun ButtonGroupSegment(item: ButtonGroupItem, shape: Shape, axis: StackA
 	val contentColor = accentControlGlyph(colors, item.selected)
 	val label = item.label
 	// The description is the hover text, as it is on IconButton, whenever the face does not already say it:
-	// a label equal to it would only be echoed.
+	// a label equal to it would only be echoed.  An accelerator is never an echo, so it rides the card either way.
 	val tooltipText = if (label == item.contentDescription) "" else item.contentDescription
 	val faceModifier =
 		Modifier
@@ -181,7 +183,7 @@ private fun ButtonGroupSegment(item: ButtonGroupItem, shape: Shape, axis: StackA
 				selected = item.selected
 			}
 	val fillsColumn = axis == StackAxis.Vertical
-	Tooltip(text = tooltipText, modifier = if (fillsColumn) Modifier.fillMaxWidth() else Modifier) {
+	Tooltip(text = tooltipText, accelerator = item.accelerator, modifier = if (fillsColumn) Modifier.fillMaxWidth() else Modifier) {
 		if (label == null) {
 			// The fixed glyph face, unless a column stretches it to the group's width.
 			val iconFaceSize =

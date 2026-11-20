@@ -26,7 +26,9 @@ import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.LocalCommands
+import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.ObserveForCommands
+import org.umamo.ui.action.accelerator
 import org.umamo.ui.kit.BelowAnchorPositionProvider
 import org.umamo.ui.kit.StackAxis
 import org.umamo.ui.kit.Tooltip
@@ -228,6 +230,7 @@ internal fun ProportionalEditControls(
 	shownIn: (EditorMode) -> Boolean = { mode -> mode.editsElements },
 ) {
 	val commands = LocalCommands.current
+	val keymap = LocalKeymap.current
 	val colors = LocalUmamoColors.current
 	val session = LocalEditorSession.current ?: return
 	val editorMode by session.mode.collectAsState()
@@ -259,6 +262,7 @@ internal fun ProportionalEditControls(
 					active = enabled,
 					onToggle = { commands.invoke(command.id) },
 					contentDescription = command.title?.let { title -> stringResource(title) } ?: command.id,
+					accelerator = command.accelerator(keymap),
 				)
 			},
 		valueIcon = curves.firstOrNull { curve -> curve.selected }?.icon,
@@ -337,8 +341,10 @@ private fun familyButtons(
 	family: CommandFamily,
 	commands: CommandRegistry,
 	labeled: Boolean,
-): List<ButtonGroupItem> =
-	commands.inGroup(family).mapNotNull { member ->
+): List<ButtonGroupItem> {
+	val keymap = LocalKeymap.current
+
+	return commands.inGroup(family).mapNotNull { member ->
 		member.icon?.let { icon ->
 			val label = member.rowLabel?.let { resource -> stringResource(resource) } ?: member.id
 
@@ -348,6 +354,8 @@ private fun familyButtons(
 				onClick = { commands.invoke(member.id) },
 				contentDescription = label,
 				label = label.takeIf { labeled },
+				accelerator = member.accelerator(keymap),
 			)
 		}
 	}
+}

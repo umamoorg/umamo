@@ -55,9 +55,16 @@ internal fun everyStatusHintFor(commands: List<Command>, keymap: Keymap, hovered
 	// Each suggested command paired with the label it reads under, so the hint is resolved once.
 	val suggested =
 		commands.mapNotNull { command ->
-			command.hint
-				?.takeIf { hint -> command.isOfferedIn(hoveredKind) && hint.suggestedWhen.isAvailable() && hint.suggestedOver()?.appliesIn(hoveredKind) != false }
-				?.let { hint -> hint.label to command }
+			val hint = command.hint ?: return@mapNotNull null
+
+			if (!command.isOfferedIn(hoveredKind) || !hint.suggestedWhen.isAvailable() || hint.suggestedOver()?.appliesIn(hoveredKind) == false) {
+				return@mapNotNull null
+			}
+
+			// The short name the hint declares, or the command's own title when it declares none.
+			val label = hint.label ?: command.title
+
+			label?.let { resolved -> resolved to command }
 		}
 	// A stable sort, so each tier keeps registration order.
 	val tiered = suggested.sortedBy { (_, command) -> if (command.spaces is SpaceScope.Everywhere) 1 else 0 }

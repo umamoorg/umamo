@@ -7,6 +7,7 @@ import org.umamo.ui.action.CommandHint
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.parseKeyChord
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.cmd_mesh_grab
 import org.umamo.ui.resources.status_bind_delete_key
 import org.umamo.ui.resources.status_bind_edit_mode
 import org.umamo.ui.resources.status_bind_grab
@@ -61,6 +62,16 @@ class StatusHintsTest {
 	private fun keymap(vararg bindings: Pair<String, String>): Keymap = Keymap.fromSpecs(bindings.toMap())
 
 	/**
+	 * A command that carries a hint declaring no name of its own, so it reads under its own title.
+	 *
+	 * @param String id The command id.
+	 * @param StringResource? title The command's title, or null for a command with none.
+	 * @return Command The command.
+	 */
+	private fun unnamedHintCommand(id: String, title: StringResource?): Command =
+		Command(id, title = title, hint = CommandHint(), handler = {})
+
+	/**
 	 * The labels of these suggestions, in order - what most cases below compare.
 	 *
 	 * @return List<StringResource> The suggestion labels.
@@ -74,6 +85,27 @@ class StatusHintsTest {
 		val hints = statusHintsFor(commands, keymap("KeyA" to "test.plain", "KeyG" to "test.hinted"), SpaceKind.Viewport2D)
 
 		assertEquals(listOf(Res.string.status_bind_grab), hints.labels())
+	}
+
+	/**
+	 * A hint that declares no name of its own reads under the command's title - the name the menu, the
+	 * palette, and the tooltip already use, so the bar cannot name a command differently from the rest of
+	 * the app.
+	 */
+	@Test
+	fun aHintThatDeclaresNoNameReadsUnderTheCommandsTitle() {
+		val commands = listOf(unnamedHintCommand("test.grab", Res.string.cmd_mesh_grab))
+		val hints = statusHintsFor(commands, keymap("KeyG" to "test.grab"), SpaceKind.Viewport2D)
+
+		assertEquals(listOf(Res.string.cmd_mesh_grab), hints.labels())
+	}
+
+	/** A command with neither a name of its own nor a title has nothing to read under, so it is not suggested. */
+	@Test
+	fun aCommandWithNoNameAtAllIsNeverSuggested() {
+		val commands = listOf(unnamedHintCommand("test.grab", null))
+
+		assertTrue(statusHintsFor(commands, keymap("KeyG" to "test.grab"), SpaceKind.Viewport2D).isEmpty())
 	}
 
 	/** A scoped command is suggested inside its spaces and nowhere else - the point of deriving from the hovered space. */

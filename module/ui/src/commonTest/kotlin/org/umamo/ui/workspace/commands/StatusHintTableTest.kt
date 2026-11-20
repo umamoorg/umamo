@@ -102,6 +102,9 @@ class StatusHintTableTest {
 	 * the visibility toggle from Object mode, the element domains from Edit mode, and from Pose mode, which works on
 	 * the posed lattices' elements and keys them, Insert Key (I and the K pie as one entry), the way into Edit mode,
 	 * and the element domains.
+	 *
+	 * Every entry reads under the command's own title, the name the menu, the palette, and the tooltip already use,
+	 * except the two that go by one name together: the select modes, and the insert key with the pie beside it.
 	 */
 	@Test
 	fun eachModeSuggestsItsOwnListOverAViewport() {

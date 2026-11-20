@@ -214,9 +214,9 @@ fun CommandPalette(commands: List<Command>, onDismiss: () -> Unit, onInvoke: (Co
 								modifier = Modifier.weight(1f),
 							)
 							// The command's bound accelerator (canonical chord), dimmed; omitted when unbound.
-							keymap.chordFor(command.id)?.let { chord ->
+							command.accelerator(keymap)?.let { accelerator ->
 								Text(
-									text = formatAccelerator(chord),
+									text = accelerator,
 									style = typography.bodySmall,
 									color = if (isSelected) colors.selectionText else colors.textMuted,
 								)

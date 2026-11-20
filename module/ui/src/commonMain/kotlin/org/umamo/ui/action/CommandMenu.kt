@@ -387,7 +387,7 @@ internal fun commandMenuItem(
 	return MenuItem.Action(
 		label = label,
 		onSelect = { around { commands.invoke(command.id, argument) } },
-		shortcut = if (argument == null) keymap.chordFor(command.id)?.let { chord -> formatAccelerator(chord) } else null,
+		shortcut = if (argument == null) command.accelerator(keymap) else null,
 		enabled = available,
 		icon = command.icon,
 	)

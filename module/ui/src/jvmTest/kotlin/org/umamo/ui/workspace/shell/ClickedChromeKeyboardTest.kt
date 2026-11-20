@@ -25,6 +25,7 @@ import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.LocalCommands
+import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.parseKeyChord
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.button.Button
@@ -73,7 +74,7 @@ class ClickedChromeKeyboardTest {
 		harness.registry.registerAll(listOf(Command(SHORTCUT_COMMAND, title = null) { harness.shortcutRuns += 1 }))
 		test.setContent {
 			UmamoTheme {
-				CompositionLocalProvider(LocalCommands provides harness.registry) {
+				CompositionLocalProvider(LocalCommands provides harness.registry, LocalKeymap provides harness.keymap) {
 					Box(
 						modifier =
 							Modifier

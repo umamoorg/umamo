@@ -47,6 +47,8 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.Selection
 import org.umamo.ui.action.LocalCommands
+import org.umamo.ui.action.LocalKeymap
+import org.umamo.ui.action.accelerator
 import org.umamo.ui.kit.PointerShield
 import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.kit.VerticalScrollbarOverlay
@@ -363,14 +365,17 @@ private fun Modifier.stepsTabsOnPrimaryWheel(state: SidebarState): Modifier =
 @Composable
 private fun SidebarPullTab() {
 	val commands = LocalCommands.current
+	val keymap = LocalKeymap.current
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
 	val label = stringResource(Res.string.cmd_view_toggle_sidebar)
+	val toggle = commands["view.toggleSidebar"]
+	val accelerator = toggle?.accelerator(keymap)
 	// Rounded on the viewport side only; the other side sits flush against the area edge.
 	val tabShape = shapes.small.copy(topEnd = ZeroCornerSize, bottomEnd = ZeroCornerSize)
-	Tooltip(text = label) {
+	Tooltip(text = label, accelerator = accelerator) {
 		Box(
 			modifier =
 				Modifier
@@ -382,7 +387,7 @@ private fun SidebarPullTab() {
 					// leaving the composition leaves focus null - every shortcut then dies until something
 					// focusable is clicked again.  The keyboard belongs to the shell root.
 					.focusProperties { canFocus = false }
-					.clickable(interactionSource = interaction, indication = null) { commands.invoke("view.toggleSidebar") }
+					.clickable(interactionSource = interaction, indication = null) { toggle?.let { command -> commands.invoke(command.id) } }
 					.semantics { contentDescription = label },
 			contentAlignment = Alignment.Center,
 		) {

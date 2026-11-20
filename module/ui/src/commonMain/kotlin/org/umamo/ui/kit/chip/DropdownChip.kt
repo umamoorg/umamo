@@ -57,12 +57,15 @@ import org.umamo.ui.theme.drawIcon
  * @property Boolean  active             Whether the toggle is lit.
  * @property Function onToggle           Invoked when the glyph half is clicked.
  * @property String   contentDescription The glyph half's accessible label and tooltip.
+ * @property String?  accelerator        The key that runs the toggle, shown beside its label in the tooltip;
+ *   null for none.
  */
 @Immutable
 class ChipToggle(
 	val active: Boolean,
 	val onToggle: () -> Unit,
 	val contentDescription: String,
+	val accelerator: String? = null,
 )
 
 /**
@@ -394,7 +397,7 @@ private fun SplitChipFace(
 				.border(width = 1.dp, color = borderColor, shape = shapes.small),
 		verticalAlignment = Alignment.CenterVertically,
 	) {
-		Tooltip(text = toggle.contentDescription, modifier = Modifier.fillMaxHeight()) {
+		Tooltip(text = toggle.contentDescription, accelerator = toggle.accelerator, modifier = Modifier.fillMaxHeight()) {
 			Box(
 				modifier =
 					Modifier

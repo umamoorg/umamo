@@ -8,14 +8,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.isPopup
 import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.menu_file_new
@@ -36,12 +39,13 @@ class CommandControlsTest {
 	 * Mounts [content] over [commands].
 	 *
 	 * @param CommandRegistry commands The registry the buttons read and dispatch through.
+	 * @param Keymap keymap The keymap the buttons read their accelerators from.
 	 * @param Function content The buttons under test.
 	 */
-	private fun ComposeUiTest.mount(commands: CommandRegistry, content: @Composable () -> Unit) {
+	private fun ComposeUiTest.mount(commands: CommandRegistry, keymap: Keymap = defaultKeymap(), content: @Composable () -> Unit) {
 		setContent {
 			UmamoTheme {
-				CompositionLocalProvider(LocalCommands provides commands) {
+				CompositionLocalProvider(LocalCommands provides commands, LocalKeymap provides keymap) {
 					Column { content() }
 				}
 			}
@@ -173,4 +177,50 @@ class CommandControlsTest {
 
 			assertEquals(listOf("before", "run"), order)
 		}
+
+	/**
+	 * A command icon button's hover card carries the key that runs it, read from the keymap.  The key is
+	 * never written down beside the button, so a rebind reaches every button at once.
+	 */
+	@Test
+	fun anIconButtonsTooltipCarriesItsCommandsAccelerator() =
+		runComposeUiTest {
+			val commands = CommandRegistry().also { registry -> registry.register(Command("test.grab", title = Res.string.menu_file_new, icon = LocalUmamoIcons.cursor, handler = {})) }
+			mount(commands, Keymap.fromSpecs(mapOf("KeyG" to "test.grab"))) { CommandIconButton("test.grab") }
+
+			hoverIconButton(this, "New")
+
+			onNodeWithText("New", useUnmergedTree = true).assertExists()
+			onNodeWithText("G", useUnmergedTree = true).assertExists()
+		}
+
+	/** An unbound command's card names the control and stops there: there is no key to show. */
+	@Test
+	fun anIconButtonsTooltipCarriesNoAcceleratorForAnUnboundCommand() =
+		runComposeUiTest {
+			val commands = CommandRegistry().also { registry -> registry.register(Command("test.grab", title = Res.string.menu_file_new, icon = LocalUmamoIcons.cursor, handler = {})) }
+			mount(commands, Keymap.fromSpecs(mapOf("KeyG" to "test.other"))) { CommandIconButton("test.grab") }
+
+			hoverIconButton(this, "New")
+
+			onAllNodes(isPopup()).assertCountEquals(1)
+			onNodeWithText("G", useUnmergedTree = true).assertDoesNotExist()
+		}
+
+	/**
+	 * Rests the pointer on the icon button labelled [description] and lets the tooltip delay run out.
+	 *
+	 * @param ComposeUiTest test        The running UI test.
+	 * @param String        description The button's accessible label.
+	 */
+	private fun hoverIconButton(test: ComposeUiTest, description: String) {
+		test.onNodeWithContentDescription(description).performMouseInput { moveTo(center) }
+		test.mainClock.advanceTimeBy(TOOLTIP_WAIT_MILLIS)
+		test.waitForIdle()
+	}
+
+	private companion object {
+		/** Comfortably past the tooltip's dwell delay. */
+		const val TOOLTIP_WAIT_MILLIS = 1_000L
+	}
 }

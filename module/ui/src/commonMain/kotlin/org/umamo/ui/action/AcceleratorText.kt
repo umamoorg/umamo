@@ -11,6 +11,18 @@ package org.umamo.ui.action
 fun formatAccelerator(chord: KeyChord): String = formatAccelerator(chord, primaryModifierLabel())
 
 /**
+ * The accelerator the keymap binds to this command, formatted for display, or null when the command is
+ * unbound.
+ *
+ * The one place a command's chord is read for display, so every surface that shows a key reads it the same
+ * way and a rebind reaches all of them at once.
+ *
+ * @param Keymap keymap The active keymap.
+ * @return String? The formatted chord, or null for an unbound command.
+ */
+fun Command.accelerator(keymap: Keymap): String? = keymap.chordFor(id)?.let { chord -> formatAccelerator(chord) }
+
+/**
  * The pure core of [formatAccelerator], taking the platform's [primaryLabel] as a parameter so it can be
  * unit-tested deterministically.  Modifiers are ordered Control, primary, Alt, Shift to match the common
  * platform convention.

@@ -7,6 +7,8 @@ import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import org.umamo.edit.MeshSelectMode
@@ -95,6 +97,23 @@ class SelectModeHeaderControlTest {
 		}
 
 	/**
+	 * A select-mode button's hover card carries the key that runs it.  The select modes are bound to
+	 * 1 / 2 / 3, and the card says so rather than leaving the user to look the key up elsewhere.
+	 */
+	@Test
+	fun aButtonsHoverCardCarriesItsAccelerator() =
+		runComposeUiTest {
+			val session = gizmoEditSession()
+			setAreaHeader(kind = SpaceKind.Viewport2D, headerWidth = 1200.dp, puppet = mutableStateOf(session.model.value), session = session)
+
+			button(VERTEX).performMouseInput { moveTo(center) }
+			mainClock.advanceTimeBy(TOOLTIP_WAIT_MILLIS)
+			waitForIdle()
+
+			onNodeWithText("1", useUnmergedTree = true).assertExists()
+		}
+
+	/**
 	 * The button for a mesh domain.
 	 *
 	 * @param String domain The button's accessible name.
@@ -111,5 +130,8 @@ class SelectModeHeaderControlTest {
 
 		/** The face button's accessible name. */
 		const val FACE = "Face Select Mode"
+
+		/** Comfortably past the tooltip's dwell delay. */
+		const val TOOLTIP_WAIT_MILLIS = 1_000L
 	}
 }
