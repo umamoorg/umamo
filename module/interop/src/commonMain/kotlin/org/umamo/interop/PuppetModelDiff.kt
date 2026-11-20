@@ -43,7 +43,7 @@ import org.umamo.runtime.model.lineageRoot
  */
 
 /** The changed aspects of a [Parameter]. */
-enum class ParameterField { NAME, RANGE, KIND }
+enum class ParameterField { NAME, RANGE, KIND, REPEAT }
 
 /** The changed aspects of a [ParameterNode.Group]. */
 enum class ParameterGroupField { NAME, INITIALLY_OPEN, CHILDREN }
@@ -302,6 +302,10 @@ private fun parameterFields(baseline: Parameter, edited: Parameter): Set<Paramet
 
 		if (baseline.kind != edited.kind) {
 			add(ParameterField.KIND)
+		}
+
+		if (baseline.repeat != edited.repeat) {
+			add(ParameterField.REPEAT)
 		}
 	}
 
