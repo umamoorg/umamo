@@ -24,10 +24,13 @@ import org.umamo.edit.parameter.renameParameter
 import org.umamo.edit.parameter.renameParameterGroup
 import org.umamo.edit.parameter.setParameterLink
 import org.umamo.edit.parameter.setParameterRange
+import org.umamo.edit.parameter.setParameterRepeat
 import org.umamo.edit.structure.RowDropBand
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.ui.kit.menu.ContextMenuArea
 import org.umamo.ui.kit.menu.MenuItem
+import org.umamo.ui.properties.showsParameterRepeat
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.workspace.rowdrag.RowDragController
@@ -47,6 +50,7 @@ private val INDENT_PER_DEPTH = 12.dp
  * @param ParameterLabels labels The panel's localized chrome.
  * @param ParameterPoseState pose The pose the controls show and write.
  * @param ParametersViewState viewState The panel's view state.
+ * @param RuntimeTarget runtimeTarget The document's runtime target, which decides whether Repeat is offered.
  * @param EditorSession? session The editing session, or null with none.
  * @param List<MenuItem> createMenuItems The entries that create, which every parameter menu ends with.
  * @param RowDragController<ParameterMoveSubject> dragController The panel's drag state.
@@ -60,6 +64,7 @@ internal fun ParameterRowView(
 	labels: ParameterLabels,
 	pose: ParameterPoseState,
 	viewState: ParametersViewState,
+	runtimeTarget: RuntimeTarget,
 	session: EditorSession?,
 	createMenuItems: List<MenuItem>,
 	dragController: RowDragController<ParameterMoveSubject>,
@@ -156,6 +161,7 @@ internal fun ParameterRowView(
 					labels = labels,
 					pose = pose,
 					viewState = viewState,
+					runtimeTarget = runtimeTarget,
 					session = session,
 					createMenuItems = createMenuItems,
 					modifier = Modifier.weight(1f),
@@ -169,6 +175,7 @@ internal fun ParameterRowView(
 					labels = labels,
 					pose = pose,
 					viewState = viewState,
+					runtimeTarget = runtimeTarget,
 					session = session,
 					createMenuItems = createMenuItems,
 					modifier = Modifier.weight(1f),
@@ -261,6 +268,7 @@ private fun ParameterGroupRow(
  * @param ParameterPoseState pose The pose the slider shows and writes.
  * @param ParametersViewState viewState The panel's view state, which holds the open range editors and
  *   the rename target.
+ * @param RuntimeTarget runtimeTarget The document's runtime target, which decides whether Repeat is offered.
  * @param EditorSession? session The editing session, or null with none.
  * @param List<MenuItem> createMenuItems The entries that create, which the row's menu ends with.
  * @param Modifier modifier The layout modifier (the caller supplies the row weight).
@@ -273,6 +281,7 @@ private fun ParameterSliderRow(
 	labels: ParameterLabels,
 	pose: ParameterPoseState,
 	viewState: ParametersViewState,
+	runtimeTarget: RuntimeTarget,
 	session: EditorSession?,
 	createMenuItems: List<MenuItem>,
 	modifier: Modifier = Modifier,
@@ -295,7 +304,7 @@ private fun ParameterSliderRow(
 			null
 		}
 	ContextMenuArea(
-		items = parameterSliderMenuItems(parameter.id, labels, session, viewState, createMenuItems),
+		itemsOnOpen = parameterSliderMenuItems(parameter, runtimeTarget, labels, session, viewState, createMenuItems),
 		modifier = modifier,
 	) {
 		ParameterIsland(
@@ -322,16 +331,13 @@ private fun ParameterSliderRow(
 			)
 
 			if (rangeOpen) {
-				RangeFieldsRow(
+				ParameterRangeEditor(
 					parameter = parameter,
-					onSetRange = { min, default, max ->
-						session?.setParameterRange(
-							parameter.id,
-							min,
-							default,
-							max,
-						)
-					},
+					showsRepeat = showsParameterRepeat(runtimeTarget, parameter.repeat),
+					labels = labels,
+					onSetRange = { min, default, max -> session?.setParameterRange(parameter.id, min, default, max) },
+					// A document edit, not a pose write, so it bypasses the Edit-mode parameter lock as range edits do.
+					onSetRepeat = { repeat -> session?.setParameterRepeat(parameter.id, repeat) },
 				)
 			}
 		}
@@ -348,6 +354,7 @@ private fun ParameterSliderRow(
  * @param ParameterPoseState pose The pose the pad shows and writes.
  * @param ParametersViewState viewState The panel's view state, which holds the open range editors and
  *   the rename target.
+ * @param RuntimeTarget runtimeTarget The document's runtime target, which decides whether Repeat is offered.
  * @param EditorSession? session The editing session, or null with none.
  * @param List<MenuItem> createMenuItems The entries that create, which the row's menu ends with.
  * @param Modifier modifier The layout modifier (the caller supplies the row weight).
@@ -359,6 +366,7 @@ private fun ParameterPadRow(
 	labels: ParameterLabels,
 	pose: ParameterPoseState,
 	viewState: ParametersViewState,
+	runtimeTarget: RuntimeTarget,
 	session: EditorSession?,
 	createMenuItems: List<MenuItem>,
 	modifier: Modifier = Modifier,
@@ -387,7 +395,7 @@ private fun ParameterPadRow(
 			null
 		}
 	ContextMenuArea(
-		items = parameterPadMenuItems(horizontal, vertical, labels, session, viewState, createMenuItems),
+		itemsOnOpen = parameterPadMenuItems(horizontal, vertical, runtimeTarget, labels, session, viewState, createMenuItems),
 		modifier = modifier,
 	) {
 		ParameterIsland(
@@ -419,18 +427,20 @@ private fun ParameterPadRow(
 				// One range row per axis, each captioned with its axis name (user
 				// data, never localized).
 				RangeAxisLabel(horizontal.name)
-				RangeFieldsRow(
+				ParameterRangeEditor(
 					parameter = horizontal,
-					onSetRange = { min, default, max ->
-						session?.setParameterRange(horizontal.id, min, default, max)
-					},
+					showsRepeat = showsParameterRepeat(runtimeTarget, horizontal.repeat),
+					labels = labels,
+					onSetRange = { min, default, max -> session?.setParameterRange(horizontal.id, min, default, max) },
+					onSetRepeat = { repeat -> session?.setParameterRepeat(horizontal.id, repeat) },
 				)
 				RangeAxisLabel(vertical.name)
-				RangeFieldsRow(
+				ParameterRangeEditor(
 					parameter = vertical,
-					onSetRange = { min, default, max ->
-						session?.setParameterRange(vertical.id, min, default, max)
-					},
+					showsRepeat = showsParameterRepeat(runtimeTarget, vertical.repeat),
+					labels = labels,
+					onSetRange = { min, default, max -> session?.setParameterRange(vertical.id, min, default, max) },
+					onSetRepeat = { repeat -> session?.setParameterRepeat(vertical.id, repeat) },
 				)
 			}
 		}

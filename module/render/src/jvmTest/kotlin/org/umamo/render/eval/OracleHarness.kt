@@ -70,10 +70,10 @@ internal data class OracleDump(
  * Runs dump_model against [runtimeLib] and [moc3] at [pose] (empty = default pose) and parses the
  * canvas header plus the `T` (part), `O` (offscreen), and `D` (drawable) lines.
  *
- * @param File dumpModel The dump_model binary.
- * @param File runtimeLib   .so to dlopen - Must be compatible with the official Cubism API.
- * @param File moc3      The model to dump.
- * @param Map  pose      Parameter id -> value written before csmUpdateModel.
+ * @param File dumpModel  The dump_model binary.
+ * @param File runtimeLib .so to dlopen - Must be compatible with the official Cubism API.
+ * @param File moc3       The model to dump.
+ * @param Map  pose       Parameter id -> value written before csmUpdateModel.
  * @return OracleDump The parsed dump.
  */
 internal fun runOracleDump(dumpModel: File, runtimeLib: File, moc3: File, pose: Map<String, Float>): OracleDump {
@@ -225,7 +225,7 @@ internal fun oracleNeverEvaluated(entry: OracleEntry): Boolean =
 		entry.multiplyRgba[2] == 0f
 
 /**
- * How our CPU eval of a puppet lines up with the a dump of a moc at one pose, drawable by drawable.
+ * How our CPU eval of a puppet lines up with the runtime's dump of a moc at one pose, drawable by drawable.
  *
  * @property Int compared Drawables the dump lists that our eval draws.
  * @property Int positionMatched Of [compared], those whose position hash matches the dump's.
@@ -241,7 +241,7 @@ internal class OraclePoseComparison(
 )
 
 /**
- * Evaluates [puppet] at [pose] on the CPU and compares each drawable against the a dump of [moc3] at the same pose.
+ * Evaluates [puppet] at [pose] on the CPU and compares each drawable against the runtime's dump of [moc3] at the same pose.
  *
  * The positions go through the moc's own canvas transform, `(x - ox) / ppu, (y + oy) / ppu` (our eval has already negated
  * y), so [puppet] must be canvas-space: a `.cmo3` import, or a moc import passed through `restMeshesToCanvasSpace`.

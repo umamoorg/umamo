@@ -237,6 +237,7 @@ private fun shellCommandTableFunctions(session: EditorSession? = null): List<Lis
 		historyCommands(session, availability, OperationStripState()),
 		objectCommands(session, handles, availability),
 		relationCommands(session, RelationPickController(), routing, availability),
+		parameterCommands(session, availability),
 		transformCommands(session, routing, availability),
 		selectCommands(session, routing, sheets, availability),
 		snapCommands(session, routing, availability, AreaOverlayHub()),

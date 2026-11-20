@@ -135,6 +135,7 @@ import org.umamo.ui.workspace.commands.inMemorySettings
 import org.umamo.ui.workspace.commands.keyformCommands
 import org.umamo.ui.workspace.commands.latticeCommands
 import org.umamo.ui.workspace.commands.objectCommands
+import org.umamo.ui.workspace.commands.parameterCommands
 import org.umamo.ui.workspace.commands.registerAll
 import org.umamo.ui.workspace.commands.selectCommands
 import org.umamo.ui.workspace.layout.WorkspaceLayoutController
@@ -242,10 +243,11 @@ internal val PANEL_FIXTURE_POSE: Map<ParameterId, Float> =
  * The fixture rig.
  *
  * @param RuntimeTarget runtimeTarget The runtime the rig targets, which decides whether a blend-shape
- *   parameter may be created.
+ *   parameter may be created and whether Repeat is offered.
+ * @param Set<ParameterId> repeating The parameters that wrap past their limits; none by default.
  * @return PuppetModel The rig.
  */
-internal fun panelFixtureModel(runtimeTarget: RuntimeTarget = RuntimeTarget.NoTarget): PuppetModel {
+internal fun panelFixtureModel(runtimeTarget: RuntimeTarget = RuntimeTarget.NoTarget, repeating: Set<ParameterId> = emptySet()): PuppetModel {
 	val parameters =
 		listOf(
 			Parameter(PanelIds.eyeOpen, PanelNames.EYE_OPEN, min = 0f, max = 1f, default = 1f),
@@ -257,7 +259,7 @@ internal fun panelFixtureModel(runtimeTarget: RuntimeTarget = RuntimeTarget.NoTa
 			Parameter(PanelIds.breath, PanelNames.BREATH, min = 0f, max = 1f, default = 0f),
 			Parameter(PanelIds.fixed, "Fixed", min = 0f, max = 0f, default = 0f),
 			Parameter(PanelIds.arm, PanelNames.ARM, min = -1f, max = 1f, default = 0f),
-		)
+		).map { parameter -> if (parameter.id in repeating) parameter.copy(repeat = true) else parameter }
 	// Keyed on Body X, so the selected-object filter has exactly one parameter to keep.
 	val drawable =
 		Drawable(
@@ -335,6 +337,8 @@ internal fun panelFixtureModel(runtimeTarget: RuntimeTarget = RuntimeTarget.NoTa
  * @property String rangeMinimum The range editor's minimum caption.
  * @property String rangeDefault The range editor's default caption.
  * @property String rangeMaximum The range editor's maximum caption.
+ * @property String repeat The range editor's Repeat checkbox.
+ * @property String toggleRepeat The Toggle Repeat entry of a parameter row's menu.
  * @property String more The overflow chip a narrow header collapses into.
  * @property String trackGeometry The keyform sheet's label for a geometry track.
  * @property String keyformInsert The keyform sheet's Insert Key lane entry.
@@ -401,6 +405,8 @@ internal class PanelText(
 	val rangeMinimum: String,
 	val rangeDefault: String,
 	val rangeMaximum: String,
+	val repeat: String,
+	val toggleRepeat: String,
 	val more: String,
 	val trackGeometry: String,
 	val keyformInsert: String,
@@ -679,6 +685,8 @@ internal fun ComposeUiTest.mountParametersPanel(harness: ParametersPanelHarness)
 			WorkspaceLayoutController(defaultLayout()) {},
 		) {} + listOf(Command(PANEL_SHORTCUT_COMMAND, title = null) { harness.shortcutRuns += 1 }),
 	)
+	// The panel's own menus run Toggle Repeat through the registry, which the shell always registers.
+	harness.registry.registerAll(parameterCommands(harness.session, SessionAvailability(harness.session)))
 
 	if (harness.showKeyformSheet) {
 		// Routed as though the pointer were over the sheet, which is where a sheet command is aimed from.
@@ -727,6 +735,8 @@ internal fun ComposeUiTest.mountParametersPanel(harness: ParametersPanelHarness)
 				rangeMinimum = stringResource(Res.string.parameter_range_min),
 				rangeDefault = stringResource(Res.string.parameter_range_default),
 				rangeMaximum = stringResource(Res.string.parameter_range_max),
+				repeat = stringResource(Res.string.parameter_range_repeat),
+				toggleRepeat = stringResource(Res.string.cmd_parameter_toggle_repeat),
 				more = stringResource(Res.string.header_more),
 				trackGeometry = stringResource(Res.string.track_geometry),
 				keyformInsert = stringResource(Res.string.cmd_keyform_insert),

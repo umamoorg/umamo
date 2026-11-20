@@ -287,6 +287,20 @@ class ParametersEditLockTest {
 			assertEquals(cursorBefore + 1, harness.historyCursor)
 		}
 
+	/** Repeat is the document's too, so Edit mode leaves its checkbox working. */
+	@Test
+	fun editModeLeavesRepeatEditable() =
+		runComposeUiTest {
+			val harness = lockedPanel(this)
+			clickAt(panelBoundsOfText(PanelNames.BODY_X).center)
+			val cursorBefore = harness.historyCursor
+
+			clickAt(panelBoundsOfText(harness.text.repeat).center)
+
+			assertTrue(harness.session.model.value.parameters.first { parameter -> parameter.id == PanelIds.bodyX }.repeat)
+			assertEquals(cursorBefore + 1, harness.historyCursor)
+		}
+
 	/** A link and an unlink are document edits too. */
 	@Test
 	fun editModeLeavesLinkAndUnlinkAvailable() =

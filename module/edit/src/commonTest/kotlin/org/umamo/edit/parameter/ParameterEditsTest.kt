@@ -16,8 +16,8 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
- * Tests for ParameterEdits.kt: the pure range / link transforms, and the session steps that commit a range
- * with its pose re-clamp and a link with its narrowed target.
+ * Tests for ParameterEdits.kt: the pure range / repeat / link transforms, and the session steps that commit a
+ * range with its pose brought back into range, a repeat flag, and a link with its narrowed target.
  */
 class ParameterEditsTest {
 	/**
@@ -55,6 +55,66 @@ class ParameterEditsTest {
 		assertEquals(5f, parameter.max)
 		assertEquals(5f, parameter.default, "the default is clamped into the normalized range")
 		assertSame(base, base.withParameterRange(angleX, min = -1f, default = 0f, max = 1f), "a no-op range is the same instance")
+	}
+
+	/** A range narrowed under the pose of a repeating axis wraps the pose back in, where a normal axis clamps it. */
+	@Test
+	fun setRangeWrapsThePoseOnARepeatingAxis() {
+		val repeating = EditorSession(paramModel(min = 0f, max = 360f, default = 0f, repeat = true))
+		repeating.commitPose(ParameterChange.SetValue(listOf(angleX)), mapOf(angleX to 300f))
+
+		repeating.setParameterRange(angleX, min = 0f, default = 0f, max = 180f)
+
+		assertEquals(120f, repeating.pose.value[angleX], "300 wraps once around a 180 period")
+
+		val normal = EditorSession(paramModel(min = 0f, max = 360f, default = 0f))
+		normal.commitPose(ParameterChange.SetValue(listOf(angleX)), mapOf(angleX to 300f))
+
+		normal.setParameterRange(angleX, min = 0f, default = 0f, max = 180f)
+
+		assertEquals(180f, normal.pose.value[angleX], "a normal axis clamps to the new max")
+	}
+
+	/** Turning repeat on is one dirty step that leaves the pose alone, and undo turns it off again. */
+	@Test
+	fun setRepeatIsOneDirtyStepLeavingPoseUntouched() {
+		val session = EditorSession(paramModel(min = -1f, max = 1f, default = 0f))
+		session.commitPose(ParameterChange.SetValue(listOf(angleX)), mapOf(angleX to 0.6f))
+
+		session.setParameterRepeat(angleX, repeat = true)
+
+		assertTrue(session.model.value.parameters.first().repeat)
+		assertEquals(0.6f, session.pose.value[angleX], "a repeat edit never moves the live pose")
+		assertTrue(session.dirty.value, "a repeat edit changes the model and dirties the document")
+		assertEquals("change.parameter.repeat", session.historyView.value.steps.last().labelKey)
+
+		session.undo()
+		assertFalse(session.model.value.parameters.first().repeat, "undo turns repeat off again")
+		assertFalse(session.dirty.value)
+	}
+
+	/** Setting the flag a parameter already holds, or naming no parameter, records nothing. */
+	@Test
+	fun setRepeatThatChangesNothingRecordsNothing() {
+		val session = EditorSession(paramModel(repeat = true))
+		val stepCountBefore = session.historyView.value.steps.size
+
+		session.setParameterRepeat(angleX, repeat = true)
+		session.setParameterRepeat(ParameterId("ParamUnknown"), repeat = false)
+
+		assertEquals(stepCountBefore, session.historyView.value.steps.size)
+		assertFalse(session.dirty.value)
+	}
+
+	/** withParameterRepeat flips exactly the named parameter, and is the same instance when nothing changes. */
+	@Test
+	fun withParameterRepeatSetsTheFlag() {
+		val base = linkModel()
+		val edited = base.withParameterRepeat(angleY, repeat = true)
+
+		assertEquals(listOf(false, true, false), edited.parameters.map { parameter -> parameter.repeat })
+		assertSame(base, base.withParameterRepeat(angleY, repeat = false), "a flag that already holds is the same instance")
+		assertSame(base, base.withParameterRepeat(ParameterId("ParamUnknown"), repeat = true), "an unknown id is the same instance")
 	}
 
 	/** withParameterLink appends the pair, removes exactly that pair, and no-ops an absent unlink. */
