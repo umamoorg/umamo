@@ -170,4 +170,20 @@ interface SessionToolSettings {
 	 * @param ProportionalEditState? state The state to set, or null to turn proportional editing off.
 	 */
 	fun setProportionalEdit(state: ProportionalEditState?)
+
+	/**
+	 * The deform brush's configuration: the falloff curve shaping its influence, the radius it reaches,
+	 * and the strength it carries the points under it with.  Transient editor state like [pivotMode] - it
+	 * survives mode switches but is never snapshotted; a saved document carries it, so a rigger reopens
+	 * with the brush they last dialled in.
+	 */
+	val brushSettings: StateFlow<BrushSettings>
+
+	/**
+	 * Sets the deform brush's configuration outright, silently: the operation settings strip's write-back,
+	 * and the settings a command changes one field of.
+	 *
+	 * @param BrushSettings settings The configuration to set.
+	 */
+	fun setBrushSettings(settings: BrushSettings)
 }

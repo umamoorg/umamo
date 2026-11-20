@@ -6,10 +6,14 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import org.umamo.edit.BrushSettings
 import org.umamo.edit.Cursor2d
+import org.umamo.edit.DEFAULT_BRUSH_SETTINGS
 import org.umamo.edit.DEFAULT_PROPORTIONAL_EDIT_STATE
 import org.umamo.edit.DepthSurface
 import org.umamo.edit.EditorMode
+import org.umamo.edit.MAX_BRUSH_STRENGTH
+import org.umamo.edit.MIN_BRUSH_STRENGTH
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.Pose
@@ -94,6 +98,17 @@ fun sessionStateJson(viewState: SessionViewState, pose: Pose, model: PuppetModel
 				}
 			} ?: JsonNull,
 		)
+		// UMA §7.4: `brush` - the Deform brush's falloff, radius, and strength, left out at the defaults.
+		put(
+			"brush",
+			viewState.brushSettings?.takeIf { settings -> settings != DEFAULT_BRUSH_SETTINGS }?.let { settings ->
+				buildJsonObject {
+					put("falloff", JsonPrimitive(falloffWireName(settings.falloff)))
+					put("radius", JsonPrimitive(settings.radiusWorld))
+					put("strength", JsonPrimitive(settings.strength))
+				}
+			} ?: JsonNull,
+		)
 		// UMA §7.4: `depthRotation` - the depth rotation's pivot depth and surface, left out at the defaults.
 		put(
 			"depthRotation",
@@ -124,6 +139,7 @@ fun sessionViewStateOf(tree: JsonObject?): SessionViewState? {
 	val parameterSelection = tree["parameterSelection"] as? JsonObject
 	val parameterIds = parameterSelection?.let { block -> stringListOf(block, "ids") }.orEmpty().mapTo(LinkedHashSet(), ::ParameterId)
 	val proportional = tree["proportional"] as? JsonObject
+	val brush = tree["brush"] as? JsonObject
 	val depthRotation = tree["depthRotation"] as? JsonObject
 
 	return SessionViewState(
@@ -145,6 +161,14 @@ fun sessionViewStateOf(tree: JsonObject?): SessionViewState? {
 					falloff = stringOf(block, "falloff")?.let { wireName -> ProportionalFalloff.entries.firstOrNull { falloff -> falloffWireName(falloff) == wireName } } ?: DEFAULT_PROPORTIONAL_SETTINGS.falloff,
 					radiusWorld = finiteFloatOf(block["radius"])?.takeIf { radius -> radius > 0f } ?: DEFAULT_PROPORTIONAL_SETTINGS.radiusWorld,
 					connectedOnly = booleanOf(block, "connectedOnly") ?: false,
+				)
+			},
+		brushSettings =
+			brush?.let { block ->
+				BrushSettings(
+					falloff = stringOf(block, "falloff")?.let { wireName -> ProportionalFalloff.entries.firstOrNull { falloff -> falloffWireName(falloff) == wireName } } ?: DEFAULT_BRUSH_SETTINGS.falloff,
+					radiusWorld = finiteFloatOf(block["radius"])?.takeIf { radius -> radius > 0f } ?: DEFAULT_BRUSH_SETTINGS.radiusWorld,
+					strength = finiteFloatOf(block["strength"])?.coerceIn(MIN_BRUSH_STRENGTH, MAX_BRUSH_STRENGTH) ?: DEFAULT_BRUSH_SETTINGS.strength,
 				)
 			},
 	)

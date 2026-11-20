@@ -389,6 +389,7 @@
 	<string name="cmd_mesh_select_mode_face">Face Select Mode</string>
 	<string name="cmd_mesh_box_select">Box Select</string>
 	<string name="cmd_mesh_circle_select">Circle Select</string>
+	<string name="cmd_mesh_deform_brush">Deform Brush</string>
 	<string name="cmd_mesh_circle_grow">Grow Circle Radius</string>
 	<string name="cmd_mesh_circle_shrink">Shrink Circle Radius</string>
 	<string name="cmd_uv_mirror_u">Mirror UVs Horizontally</string>
@@ -485,6 +486,7 @@
 	<string name="history_lattice_slide">Slide Lattice Point</string>
 	<string name="history_lattice_resize">Lattice Resolution</string>
 	<string name="history_lattice_subdivide">Subdivide Lattice</string>
+	<string name="history_lattice_brush">Brush Lattice Points</string>
 	<string name="history_deformer_create">Create Warp Deformer</string>
 	<string name="history_pose_move">Pose: Move Lattice Points</string>
 	<string name="history_pose_scale">Pose: Scale Lattice Points</string>
@@ -713,6 +715,7 @@
 	<string name="history_mesh_merge">Merge Vertices</string>
 	<string name="history_mesh_rip">Rip</string>
 	<string name="history_mesh_connect">Connect Vertices</string>
+	<string name="history_mesh_brush">Brush Vertices</string>
 	<string name="history_mesh_generate_from_art">Generate Mesh from Art</string>
 	<string name="history_mesh_generate_quad">Generate Quad Mesh</string>
 	<!-- Generate Mesh from Art notices.  %1$d is the number of meshes generated, %2$d the number skipped. -->
@@ -1059,6 +1062,10 @@
 	<string name="transform_options_falloff">Falloff</string>
 	<string name="transform_options_proportional_size">Proportional Size</string>
 	<string name="transform_options_connected">Connected Only</string>
+	<!-- The Deform brush's rows on the operation settings strip. -->
+	<string name="brush_options_strength">Strength</string>
+	<string name="brush_options_radius">Brush Radius</string>
+	<string name="brush_options_falloff">Falloff</string>
 	<string name="transform_options_slide_factor">Factor</string>
 	<!-- A Pose-mode Rotate's depth rows and their choices. -->
 	<string name="transform_options_axis">Axis</string>
@@ -1203,6 +1210,9 @@
 	<string name="transform_options_falloff_description">The curve the proportional influence follows as it fades out toward the edge of Proportional Size.</string>
 	<string name="transform_options_proportional_size_description">How far the proportional influence reaches from the selection, in pixels.</string>
 	<string name="transform_options_connected_description">Limits the proportional influence to vertices that are connected to the selected meshes.</string>
+	<string name="brush_options_strength_description">How much of the brush's travel a lattice point under it takes.  1 carries it along exactly.</string>
+	<string name="brush_options_radius_description">How far the brush reaches, in pixels of the model.</string>
+	<string name="brush_options_falloff_description">The curve the brush's influence follows as it fades out toward the edge of Brush Radius.</string>
 	<string name="transform_options_slide_factor_description">The fractional percentage distance along the edge that the vertex rests.</string>
 	<string name="transform_options_axis_description">The rotational axis that the selection pivots around.</string>
 	<string name="transform_options_pivot_depth_description">How far forwards or backwards along the Y axis the pivot is moved.</string>

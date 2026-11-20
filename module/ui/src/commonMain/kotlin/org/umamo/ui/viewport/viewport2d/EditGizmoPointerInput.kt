@@ -6,6 +6,7 @@ import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.ActiveSelectTool
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelection
+import org.umamo.edit.transform.BrushStroke
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.viewport.gizmo.MarqueeSelectController
 import org.umamo.ui.viewport.gizmo.MeshPickController
@@ -21,6 +22,7 @@ import org.umamo.ui.viewport.gizmo.MeshPickController
  * @param EditorSession session The session owning the latches and the selection.
  * @param EditModalTransform modalTransform The area's modal transform (its gesture state and commit side).
  * @param MarqueeSelectController<MeshSelection> marquee The area's box / circle machinery.
+ * @param MarqueeSelectController<BrushStroke> brush The area's deform brush machinery.
  * @param MeshPickController meshPick The area's element pick and box select.
  * @param LatticeHover latticeHover The area's lattice hover, which follows the idle pointer (Pose mode's idle lattices).
  * @param State<ViewportCamera> liveCamera The area camera.
@@ -31,6 +33,7 @@ internal suspend fun PointerInputScope.editGizmoPointerLoop(
 	session: EditorSession,
 	modalTransform: EditModalTransform,
 	marquee: MarqueeSelectController<MeshSelection>,
+	brush: MarqueeSelectController<BrushStroke>,
 	meshPick: MeshPickController,
 	latticeHover: LatticeHover,
 	liveCamera: State<ViewportCamera>,
@@ -44,6 +47,7 @@ internal suspend fun PointerInputScope.editGizmoPointerLoop(
 			gesture.lastPointer = change.position
 			val latchedOperator = session.activeMeshOperator.value
 			val latchedTool = session.activeSelectTool.value
+			val latchedBrush = session.activeBrush.value
 
 			// A gesture belongs to its initiating area: while another viewport's operator or tool is
 			// live - or a UV operator, which can never belong to a viewport area - this overlay is
@@ -51,6 +55,7 @@ internal suspend fun PointerInputScope.editGizmoPointerLoop(
 			// the shell ladder, and navigation (pan / zoom) still falls through.
 			if ((latchedOperator != null && latchedOperator.areaId != areaId) ||
 				(latchedTool != null && latchedTool.areaId != areaId) ||
+				(latchedBrush != null && latchedBrush.areaId != areaId) ||
 				session.activeUvOperator.value != null
 			) {
 				meshPick.cancel()
@@ -61,6 +66,7 @@ internal suspend fun PointerInputScope.editGizmoPointerLoop(
 
 			val operator = latchedOperator
 			val selectTool = latchedTool
+			val activeBrush = latchedBrush
 			val activeCamera = liveCamera.value
 			val size = liveSize.value
 
@@ -74,8 +80,8 @@ internal suspend fun PointerInputScope.editGizmoPointerLoop(
 				continue
 			}
 
-			// A transform or the circle tool armed mid-drag supersedes the box.
-			if (operator != null || selectTool is ActiveSelectTool.Circle) {
+			// A transform, the circle tool, or the deform brush armed mid-drag supersedes the box.
+			if (operator != null || selectTool is ActiveSelectTool.Circle || activeBrush != null) {
 				meshPick.cancel()
 				latticeHover.clear()
 			}
@@ -90,6 +96,11 @@ internal suspend fun PointerInputScope.editGizmoPointerLoop(
 				// consumes every event (paired with the navigation gate so MMB / wheel do not
 				// also pan / zoom); see MarqueeSelectController.handleCircleEvent.
 				marquee.handleCircleEvent(event, change, selectTool.radiusPx, activeCamera, size)
+			} else if (activeBrush != null) {
+				// DEFORM BRUSH: the same shared controller over a stroke that is a log of stamps.
+				// The radius it takes is the brush's world radius - the brush measures the model,
+				// not the screen.
+				brush.handleCircleEvent(event, change, activeBrush.radiusWorld, activeCamera, size)
 			} else {
 				// ELEMENT PICK AND BOX SELECT, armed or not: the flow shared with the UV editor and
 				// Object mode (Shift+RightClick places the viewport's 2D cursor here).  Only

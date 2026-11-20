@@ -5,6 +5,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.IntSize
+import org.umamo.edit.ActiveBrush
 import org.umamo.edit.ActiveOperator
 import org.umamo.edit.ActiveSelectTool
 import org.umamo.edit.EditorSession
@@ -18,6 +19,7 @@ import org.umamo.ui.theme.SelectionOverlayStyle
 import org.umamo.ui.theme.drawRubberBand
 import org.umamo.ui.viewport.gizmo.MarqueeSelectController
 import org.umamo.ui.viewport.gizmo.ModalGestureState
+import org.umamo.ui.viewport.gizmo.drawBrushAffordance
 import org.umamo.ui.viewport.gizmo.drawOwnedModalTransformHud
 import org.umamo.ui.viewport.gizmo.drawSelectToolAffordances
 
@@ -31,6 +33,7 @@ import org.umamo.ui.viewport.gizmo.drawSelectToolAffordances
  * @param MarqueeSelectController<MeshSelection> marquee The area's box / circle machinery.
  * @param ModalGestureState<EditGesture, MeshRestPositions> gesture The area's modal gesture state.
  * @param ActiveSelectTool? ownedSelectTool The select tool armed in this area, or null.
+ * @param ActiveBrush? ownedBrush The deform brush armed in this area, or null.
  * @param ActiveOperator? hudOperator The latched mesh operator, whichever area owns it.
  * @param State axisConstraint The session's axis constraint.
  * @param State proportionalEdit The session's proportional editing state.
@@ -44,6 +47,7 @@ internal fun DrawScope.drawEditGizmoChrome(
 	marquee: MarqueeSelectController<MeshSelection>,
 	gesture: ModalGestureState<EditGesture, MeshRestPositions>,
 	ownedSelectTool: ActiveSelectTool?,
+	ownedBrush: ActiveBrush?,
 	hudOperator: ActiveOperator?,
 	axisConstraint: State<TransformAxisConstraint?>,
 	proportionalEdit: State<ProportionalEditState?>,
@@ -64,6 +68,15 @@ internal fun DrawScope.drawEditGizmoChrome(
 		pointer = gesture.lastPointer,
 		boxDragInFlight = marquee.boxStart != null,
 		viewport = viewport,
+		style = style,
+		crosshairCursor = LocalUmamoCursors.crosshair,
+	)
+
+	// The deform brush's reach around the pointer.  The brush measures the model, so the circle is the
+	// world-unit radius scaled by the frame camera, and only the arming area draws it.
+	drawBrushAffordance(
+		radiusPx = ownedBrush?.let { brush -> brush.radiusWorld * camera.zoom },
+		pointer = gesture.lastPointer,
 		style = style,
 		crosshairCursor = LocalUmamoCursors.crosshair,
 	)

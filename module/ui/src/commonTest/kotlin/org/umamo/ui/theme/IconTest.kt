@@ -17,7 +17,7 @@ class IconTest {
 
 		// A representative sample across both icon families; parsing already happened for the whole set
 		// the moment LocalUmamoIcons initialized.
-		for (icon in listOf(icons.reset, icons.search, icons.editorModeObject, icons.uvSelectFace, icons.overlays)) {
+		for (icon in listOf(icons.reset, icons.search, icons.editorModeObject, icons.uvSelectFace, icons.overlays, icons.toolDeformBrush)) {
 			assertTrue(icon.layers.isNotEmpty())
 			assertTrue(icon.layers.all { layer -> !layer.path.isEmpty })
 		}

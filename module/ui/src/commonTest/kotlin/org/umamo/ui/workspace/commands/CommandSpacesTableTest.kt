@@ -79,6 +79,7 @@ class CommandSpacesTableTest {
 				"uv.unpinPlacement" to uvEditor,
 				"mesh.rip" to viewport,
 				"mesh.vertexSlide" to viewport,
+				"mesh.deformBrush" to viewport,
 				"keyform.insert" to keyableSurfaces,
 				"keyform.delete" to keyableSurfaces,
 				"keyform.insertPie" to viewport,

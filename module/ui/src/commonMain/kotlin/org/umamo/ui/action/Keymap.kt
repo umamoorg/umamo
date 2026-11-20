@@ -317,6 +317,7 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		"Home" to "frame.all",
 		"KeyB" to "mesh.boxSelect",
 		"KeyC" to "mesh.circleSelect",
+		"KeyD" to "mesh.deformBrush",
 		"shift+KeyB" to "view.zoomRegion",
 		"NumpadAdd" to "mesh.circleSelect.grow",
 		"NumpadSubtract" to "mesh.circleSelect.shrink",

@@ -185,6 +185,29 @@ internal fun DrawScope.drawSelectToolAffordances(
 }
 
 /**
+ * Draws the deform brush's affordance: the circle of the brush's reach around the pointer, and the drawn
+ * crosshair that stands in for the OS cursor hidden while the brush is armed.
+ *
+ * @param Float? radiusPx The brush's radius in screen pixels, or null to draw no circle.
+ * @param Offset pointer The pointer position in area-local pixels.
+ * @param SelectionOverlayStyle style The shared two-tone marching-ants style.
+ * @param UmamoCursor crosshairCursor The drawn stand-in for the hidden OS cursor.
+ */
+internal fun DrawScope.drawBrushAffordance(
+	radiusPx: Float?,
+	pointer: Offset,
+	style: SelectionOverlayStyle,
+	crosshairCursor: UmamoCursor,
+) {
+	if (radiusPx == null) {
+		return
+	}
+
+	drawSelectionCircle(pointer, radiusPx, style)
+	drawCursor(crosshairCursor, pointer)
+}
+
+/**
  * The cursor crosshair marker (the authored dashed-ring icon) at a projected screen point, drawn at a
  * screen-constant size - shared by the 2D viewport's cursor overlay and the UV editor's.
  *

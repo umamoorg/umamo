@@ -19,11 +19,12 @@ import org.umamo.runtime.model.PuppetModel
  * in place: the reshape stands, Ctrl+Z undoes it, and the notice says how many children's art moved.  A reshape that
  * changed nothing records nothing and reports nothing.
  *
- * @param DeformerChange.ReshapeLattice change The edit descriptor.
+ * @param DeformerChange change The edit descriptor - a reshape of the lattice by an operator, or a brush's smear of
+ *   it.
  * @param PuppetModel reshaped The model with the lattices reshaped and their children kept in place.
  * @param Int unconvertedCount How many direct children the reshape could not keep in place.
  */
-fun EditorSession.commitLatticeReshape(change: DeformerChange.ReshapeLattice, reshaped: PuppetModel, unconvertedCount: Int) {
+fun EditorSession.commitLatticeReshape(change: DeformerChange, reshaped: PuppetModel, unconvertedCount: Int) {
 	val before = model.value
 	mutate(change) { reshaped }
 

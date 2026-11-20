@@ -257,6 +257,14 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 				true
 			}
 
+			// An armed deform brush owns Escape and Enter the same way an armed select tool does: the
+			// stroke in flight resolves first, then the brush is disarmed.
+			(isEscapeDown || isEnterDown) && editorSession?.activeBrush?.value != null -> {
+				editorSession.requestMeshGestureCancel()
+				editorSession.clearBrush()
+				true
+			}
+
 			// An armed keyform-sheet marquee owns Escape, before the clear-selection branch below.  It hides
 			// the OS cursor while armed, so a mode with no way out leaves the pointer invisible over the
 			// sheet until the user happens to press and release somewhere.

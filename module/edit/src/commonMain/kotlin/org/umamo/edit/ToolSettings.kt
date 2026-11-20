@@ -52,6 +52,11 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	/** The proportional configuration, live or remembered (see [SessionToolSettings.proportionalSettings]). */
 	override val proportionalSettings: StateFlow<ProportionalEditState> = mutableProportionalSettings.asStateFlow()
 
+	private val mutableBrushSettings = MutableStateFlow(DEFAULT_BRUSH_SETTINGS)
+
+	/** The deform brush's configuration (see [SessionToolSettings.brushSettings]). */
+	override val brushSettings: StateFlow<BrushSettings> = mutableBrushSettings.asStateFlow()
+
 	/**
 	 * Places (or moves) the 2D cursor.
 	 *
@@ -223,6 +228,20 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	}
 
 	/**
+	 * Sets the deform brush's configuration outright, silently, with its radius and strength clamped, so
+	 * no path can store a value another would refuse.
+	 *
+	 * @param BrushSettings settings The configuration to set.
+	 */
+	override fun setBrushSettings(settings: BrushSettings) {
+		mutableBrushSettings.value =
+			settings.copy(
+				radiusWorld = clampBrushRadius(settings.radiusWorld),
+				strength = clampBrushStrength(settings.strength),
+			)
+	}
+
+	/**
 	 * Lays a saved session's tool state in, silently: the cursors, the pivot mode, the depth rotation's pivot depth and
 	 * surface, and proportional editing with the configuration it would re-enable with.  Called once, as the session
 	 * is built, so nothing here is a gesture and nothing here posts a notice.
@@ -239,6 +258,13 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 			mutableProportionalSettings.value = settings.copy(radiusWorld = clampProportionalRadius(settings.radiusWorld))
 		}
 		mutableProportionalEdit.value = mutableProportionalSettings.value.takeIf { viewState.proportionalEnabled }
+		viewState.brushSettings?.let { settings ->
+			mutableBrushSettings.value =
+				settings.copy(
+					radiusWorld = clampBrushRadius(settings.radiusWorld),
+					strength = clampBrushStrength(settings.strength),
+				)
+		}
 	}
 }
 

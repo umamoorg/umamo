@@ -385,6 +385,18 @@ sealed interface DeformerChange : Change {
 	}
 
 	/**
+	 * Smears one or more warps' rest lattices with the deform brush: every point the brush covered takes the brush's
+	 * travel, weighted by the falloff, so each point of every form of the warp shifts by its own parent-space offset
+	 * and the warps' children are re-expressed so they rest where they rested.
+	 *
+	 * @property List<DeformerId> deformerIds The smeared warps.
+	 */
+	data class BrushLattice(val deformerIds: List<DeformerId>) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.lattice.brush"
+	}
+
+	/**
 	 * Creates a warp around the selection (Create Warp Deformer): the warp is born with one keyform holding a lattice
 	 * over the selection's bounds plus a margin, and the wrapped items are re-parented under it, kept where they rest.
 	 *
@@ -1045,6 +1057,20 @@ sealed interface MeshChange : Change {
 				MeshOperatorKind.Rotate -> "change.mesh.rotate"
 				MeshOperatorKind.VertexSlide -> "change.mesh.slide"
 			}
+	}
+
+	/**
+	 * Smears one or more drawables' meshes with the deform brush: the vertices the brush covered take its
+	 * travel, weighted by the falloff, so the art's shape changes where the brush went.
+	 *
+	 * A brush stroke is not a modal transform, so it carries no operator kind - the history label names the
+	 * brush rather than filing the smear under a move.
+	 *
+	 * @property List<DrawableId> drawableIds The smeared drawables.
+	 */
+	data class BrushVertices(val drawableIds: List<DrawableId>) : MeshChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.mesh.brush"
 	}
 
 	/**

@@ -124,6 +124,19 @@ interface SessionToolLatches {
 	val activeSelectTool: StateFlow<ActiveSelectTool?>
 
 	/**
+	 * The deform brush currently armed, or null.  Transient UI coordination like [activeSelectTool] (not
+	 * snapshotted, not on the bus): a registry command latches it, the gizmo overlay observes it to
+	 * reinterpret pointer input, and it clears on completion / cancel / a mode switch.  A brush is not a
+	 * selection tool, so it has its own latch rather than a variant of [activeSelectTool].
+	 */
+	val activeBrush: StateFlow<ActiveBrush?>
+
+	/**
+	 * Clears the armed deform brush (the overlay calls this on completion, Esc, or RMB).
+	 */
+	fun clearBrush()
+
+	/**
 	 * The viewport area id whose Zoom Region gesture is armed (Blender's Shift+B), or null.  Mode-agnostic -
 	 * Zoom Region works in every mode alike - so it is keyed by area rather than gated on the mode,
 	 * and the top-level region overlay for that area reads it to capture the drag.  Transient, not snapshotted.

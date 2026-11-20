@@ -11,6 +11,7 @@ import org.umamo.edit.mesh.MergeTarget
 import org.umamo.edit.mesh.parameterKey
 import org.umamo.edit.structure.RehomeParameterKeys
 import org.umamo.edit.structure.WarpCreationParameterKeys
+import org.umamo.edit.transform.BrushParameterKeys
 import org.umamo.edit.transform.RotationAxis
 import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.choiceKey
@@ -164,6 +165,12 @@ internal fun operatorParameterLabel(labelKey: String): String =
 
 		QuadMeshParameterKeys.MARGIN -> stringResource(Res.string.mesh_options_quad_margin)
 
+		BrushParameterKeys.STRENGTH -> stringResource(Res.string.brush_options_strength)
+
+		BrushParameterKeys.RADIUS -> stringResource(Res.string.brush_options_radius)
+
+		BrushParameterKeys.FALLOFF -> stringResource(Res.string.brush_options_falloff)
+
 		else -> choiceLabel(labelKey) ?: labelKey
 	}
 
@@ -242,6 +249,9 @@ internal fun operatorParameterDescriptionRes(labelKey: String): StringResource? 
 		MeshGenerationParameterKeys.DEFORMATION_TOLERANCE -> Res.string.mesh_options_deformation_tolerance_description
 		MeshGenerationParameterKeys.INTERIOR_THINNING_LIMIT -> Res.string.mesh_options_interior_thinning_limit_description
 		QuadMeshParameterKeys.MARGIN -> Res.string.mesh_options_quad_margin_description
+		BrushParameterKeys.STRENGTH -> Res.string.brush_options_strength_description
+		BrushParameterKeys.RADIUS -> Res.string.brush_options_radius_description
+		BrushParameterKeys.FALLOFF -> Res.string.brush_options_falloff_description
 		else -> null
 	}
 
@@ -265,6 +275,12 @@ internal fun operatorParameterDescription(labelKey: String): String = operatorPa
 private fun choiceLabel(labelKey: String): String? {
 	if (labelKey.startsWith(TransformParameterKeys.FALLOFF_CHOICE_PREFIX)) {
 		val key = labelKey.removePrefix(TransformParameterKeys.FALLOFF_CHOICE_PREFIX)
+
+		return ProportionalFalloff.entries.firstOrNull { falloff -> falloff.choiceKey == key }?.let { falloff -> falloffLabel(falloff) }
+	}
+
+	if (labelKey.startsWith(BrushParameterKeys.FALLOFF_CHOICE_PREFIX)) {
+		val key = labelKey.removePrefix(BrushParameterKeys.FALLOFF_CHOICE_PREFIX)
 
 		return ProportionalFalloff.entries.firstOrNull { falloff -> falloff.choiceKey == key }?.let { falloff -> falloffLabel(falloff) }
 	}
