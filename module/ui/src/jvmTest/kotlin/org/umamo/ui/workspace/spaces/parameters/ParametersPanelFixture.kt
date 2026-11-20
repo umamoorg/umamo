@@ -243,7 +243,7 @@ internal val PANEL_FIXTURE_POSE: Map<ParameterId, Float> =
  * The fixture rig.
  *
  * @param RuntimeTarget runtimeTarget The runtime the rig targets, which decides whether a blend-shape
- *   parameter may be created.
+ *   parameter may be created and whether Repeat is offered.
  * @param Set<ParameterId> repeating The parameters that wrap past their limits; none by default.
  * @return PuppetModel The rig.
  */

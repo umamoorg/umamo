@@ -90,7 +90,7 @@ class BlendShapeOracleTest {
 	}
 
 	/**
-	 * Evaluates [puppet] at [pose] and compares against the a dump of [moc3] at the same pose.
+	 * Evaluates [puppet] at [pose] and compares against the runtime's dump of [moc3] at the same pose.
 	 *
 	 * @return Triple(compared, matched, worst relative error) for the pose.
 	 */

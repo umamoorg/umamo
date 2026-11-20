@@ -136,7 +136,7 @@ class ParameterRepeatOracleTest {
 	}
 
 	/**
-	 * The runtime own rule at exactly max, which Umamo deliberately does not follow: it evaluates max as min.
+	 * The runtime's own rule at exactly max, which Umamo deliberately does not follow: it evaluates max as min.
 	 *
 	 * Only a probe whose forms differ at its ends can tell the two apart, so the leg counts the probes where the runtime at
 	 * max differs from the runtime a hair below it, which snaps onto the max key, and skips when none does.
