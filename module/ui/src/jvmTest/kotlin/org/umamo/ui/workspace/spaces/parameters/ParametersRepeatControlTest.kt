@@ -14,8 +14,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Pins the control preference: under the slider choice a repeating parameter shows its slider and a pair with a
- * repeating member its pad, and changing the choice swaps the controls in the open panel.  The panel's other suites
+ * Pins the control preference: under the slider choice a repeating parameter shows its slider, which wraps, and a pair
+ * with a repeating member its pad, and changing the choice swaps the controls in the open panel.  The panel's other suites
  * run at the default, the dial.
  *
  * Body X runs -10..10.  Angle X and Angle Y run -30..30.
@@ -38,22 +38,23 @@ class ParametersRepeatControlTest {
 			assertEquals(cursorBefore + 1, harness.historyCursor)
 		}
 
-	/** The slider on a repeating parameter stops at its end, while the value field above it still wraps (D10). */
+	/** The slider on a repeating parameter wraps past its end, as the value field above it does. */
 	@Test
-	fun aSliderOnARepeatingParameterStopsAtItsEnds() =
+	fun aSliderOnARepeatingParameterWrapsPastItsEnd() =
 		runComposeUiTest {
 			val harness = ParametersPanelHarness(model = panelFixtureModel(repeating = setOf(PanelIds.bodyX)))
 			harness.preferRepeatControl(RepeatControlSetting.Slider)
 			mountParametersPanel(harness)
-			val slider = sliderBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
 
-			drag(slider.at(0.6f), listOf(slider.at(0.8f), Offset(slider.right + 40f, slider.center.y)))
-
-			assertEquals(10f, harness.committed(PanelIds.bodyX), "a drag past the end lands on max, and does not wrap")
-
-			typeIntoNumberField("10.00", "12")
+			typeIntoNumberField(PanelValues.BODY_X, "12")
 
 			assertEquals(-8f, harness.committed(PanelIds.bodyX), "12 on a -10..10 loop is -8")
+
+			val slider = sliderBox(harness, PanelRows.BODY_X, "-8.00")
+			drag(slider.at(0.6f), listOf(slider.at(0.8f), Offset(slider.right + 40f, slider.center.y)))
+
+			val committed = harness.committed(PanelIds.bodyX)
+			assertTrue(committed != null && committed < 0f, "a drag well past max comes in at min, got $committed")
 		}
 
 	/** Under the slider choice a pair with a repeating member keeps its pad: a press lands both axes as one step. */

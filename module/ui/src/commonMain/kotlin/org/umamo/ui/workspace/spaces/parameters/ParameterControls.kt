@@ -176,8 +176,8 @@ internal fun ParameterIsland(
 }
 
 /**
- * One labelled slider for a parameter, clamped to its range, with a numeric entry field and (when the
- * value is off its default) a reset glyph.  It shows a dial in place of the slider when [control] says so.
+ * One labelled slider for a parameter, held to its range (a repeating one wraps round it), with a numeric entry
+ * field and (when the value is off its default) a reset glyph.  It shows a dial in place of the slider when [control] says so.
  * A drag of the slider or a scrub of the field previews live and commits one step on release; a typed
  * value or the reset commits one step.
  *
@@ -258,6 +258,8 @@ internal fun ParameterSlider(
 				valueRange = parameter.min..parameter.max,
 				keyMarks = sliderKeyMarks,
 				thumbShape = thumbShapeOf(parameter),
+				// A repeating value comes in at the other end once dragged past one, and the slider keeps it in range.
+				wraps = parameter.repeat,
 				accentColor = accentColor,
 				modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
 			)
@@ -445,6 +447,8 @@ internal fun ParameterPad2D(
 				yRange = vertical.min..vertical.max,
 				xKeyMarks = xKeyMarks,
 				yKeyMarks = yKeyMarks,
+				xWraps = horizontal.repeat,
+				yWraps = vertical.repeat,
 				accentColor = padAccentColor,
 				modifier = Modifier.padding(10.dp).fillMaxWidth(),
 			)
