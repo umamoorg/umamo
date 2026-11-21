@@ -107,6 +107,7 @@ fun PuppetModel.withParameterLink(horizontal: ParameterId, vertical: ParameterId
  */
 fun PuppetModel.padLinks(): List<ParameterLink> {
 	val movable = parameters.filter { parameter -> parameter.max > parameter.min }.mapTo(HashSet()) { parameter -> parameter.id }
+
 	return parameterLinks.filter { link -> link.horizontal in movable && link.vertical in movable }
 }
 
