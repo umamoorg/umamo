@@ -204,6 +204,57 @@ class ParametersRecompositionTest {
 			releasePress()
 		}
 
+	/** A dial scrub is held to what a slider scrub is: the dial's row and its value row, once per move. */
+	@Test
+	fun aDialScrubRunsOnlyTheDialItMoves() =
+		counting { counter ->
+			val harness = ParametersPanelHarness(model = panelFixtureModel(repeating = setOf(PanelIds.bodyX)))
+			mountParametersPanel(harness)
+			val dial = dialBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
+			val moves = listOf(dial.atClock(0.36f), dial.atClock(0.4f), dial.atClock(0.44f), dial.atClock(0.48f), dial.atClock(0.52f))
+			pressAndMove(dial.atClock(0.3f), listOf(dial.atClock(0.33f)))
+			counter.reset()
+
+			moveOn(moves)
+
+			val named = counter.namedRuns()
+			assertEquals(setOf("ParameterSlider", "ParameterValueRow"), named.keys, "a dial scrub must run the moved row's controls and no other composable")
+			assertTrue(named.getValue("ParameterSlider") <= moves.size, "the dial's row runs at most once per move, and ran ${named["ParameterSlider"]} times")
+			assertTrue(
+				counter.lambdaRuns() <= moves.size,
+				"only the moved row re-reads its value, once per move; ${counter.lambdaRuns()} lambdas ran for ${moves.size} moves",
+			)
+			releasePress()
+		}
+
+	/** A scrub of one of a pair's dials runs that dial and its axis row; the other dial skips. */
+	@Test
+	fun aPairDialScrubRunsOnlyTheDialItMoves() =
+		counting { counter ->
+			val harness = ParametersPanelHarness(model = panelFixtureModel(repeating = setOf(PanelIds.angleX, PanelIds.angleY)))
+			mountParametersPanel(harness)
+			val (left, _) = pairDialBoxes(harness, PanelRows.ANGLE_PAD, PanelValues.ANGLE_X, PanelValues.ANGLE_Y)
+			val moves = listOf(left.atClock(0.36f), left.atClock(0.4f), left.atClock(0.44f))
+			pressAndMove(left.atClock(0.3f), listOf(left.atClock(0.33f)))
+			counter.reset()
+
+			moveOn(moves)
+
+			val named = counter.namedRuns()
+			assertEquals(
+				setOf("ParameterPad2D", "ParameterValueRow", "ParameterPairDial"),
+				named.keys,
+				"a pair dial scrub must run the pair's controls and no other composable",
+			)
+			assertTrue(named.getValue("ParameterPairDial") <= moves.size, "only the moved dial runs; the pair's dials ran ${named["ParameterPairDial"]} times")
+			assertTrue(named.getValue("ParameterValueRow") <= moves.size, "only the moved axis's value row runs; they ran ${named["ParameterValueRow"]} times")
+			assertTrue(
+				counter.lambdaRuns() <= PAIR_DIAL_LAMBDAS_PER_MOVE * moves.size,
+				"only the pair re-reads its values; ${counter.lambdaRuns()} lambdas ran for ${moves.size} moves",
+			)
+			releasePress()
+		}
+
 	/** A preview made elsewhere moves one slider, and runs that one. */
 	@Test
 	fun anOutsidePreviewRunsOnlyTheSliderItMoves() =
@@ -467,5 +518,11 @@ class ParametersRecompositionTest {
 		 * axis rows, which show them.  None belongs to another row.
 		 */
 		const val PAD_LAMBDAS_PER_MOVE = 3
+
+		/**
+		 * The lambdas a pair-dial move runs: the island content that reads the pair's values, the moved axis's
+		 * row, the row holding the two dials, and the moved dial's own column.  None belongs to another row.
+		 */
+		const val PAIR_DIAL_LAMBDAS_PER_MOVE = 4
 	}
 }

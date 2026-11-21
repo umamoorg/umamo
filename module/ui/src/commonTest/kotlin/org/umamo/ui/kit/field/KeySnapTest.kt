@@ -57,4 +57,39 @@ class KeySnapTest {
 		assertEquals(9.5f, snapToNearestWithin(9.8f, listOf(10.2f, 9.5f), 0.5f, 0f..10f))
 		assertEquals(10f, snapToNearestWithin(9.8f, listOf(10f), 0.5f, 0f..10f))
 	}
+
+	/** Round a loop, a key at max pulls a value just past min, and lands on max itself, not on min. */
+	@Test
+	fun roundALoopAKeyAtMaxPullsAValueJustPastMin() {
+		assertEquals(10f, snapToNearestWithinPeriodic(0.2f, listOf(5f, 10f), 0.5f, 0f..10f))
+		assertEquals(0f, snapToNearestWithinPeriodic(9.8f, listOf(0f, 5f), 0.5f, 0f..10f))
+	}
+
+	/** A value a lap or more outside the range still latches, onto the target inside it. */
+	@Test
+	fun roundALoopAValueLapsOutStillLatches() {
+		assertEquals(5f, snapToNearestWithinPeriodic(25.3f, listOf(5f), 0.5f, 0f..10f))
+		assertEquals(10f, snapToNearestWithinPeriodic(-9.9f, listOf(10f), 0.5f, 0f..10f))
+		assertEquals(10f, snapToNearestWithinPeriodic(10.2f, listOf(10f), 0.5f, 0f..10f), "just past max, a lap out, is beside the max key")
+	}
+
+	/** Round a loop the reach is still the reach, and a target outside the range never latches. */
+	@Test
+	fun roundALoopTheReachAndTheBoundsHold() {
+		assertEquals(0.6f, snapToNearestWithinPeriodic(0.6f, listOf(10f), 0.5f, 0f..10f))
+		assertEquals(0.2f, snapToNearestWithinPeriodic(0.2f, listOf(10.1f), 0.5f, 0f..10f))
+	}
+
+	/** Round a loop, the nearer target wins and a tie keeps the first. */
+	@Test
+	fun roundALoopTheNearerWinsAndATieKeepsTheFirst() {
+		assertEquals(10f, snapToNearestWithinPeriodic(0.1f, listOf(0.4f, 10f), 0.5f, 0f..10f))
+		assertEquals(0f, snapToNearestWithinPeriodic(0f, listOf(0f, 10f), 0.5f, 0f..10f), "min and max are the same place, so the first listed wins")
+	}
+
+	/** An empty range has no loop, so the snap measures plain distance. */
+	@Test
+	fun anEmptyRangeSnapsAlongALine() {
+		assertEquals(3f, snapToNearestWithinPeriodic(3.2f, listOf(3f), 0.5f, 3f..3f))
+	}
 }

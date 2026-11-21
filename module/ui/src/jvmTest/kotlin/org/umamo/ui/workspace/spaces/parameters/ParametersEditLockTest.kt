@@ -135,6 +135,22 @@ class ParametersEditLockTest {
 			assertPoseUntouched(this, harness, cursorBefore)
 		}
 
+	/** A dial press and a drag round its seam do nothing. */
+	@Test
+	fun editModeLocksADialScrub() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness(model = panelFixtureModel(repeating = setOf(PanelIds.bodyX)))
+			mountParametersPanel(harness)
+			val dial = dialBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
+			lock(this, harness)
+			val cursorBefore = harness.historyCursor
+
+			clickAt(dial.atClock(0.25f))
+			drag(dial.atClock(0.85f), listOf(dial.atClock(0.95f), dial.atClock(0.05f), dial.atClock(0.15f)))
+
+			assertPoseUntouched(this, harness, cursorBefore)
+		}
+
 	/** A typed value does nothing.  Typed into Eye Open, the one row whose rest value is not 0. */
 	@Test
 	fun editModeLocksATypedValue() =

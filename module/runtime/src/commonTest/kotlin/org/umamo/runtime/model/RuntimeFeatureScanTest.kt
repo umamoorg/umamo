@@ -170,10 +170,10 @@ class RuntimeFeatureScanTest {
 	}
 
 	@Test
-	fun repeatingParameterReportsBelowFiveThree() {
+	fun repeatingParametersAreNotAFeature() {
+		// The editor's target dialog restricts repeat at no target, and every moc version carries its flag.
 		val repeating = model(parameters = listOf(Parameter(parameterId, "Param", 0f, 1f, 0f, repeat = true)))
-		assertEquals(setOf(RuntimeFeature.ParameterRepeat), repeating.unsupportedFeaturesInUse(RuntimeTarget.Cubism50))
-		assertEquals(emptySet(), repeating.unsupportedFeaturesInUse(RuntimeTarget.Cubism53))
+		assertEquals(emptySet(), repeating.unsupportedFeaturesInUse(RuntimeTarget.Cubism30))
 	}
 
 	@Test

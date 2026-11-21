@@ -204,7 +204,6 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 							labels = labels,
 							pose = pose,
 							viewState = viewState,
-							runtimeTarget = puppet.runtimeTarget,
 							session = session,
 							createMenuItems = createMenuItems,
 							dragController = dragController,

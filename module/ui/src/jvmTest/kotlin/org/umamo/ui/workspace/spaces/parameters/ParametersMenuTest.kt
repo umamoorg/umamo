@@ -126,30 +126,17 @@ class ParametersMenuTest {
 			assertFalse(parameterOf(harness, PanelIds.angleX).repeat)
 		}
 
-	/** A runtime below 5.3 offers no Toggle Repeat on a parameter that does not repeat. */
+	/** The oldest runtime target still offers Toggle Repeat, since no target restricts repeat. */
 	@Test
-	fun aRuntimeWithoutRepeatOffersNoToggle() =
+	fun theOldestRuntimeOffersTheToggle() =
 		runComposeUiTest {
-			val harness = ParametersPanelHarness(runtimeTarget = RuntimeTarget.Cubism50)
-			mountParametersPanel(harness)
-
-			secondaryClickAt(panelBoundsOfText(PanelNames.BODY_X).center)
-
-			assertTrue(popupShows(harness.text.rename), "the menu has to be open for its absence to mean anything")
-			assertFalse(popupShows(harness.text.toggleRepeat))
-		}
-
-	/** Below 5.3 a parameter that already repeats still offers the toggle, so the flag can be turned off. */
-	@Test
-	fun aRuntimeWithoutRepeatStillOffersToTurnAFlagOff() =
-		runComposeUiTest {
-			val harness = ParametersPanelHarness(model = panelFixtureModel(RuntimeTarget.Cubism50, repeating = setOf(PanelIds.bodyX)))
+			val harness = ParametersPanelHarness(runtimeTarget = RuntimeTarget.Cubism30)
 			mountParametersPanel(harness)
 
 			secondaryClickAt(panelBoundsOfText(PanelNames.BODY_X).center)
 			clickMenuEntry(harness.text.toggleRepeat)
 
-			assertFalse(parameterOf(harness, PanelIds.bodyX).repeat)
+			assertTrue(parameterOf(harness, PanelIds.bodyX).repeat)
 		}
 
 	/** A group header offers group entries only. */

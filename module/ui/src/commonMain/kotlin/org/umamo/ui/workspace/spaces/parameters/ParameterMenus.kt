@@ -20,7 +20,6 @@ import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.commandMenuItem
 import org.umamo.ui.kit.menu.MenuItem
-import org.umamo.ui.properties.showsParameterRepeat
 
 /*
  * The panel's menus, as lists of entries.  Every place that offers an entry - a row's context menu, the
@@ -189,11 +188,9 @@ internal fun parameterGroupMenuItems(
 	)
 
 /**
- * A slider row's context menu: Rename, Toggle Repeat where the runtime target offers it, and Delete Parameter, then
- * the entries that create.
+ * A slider row's context menu: Rename, Toggle Repeat, and Delete Parameter, then the entries that create.
  *
  * @param Parameter parameter The parameter the menu acts on.
- * @param RuntimeTarget runtimeTarget The document's runtime target, which decides whether Toggle Repeat shows.
  * @param ParameterLabels labels The panel's localized chrome.
  * @param EditorSession? session The editing session, or null with none, which disables the entries.
  * @param ParametersViewState viewState The panel's view state, which holds the rename target.
@@ -203,14 +200,13 @@ internal fun parameterGroupMenuItems(
 @Composable
 internal fun parameterSliderMenuItems(
 	parameter: Parameter,
-	runtimeTarget: RuntimeTarget,
 	labels: ParameterLabels,
 	session: EditorSession?,
 	viewState: ParametersViewState,
 	createMenuItems: List<MenuItem>,
 ): () -> List<MenuItem> {
 	val parameterId = parameter.id
-	val toggleRepeat = toggleRepeatEntry()?.takeIf { showsParameterRepeat(runtimeTarget, parameter.repeat) }
+	val toggleRepeat = toggleRepeatEntry()
 
 	return {
 		listOfNotNull(
@@ -232,12 +228,10 @@ internal fun parameterSliderMenuItems(
 
 /**
  * A pad row's context menu.  A pad holds two axes, so Rename, Toggle Repeat, and Delete Parameter each open a
- * submenu that asks which one; the axis names in it are user data, never localized.  Toggle Repeat lists the axes
- * the runtime target offers it on, and is left out when that is neither.
+ * submenu that asks which one; the axis names in it are user data, never localized.
  *
  * @param Parameter horizontal The pad's X-axis parameter.
  * @param Parameter vertical The pad's Y-axis parameter.
- * @param RuntimeTarget runtimeTarget The document's runtime target, which decides which axes Toggle Repeat lists.
  * @param ParameterLabels labels The panel's localized chrome.
  * @param EditorSession? session The editing session, or null with none, which disables the entries.
  * @param ParametersViewState viewState The panel's view state, which holds the rename target.
@@ -248,14 +242,12 @@ internal fun parameterSliderMenuItems(
 internal fun parameterPadMenuItems(
 	horizontal: Parameter,
 	vertical: Parameter,
-	runtimeTarget: RuntimeTarget,
 	labels: ParameterLabels,
 	session: EditorSession?,
 	viewState: ParametersViewState,
 	createMenuItems: List<MenuItem>,
 ): () -> List<MenuItem> {
 	val toggleRepeat = toggleRepeatEntry()
-	val repeatAxes = listOf(horizontal, vertical).filter { axis -> showsParameterRepeat(runtimeTarget, axis.repeat) }
 
 	return {
 		listOfNotNull(
@@ -276,8 +268,8 @@ internal fun parameterPadMenuItems(
 					),
 				enabled = session != null,
 			),
-			toggleRepeat?.takeIf { repeatAxes.isNotEmpty() }?.let { entry ->
-				val rows = repeatAxes.map { axis -> entry.rowFor(axis.id, axis.name) }
+			toggleRepeat?.let { entry ->
+				val rows = listOf(horizontal, vertical).map { axis -> entry.rowFor(axis.id, axis.name) }
 
 				MenuItem.Submenu(label = entry.title, items = rows, enabled = rows.any { row -> (row as? MenuItem.Action)?.enabled == true })
 			},
