@@ -132,6 +132,46 @@ class ParametersRepeatControlTest {
 			assertEquals(10f, harness.committed(PanelIds.bodyX), "across the seam a dial that no longer repeats waits at max")
 		}
 
+	/**
+	 * A dial picked for a parameter that does not repeat counts its laps as one that clamps: it waits at max however
+	 * far the pointer turns, and follows again on the first crossing back.
+	 */
+	@Test
+	fun aDialPickOnAParameterThatDoesNotRepeatFollowsOnTheFirstCrossingBack() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			harness.session.setParameterControl(PanelIds.bodyX, ParameterControl.Dial)
+			mountParametersPanel(harness)
+			val dial = dialBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
+			val clockwiseLap = listOf(0.3f, 0.55f, 0.8f, 0.05f)
+
+			pressAndMove(dial.atClock(0.85f), (listOf(0.95f, 0.05f) + clockwiseLap + clockwiseLap).map { fraction -> dial.atClock(fraction) })
+			assertEquals(10f, harness.live(PanelIds.bodyX), "across the seam and two laps on, a dial that does not repeat waits at max")
+
+			moveOn(listOf(dial.atClock(0.95f), dial.atClock(0.9f)))
+			releasePress()
+			assertNear(8f, harness.committed(PanelIds.bodyX), "one crossing back and it follows the pointer again")
+		}
+
+	/**
+	 * With Ctrl held, a dial picked for a parameter that does not repeat snaps along its range alone: a key at min
+	 * never catches a press just before the seam, on the max side.
+	 */
+	@Test
+	fun ctrlOnADialThatDoesNotRepeatNeverReachesAcrossTheSeam() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness(model = panelFixtureModel(bodyXKeys = floatArrayOf(-10f, 0f)))
+			harness.session.setParameterControl(PanelIds.bodyX, ParameterControl.Dial)
+			mountParametersPanel(harness)
+			val dial = dialBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
+
+			setCtrlHeld(true)
+			clickAt(dial.atClock(0.995f))
+			setCtrlHeld(false)
+
+			assertNear(9.9f, harness.committed(PanelIds.bodyX), "the key at min is the whole range away, so the press lands where the pointer is")
+		}
+
 	/** A pair's pick is its upper member's: unlinked, the upper member keeps it and the lower member follows the preference. */
 	@Test
 	fun aPairsPickStaysWithItsUpperMemberAcrossAnUnlink() =

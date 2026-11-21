@@ -64,7 +64,7 @@ class ParameterRepeatEvalTest {
 		assertEquals(xAt(model, 0.5f), xAt(model, 3.5f), tolerance)
 	}
 
-	/** Exactly max stays the max key on a repeating axis; the runtime evaluates it as min(`ParameterRepeatOracleTest`), Umamo does not. */
+	/** Exactly max stays the max key on a repeating axis; the runtime evaluates it as min (measured in `ParameterRepeatOracleTest`), Umamo does not. */
 	@Test
 	fun aRepeatingAxisKeepsExactlyMaxAsItsMaxKey() {
 		assertEquals(14f, xAt(model(repeat = true), 1f), tolerance)

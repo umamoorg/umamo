@@ -178,6 +178,9 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// first parameter or group can be made with no row to right-click.
 	val createMenuItems =
 		createParameterMenuItems(labels, puppet.runtimeTarget, session, viewState) + newParameterGroupMenuItem(labels, session, viewState)
+	// What a row's menu reads from the command registry, resolved here once: every row's is the same but for the
+	// parameter it runs with.
+	val rowMenus = rememberParameterRowMenus()
 	// One release handler for every row's grip: a drag reads the panel's drag state, not the row it began on.
 	// The rows and the model are read through state at the release, so the handler stays one object while
 	// the panel builds new rows and an edit publishes a new model, and no grip runs again for it.
@@ -220,6 +223,7 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 							viewState = viewState,
 							session = session,
 							createMenuItems = createMenuItems,
+							rowMenus = rowMenus,
 							dragController = dragController,
 							onDrop = onDrop,
 						)

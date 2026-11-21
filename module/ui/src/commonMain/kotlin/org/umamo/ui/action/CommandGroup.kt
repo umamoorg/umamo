@@ -106,8 +106,15 @@ enum class CommandTable : CommandGroup {
  *   pie's title.
  * @property Function parentOf Names the listing the family sits inside.  Read on first use and never while the entries
  *   are built, since a section names its family and a family may name a section.
+ * @property Boolean checkList Whether the family's menu is a check list: its rows carry a tick slot, ticked on the
+ *   member in effect.  A family opts in; any other family's menu shows its rows' glyphs and no tick, whatever state
+ *   its members report.
  */
-enum class CommandFamily(val heading: StringResource, private val parentOf: () -> CommandListing? = { null }) : CommandListing {
+enum class CommandFamily(
+	val heading: StringResource,
+	private val parentOf: () -> CommandListing? = { null },
+	val checkList: Boolean = false,
+) : CommandListing {
 	/** The File menu: the puppet's own file, with the Import and Export submenus, then leaving the application. */
 	File(Res.string.menu_file),
 
@@ -171,11 +178,11 @@ enum class CommandFamily(val heading: StringResource, private val parentOf: () -
 	/** What is done to a relation field or one row of a relation list: a Properties field's own menu. */
 	Relation(Res.string.group_relation),
 
-	/** The control a parameter's row shows: following the preference, then one member per control. */
-	ParameterControl(Res.string.group_parameter_control),
+	/** The control a parameter's row shows: following the preference, then one member per control.  A check list. */
+	ParameterControl(Res.string.group_parameter_control, checkList = true),
 
-	/** The control a linked pair's row shows: following the preference, then one member per control. */
-	PairControl(Res.string.group_parameter_control),
+	/** The control a linked pair's row shows: following the preference, then one member per control.  A check list. */
+	PairControl(Res.string.group_parameter_control, checkList = true),
 	;
 
 	override val parent: CommandListing? get() = parentOf()

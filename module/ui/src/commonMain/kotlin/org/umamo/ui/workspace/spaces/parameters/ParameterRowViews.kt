@@ -57,6 +57,7 @@ private val INDENT_PER_DEPTH = 12.dp
  * @param ParametersViewState viewState The panel's view state.
  * @param EditorSession? session The editing session, or null with none.
  * @param List<MenuItem> createMenuItems The entries that create, which every parameter menu ends with.
+ * @param ParameterRowMenus rowMenus What a row's menu reads from the command registry, resolved once by the panel.
  * @param RowDragController<ParameterMoveSubject> dragController The panel's drag state.
  * @param Function onDrop Invoked on release of a drag that began on this row, to apply the move.
  */
@@ -72,6 +73,7 @@ internal fun ParameterRowView(
 	viewState: ParametersViewState,
 	session: EditorSession?,
 	createMenuItems: List<MenuItem>,
+	rowMenus: ParameterRowMenus,
 	dragController: RowDragController<ParameterMoveSubject>,
 	onDrop: () -> Unit,
 ) {
@@ -170,6 +172,7 @@ internal fun ParameterRowView(
 					viewState = viewState,
 					session = session,
 					createMenuItems = createMenuItems,
+					rowMenus = rowMenus,
 					modifier = Modifier.weight(1f),
 				)
 			}
@@ -187,6 +190,7 @@ internal fun ParameterRowView(
 					viewState = viewState,
 					session = session,
 					createMenuItems = createMenuItems,
+					rowMenus = rowMenus,
 					modifier = Modifier.weight(1f),
 				)
 			}
@@ -281,6 +285,7 @@ private fun ParameterGroupRow(
  *   the rename target.
  * @param EditorSession? session The editing session, or null with none.
  * @param List<MenuItem> createMenuItems The entries that create, which the row's menu ends with.
+ * @param ParameterRowMenus rowMenus What the row's menu reads from the command registry, resolved once by the panel.
  * @param Modifier modifier The layout modifier (the caller supplies the row weight).
  */
 @Composable
@@ -295,6 +300,7 @@ private fun ParameterSliderRow(
 	viewState: ParametersViewState,
 	session: EditorSession?,
 	createMenuItems: List<MenuItem>,
+	rowMenus: ParameterRowMenus,
 	modifier: Modifier = Modifier,
 ) {
 	val parameter = row.parameter
@@ -317,7 +323,7 @@ private fun ParameterSliderRow(
 			null
 		}
 	ContextMenuArea(
-		itemsOnOpen = parameterSliderMenuItems(parameter, labels, session, viewState, createMenuItems),
+		itemsOnOpen = parameterSliderMenuItems(parameter, labels, session, viewState, createMenuItems, rowMenus),
 		modifier = modifier,
 	) {
 		ParameterIsland(
@@ -375,6 +381,7 @@ private fun ParameterSliderRow(
  *   the rename target.
  * @param EditorSession? session The editing session, or null with none.
  * @param List<MenuItem> createMenuItems The entries that create, which the row's menu ends with.
+ * @param ParameterRowMenus rowMenus What the row's menu reads from the command registry, resolved once by the panel.
  * @param Modifier modifier The layout modifier (the caller supplies the row weight).
  */
 @Composable
@@ -390,6 +397,7 @@ private fun ParameterPadRow(
 	viewState: ParametersViewState,
 	session: EditorSession?,
 	createMenuItems: List<MenuItem>,
+	rowMenus: ParameterRowMenus,
 	modifier: Modifier = Modifier,
 ) {
 	// The callbacks below hold the two parameters, or the row through state, never the row itself: the
@@ -418,7 +426,7 @@ private fun ParameterPadRow(
 			null
 		}
 	ContextMenuArea(
-		itemsOnOpen = parameterPadMenuItems(horizontal, vertical, labels, session, viewState, createMenuItems),
+		itemsOnOpen = parameterPadMenuItems(horizontal, vertical, labels, session, viewState, createMenuItems, rowMenus),
 		modifier = modifier,
 	) {
 		ParameterIsland(

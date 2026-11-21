@@ -142,7 +142,7 @@ data class CommandChoice(val label: String, val argument: Any?)
  * @property UmamoIcon? icon The command's glyph wherever a pie slot, a menu row, or a chip stands for it, or null
  *   for a command with none drawn.
  * @property CommandState? state Whether the command is the one in effect, which a control listing its family lights
- *   and a menu ticks (never a dispatch guard), or null for a command that is never "the current one".  Its table
+ *   and a check-list menu ticks (never a dispatch guard), or null for a command that is never "the current one".  Its table
  *   decides what it reports with no document open, so a control shows the same face before the first file opens.
  * @property CommandArgumentState? stateFor Whether the command is the one in effect for the argument a row runs it
  *   with, in place of [state], or null for a command whose state does not depend on its argument.
@@ -185,7 +185,7 @@ data class Command(
 	 */
 	fun isAvailable(argument: Any? = null): Boolean = availability.isAvailable() && availableFor?.isAvailableFor(argument) != false
 
-	/** Whether the command reports a state at all, with or without an argument: a menu gives its row a tick slot. */
+	/** Whether the command reports a state at all, with or without an argument: a button for it says whether it is lit. */
 	val reportsState: Boolean get() = state != null || stateFor != null
 
 	/**

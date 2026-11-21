@@ -355,6 +355,28 @@ class ParametersRecompositionTest {
 		}
 
 	/**
+	 * What a row's menu reads from the command registry is resolved by the panel, once for every row, so a row that
+	 * composes again resolves nothing of its own.
+	 */
+	@Test
+	fun aRowComposingAgainResolvesNoMenu() =
+		counting { counter ->
+			val harness = ParametersPanelHarness()
+			harness.panelSize = DpSize(PANEL_WIDTH, PANEL_HEIGHT_WITH_SPACE)
+			mountParametersPanel(harness)
+
+			assertEquals(1, counter.runsOf("toggleRepeatEntry"), "the panel resolves the entry once as it mounts")
+			counter.reset()
+
+			runOnIdle { harness.viewState.openRangeEditors[PanelIds.bodyX] = true }
+			waitForIdle()
+
+			assertTrue(counter.runsOf("ParameterSliderRow") > 0, "the rows must really have composed again")
+			assertEquals(0, counter.runsOf("toggleRepeatEntry"), "a row resolves no command of its own")
+			assertEquals(0, counter.runsOf("ParametersSpace"), "and the panel did not run to resolve one for it")
+		}
+
+	/**
 	 * A rename target is read by every row and by the panel, which scrolls the row into view, so this one
 	 * rebuilds the list as well.  A row built again for the same parameter still hands its controls what
 	 * they had.

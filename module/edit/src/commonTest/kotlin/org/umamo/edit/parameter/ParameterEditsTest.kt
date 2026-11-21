@@ -142,6 +142,20 @@ class ParameterEditsTest {
 		assertSame(linked, linked.withParameterLink(angleZ, angleX, linked = true), "a horizontal member cannot join a second link")
 	}
 
+	/** padLinks lists a link only while both its members have a range to move through; the link itself stays in the model. */
+	@Test
+	fun padLinksAreTheLinksWhoseMembersBothMove() {
+		val linked = linkModel().withParameterLink(angleX, angleY, linked = true)
+		assertEquals(listOf(ParameterLink(angleX, angleY)), linked.padLinks())
+
+		val flatLower = linked.withParameterRange(angleY, min = 0f, default = 0f, max = 0f)
+		assertEquals(listOf(ParameterLink(angleX, angleY)), flatLower.parameterLinks, "the link itself stays")
+		assertTrue(flatLower.padLinks().isEmpty(), "a flat lower member leaves no pad")
+
+		val flatUpper = linked.withParameterRange(angleX, min = 1f, default = 1f, max = 1f)
+		assertTrue(flatUpper.padLinks().isEmpty(), "and so does a flat upper member")
+	}
+
 	/**
 	 * Linking parameters is one undo step that edits the model (so it dirties the document), leaves the
 	 * live pose untouched, and undoes / redoes the link list; a refused request records nothing.
