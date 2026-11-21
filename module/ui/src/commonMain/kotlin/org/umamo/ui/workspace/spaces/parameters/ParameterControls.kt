@@ -46,6 +46,7 @@ import org.umamo.ui.kit.field.Pad2D
 import org.umamo.ui.kit.field.Slider
 import org.umamo.ui.kit.field.SliderKeyMark
 import org.umamo.ui.kit.field.SliderKeyShape
+import org.umamo.ui.kit.field.numberFieldStepForSpan
 import org.umamo.ui.kit.singleOrDoubleClick
 import org.umamo.ui.kit.textentry.InlineRenameField
 import org.umamo.ui.resources.*
@@ -72,6 +73,12 @@ internal val PARAMETER_DIAL_DIAMETER: Dp = 120.dp
 
 /** The space above and below a dial, between it and the value row over it. */
 internal val PARAMETER_DIAL_SPACING: Dp = 6.dp
+
+/** The drag that scrubs a parameter's value field from min to max, the same hand motion whatever the range. */
+internal val PARAMETER_FIELD_SCRUB_TRAVEL: Dp = 200.dp
+
+/** The fractional places a parameter's value field shows and commits. */
+private const val PARAMETER_FIELD_DECIMALS = 2
 
 /**
  * One name's inline rename as the row showing it sees it: whether the field is open, and what opening,
@@ -461,7 +468,8 @@ private fun ParameterPairDial(
  * row), the clickable parameter name (name and chevron both toggle the island's range editor, the name
  * highlighted while it is open), an optional reset glyph (shown only when [value] is off its default),
  * and a numeric entry field held to the parameter's range, which a repeating parameter wraps into and
- * any other clamps to.  A scrub of the field previews live and commits one step on release.
+ * any other clamps to.  A scrub of the field crosses the range over [PARAMETER_FIELD_SCRUB_TRAVEL] whatever its
+ * width, previews live, and commits one step on release; its chevrons step a tenth of the range.
  *
  * @param Parameter parameter       The parameter the row shows: its name, default, and range.
  * @param Float    value            The current value.
@@ -563,12 +571,16 @@ private fun ParameterValueRow(
 			onValueChange = onCommitValue,
 			range = parameter.min..parameter.max,
 			modifier = Modifier.width(64.dp),
+			decimals = PARAMETER_FIELD_DECIMALS,
+			step = numberFieldStepForSpan(parameter.max - parameter.min, PARAMETER_FIELD_DECIMALS),
 			stackPosition = stackPosition,
 			// The parameter's own rule, which the eval reads it through: a repeating value wraps, any other clamps.
 			bringIntoRange = { raw -> parameter.wrapOrClamp(raw) },
 			// A scrub drives the rig as it goes, as the slider does; its release still commits once, through onValueChange.
 			onPreview = onPreview,
 			onScrubCancel = onScrubCancel,
+			// One travel crosses any range, so a 0..1 axis and a -30..30 one take the same hand motion.
+			scrubTravel = PARAMETER_FIELD_SCRUB_TRAVEL,
 		)
 		// A fixed-width trailing slot whether or not this row offers a link edit, so the number
 		// fields stay column-aligned across all rows.

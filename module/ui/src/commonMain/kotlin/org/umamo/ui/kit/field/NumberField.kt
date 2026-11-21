@@ -47,12 +47,14 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.StackAxis
 import org.umamo.ui.kit.StackPosition
@@ -75,6 +77,9 @@ import kotlin.math.roundToInt
 /** The alpha applied to the accent tint when a bounded field draws its left-to-right magnitude fill. */
 private const val NUMBER_FIELD_FILL_ALPHA = 0.30f
 
+/** The drag of one scrub notch, which moves a field without a scrub travel by one step. */
+internal val NUMBER_FIELD_SCRUB_NOTCH: Dp = 6.dp
+
 /**
  * The field's fixed height, shared with the other inline form controls via [FIELD_CONTROL_HEIGHT] so a
  * NumberField and a SelectField line up.  Pinned (rather than content-driven) so the display and type-in
@@ -94,7 +99,7 @@ private val NUMBER_FIELD_HEIGHT = FIELD_CONTROL_HEIGHT
  * @param ClosedFloatingPointRange range The min..max the committed value is clamped to (an infinite endpoint = unbounded, no fill).
  * @param Modifier modifier Layout modifier (the caller supplies the width).
  * @param Int decimals The fractional places shown; the stored value is rounded to the same (Float-capped).
- * @param Float step The increment for a chevron press and the scrub sensitivity.
+ * @param Float step The increment for a chevron press, and for each scrub notch when there is no [scrubTravel].
  * @param String? unitSuffix An optional trailing unit shown in the idle field (e.g. "px", "%"); never in the edit text.
  * @param Boolean showFill Whether to draw the magnitude fill when the range is bounded (off for wide sanity clamps).
  * @param Boolean plain When true, renders a bare type-in box only (no scrub, chevrons, or fill) - the simple field.
@@ -106,6 +111,8 @@ private val NUMBER_FIELD_HEIGHT = FIELD_CONTROL_HEIGHT
  *   whatever [onPreview] drove can be put back; the field itself returns to [value].
  * @param Function? bringIntoRange How a typed, scrubbed, or stepped value outside [range] comes back into it, or null
  *   to clamp it to the nearer end.  A value whose ends meet wraps instead.
+ * @param Dp? scrubTravel The drag that scrubs the field from one end of [range] to the other, or null to scrub one
+ *   [step] per notch.  A range that is not a finite span scrubs by the notch either way.
  */
 @Composable
 fun NumberField(
@@ -124,6 +131,7 @@ fun NumberField(
 	onPreview: ((Float) -> Unit)? = null,
 	onScrubCancel: (() -> Unit)? = null,
 	bringIntoRange: ((Float) -> Float)? = null,
+	scrubTravel: Dp? = null,
 ) {
 	val bounded = showFill && range.start.isFinite() && range.endInclusive.isFinite() && range.endInclusive > range.start
 	NumberFieldCore(
@@ -132,6 +140,7 @@ fun NumberField(
 		range = range,
 		bringIntoRange = bringIntoRange ?: { raw -> raw.coerceIn(range.start, range.endInclusive) },
 		step = step,
+		scrubTravel = scrubTravel,
 		bounded = bounded,
 		format = { toFormat -> formatDecimals(toFormat, decimals) },
 		parse = ::parseTypedFloat,
@@ -198,6 +207,7 @@ fun NumberField(
 		range = floatRange,
 		bringIntoRange = { raw -> raw.coerceIn(floatRange.start, floatRange.endInclusive) },
 		step = step.toFloat(),
+		scrubTravel = null,
 		bounded = bounded,
 		format = { toFormat -> toFormat.roundToInt().toString() },
 		parse = { typed -> typed.trim().toIntOrNull()?.toFloat() },
@@ -218,7 +228,8 @@ fun NumberField(
  * @param Float value The current value (the source of truth while idle).
  * @param ClosedFloatingPointRange range The clamp range.
  * @param Function bringIntoRange Brings a typed, scrubbed, or stepped value from outside [range] back into it.
- * @param Float step The chevron / scrub increment.
+ * @param Float step The chevron increment, and the scrub notch's when there is no [scrubTravel].
+ * @param Dp? scrubTravel The drag that scrubs the whole range, or null to scrub by the notch.
  * @param Boolean bounded Whether to draw the magnitude fill (a usable finite range).
  * @param Function format Formats a value for display and for seeding the editor.
  * @param Function parse Parses typed text to a raw value, or null when unparseable.
@@ -238,6 +249,7 @@ private fun NumberFieldCore(
 	range: ClosedFloatingPointRange<Float>,
 	bringIntoRange: (Float) -> Float,
 	step: Float,
+	scrubTravel: Dp?,
 	bounded: Boolean,
 	format: (Float) -> String,
 	parse: (String) -> Float?,
@@ -253,6 +265,7 @@ private fun NumberFieldCore(
 ) {
 	val shapes = LocalUmamoShapes.current
 	val shape = stackedShape(shapes.small, stackPosition, StackAxis.Vertical)
+	val density = LocalDensity.current
 	// Parses typed text, brings it into the range, and commits; an unparseable entry does nothing.
 	val commitTyped: (String) -> Unit = { typed ->
 		parse(typed)?.let { parsed -> onCommit(bringIntoRange(parsed)) }
@@ -360,7 +373,13 @@ private fun NumberFieldCore(
 			onScrub = { totalDeltaPx ->
 				// A cancelled drag's remaining moves are dead: the field stays on its value and previews nothing.
 				if (!scrubGesture.cancelled) {
-					val scrubbed = scrubValue(scrubStartValue, totalDeltaPx, step, range, bringIntoRange)
+					// The drag arrives in pixels and the notch and travel are in dp, so a scrub covers the same
+					// distance on any screen.
+					val valuePerPixel =
+						with(density) {
+							scrubValuePerPixel(range, step, NUMBER_FIELD_SCRUB_NOTCH.toPx(), scrubTravel?.toPx())
+						}
+					val scrubbed = scrubValue(scrubStartValue, totalDeltaPx, valuePerPixel, range, bringIntoRange)
 					dragValue = scrubbed
 					// Reported live so the caller can drive whatever the value affects while the drag is still
 					// happening.  Without it a scrub moves the number and nothing else until release, which

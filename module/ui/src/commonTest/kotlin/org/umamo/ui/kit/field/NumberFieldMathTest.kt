@@ -14,6 +14,12 @@ import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
+/** The drag, in pixels, of one notch in these cases. */
+private const val NOTCH_PX = 6f
+
+/** The drag, in pixels, that crosses a whole range in these cases. */
+private const val TRAVEL_PX = 200f
+
 /**
  * Pins the pure numeric-field math and the stacked-corner helper: the min-max fill fraction (bounded vs
  * unbounded), display / storage rounding, fixed-decimal formatting, the drag-scrub value mapping, and the
@@ -64,23 +70,96 @@ class NumberFieldMathTest {
 
 	@Test
 	fun scrubValueMapsDeltaToStepsAndClamps() {
-		// One step per NUMBER_FIELD_SCRUB_PIXELS_PER_STEP pixels; rightward increases.
-		val tenNotches = NUMBER_FIELD_SCRUB_PIXELS_PER_STEP * 10f
-		assertEquals(10f, scrubValue(0f, tenNotches, 1f, -100f..100f))
-		assertEquals(-10f, scrubValue(0f, -tenNotches, 1f, -100f..100f))
+		// One step per notch; rightward increases.
+		val perPixel = scrubValuePerPixel(-100f..100f, step = 1f, notchPx = NOTCH_PX, travelPx = null)
+		val tenNotches = NOTCH_PX * 10f
+		assertEquals(10f, scrubValue(0f, tenNotches, perPixel, -100f..100f), 1e-4f)
+		assertEquals(-10f, scrubValue(0f, -tenNotches, perPixel, -100f..100f), 1e-4f)
 		// Clamped to the range.
-		assertEquals(5f, scrubValue(0f, tenNotches * 100f, 1f, 0f..5f))
+		assertEquals(5f, scrubValue(0f, tenNotches * 100f, perPixel, 0f..5f))
 	}
 
 	@Test
 	fun scrubValueBringsAValueInByTheFieldsOwnRule() {
-		val tenNotches = NUMBER_FIELD_SCRUB_PIXELS_PER_STEP * 10f
+		val perPixel = scrubValuePerPixel(0f..8f, step = 1f, notchPx = NOTCH_PX, travelPx = null)
+		val tenNotches = NOTCH_PX * 10f
 		val wrap = { raw: Float -> 0f + (raw - 0f).mod(8f) }
 
 		// Ten steps up from 3 on a 0..8 loop comes round to 5.
-		assertEquals(5f, scrubValue(3f, tenNotches, 1f, 0f..8f, wrap), 1e-4f)
+		assertEquals(5f, scrubValue(3f, tenNotches, perPixel, 0f..8f, wrap), 1e-4f)
 		// Inside the range the rule changes nothing.
-		assertEquals(4f, scrubValue(3f, NUMBER_FIELD_SCRUB_PIXELS_PER_STEP, 1f, 0f..8f, wrap), 1e-4f)
+		assertEquals(4f, scrubValue(3f, NOTCH_PX, perPixel, 0f..8f, wrap), 1e-4f)
+	}
+
+	/** With a travel, a narrow range and a wide one cross end to end over the same drag, whatever their step. */
+	@Test
+	fun aTravelCrossesEveryRangeOverTheSameDrag() {
+		val unit = 0f..1f
+		val wide = -30f..30f
+		val unitPerPixel = scrubValuePerPixel(unit, step = 1f, notchPx = NOTCH_PX, travelPx = TRAVEL_PX)
+		val widePerPixel = scrubValuePerPixel(wide, step = 1f, notchPx = NOTCH_PX, travelPx = TRAVEL_PX)
+
+		assertEquals(1f, scrubValue(0f, TRAVEL_PX, unitPerPixel, unit), 1e-4f)
+		assertEquals(30f, scrubValue(-30f, TRAVEL_PX, widePerPixel, wide), 1e-4f)
+		// Half the drag is half of each range.
+		assertEquals(0.5f, scrubValue(0f, TRAVEL_PX / 2f, unitPerPixel, unit), 1e-4f)
+		assertEquals(0f, scrubValue(-30f, TRAVEL_PX / 2f, widePerPixel, wide), 1e-4f)
+	}
+
+	/** A range with no finite span has nothing to cross, so a travel falls back to the notch. */
+	@Test
+	fun aRangeWithNoFiniteSpanScrubsByTheNotch() {
+		val byNotch = 2f / NOTCH_PX
+
+		assertEquals(byNotch, scrubValuePerPixel(0f..Float.POSITIVE_INFINITY, step = 2f, notchPx = NOTCH_PX, travelPx = TRAVEL_PX))
+		assertEquals(
+			byNotch,
+			scrubValuePerPixel(Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY, step = 2f, notchPx = NOTCH_PX, travelPx = TRAVEL_PX),
+		)
+		assertEquals(byNotch, scrubValuePerPixel(4f..4f, step = 2f, notchPx = NOTCH_PX, travelPx = TRAVEL_PX))
+		// The empty range still holds the value at its one point.
+		assertEquals(4f, scrubValue(4f, TRAVEL_PX, byNotch, 4f..4f))
+	}
+
+	/** Under a travel, a wrapping field's travel is one period: past an end it comes round from the other. */
+	@Test
+	fun aTravelPastAnEndWrapsByTheFieldsRule() {
+		val unit = 0f..1f
+		val wrap = { raw: Float -> raw.mod(1f) }
+		val perPixel = scrubValuePerPixel(unit, step = 1f, notchPx = NOTCH_PX, travelPx = TRAVEL_PX)
+
+		assertEquals(0.2f, scrubValue(0.8f, TRAVEL_PX * 0.4f, perPixel, unit, wrap), 1e-4f)
+		assertEquals(0.8f, scrubValue(0.8f, TRAVEL_PX, perPixel, unit, wrap), 1e-4f, "one whole travel is one whole period")
+	}
+
+	/** The notch and the travel are measured in dp, so the same physical drag lands on the same value at any density. */
+	@Test
+	fun theSameDpDragLandsTheSameAtTwoDensities() {
+		val range = -10f..10f
+		val travelDp = 200f
+		val dragDp = 50f
+
+		for (density in listOf(1f, 2f)) {
+			val withTravel = scrubValuePerPixel(range, step = 1f, notchPx = NOTCH_PX * density, travelPx = travelDp * density)
+			assertEquals(-5f, scrubValue(-10f, dragDp * density, withTravel, range), 1e-4f, "with a travel at density $density")
+
+			val byNotch = scrubValuePerPixel(range, step = 1f, notchPx = NOTCH_PX * density, travelPx = null)
+			assertEquals(-5f, scrubValue(-10f, NOTCH_PX * 5f * density, byNotch, range), 1e-4f, "by the notch at density $density")
+		}
+	}
+
+	/** A span's step is a tenth of it rounded down to 1, 2, or 5 of a decade, and never finer than the field keeps. */
+	@Test
+	fun theStepForASpanIsATenthRoundedDownToOneTwoOrFive() {
+		assertEquals(0.1f, numberFieldStepForSpan(1f, decimals = 2))
+		assertEquals(1f, numberFieldStepForSpan(10f, decimals = 2))
+		assertEquals(2f, numberFieldStepForSpan(20f, decimals = 2))
+		assertEquals(5f, numberFieldStepForSpan(60f, decimals = 2))
+		assertEquals(20f, numberFieldStepForSpan(360f, decimals = 2))
+		assertEquals(1000f, numberFieldStepForSpan(10_000f, decimals = 2))
+		// A span too narrow for a tenth to show at two places steps by the last place.
+		assertEquals(0.01f, numberFieldStepForSpan(0.05f, decimals = 2))
+		assertEquals(0.01f, numberFieldStepForSpan(0f, decimals = 2))
 	}
 
 	@Test
@@ -132,15 +211,16 @@ class NumberFieldMathTest {
 	fun scrubbingIsLinearInTheTotalDeltaFromAFixedBase() {
 		val range = 0f..1000f
 		val base = 100f
+		val perPixel = scrubValuePerPixel(range, step = 1f, notchPx = NOTCH_PX, travelPx = null)
 		// Six pixels per step, so 60px of total travel is ten steps whatever route the pointer took.
-		assertEquals(110f, scrubValue(base, 60f, step = 1f, range = range), 1e-4f)
-		assertEquals(120f, scrubValue(base, 120f, step = 1f, range = range), 1e-4f)
+		assertEquals(110f, scrubValue(base, 60f, perPixel, range), 1e-4f)
+		assertEquals(120f, scrubValue(base, 120f, perPixel, range), 1e-4f)
 		// Returning the pointer to where it started returns the value to where it started.
-		assertEquals(base, scrubValue(base, 0f, step = 1f, range = range), 1e-4f)
+		assertEquals(base, scrubValue(base, 0f, perPixel, range), 1e-4f)
 
 		// Feeding each result back in as the next base is what the bug did: the same 120px of travel,
 		// reported in two frames, lands somewhere else entirely.
-		val compounded = scrubValue(scrubValue(base, 60f, step = 1f, range = range), 120f, step = 1f, range = range)
+		val compounded = scrubValue(scrubValue(base, 60f, perPixel, range), 120f, perPixel, range)
 		assertEquals(130f, compounded, 1e-4f, "a drifting base overshoots - which is why the base is latched")
 	}
 }

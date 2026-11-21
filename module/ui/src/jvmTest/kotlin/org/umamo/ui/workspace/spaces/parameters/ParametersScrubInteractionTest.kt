@@ -2,14 +2,15 @@ package org.umamo.ui.workspace.spaces.parameters
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.parameter.createParameter
 import org.umamo.edit.parameter.renameParameter
 import org.umamo.runtime.model.ParameterKind
-import org.umamo.ui.kit.field.NUMBER_FIELD_SCRUB_PIXELS_PER_STEP
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -208,9 +209,10 @@ class ParametersScrubInteractionTest {
 			val harness = ParametersPanelHarness(model = panelFixtureModel(repeating = setOf(PanelIds.bodyX)))
 			mountParametersPanel(harness)
 			val field = numberFieldBounds(PanelValues.BODY_X)
-			// Sixteen steps left of 2 is -14, four past the minimum of -10 and short of a whole period of 20, so only a
-			// wrap brings it back above where it started.  Leftward because the field sits at the panel's right edge.
-			val travel = NUMBER_FIELD_SCRUB_PIXELS_PER_STEP * 16f
+			// Eight tenths of the travel is 16 of Body X's 20, so leftward from 2 it is -14, four past the minimum of -10
+			// and short of a whole period, and only a wrap brings it back above where it started.  Leftward because the
+			// field sits at the panel's right edge.
+			val travel = with(density) { PARAMETER_FIELD_SCRUB_TRAVEL.toPx() } * 0.8f
 
 			pressAndMove(field.center, listOf(0.25f, 0.5f, 0.75f, 1f).map { part -> field.besideCenter(-travel * part) })
 
@@ -221,6 +223,61 @@ class ParametersScrubInteractionTest {
 			releasePress()
 			assertEquals(previewed, harness.committed(PanelIds.bodyX))
 		}
+
+	/**
+	 * A field scrub crosses any parameter's range over the same drag: a quarter of the travel is a quarter of 0..1 and
+	 * a quarter of -10..10.  Each drag first clears any touch slop, which the field would never see, and is measured
+	 * from there.
+	 */
+	@Test
+	fun aFieldScrubCrossesEveryRangeOverTheSameTravel() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val quarterTravel = with(density) { PARAMETER_FIELD_SCRUB_TRAVEL.toPx() } / 4f
+
+			val eyeOpen = numberFieldBounds(PanelValues.EYE_OPEN)
+			pressAndMove(eyeOpen.center, listOf(eyeOpen.besideCenter(-PAST_THE_TOUCH_SLOP)))
+			val eyeOpenPastSlop = harness.live(PanelIds.eyeOpen) ?: error("the scrub has to preview once past the slop")
+			moveOn(listOf(eyeOpen.besideCenter(-PAST_THE_TOUCH_SLOP - quarterTravel)))
+			val eyeOpenMoved = eyeOpenPastSlop - (harness.live(PanelIds.eyeOpen) ?: error("the scrub has to keep previewing"))
+			releasePress()
+			assertEquals(0.25f, eyeOpenMoved, ROUNDING, "a quarter of the travel is a quarter of Eye Open's 0..1")
+
+			val bodyX = numberFieldBounds(PanelValues.BODY_X)
+			pressAndMove(bodyX.center, listOf(bodyX.besideCenter(-PAST_THE_TOUCH_SLOP)))
+			val bodyXPastSlop = harness.live(PanelIds.bodyX) ?: error("the scrub has to preview once past the slop")
+			moveOn(listOf(bodyX.besideCenter(-PAST_THE_TOUCH_SLOP - quarterTravel)))
+			val bodyXMoved = bodyXPastSlop - (harness.live(PanelIds.bodyX) ?: error("the scrub has to keep previewing"))
+			releasePress()
+			assertEquals(5f, bodyXMoved, ROUNDING, "and a quarter of Body X's -10..10")
+		}
+
+	/** A chevron steps a tenth of the range, rounded down to 1, 2, or 5: 0.1 on Breath's 0..1, 5 on Angle X's -30..30. */
+	@Test
+	fun aChevronStepsATenthOfTheRange() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val cursorBefore = harness.historyCursor
+
+			clickRightChevron(numberFieldBounds(PanelValues.BREATH))
+			assertEquals(0.35f, harness.committed(PanelIds.breath) ?: Float.NaN, ROUNDING)
+			assertEquals(cursorBefore + 1, harness.historyCursor, "a chevron press is one undo step")
+
+			clickRightChevron(numberFieldBounds(PanelValues.ANGLE_X))
+			assertEquals(8f, harness.committed(PanelIds.angleX) ?: Float.NaN, ROUNDING)
+		}
+
+	/**
+	 * Presses a field's increment chevron, which composes only while the field is hovered.
+	 *
+	 * @param ControlBox field The field's bounds.
+	 */
+	private fun ComposeUiTest.clickRightChevron(field: ControlBox) {
+		hoverAt(field.center)
+		clickAt(Offset(field.right - with(density) { CHEVRON_INSET.toPx() }, field.center.y))
+	}
 
 	/** The glyph is an offer to go back, so a row already on its default has none. */
 	@Test
@@ -420,4 +477,15 @@ class ParametersScrubInteractionTest {
 
 			assertEquals(0f, harness.committed(PanelIds.bodyX))
 		}
+
+	private companion object {
+		/** A first leg long enough that the field's drag detector has taken its slop and begun reporting. */
+		const val PAST_THE_TOUCH_SLOP = 24f
+
+		/** What the field's two places of rounding leave of a value. */
+		const val ROUNDING = 0.011f
+
+		/** From the field's right edge to the middle of its 16 dp increment chevron. */
+		val CHEVRON_INSET = 8.dp
+	}
 }
