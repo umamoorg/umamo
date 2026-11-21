@@ -32,11 +32,9 @@ internal class ControlPlacement {
 }
 
 /**
- * Runs the press-and-drag gestures of a control that sets its value from where the pointer is, the slider and the pad.
- * A press jumps the value to the pointer and a drag follows it, each axis read through its wrap (see
- * [ControlWrapTracker]).  Ctrl is read off every event, so it can join a drag already under way.  A secondary press
- * opens the row's menu and a middle press belongs to the view, so neither moves the value.  The press is claimed, so it
- * never reaches a surface under the control that answers a click, and every gesture is finished once.
+ * Runs the press-and-drag gestures of a control that sets its value from where the pointer is, the slider and the pad:
+ * a press jumps the value to the pointer and a drag follows it, each axis read through its wrap (see
+ * [ControlWrapTracker]).
  *
  * @param Function horizontalAxisOf The control's horizontal axis at a given size.
  * @param Function verticalAxisOf The control's vertical axis at a given size.
@@ -59,10 +57,12 @@ internal suspend fun PointerInputScope.trackControlDrags(
 	awaitEachGesture {
 		val down = awaitFirstDown()
 
+		// A secondary press opens the row's menu and a middle press belongs to the view; neither moves the value.
 		if (currentEvent.buttons.isSecondaryPressed || currentEvent.buttons.isTertiaryPressed) {
 			return@awaitEachGesture
 		}
 
+		// Claimed, so the press never reaches a surface under the control that answers a click.
 		down.consume()
 		val tracker = ControlWrapTracker(warp())
 		var position = down.position
@@ -73,13 +73,12 @@ internal suspend fun PointerInputScope.trackControlDrags(
 			while (true) {
 				val control = tracker.controlPointOf(position, timeMillis, horizontalAxisOf(size), verticalAxisOf(size), detent, placement::screenOrigin)
 				onDrag(control, ctrlHeld)
+				// Ctrl is read off every event, so it can join a drag already under way.
 				val event = awaitPointerEvent()
 				val change = event.changes.firstOrNull { candidate -> candidate.id == down.id } ?: break
 				change.consume()
 
 				if (!change.pressed) {
-					controlWrapTrace?.invoke("end type=${event.type} buttons=${event.buttons} t=${change.uptimeMillis} position=${change.position}")
-
 					break
 				}
 
@@ -88,6 +87,8 @@ internal suspend fun PointerInputScope.trackControlDrags(
 				ctrlHeld = event.keyboardModifiers.isCtrlPressed
 			}
 		} finally {
+			// The press has already moved the value, so every gesture is finished, once: on release, or on the
+			// cancellation that ends a control torn down mid-drag.
 			onFinished()
 		}
 	}

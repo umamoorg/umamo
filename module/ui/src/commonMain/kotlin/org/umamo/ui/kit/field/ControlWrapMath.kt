@@ -107,9 +107,7 @@ internal class ControlWrapTracker(
 
 	/**
 	 * Where the control reads the pointer for one event of the gesture, the press included: the virtual pointer less
-	 * each axis's lap shift.  An event that is stale against a pending warp reads at the landing, so the value holds
-	 * still until the cursor's real events arrive; if they have not come by [WARP_LANDING_HOLD_MILLIS], the warp is
-	 * taken back out and the gesture warps no more.  A crossing warps the cursor to where the control reads it.
+	 * each axis's lap shift.  A crossing warps the cursor there.
 	 *
 	 * @param Offset position The event's pointer position, in the control's pixels.
 	 * @param Long timeMillis The event's time.
@@ -128,15 +126,15 @@ internal class ControlWrapTracker(
 		screenOrigin: () -> Offset?,
 	): Offset {
 		val reach = controlWrapReach(horizontal, vertical, detent)
-		val trace = if (horizontal.wraps || vertical.wraps) controlWrapTrace else null
 		val staleLanding = cursorWrap.resolveArrival(position, reach)
 		var raw = position
 
+		// A stale event reads at the landing, so the value holds still until the cursor's real events arrive.  If they
+		// have not come by the hold time, the landing did not hold: the warp comes back out, and the gesture warps no more.
 		if (staleLanding != null) {
 			if (timeMillis - warpedAtMillis > WARP_LANDING_HOLD_MILLIS) {
 				cursorWrap.abandonPendingWarp()
 				warpsHold = false
-				trace?.invoke("abandon t=$timeMillis position=$position")
 			} else {
 				raw = staleLanding
 			}
@@ -150,17 +148,11 @@ internal class ControlWrapTracker(
 		horizontalShift = nextHorizontalShift
 		verticalShift = nextVerticalShift
 		val control = Offset(virtual.x - horizontalShift, virtual.y - verticalShift)
-		trace?.invoke(
-			"t=$timeMillis position=$position stale=${staleLanding != null} virtual=$virtual control=$control " +
-				"shift=($horizontalShift, $verticalShift)",
-		)
 
 		if ((horizontalCrossed || verticalCrossed) && warpsHold) {
 			// The cursor goes where the control now reads it on a crossed axis and stays put on the other.
 			val target = Offset(if (horizontalCrossed) control.x else raw.x, if (verticalCrossed) control.y else raw.y)
-			val origin = screenOrigin()
-			val landed = cursorWrap.warpTo(raw, target, origin)
-			trace?.invoke("warp t=$timeMillis origin=$origin target=$target landed=$landed")
+			val landed = cursorWrap.warpTo(raw, target, screenOrigin())
 
 			if (landed != null) {
 				warpedAtMillis = timeMillis
@@ -170,6 +162,3 @@ internal class ControlWrapTracker(
 		return control
 	}
 }
-
-/** Writes each step of a wrapping control's gesture, for measuring the warp by hand; null writes nothing. */
-internal var controlWrapTrace: ((String) -> Unit)? = { line -> println("controlWrap $line") }

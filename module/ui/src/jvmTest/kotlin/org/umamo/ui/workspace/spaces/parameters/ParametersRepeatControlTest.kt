@@ -38,7 +38,7 @@ class ParametersRepeatControlTest {
 			assertEquals(cursorBefore + 1, harness.historyCursor)
 		}
 
-	/** The slider on a repeating parameter wraps past its end, as the value field above it does (D10). */
+	/** The slider on a repeating parameter wraps past its end, as the value field above it does. */
 	@Test
 	fun aSliderOnARepeatingParameterWrapsPastItsEnd() =
 		runComposeUiTest {

@@ -68,7 +68,7 @@ class ParametersControlWrapTest {
 			assertNear(band.valueAt(band.start + PAST + MORE), harness.committed(PanelIds.bodyX), "and follows the pointer on round")
 		}
 
-	/** Pushed past max but not past the detent, the value holds at exactly max (D7). */
+	/** Pushed past max but not past the detent, the value holds at exactly max, so max stays reachable. */
 	@Test
 	fun insideTheDetentTheValueHoldsAtMax() =
 		runComposeUiTest {
