@@ -2,17 +2,22 @@ package org.umamo.ui.workspace.spaces.parameters
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.isPopup
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.DpSize
+import org.umamo.edit.ParameterControl
 import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.RuntimeTarget
 import kotlin.test.Test
@@ -37,6 +42,7 @@ class ParametersMenuTest {
 		listOf(
 			harness.text.rename,
 			harness.text.toggleRepeat,
+			harness.text.control,
 			harness.text.deleteParameter,
 			harness.text.deleteGroup,
 			harness.text.addKeyFormParameter,
@@ -44,7 +50,7 @@ class ParametersMenuTest {
 			harness.text.newGroup,
 		)
 
-	/** A slider row offers its own three entries, then the entries every menu ends with. */
+	/** A slider row offers its own four entries, then the entries every menu ends with. */
 	@Test
 	fun aSliderRowsMenu() =
 		runComposeUiTest {
@@ -57,6 +63,7 @@ class ParametersMenuTest {
 				listOf(
 					harness.text.rename,
 					harness.text.toggleRepeat,
+					harness.text.control,
 					harness.text.deleteParameter,
 					harness.text.addKeyFormParameter,
 					harness.text.addBlendShapeParameter,
@@ -125,6 +132,152 @@ class ParametersMenuTest {
 			assertTrue(parameterOf(harness, PanelIds.angleY).repeat)
 			assertFalse(parameterOf(harness, PanelIds.angleX).repeat)
 		}
+
+	/** A pad's menu holds the pair's Control submenu between Toggle Repeat and Delete Parameter, as a slider's does. */
+	@Test
+	fun aPadRowsMenuHoldsThePairsControl() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+
+			secondaryClickAt(panelBoundsOfText(PanelNames.ANGLE_X).center)
+
+			assertEquals(
+				listOf(harness.text.rename, harness.text.toggleRepeat, harness.text.control, harness.text.deleteParameter),
+				shownInOrder(everyEntry(harness)).take(4),
+			)
+
+			hoverMenuEntry(harness.text.control)
+
+			assertEquals(listOf(harness.text.controlFollow, harness.text.controlPad, harness.text.controlDials), shownInOrder(pairControlRows(harness)))
+		}
+
+	/**
+	 * A repeating slider's Control submenu ticks Follow Settings until a pick, a pick swaps the control at once with no
+	 * History step, the tick follows the pick, and Follow Settings puts the preference's dial back.
+	 */
+	@Test
+	fun aSlidersControlPicksTheControlItShows() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness(model = panelFixtureModel(repeating = setOf(PanelIds.bodyX)))
+			mountParametersPanel(harness)
+			val cursorBefore = harness.historyCursor
+
+			openBodyXControl(harness)
+			assertControlTicked(harness.text.controlFollow, among = singleControlRows(harness))
+			clickMenuEntry(harness.text.controlSlider)
+
+			assertEquals(cursorBefore, harness.historyCursor, "a pick is no History step")
+			assertFalse(harness.session.dirty.value, "and no change to the document")
+			clickAt(sliderBox(harness, PanelRows.BODY_X, PanelValues.BODY_X).at(0.75f))
+			assertNear(5f, harness.committed(PanelIds.bodyX), "three quarters along the slider's -10..10, where the dial's preference would not reach")
+			undoToTheFixturePose(harness)
+
+			openBodyXControl(harness)
+			assertControlTicked(harness.text.controlSlider, among = singleControlRows(harness))
+			clickMenuEntry(harness.text.controlFollow)
+
+			clickAt(dialBox(harness, PanelRows.BODY_X, PanelValues.BODY_X).atClock(0.25f))
+			assertNear(-5f, harness.committed(PanelIds.bodyX), "a quarter turn round -10..10: following the preference shows the dial again")
+		}
+
+	/** Any parameter can pick the dial: on one that does not repeat it is a dial all the same, which stops at its seam. */
+	@Test
+	fun aParameterThatDoesNotRepeatCanPickTheDial() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+
+			openBodyXControl(harness)
+			clickMenuEntry(harness.text.controlDial)
+			clickAt(dialBox(harness, PanelRows.BODY_X, PanelValues.BODY_X).atClock(0.25f))
+
+			assertNear(-5f, harness.committed(PanelIds.bodyX), "a quarter turn round -10..10")
+			assertFalse(parameterOf(harness, PanelIds.bodyX).repeat, "the pick leaves Repeat alone")
+		}
+
+	/** A pad's Control picks the pair's two dials, keyed on its upper axis, and Pad brings the pad back. */
+	@Test
+	fun aPadsControlPicksTwoDialsAndBack() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			harness.panelSize = DpSize(PANEL_WIDTH, PANEL_HEIGHT_WITH_SPACE)
+			mountParametersPanel(harness)
+
+			secondaryClickAt(panelBoundsOfText(PanelNames.ANGLE_X).center)
+			hoverMenuEntry(harness.text.control)
+			clickMenuEntry(harness.text.controlDials)
+
+			assertEquals(mapOf(PanelIds.angleX to ParameterControl.Dial), harness.session.parameterControls.value, "the pair keys on its upper axis")
+			val (upperDial, _) = pairDialBoxes(harness, PanelRows.ANGLE_PAD, PanelValues.ANGLE_X, PanelValues.ANGLE_Y)
+			clickAt(upperDial.atClock(0.25f))
+			assertNear(-15f, harness.committed(PanelIds.angleX), "a quarter turn round -30..30 on the upper axis's dial")
+			undoToTheFixturePose(harness)
+
+			// Two dials caption each axis by name under its dial, so the name shows twice; either is inside the pad's menu.
+			secondaryClickAt(panelBoundsOf(onAllNodesWithText(PanelNames.ANGLE_X, useUnmergedTree = true)[0]).center)
+			hoverMenuEntry(harness.text.control)
+			assertControlTicked(harness.text.controlDials, among = pairControlRows(harness))
+			clickMenuEntry(harness.text.controlPad)
+
+			clickAt(padPointOf(padBox(harness, PanelRows.ANGLE_PAD, PanelValues.ANGLE_X, PanelValues.ANGLE_Y), 12f, -6f))
+			assertNear(12f, harness.committed(PanelIds.angleX), "the pad is back")
+		}
+
+	/**
+	 * Takes back the press a case just made, so the fields show the fixture's values again and a control can be found
+	 * by them.
+	 *
+	 * @param ParametersPanelHarness harness The mounted harness.
+	 */
+	private fun ComposeUiTest.undoToTheFixturePose(harness: ParametersPanelHarness) {
+		runOnIdle { harness.session.undo() }
+		waitForIdle()
+	}
+
+	/**
+	 * Opens Body X's menu and rests on its Control submenu.
+	 *
+	 * @param ParametersPanelHarness harness The mounted harness.
+	 */
+	private fun ComposeUiTest.openBodyXControl(harness: ParametersPanelHarness) {
+		secondaryClickAt(panelBoundsOfText(PanelNames.BODY_X).center)
+		hoverMenuEntry(harness.text.control)
+	}
+
+	/**
+	 * A single row's Control rows, top to bottom.
+	 *
+	 * @param ParametersPanelHarness harness The mounted harness.
+	 * @return List<String> The labels.
+	 */
+	private fun singleControlRows(harness: ParametersPanelHarness): List<String> = listOf(harness.text.controlFollow, harness.text.controlSlider, harness.text.controlDial)
+
+	/**
+	 * A pad's Control rows, top to bottom.
+	 *
+	 * @param ParametersPanelHarness harness The mounted harness.
+	 * @return List<String> The labels.
+	 */
+	private fun pairControlRows(harness: ParametersPanelHarness): List<String> = listOf(harness.text.controlFollow, harness.text.controlPad, harness.text.controlDials)
+
+	/**
+	 * Asserts that the open Control submenu ticks [ticked] and no other of [among].
+	 *
+	 * @param String ticked The row that must be the one in effect.
+	 * @param List<String> among Every row of the submenu.
+	 */
+	private fun ComposeUiTest.assertControlTicked(ticked: String, among: List<String>) {
+		for (label in among) {
+			val row = onNode(hasText(label) and hasAnyAncestor(isPopup()))
+
+			if (label == ticked) {
+				row.assertIsSelected()
+			} else {
+				row.assertIsNotSelected()
+			}
+		}
+	}
 
 	/** The oldest runtime target still offers Toggle Repeat, since no target restricts repeat. */
 	@Test

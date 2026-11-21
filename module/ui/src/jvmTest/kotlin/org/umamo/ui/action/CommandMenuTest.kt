@@ -378,6 +378,51 @@ class CommandMenuTest {
 	}
 
 	/**
+	 * A family row aimed at one thing runs every row with that argument, as an inline group does, and grays each by
+	 * it: a parameter's Control submenu, opened on that parameter.
+	 */
+	@Test
+	fun aFamilyRowRunsItsRowsWithItsArgument() {
+		val received = ArrayList<Any?>()
+		val save = Command("file.save", title = null, availableFor = { argument -> argument == "bravo" }, group = CommandFamily.MergeTarget, groupLabel = Res.string.menu_file_save, handler = { argument -> received.add(argument) })
+		val registry = registryOf(save)
+		val aimed = commandMenuOf(listOf(CommandMenuRow.Family(CommandFamily.MergeTarget, argument = "bravo")), registry).single() as MenuItem.Submenu
+		val elsewhere = commandMenuOf(listOf(CommandMenuRow.Family(CommandFamily.MergeTarget, argument = "alpha")), registry)
+
+		assertEquals(listOf("Merge >", "  Save"), menuOutline(listOf(aimed)))
+		assertEquals(listOf("Merge > (off)", "  Save (off)"), menuOutline(elsewhere), "the row does not apply to that argument")
+
+		(aimed.items.single() as MenuItem.Action).onSelect()
+
+		assertEquals(listOf<Any?>("bravo"), received)
+	}
+
+	/**
+	 * A command that reports a state is a choice row, ticked while it is the one in effect: with no argument through its
+	 * state, and with one through its argument-aware state, for that argument alone.  A command with no state is no
+	 * choice at all, so its row keeps no tick.
+	 */
+	@Test
+	fun aChoiceRowIsTickedWhileItIsTheOneInEffect() {
+		var current = "bravo"
+		val choice = Command("test.choice", title = null, group = CommandFamily.MergeTarget, groupLabel = Res.string.menu_file_save, stateFor = { argument -> argument == current }, handler = {})
+		val lit = Command("test.lit", title = Res.string.menu_file_new, state = CommandState { true }, handler = {})
+		val plain = Command("test.plain", title = Res.string.menu_file_open, handler = {})
+		val registry = registryOf(choice, lit, plain)
+		val keymap = defaultKeymap()
+
+		assertEquals(true, (commandMenuItem(choice, "Save", registry, keymap, argument = "bravo") as MenuItem.Action).checked)
+		assertEquals(false, (commandMenuItem(choice, "Save", registry, keymap, argument = "alpha") as MenuItem.Action).checked, "the state is that argument's")
+
+		val menu = commandMenuBuilderOf(listOf(CommandMenuRow.Family(CommandFamily.MergeTarget, argument = "bravo")), registry)
+		current = "alpha"
+
+		assertEquals(false, ((menu().single() as MenuItem.Submenu).items.single() as MenuItem.Action).checked, "the tick is asked as the menu opens")
+		assertEquals(true, (commandMenuItem(lit, "New", registry, keymap) as MenuItem.Action).checked)
+		assertNull((commandMenuItem(plain, "Open…", registry, keymap) as MenuItem.Action).checked)
+	}
+
+	/**
 	 * A site that has to set something up for its command to read wraps the dispatch: the wrapper runs around the
 	 * command, once, and the row is otherwise the command's own.
 	 */

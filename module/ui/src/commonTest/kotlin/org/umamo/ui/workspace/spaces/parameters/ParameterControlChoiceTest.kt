@@ -1,5 +1,6 @@
 package org.umamo.ui.workspace.spaces.parameters
 
+import org.umamo.edit.ParameterControl
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.settings.RepeatControlSetting
@@ -7,9 +8,9 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Pins which control a row shows: a parameter that does not repeat always gets the slider and a pair with no
- * repeating member the pad, and otherwise the preference decides, the dial choice giving a pair a dial per axis and
- * the slider choice its pad.
+ * Pins which control a row shows: a control the parameter or pair was set to wins, whether or not it repeats;
+ * otherwise a parameter that does not repeat gets the slider and a pair with no repeating member the pad, and the
+ * preference decides the rest, the dial choice giving a pair a dial per axis and the slider choice its pad.
  */
 class ParameterControlChoiceTest {
 	/**
@@ -27,7 +28,7 @@ class ParameterControlChoiceTest {
 		val clamping = parameter("ParamAngleZ", repeat = false)
 
 		for (preference in RepeatControlSetting.entries) {
-			assertEquals(SingleControl.Slider, singleControlOf(clamping, preference), preference.key)
+			assertEquals(SingleControl.Slider, singleControlOf(clamping, preference, override = null), preference.key)
 		}
 	}
 
@@ -36,8 +37,8 @@ class ParameterControlChoiceTest {
 	fun aRepeatingParameterFollowsThePreference() {
 		val repeating = parameter("ParamDrip", repeat = true)
 
-		assertEquals(SingleControl.Dial, singleControlOf(repeating, RepeatControlSetting.Dial))
-		assertEquals(SingleControl.Slider, singleControlOf(repeating, RepeatControlSetting.Slider))
+		assertEquals(SingleControl.Dial, singleControlOf(repeating, RepeatControlSetting.Dial, override = null))
+		assertEquals(SingleControl.Slider, singleControlOf(repeating, RepeatControlSetting.Slider, override = null))
 	}
 
 	/** A pair with no repeating member shows the pad whatever the preference. */
@@ -47,7 +48,7 @@ class ParameterControlChoiceTest {
 		val vertical = parameter("ParamAngleY", repeat = false)
 
 		for (preference in RepeatControlSetting.entries) {
-			assertEquals(PairControl.Pad, pairControlOf(horizontal, vertical, preference), preference.key)
+			assertEquals(PairControl.Pad, pairControlOf(horizontal, vertical, preference, override = null), preference.key)
 		}
 	}
 
@@ -63,8 +64,35 @@ class ParameterControlChoiceTest {
 
 		for ((repeatingMember, pair) in members) {
 			val (horizontal, vertical) = pair
-			assertEquals(PairControl.Dials, pairControlOf(horizontal, vertical, RepeatControlSetting.Dial), "$repeatingMember under the dial choice")
-			assertEquals(PairControl.Pad, pairControlOf(horizontal, vertical, RepeatControlSetting.Slider), "$repeatingMember under the slider choice")
+			assertEquals(PairControl.Dials, pairControlOf(horizontal, vertical, RepeatControlSetting.Dial, override = null), "$repeatingMember under the dial choice")
+			assertEquals(PairControl.Pad, pairControlOf(horizontal, vertical, RepeatControlSetting.Slider, override = null), "$repeatingMember under the slider choice")
+		}
+	}
+
+	/** A parameter's own control beats the preference, and holds on a parameter that does not repeat. */
+	@Test
+	fun aParametersOwnControlWinsWhetherOrNotItRepeats() {
+		for (repeat in listOf(true, false)) {
+			val parameter = parameter("ParamDrip", repeat)
+
+			for (preference in RepeatControlSetting.entries) {
+				assertEquals(SingleControl.Dial, singleControlOf(parameter, preference, ParameterControl.Dial), "repeat=$repeat under ${preference.key}")
+				assertEquals(SingleControl.Slider, singleControlOf(parameter, preference, ParameterControl.Slider), "repeat=$repeat under ${preference.key}")
+			}
+		}
+	}
+
+	/** A pair's own control beats the preference, Slider meaning its pad, and holds on a pair with no repeating member. */
+	@Test
+	fun aPairsOwnControlWinsWhetherOrNotAMemberRepeats() {
+		for (repeat in listOf(true, false)) {
+			val horizontal = parameter("ParamAngleX", repeat)
+			val vertical = parameter("ParamAngleY", repeat = false)
+
+			for (preference in RepeatControlSetting.entries) {
+				assertEquals(PairControl.Dials, pairControlOf(horizontal, vertical, preference, ParameterControl.Dial), "repeat=$repeat under ${preference.key}")
+				assertEquals(PairControl.Pad, pairControlOf(horizontal, vertical, preference, ParameterControl.Slider), "repeat=$repeat under ${preference.key}")
+			}
 		}
 	}
 }

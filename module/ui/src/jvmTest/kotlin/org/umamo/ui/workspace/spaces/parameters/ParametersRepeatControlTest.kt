@@ -6,6 +6,9 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import org.umamo.edit.ParameterControl
+import org.umamo.edit.parameter.setParameterLink
+import org.umamo.edit.parameter.setParameterRepeat
 import org.umamo.ui.settings.ParametersSettings
 import org.umamo.ui.settings.RepeatControlSetting
 import kotlin.math.abs
@@ -15,7 +18,8 @@ import kotlin.test.assertTrue
 
 /**
  * Pins the control preference: under the slider choice a repeating parameter shows its slider, which wraps, and a pair
- * with a repeating member its pad, and changing the choice swaps the controls in the open panel.  The panel's other suites
+ * with a repeating member its pad, and changing the choice swaps the controls in the open panel.  A parameter's or a
+ * pair's own pick beats the preference, outlives Repeat, and keys a pair on its upper member.  The panel's other suites
  * run at the default, the dial.
  *
  * Body X runs -10..10.  Angle X and Angle Y run -30..30.
@@ -95,6 +99,62 @@ class ParametersRepeatControlTest {
 
 			preferLive(harness, RepeatControlSetting.Dial)
 			assertTrue(abs(numberFieldBounds(PanelValues.BREATH).top - breathTopWithDial) < 2f, "back on the dial choice, the dial is back")
+		}
+
+	/** A parameter's own control beats the preference, live: a Dial pick under the slider choice shows the dial. */
+	@Test
+	fun aParametersOwnControlBeatsThePreference() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness(model = panelFixtureModel(repeating = setOf(PanelIds.bodyX)))
+			harness.preferRepeatControl(RepeatControlSetting.Slider)
+			mountParametersPanel(harness)
+
+			runOnIdle { harness.session.setParameterControl(PanelIds.bodyX, ParameterControl.Dial) }
+			waitForIdle()
+			clickAt(dialBox(harness, PanelRows.BODY_X, PanelValues.BODY_X).atClock(0.25f))
+
+			assertNear(-5f, harness.committed(PanelIds.bodyX), "a quarter turn round -10..10, where the slider would leave it at 0")
+		}
+
+	/** A Dial pick outlives Repeat: turned off, the parameter keeps its dial, which now stops at its seam. */
+	@Test
+	fun aDialPickOutlivesRepeat() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness(model = panelFixtureModel(repeating = setOf(PanelIds.bodyX)))
+			harness.session.setParameterControl(PanelIds.bodyX, ParameterControl.Dial)
+			mountParametersPanel(harness)
+
+			runOnIdle { harness.session.setParameterRepeat(PanelIds.bodyX, false) }
+			waitForIdle()
+			val dial = dialBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
+			drag(dial.atClock(0.85f), listOf(dial.atClock(0.95f), dial.atClock(0.05f), dial.atClock(0.1f)))
+
+			assertEquals(10f, harness.committed(PanelIds.bodyX), "across the seam a dial that no longer repeats waits at max")
+		}
+
+	/** A pair's pick is its upper member's: unlinked, the upper member keeps it and the lower member follows the preference. */
+	@Test
+	fun aPairsPickStaysWithItsUpperMemberAcrossAnUnlink() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			harness.panelSize = DpSize(PANEL_WIDTH, PANEL_HEIGHT_WITH_SPACE)
+			harness.session.setParameterControl(PanelIds.angleX, ParameterControl.Dial)
+			mountParametersPanel(harness)
+			val (upperDial, _) = pairDialBoxes(harness, PanelRows.ANGLE_PAD, PanelValues.ANGLE_X, PanelValues.ANGLE_Y)
+
+			clickAt(upperDial.atClock(0.25f))
+			assertNear(-15f, harness.committed(PanelIds.angleX), "a pair that does not repeat shows its two dials")
+
+			// Back to the fixture's values, which the controls below are found by, then unlinked.
+			runOnIdle {
+				harness.session.undo()
+				harness.session.setParameterLink(PanelIds.angleX, PanelIds.angleY, linked = false)
+			}
+			waitForIdle()
+			clickAt(dialBox(harness, PanelRows.ANGLE_PAD, PanelValues.ANGLE_X).atClock(0.5f))
+			assertNear(0f, harness.committed(PanelIds.angleX), "unlinked, the upper member keeps the dial")
+			clickAt(sliderBox(harness, PanelRows.ANGLE_PAD + 1, PanelValues.ANGLE_Y).at(0.75f))
+			assertNear(15f, harness.committed(PanelIds.angleY), "and the lower member shows the slider")
 		}
 
 	/**

@@ -33,6 +33,8 @@ import org.umamo.runtime.model.meshOf
  * @property Boolean                proportionalEnabled  Whether proportional editing is on.
  * @property ProportionalEditState? proportionalSettings The proportional falloff, radius, and connected flag - kept
  *   while proportional editing is off, since a toggle brings them back - or null for the defaults.
+ * @property Map<ParameterId, ParameterControl> parameterControls The control each parameter, or each pair by its
+ *   horizontal member, was set to show in the Parameters panel; one that is absent follows the preference.
  */
 data class SessionViewState(
 	val selection: Selection = Selection(),
@@ -46,11 +48,12 @@ data class SessionViewState(
 	val depthSurface: DepthSurface = DepthSurface.Flat,
 	val proportionalEnabled: Boolean = false,
 	val proportionalSettings: ProportionalEditState? = null,
+	val parameterControls: Map<ParameterId, ParameterControl> = emptyMap(),
 )
 
 /**
- * This state with every reference [model] cannot satisfy taken out: a selected target the model lacks is dropped,
- * and an active that did not survive falls to one that did.  A saved file can name an object deleted by another
+ * This state with every reference [model] cannot satisfy taken out: a selected target, or a parameter's control,
+ * the model lacks is dropped, and an active that did not survive falls to one that did.  A saved file can name an object deleted by another
  * writer or by a hand edit, and a selection holding a ghost would hand every command a target that is not there.
  *
  * @param PuppetModel model The model the session opens on.
@@ -78,6 +81,7 @@ internal fun SessionViewState.fittedTo(model: PuppetModel): SessionViewState {
 				targetedParameters,
 				parameterSelection.active?.takeIf { active -> active in targetedParameters } ?: targetedParameters.lastOrNull(),
 			),
+		parameterControls = parameterControls.filterKeys { parameterId -> parameterId in parameterIds },
 	)
 }
 

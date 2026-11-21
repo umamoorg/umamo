@@ -9,6 +9,7 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.DpSize
+import org.umamo.edit.ParameterControl
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.parameter.renameParameter
@@ -331,6 +332,26 @@ class ParametersRecompositionTest {
 			assertEquals(1, counter.runsOf("ParameterValueRow"))
 			assertEquals(0, counter.runsOf("ParameterPad2D"), "and its pad")
 			assertEquals(0, counter.runsOf("ParametersSpace"), "view state of a row is not the panel's to read")
+		}
+
+	/**
+	 * A control pick is read by the one row it names, so it runs that row's control and nothing else, the panel
+	 * included.
+	 */
+	@Test
+	fun pickingOneRowsControlRunsOnlyThatRowsControl() =
+		counting { counter ->
+			val harness = ParametersPanelHarness()
+			harness.panelSize = DpSize(PANEL_WIDTH, PANEL_HEIGHT_WITH_SPACE)
+			mountParametersPanel(harness)
+			counter.reset()
+
+			runOnIdle { harness.session.setParameterControl(PanelIds.bodyX, ParameterControl.Dial) }
+			waitForIdle()
+
+			assertEquals(1, counter.runsOf("ParameterSlider"), "the picked row's control runs")
+			assertEquals(0, counter.runsOf("ParameterPad2D"), "no other row's control runs")
+			assertEquals(0, counter.runsOf("ParametersSpace"), "a row's control is not the panel's to read")
 		}
 
 	/**

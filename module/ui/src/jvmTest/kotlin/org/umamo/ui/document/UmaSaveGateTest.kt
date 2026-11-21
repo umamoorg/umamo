@@ -15,6 +15,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.umamo.edit.Cursor2d
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterChange
+import org.umamo.edit.ParameterControl
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
@@ -211,8 +212,8 @@ class UmaSaveGateTest {
 
 	/**
 	 * The session half of editor state (UMA §7.4) and each area's camera (§7.3) through the real save and the real
-	 * loader: a document reopens to the pose, the selection, the cursor, and the view it was saved with, none of it
-	 * an undo step or a dirty mark, and none of it an input to the model.
+	 * loader: a document reopens to the pose, the selection, the cursor, a parameter's control, and the view it was
+	 * saved with, none of it an undo step or a dirty mark, and none of it an input to the model.
 	 */
 	@Test
 	fun aDocumentReopensToThePoseSelectionAndViewItWasSavedWith() =
@@ -230,6 +231,7 @@ class UmaSaveGateTest {
 			session.commitPose(ParameterChange.SetValue(listOf(scrubbed.id)), mapOf(scrubbed.id to scrubbed.max))
 			session.setCursor2d(12f, -8f)
 			session.setPivotMode(TransformPivotMode.Cursor)
+			session.setParameterControl(scrubbed.id, ParameterControl.Dial)
 			assertFalse(session.dirty.value, "none of that is a change to the document")
 
 			val areaViewStates = AreaViewStates()
@@ -251,6 +253,7 @@ class UmaSaveGateTest {
 			assertEquals(Selection(setOf(selected), selected), reopenedSession.selection.value)
 			assertEquals(Cursor2d(12f, -8f), reopenedSession.cursor2d.value)
 			assertEquals(TransformPivotMode.Cursor, reopenedSession.pivotMode.value)
+			assertEquals(mapOf(scrubbed.id to ParameterControl.Dial), reopenedSession.parameterControls.value, "the parameter keeps the control it was set to")
 			assertFalse(reopenedSession.canUndo.value, "what a document reopens to is where its history starts")
 			assertFalse(reopenedSession.dirty.value)
 			assertEquals(mapOf(savedView to ViewportCamera(120f, -340f, 2.5f)), AreaViewStates(savedState[EDITOR_STATE_AREAS]!!.jsonObject).restoredCameras())
