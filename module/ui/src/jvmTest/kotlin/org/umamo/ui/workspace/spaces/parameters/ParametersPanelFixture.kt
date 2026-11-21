@@ -188,6 +188,9 @@ internal object PanelIds {
 	val face = ParameterGroupId("GroupFace")
 	val body = ParameterGroupId("GroupBody")
 	val drawable = DrawableId("a")
+
+	/** The drawable keyed on the angle pair, present only when the rig is asked for angle keys. */
+	val angleDrawable = DrawableId("b")
 }
 
 /** The display names of the fixture rig's rows, which is what a test finds them by. */
@@ -251,12 +254,17 @@ internal val PANEL_FIXTURE_POSE: Map<ParameterId, Float> =
  *   parameter may be created.
  * @param Set<ParameterId> repeating The parameters that wrap past their limits; none by default.
  * @param FloatArray bodyXKeys The values the drawable is keyed at on Body X; 0 alone by default.
+ * @param FloatArray angleXKeys The values a second drawable is keyed at on Angle X; none by default.
+ * @param FloatArray angleYKeys The values that drawable is keyed at on Angle Y; none by default.  With neither, the
+ *   rig has no second drawable.
  * @return PuppetModel The rig.
  */
 internal fun panelFixtureModel(
 	runtimeTarget: RuntimeTarget = RuntimeTarget.NoTarget,
 	repeating: Set<ParameterId> = emptySet(),
 	bodyXKeys: FloatArray = floatArrayOf(0f),
+	angleXKeys: FloatArray = floatArrayOf(),
+	angleYKeys: FloatArray = floatArrayOf(),
 ): PuppetModel {
 	val parameters =
 		listOf(
@@ -271,26 +279,19 @@ internal fun panelFixtureModel(
 			Parameter(PanelIds.arm, PanelNames.ARM, min = -1f, max = 1f, default = 0f),
 		).map { parameter -> if (parameter.id in repeating) parameter.copy(repeat = true) else parameter }
 	// Keyed on Body X, so the selected-object filter has exactly one parameter to keep.
-	val drawable =
-		Drawable(
-			id = PanelIds.drawable,
-			name = "a",
-			parentDeformerId = null,
-			blendMode = BlendMode.Normal,
-			maskedBy = emptyList(),
-			mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2)),
-			geometryGrid =
-				KeyformGrid(
-					listOf(KeyformAxis(PanelIds.bodyX, bodyXKeys)),
-					bodyXKeys.indices.map { keyIndex -> KeyformCell(intArrayOf(keyIndex), MeshDeltaForm(FloatArray(6))) },
-				),
+	val drawable = keyedTriangle(PanelIds.drawable, listOf(KeyformAxis(PanelIds.bodyX, bodyXKeys)))
+	val angleAxes =
+		listOfNotNull(
+			KeyformAxis(PanelIds.angleX, angleXKeys).takeIf { angleXKeys.isNotEmpty() },
+			KeyformAxis(PanelIds.angleY, angleYKeys).takeIf { angleYKeys.isNotEmpty() },
 		)
+	val drawables = listOf(drawable) + listOfNotNull(angleAxes.takeIf { axes -> axes.isNotEmpty() }?.let { axes -> keyedTriangle(PanelIds.angleDrawable, axes) })
 
 	return PuppetModel(
 		parameters = parameters,
 		parts = emptyList(),
 		deformers = emptyList(),
-		drawables = listOf(drawable),
+		drawables = drawables,
 		rootChildren = emptyList(),
 		rootPartId = null,
 		parameterLinks = listOf(ParameterLink(PanelIds.angleX, PanelIds.angleY)),
@@ -320,6 +321,27 @@ internal fun panelFixtureModel(
 				),
 			),
 		runtimeTarget = runtimeTarget,
+	)
+}
+
+/**
+ * A one-triangle drawable whose geometry is keyed over [axes], with a zero form at every point of their keys' product.
+ *
+ * @param DrawableId id The drawable's id, which is also its name.
+ * @param List axes The axes it is keyed on, in grid order.
+ * @return Drawable The drawable.
+ */
+private fun keyedTriangle(id: DrawableId, axes: List<KeyformAxis>): Drawable {
+	val coordinates = axes.fold(listOf(intArrayOf())) { prefixes, axis -> prefixes.flatMap { prefix -> axis.keys.indices.map { keyIndex -> prefix + keyIndex } } }
+
+	return Drawable(
+		id = id,
+		name = id.raw,
+		parentDeformerId = null,
+		blendMode = BlendMode.Normal,
+		maskedBy = emptyList(),
+		mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2)),
+		geometryGrid = KeyformGrid(axes, coordinates.map { coordinate -> KeyformCell(coordinate, MeshDeltaForm(FloatArray(6))) }),
 	)
 }
 
@@ -1052,6 +1074,29 @@ internal fun ComposeUiTest.padBox(
 		val top = verticalField.bottom + 10.dp.toPx()
 		ControlBox(left = left, top = top, right = right, bottom = top + (right - left) / 1.5f)
 	}
+}
+
+/**
+ * Where a pad puts a pair of values: across its full width and height, x rising rightward and y upward.
+ *
+ * @param ControlBox pad The pad's box, from [padBox].
+ * @param Float xValue The horizontal axis's value.
+ * @param Float yValue The vertical axis's value.
+ * @param ClosedFloatingPointRange xRange The horizontal axis's range; the fixture's angle range by default.
+ * @param ClosedFloatingPointRange yRange The vertical axis's range; the fixture's angle range by default.
+ * @return Offset The point, in the panel body's pixels.
+ */
+internal fun padPointOf(
+	pad: ControlBox,
+	xValue: Float,
+	yValue: Float,
+	xRange: ClosedFloatingPointRange<Float> = -30f..30f,
+	yRange: ClosedFloatingPointRange<Float> = -30f..30f,
+): Offset {
+	val across = (xValue - xRange.start) / (xRange.endInclusive - xRange.start)
+	val up = (yValue - yRange.start) / (yRange.endInclusive - yRange.start)
+
+	return pad.at(across, 1f - up)
 }
 
 /**

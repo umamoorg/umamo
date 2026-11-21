@@ -293,8 +293,8 @@ private fun thumbShapeOf(parameter: Parameter): SliderKeyShape =
  *
  * @param Parameter horizontal       The X-axis parameter.
  * @param Parameter vertical         The Y-axis parameter.
- * @param ParameterKeyMarks? horizontalKeyMarks The X axis's key marks, which its dial draws, or null with none.
- * @param ParameterKeyMarks? verticalKeyMarks The Y axis's key marks, which its dial draws, or null with none.
+ * @param ParameterKeyMarks? horizontalKeyMarks The X axis's key marks, which the pad or the axis's dial draws, or null with none.
+ * @param ParameterKeyMarks? verticalKeyMarks The Y axis's key marks, which the pad or the axis's dial draws, or null with none.
  * @param Float     xValue           The current X value.
  * @param Float     yValue           The current Y value.
  * @param ParameterLabels labels     The panel's localized chrome.
@@ -402,6 +402,8 @@ internal fun ParameterPad2D(
 			ParameterPairDial(vertical, yValue, verticalKeyMarks, onPreview, onCommitGesture, Modifier.weight(1f))
 		}
 	} else {
+		val xKeyMarks = remember(horizontalKeyMarks) { sliderKeyMarksOf(horizontalKeyMarks) }
+		val yKeyMarks = remember(verticalKeyMarks) { sliderKeyMarksOf(verticalKeyMarks) }
 		Pad2D(
 			xValue = xValue,
 			yValue = yValue,
@@ -412,6 +414,8 @@ internal fun ParameterPad2D(
 			onChangeFinished = { onCommitGesture(setOf(horizontal.id, vertical.id)) },
 			xRange = horizontal.min..horizontal.max,
 			yRange = vertical.min..vertical.max,
+			xKeyMarks = xKeyMarks,
+			yKeyMarks = yKeyMarks,
 			modifier = Modifier.padding(10.dp).fillMaxWidth(),
 		)
 	}
