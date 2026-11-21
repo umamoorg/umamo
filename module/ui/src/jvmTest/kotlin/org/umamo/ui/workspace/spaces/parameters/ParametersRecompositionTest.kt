@@ -181,6 +181,30 @@ class ParametersRecompositionTest {
 			releasePress()
 		}
 
+	/** A value field's scrub previews the pose as a slider drag does, and is held to the same: its own row, once per move. */
+	@Test
+	fun aFieldScrubRunsOnlyItsOwnRow() =
+		counting { counter ->
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val field = numberFieldBounds(PanelValues.BODY_X)
+			val moves = listOf(14f, 20f, 26f, 32f, 38f).map { deltaX -> field.besideCenter(deltaX) }
+			pressAndMove(field.center, listOf(field.besideCenter(8f)))
+			counter.reset()
+
+			moveOn(moves)
+
+			val named = counter.namedRuns()
+			assertEquals(setOf("ParameterSlider", "ParameterValueRow"), named.keys, "a field scrub must run its own row's controls and no other composable")
+			assertTrue(named.getValue("ParameterSlider") <= moves.size, "the row runs at most once per move, and ran ${named["ParameterSlider"]} times")
+			assertTrue(named.getValue("ParameterValueRow") <= moves.size, "and so does its value row, which ran ${named["ParameterValueRow"]} times")
+			assertTrue(
+				counter.lambdaRuns() <= moves.size,
+				"only the moved row re-reads its value, once per move; ${counter.lambdaRuns()} lambdas ran for ${moves.size} moves",
+			)
+			releasePress()
+		}
+
 	/** A pad scrub is held to the same: the pad, its two value rows, and nothing else by name. */
 	@Test
 	fun aPadScrubRunsOnlyThePadItMoves() =

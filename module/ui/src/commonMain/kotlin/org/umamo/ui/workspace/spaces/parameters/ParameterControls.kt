@@ -46,6 +46,7 @@ import org.umamo.ui.kit.field.Pad2D
 import org.umamo.ui.kit.field.Slider
 import org.umamo.ui.kit.field.SliderKeyMark
 import org.umamo.ui.kit.field.SliderKeyShape
+import org.umamo.ui.kit.field.numberFieldStepForSpan
 import org.umamo.ui.kit.singleOrDoubleClick
 import org.umamo.ui.kit.textentry.InlineRenameField
 import org.umamo.ui.resources.*
@@ -72,6 +73,12 @@ internal val PARAMETER_DIAL_DIAMETER: Dp = 120.dp
 
 /** The space above and below a dial, between it and the value row over it. */
 internal val PARAMETER_DIAL_SPACING: Dp = 6.dp
+
+/** The drag that scrubs a parameter's value field from min to max, the same hand motion whatever the range. */
+internal val PARAMETER_FIELD_SCRUB_TRAVEL: Dp = 200.dp
+
+/** The fractional places a parameter's value field shows and commits. */
+private const val PARAMETER_FIELD_DECIMALS = 2
 
 /**
  * One name's inline rename as the row showing it sees it: whether the field is open, and what opening,
@@ -169,7 +176,8 @@ internal fun ParameterIsland(
 /**
  * One labelled slider for a parameter, clamped to its range, with a numeric entry field and (when the
  * value is off its default) a reset glyph.  A repeating parameter shows a dial in place of the slider.
- * The drag previews live and commits one step on release; the field / reset commit one step each.
+ * A drag of the slider or a scrub of the field previews live and commits one step on release; a typed
+ * value or the reset commits one step.
  *
  * @param Parameter parameter        The parameter to scrub.
  * @param ParameterKeyMarks? keyMarks The parameter's grid / blend key marks to draw on the slider, or null.
@@ -179,6 +187,7 @@ internal fun ParameterIsland(
  * @param Function  onToggleRange    Called when the name / chevron is clicked (toggles the range editor).
  * @param ParameterRenameSlot rename The inline rename of this parameter's name.
  * @param Function  onPreview        Called per drag frame with the new value (transient, no undo step).
+ * @param Function  onCancelPreview  Called when the field's scrub is cancelled, to drop its previews.
  * @param Function  onCommitGesture  Called on slider release / tap to commit the gesture as one step.
  * @param Function  onCommitValue    Called by the numeric field / reset with a discrete value to commit.
  * @param ParameterLinkAction? link  The link edit on the trailing glyph, or null when the row offers none.
@@ -193,6 +202,7 @@ internal fun ParameterSlider(
 	onToggleRange: () -> Unit,
 	rename: ParameterRenameSlot,
 	onPreview: (Float) -> Unit,
+	onCancelPreview: () -> Unit,
 	onCommitGesture: () -> Unit,
 	onCommitValue: (Float) -> Unit,
 	link: ParameterLinkAction?,
@@ -206,6 +216,8 @@ internal fun ParameterSlider(
 		rangeOpen = rangeOpen,
 		onToggleRange = onToggleRange,
 		rename = rename,
+		onPreview = onPreview,
+		onScrubCancel = onCancelPreview,
 		onCommitValue = onCommitValue,
 		link = link,
 	)
@@ -272,8 +284,9 @@ private fun thumbShapeOf(parameter: Parameter): SliderKeyShape =
 /**
  * One 2D pad for a LINKED parameter pair: a labelled numeric/reset row per axis above a [Pad2D] that
  * scrubs both at once.  [horizontal] is the X axis, [vertical] the Y axis.  The pad drag previews both live
- * and commits one step (covering both parameters) on release.  The range chevron sits on the horizontal
- * (upper) axis row; clicking either axis name toggles the island's shared range editor.
+ * and commits one step (covering both parameters) on release; an axis field's scrub previews and commits
+ * its own axis alone.  The range chevron sits on the horizontal (upper) axis row; clicking either axis
+ * name toggles the island's shared range editor.
  *
  * A pair with a repeating member shows a dial per axis in place of the pad, the upper axis on the left.  Each
  * drives its own axis and commits it alone, and a member that does not repeat stops at its seam.
@@ -290,6 +303,7 @@ private fun thumbShapeOf(parameter: Parameter): SliderKeyShape =
  * @param ParameterRenameSlot horizontalRename The inline rename of the X axis's name.
  * @param ParameterRenameSlot verticalRename   The inline rename of the Y axis's name.
  * @param Function  onPreview        Called per drag frame with (id, value) for each axis (transient).
+ * @param Function  onCancelPreview  Called with the axis whose field's scrub was cancelled, to drop its previews.
  * @param Function  onCommitGesture  Called on pad release to commit both axes as one step.
  * @param Function  onCommitValue    Called by an axis field / reset with (id, value) to commit one step.
  * @param ParameterLinkAction? link  The unlink edit, shown on the horizontal (upper) axis row - the
@@ -310,6 +324,7 @@ internal fun ParameterPad2D(
 	horizontalRename: ParameterRenameSlot,
 	verticalRename: ParameterRenameSlot,
 	onPreview: (ParameterId, Float) -> Unit,
+	onCancelPreview: (Parameter) -> Unit,
 	onCommitGesture: (Set<ParameterId>) -> Unit,
 	onCommitValue: (ParameterId, Float) -> Unit,
 	link: ParameterLinkAction?,
@@ -352,6 +367,8 @@ internal fun ParameterPad2D(
 							rangeOpen = rangeOpen,
 							onToggleRange = onToggleRange,
 							rename = horizontalRename,
+							onPreview = { newX -> onPreview(horizontal.id, newX) },
+							onScrubCancel = { onCancelPreview(horizontal) },
 							onCommitValue = { newX -> onCommitValue(horizontal.id, newX) },
 							link = link,
 							stackPosition = position,
@@ -367,6 +384,8 @@ internal fun ParameterPad2D(
 							rangeOpen = rangeOpen,
 							onToggleRange = onToggleRange,
 							rename = verticalRename,
+							onPreview = { newY -> onPreview(vertical.id, newY) },
+							onScrubCancel = { onCancelPreview(vertical) },
 							onCommitValue = { newY -> onCommitValue(vertical.id, newY) },
 							// The glyph sits on the upper row alone.
 							link = null,
@@ -449,7 +468,8 @@ private fun ParameterPairDial(
  * row), the clickable parameter name (name and chevron both toggle the island's range editor, the name
  * highlighted while it is open), an optional reset glyph (shown only when [value] is off its default),
  * and a numeric entry field held to the parameter's range, which a repeating parameter wraps into and
- * any other clamps to.
+ * any other clamps to.  A scrub of the field crosses the range over [PARAMETER_FIELD_SCRUB_TRAVEL] whatever its
+ * width, previews live, and commits one step on release; its chevrons step a tenth of the range.
  *
  * @param Parameter parameter       The parameter the row shows: its name, default, and range.
  * @param Float    value            The current value.
@@ -462,7 +482,10 @@ private fun ParameterPairDial(
  * @param Boolean  rangeOpen        Whether the island's range editor is open.
  * @param Function onToggleRange    Called when the name / chevron is clicked.
  * @param ParameterRenameSlot rename The inline rename of this row's name.
- * @param Function onCommitValue    Called with the new value (a discrete edit committed as one step).
+ * @param Function onPreview        Called per frame of a field scrub with the in-flight value (transient).
+ * @param Function onScrubCancel    Called when a field scrub is cancelled, to drop what it previewed.
+ * @param Function onCommitValue    Called with the new value: a typed value, a reset, a chevron step, or a
+ *                                  scrub's release, each committed as one step.
  * @param ParameterLinkAction? link The link edit on the trailing glyph, or null for an empty slot.
  * @param StackPosition stackPosition This field's position in a vertical stack: a linked pair's two axis
  *                                  rows butt into one stacked group (First / Last), while a standalone
@@ -478,6 +501,8 @@ private fun ParameterValueRow(
 	rangeOpen: Boolean,
 	onToggleRange: () -> Unit,
 	rename: ParameterRenameSlot,
+	onPreview: (Float) -> Unit,
+	onScrubCancel: () -> Unit,
 	onCommitValue: (Float) -> Unit,
 	link: ParameterLinkAction?,
 	stackPosition: StackPosition = StackPosition.Single,
@@ -546,9 +571,16 @@ private fun ParameterValueRow(
 			onValueChange = onCommitValue,
 			range = parameter.min..parameter.max,
 			modifier = Modifier.width(64.dp),
+			decimals = PARAMETER_FIELD_DECIMALS,
+			step = numberFieldStepForSpan(parameter.max - parameter.min, PARAMETER_FIELD_DECIMALS),
 			stackPosition = stackPosition,
 			// The parameter's own rule, which the eval reads it through: a repeating value wraps, any other clamps.
 			bringIntoRange = { raw -> parameter.wrapOrClamp(raw) },
+			// A scrub drives the rig as it goes, as the slider does; its release still commits once, through onValueChange.
+			onPreview = onPreview,
+			onScrubCancel = onScrubCancel,
+			// One travel crosses any range, so a 0..1 axis and a -30..30 one take the same hand motion.
+			scrubTravel = PARAMETER_FIELD_SCRUB_TRAVEL,
 		)
 		// A fixed-width trailing slot whether or not this row offers a link edit, so the number
 		// fields stay column-aligned across all rows.
