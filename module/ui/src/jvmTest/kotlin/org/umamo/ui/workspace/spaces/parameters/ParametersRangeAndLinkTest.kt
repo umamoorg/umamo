@@ -111,33 +111,19 @@ class ParametersRangeAndLinkTest {
 			assertFalse(parameterOf(harness, PanelIds.angleX).repeat)
 		}
 
-	/** A runtime below 5.3 offers no Repeat on a parameter that does not repeat. */
+	/** The oldest runtime target still shows the Repeat checkbox, since no target restricts repeat. */
 	@Test
-	fun aRuntimeWithoutRepeatShowsNoCheckbox() =
+	fun theOldestRuntimeShowsTheCheckbox() =
 		runComposeUiTest {
-			val harness = ParametersPanelHarness(runtimeTarget = RuntimeTarget.Cubism50)
-			mountParametersPanel(harness)
-			clickAt(panelBoundsOfText(PanelNames.BODY_X).center)
-
-			assertTrue(showsText(harness.text.rangeMinimum), "the range editor has to be open for the checkbox's absence to mean anything")
-			assertFalse(showsText(harness.text.repeat))
-		}
-
-	/** Below 5.3 a parameter that already repeats shows its checkbox until it is turned off. */
-	@Test
-	fun aRuntimeWithoutRepeatShowsAFlagUntilItIsOff() =
-		runComposeUiTest {
-			val harness = ParametersPanelHarness(model = panelFixtureModel(RuntimeTarget.Cubism50, repeating = setOf(PanelIds.bodyX)))
+			val harness = ParametersPanelHarness(runtimeTarget = RuntimeTarget.Cubism30)
 			mountParametersPanel(harness)
 			// The dial a repeating Body X shows is taller than its slider; folding the group above keeps its editor in the panel.
 			clickAt(panelBoundsOfText(PanelNames.FACE).center)
 			clickAt(panelBoundsOfText(PanelNames.BODY_X).center)
-			assertTrue(showsText(harness.text.repeat), "a flag the target cannot author still shows")
 
 			clickAt(panelBoundsOfText(harness.text.repeat).center)
 
-			assertFalse(parameterOf(harness, PanelIds.bodyX).repeat)
-			assertFalse(showsText(harness.text.repeat), "once off, the target has nothing to offer")
+			assertTrue(parameterOf(harness, PanelIds.bodyX).repeat)
 		}
 
 	/** A link folds a slider and the one below it into a pad; an unlink splits them again. */

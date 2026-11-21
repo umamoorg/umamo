@@ -585,10 +585,9 @@ internal fun RangeAxisLabel(name: String) {
 
 /**
  * One parameter's range editor, inside its island while the editor is open: the min / default / max fields, then
- * the Repeat checkbox where the runtime target offers it.  A pad shows one per axis.
+ * the Repeat checkbox.  A pad shows one per axis.
  *
  * @param Parameter parameter The parameter the editor edits.
- * @param Boolean showsRepeat Whether the Repeat checkbox shows (see showsParameterRepeat).
  * @param ParameterLabels labels The panel's localized chrome.
  * @param Function onSetRange Called with (min, default, max) to commit a range edit.
  * @param Function onSetRepeat Called with the new flag when the checkbox is clicked.
@@ -596,18 +595,14 @@ internal fun RangeAxisLabel(name: String) {
 @Composable
 internal fun ParameterRangeEditor(
 	parameter: Parameter,
-	showsRepeat: Boolean,
 	labels: ParameterLabels,
 	onSetRange: (Float, Float, Float) -> Unit,
 	onSetRepeat: (Boolean) -> Unit,
 ) {
 	RangeFieldsRow(parameter, onSetRange)
-
-	if (showsRepeat) {
-		// The checkbox claims its own press, so a click on it never reaches the island and retargets the keyform sheet.
-		Box(modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 2.dp)) {
-			Checkbox(checked = parameter.repeat, onCheckedChange = onSetRepeat, label = labels.repeat)
-		}
+	// The checkbox claims its own press, so a click on it never reaches the island and retargets the keyform sheet.
+	Box(modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 2.dp)) {
+		Checkbox(checked = parameter.repeat, onCheckedChange = onSetRepeat, label = labels.repeat)
 	}
 }
 

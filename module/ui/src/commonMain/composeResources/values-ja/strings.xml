@@ -916,7 +916,6 @@
 	<string name="runtime_feature_motion_sync">モーションシンク</string>
 	<string name="runtime_feature_extended_blend_modes">ブレンドモード</string>
 	<string name="runtime_feature_part_composite">パーツ合成（オフスクリーン描画）</string>
-	<string name="runtime_feature_parameter_repeat">パラメータのリピート</string>
 	<string name="runtime_feature_art_path">アートパス</string>
 	<string name="properties_texture_source">テクスチャソース: %1$s</string>
 	<string name="properties_texture_own">独自のアトラス割り当て</string>

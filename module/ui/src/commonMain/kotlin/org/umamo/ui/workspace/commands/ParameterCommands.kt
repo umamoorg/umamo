@@ -6,7 +6,6 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandTable
-import org.umamo.ui.properties.showsParameterRepeat
 import org.umamo.ui.resources.*
 
 /**
@@ -33,18 +32,11 @@ internal fun parameterCommands(editorSession: EditorSession?, availability: Sess
 
 	return commandTable(
 		CommandTable.Parameter,
-		// Gated as the checkbox is: offered where the target has repeating parameters, or where the flag is already
-		// on and can only be turned off.
 		Command(
 			"parameter.toggleRepeat",
 			title = Res.string.cmd_parameter_toggle_repeat,
 			availability = availability.hasDocument,
-			availableFor = { argument ->
-				val parameter = parameterOf(argument)
-				val target = editorSession?.model?.value?.runtimeTarget
-
-				parameter != null && target != null && showsParameterRepeat(target, parameter.repeat)
-			},
+			availableFor = { argument -> parameterOf(argument) != null },
 		) { argument ->
 			parameterOf(argument)?.let { parameter -> editorSession?.setParameterRepeat(parameter.id, !parameter.repeat) }
 		},
