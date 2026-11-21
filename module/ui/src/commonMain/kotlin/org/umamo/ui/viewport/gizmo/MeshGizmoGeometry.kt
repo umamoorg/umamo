@@ -22,8 +22,8 @@ import org.umamo.runtime.model.drawableId
  * renderer (EditMeshOverlayProducer.kt; the renderer draws every wireframe), the draw helpers every
  * overlay renders alike (GizmoChrome.kt), selection input
  * (GizmoSelectionInput.kt, MarqueeSelectController.kt, ObjectPickController.kt), and the modal transform
- * (TransformGestureFrame.kt, ModalTransformController.kt, ModalGestureState.kt, CursorWrap.kt,
- * ViewportCursor.kt).  Nothing here knows which surface it serves: a surface hands its geometry in as
+ * (TransformGestureFrame.kt, ModalTransformController.kt, ModalGestureState.kt, CursorWrap.kt).
+ * Nothing here knows which surface it serves: a surface hands its geometry in as
  * GizmoMeshGeometry, and code that needs a surface's own types belongs in viewport2d or uv.
  */
 

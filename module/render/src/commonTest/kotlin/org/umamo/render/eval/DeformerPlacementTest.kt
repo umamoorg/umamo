@@ -136,7 +136,8 @@ class DeformerPlacementTest {
 		val parent = rotation("R", null, baseAngle = 0f, originX = 0f, originY = 0f)
 		// Keyed on B, which stays on its key, so only its parent can hide it.
 		val child = warp("W", "R", floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f), keyedOn = parameterB)
-		val model = model(parent, child)
+		// A's range reaches past R's last key: a pose outside the range would clamp back onto that key.
+		val model = model(parent, child).let { rig -> rig.copy(parameters = rig.parameters.map { parameter -> if (parameter.id == parameterA) parameter.copy(max = 3f) else parameter }) }
 		assertIs<DeformerPlacement.Warp>(deformerPlacement(model, emptyMap(), DeformerId("W")), "precondition: W is placed at rest")
 		assertNull(deformerPlacement(model, emptyMap(), DeformerId("absent")))
 		assertNull(deformerPlacement(model, mapOf(parameterA to 2f), DeformerId("R")), "A = 2 is past R's last key")

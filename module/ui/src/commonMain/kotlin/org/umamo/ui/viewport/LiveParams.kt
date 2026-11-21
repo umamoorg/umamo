@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterChange
 import org.umamo.edit.shownPending
+import org.umamo.runtime.eval.wrapOrClamp
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyableTarget
@@ -122,8 +123,8 @@ fun posedLattices(
 fun initialLiveParams(puppet: PuppetModel, savedPose: Map<ParameterId, Float> = emptyMap()): LiveParams =
 	LiveParams(
 		puppet.parameters.associate { parameter ->
-			// Clamped, since a range can have been narrowed since the pose was saved.
-			parameter.id to (savedPose[parameter.id]?.coerceIn(minOf(parameter.min, parameter.max), maxOf(parameter.min, parameter.max)) ?: parameter.default)
+			// Brought into range as the evaluator reads it, since a range can have been narrowed since the pose was saved.
+			parameter.id to (savedPose[parameter.id]?.let { saved -> parameter.wrapOrClamp(saved) } ?: parameter.default)
 		},
 	)
 

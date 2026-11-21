@@ -7,7 +7,6 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.restMeshesToCanvasSpace
-import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.testkit.requireSample
 import java.io.File
@@ -91,8 +90,7 @@ class BlendShapeOracleTest {
 	}
 
 	/**
-	 * Evaluates [puppet] at [pose] and compares against the Umamo C++ Runtime's dump of [moc3] at
-	 * the same pose.
+	 * Evaluates [puppet] at [pose] and compares against the runtime's dump of [moc3] at the same pose.
 	 *
 	 * @return Triple(compared, matched, worst relative error) for the pose.
 	 */
@@ -103,29 +101,9 @@ class BlendShapeOracleTest {
 		moc3: File,
 		pose: Map<String, Float>,
 	): Triple<Int, Int, Double> {
-		val geometry =
-			CpuDeformationEvaluator().evaluate(puppet, pose.mapKeys { ParameterId(it.key) })
-		val dump = runOracleDump(dumpModel, coreLib, moc3, pose)
-		var compared = 0
-		var matched = 0
-		var worst = 0.0
+		val comparison = compareWithOracle(puppet, dumpModel, coreLib, moc3, pose)
 
-		for (drawable in puppet.drawables) {
-			val entry = dump.entries[drawable.id.raw] ?: continue
-			val world = geometry.worldPositions[drawable.id] ?: continue
-			compared++
-			// Same transform as the default-pose gate: (x-ox)/ppu, (y+oy)/ppu (umamo pre-flips Y).
-			val hash = oracleTransformedHash(world, dump.originX, -dump.originY, dump.pixelsPerUnit)
-
-			if (oracleCloseEnough(hash, entry.vposH)) {
-				matched++
-			} else {
-				val relativeError = Math.abs(hash - entry.vposH) / maxOf(1.0, Math.abs(entry.vposH))
-				worst = maxOf(worst, relativeError)
-			}
-		}
-
-		return Triple(compared, matched, worst)
+		return Triple(comparison.compared, comparison.positionMatched, comparison.worstPositionError)
 	}
 
 	/** The blend-shape corpus pairs with their pose matrices, filtered to what exists locally. */

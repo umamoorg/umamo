@@ -87,7 +87,10 @@ import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.parseKeyChord
+import org.umamo.ui.kit.LocalCursorWarp
 import org.umamo.ui.kit.container.OverflowRow
+import org.umamo.ui.kit.field.LocalScrubCancel
+import org.umamo.ui.kit.field.ScrubCancelController
 import org.umamo.ui.kit.textentry.InlineEditController
 import org.umamo.ui.kit.textentry.LocalInlineEditController
 import org.umamo.ui.model.DrawableThumbnailProvider
@@ -135,6 +138,7 @@ import org.umamo.ui.workspace.commands.inMemorySettings
 import org.umamo.ui.workspace.commands.keyformCommands
 import org.umamo.ui.workspace.commands.latticeCommands
 import org.umamo.ui.workspace.commands.objectCommands
+import org.umamo.ui.workspace.commands.parameterCommands
 import org.umamo.ui.workspace.commands.registerAll
 import org.umamo.ui.workspace.commands.selectCommands
 import org.umamo.ui.workspace.layout.WorkspaceLayoutController
@@ -148,13 +152,16 @@ import org.umamo.ui.workspace.shell.toShellKeyStroke
 import org.umamo.ui.workspace.spaces.keyformsheet.KeyformSheetSpace
 import org.umamo.ui.workspace.spaces.outliner.OutlinerSpace
 import org.umamo.ui.workspace.spaces.sources.SourcesSpace
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /*
  * What the Parameters panel's composition tests share: one small rig that has every row kind the panel
- * draws, a miniature shell to mount the panel under, and the geometry that finds the two controls with
- * no semantics of their own (the slider and the pad are each a bare Canvas).
+ * draws, a miniature shell to mount the panel under, and the geometry that finds the controls with no
+ * semantics of their own (the slider, the pad, and the dial are each a bare Canvas).
  *
  * The rig, in panel order:
  *
@@ -182,6 +189,9 @@ internal object PanelIds {
 	val face = ParameterGroupId("GroupFace")
 	val body = ParameterGroupId("GroupBody")
 	val drawable = DrawableId("a")
+
+	/** The drawable keyed on the angle pair, present only when the rig is asked for angle keys. */
+	val angleDrawable = DrawableId("b")
 }
 
 /** The display names of the fixture rig's rows, which is what a test finds them by. */
@@ -242,10 +252,21 @@ internal val PANEL_FIXTURE_POSE: Map<ParameterId, Float> =
  * The fixture rig.
  *
  * @param RuntimeTarget runtimeTarget The runtime the rig targets, which decides whether a blend-shape
- *   parameter may be created.
+ *   parameter may be created and whether Repeat is offered.
+ * @param Set<ParameterId> repeating The parameters that wrap past their limits; none by default.
+ * @param FloatArray bodyXKeys The values the drawable is keyed at on Body X; 0 alone by default.
+ * @param FloatArray angleXKeys The values a second drawable is keyed at on Angle X; none by default.
+ * @param FloatArray angleYKeys The values that drawable is keyed at on Angle Y; none by default.  With neither, the
+ *   rig has no second drawable.
  * @return PuppetModel The rig.
  */
-internal fun panelFixtureModel(runtimeTarget: RuntimeTarget = RuntimeTarget.NoTarget): PuppetModel {
+internal fun panelFixtureModel(
+	runtimeTarget: RuntimeTarget = RuntimeTarget.NoTarget,
+	repeating: Set<ParameterId> = emptySet(),
+	bodyXKeys: FloatArray = floatArrayOf(0f),
+	angleXKeys: FloatArray = floatArrayOf(),
+	angleYKeys: FloatArray = floatArrayOf(),
+): PuppetModel {
 	val parameters =
 		listOf(
 			Parameter(PanelIds.eyeOpen, PanelNames.EYE_OPEN, min = 0f, max = 1f, default = 1f),
@@ -257,28 +278,21 @@ internal fun panelFixtureModel(runtimeTarget: RuntimeTarget = RuntimeTarget.NoTa
 			Parameter(PanelIds.breath, PanelNames.BREATH, min = 0f, max = 1f, default = 0f),
 			Parameter(PanelIds.fixed, "Fixed", min = 0f, max = 0f, default = 0f),
 			Parameter(PanelIds.arm, PanelNames.ARM, min = -1f, max = 1f, default = 0f),
-		)
+		).map { parameter -> if (parameter.id in repeating) parameter.copy(repeat = true) else parameter }
 	// Keyed on Body X, so the selected-object filter has exactly one parameter to keep.
-	val drawable =
-		Drawable(
-			id = PanelIds.drawable,
-			name = "a",
-			parentDeformerId = null,
-			blendMode = BlendMode.Normal,
-			maskedBy = emptyList(),
-			mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2)),
-			geometryGrid =
-				KeyformGrid(
-					listOf(KeyformAxis(PanelIds.bodyX, floatArrayOf(0f))),
-					listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(6)))),
-				),
+	val drawable = keyedTriangle(PanelIds.drawable, listOf(KeyformAxis(PanelIds.bodyX, bodyXKeys)))
+	val angleAxes =
+		listOfNotNull(
+			KeyformAxis(PanelIds.angleX, angleXKeys).takeIf { angleXKeys.isNotEmpty() },
+			KeyformAxis(PanelIds.angleY, angleYKeys).takeIf { angleYKeys.isNotEmpty() },
 		)
+	val drawables = listOf(drawable) + listOfNotNull(angleAxes.takeIf { axes -> axes.isNotEmpty() }?.let { axes -> keyedTriangle(PanelIds.angleDrawable, axes) })
 
 	return PuppetModel(
 		parameters = parameters,
 		parts = emptyList(),
 		deformers = emptyList(),
-		drawables = listOf(drawable),
+		drawables = drawables,
 		rootChildren = emptyList(),
 		rootPartId = null,
 		parameterLinks = listOf(ParameterLink(PanelIds.angleX, PanelIds.angleY)),
@@ -312,6 +326,27 @@ internal fun panelFixtureModel(runtimeTarget: RuntimeTarget = RuntimeTarget.NoTa
 }
 
 /**
+ * A one-triangle drawable whose geometry is keyed over [axes], with a zero form at every point of their keys' product.
+ *
+ * @param DrawableId id The drawable's id, which is also its name.
+ * @param List axes The axes it is keyed on, in grid order.
+ * @return Drawable The drawable.
+ */
+private fun keyedTriangle(id: DrawableId, axes: List<KeyformAxis>): Drawable {
+	val coordinates = axes.fold(listOf(intArrayOf())) { prefixes, axis -> prefixes.flatMap { prefix -> axis.keys.indices.map { keyIndex -> prefix + keyIndex } } }
+
+	return Drawable(
+		id = id,
+		name = id.raw,
+		parentDeformerId = null,
+		blendMode = BlendMode.Normal,
+		maskedBy = emptyList(),
+		mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2)),
+		geometryGrid = KeyformGrid(axes, coordinates.map { coordinate -> KeyformCell(coordinate, MeshDeltaForm(FloatArray(6))) }),
+	)
+}
+
+/**
  * The panel's localized chrome, resolved inside the composition so a test finds a node by the same string
  * the panel draws.
  *
@@ -335,6 +370,8 @@ internal fun panelFixtureModel(runtimeTarget: RuntimeTarget = RuntimeTarget.NoTa
  * @property String rangeMinimum The range editor's minimum caption.
  * @property String rangeDefault The range editor's default caption.
  * @property String rangeMaximum The range editor's maximum caption.
+ * @property String repeat The range editor's Repeat checkbox.
+ * @property String toggleRepeat The Toggle Repeat entry of a parameter row's menu.
  * @property String more The overflow chip a narrow header collapses into.
  * @property String trackGeometry The keyform sheet's label for a geometry track.
  * @property String keyformInsert The keyform sheet's Insert Key lane entry.
@@ -401,6 +438,8 @@ internal class PanelText(
 	val rangeMinimum: String,
 	val rangeDefault: String,
 	val rangeMaximum: String,
+	val repeat: String,
+	val toggleRepeat: String,
 	val more: String,
 	val trackGeometry: String,
 	val keyformInsert: String,
@@ -509,6 +548,9 @@ internal class ParametersPanelHarness(
 	val outlinerScope = AreaScope(PANEL_OUTLINER_AREA_ID)
 	val inlineEditController = InlineEditController()
 	val rowDragCancel = RowDragCancelController()
+
+	/** The number-field scrub seam, one instance shared by the fields and the key ladder, as the shell shares it. */
+	val scrubCancel = ScrubCancelController()
 	val overlays = ShellOverlayState()
 	val registry = CommandRegistry()
 	val keymap = Keymap(mapOf(parseKeyChord("primary+KeyS")!! to PANEL_SHORTCUT_COMMAND))
@@ -597,6 +639,9 @@ internal class ParametersPanelHarness(
 			canAddArtwork = { true },
 		)
 
+	/** The cursor warp every control in the panel uses, so no test moves the real pointer. */
+	val cursorWarps = CursorWarpRecorder()
+
 	/** The size the keyform sheet is laid out at, when one is mounted. */
 	var sheetSize by mutableStateOf(DpSize(PANEL_SHEET_WIDTH, PANEL_SHEET_HEIGHT))
 
@@ -679,6 +724,8 @@ internal fun ComposeUiTest.mountParametersPanel(harness: ParametersPanelHarness)
 			WorkspaceLayoutController(defaultLayout()) {},
 		) {} + listOf(Command(PANEL_SHORTCUT_COMMAND, title = null) { harness.shortcutRuns += 1 }),
 	)
+	// The panel's own menus run Toggle Repeat through the registry, which the shell always registers.
+	harness.registry.registerAll(parameterCommands(harness.session, SessionAvailability(harness.session)))
 
 	if (harness.showKeyformSheet) {
 		// Routed as though the pointer were over the sheet, which is where a sheet command is aimed from.
@@ -727,6 +774,8 @@ internal fun ComposeUiTest.mountParametersPanel(harness: ParametersPanelHarness)
 				rangeMinimum = stringResource(Res.string.parameter_range_min),
 				rangeDefault = stringResource(Res.string.parameter_range_default),
 				rangeMaximum = stringResource(Res.string.parameter_range_max),
+				repeat = stringResource(Res.string.parameter_range_repeat),
+				toggleRepeat = stringResource(Res.string.cmd_parameter_toggle_repeat),
 				more = stringResource(Res.string.header_more),
 				trackGeometry = stringResource(Res.string.track_geometry),
 				keyformInsert = stringResource(Res.string.cmd_keyform_insert),
@@ -781,6 +830,8 @@ internal fun ComposeUiTest.mountParametersPanel(harness: ParametersPanelHarness)
 			CompositionLocalProvider(
 				LocalInlineEditController provides harness.inlineEditController,
 				LocalRowDragCancel provides harness.rowDragCancel,
+				LocalScrubCancel provides harness.scrubCancel,
+				LocalCursorWarp provides harness.cursorWarps::warp,
 				LocalCommands provides harness.registry,
 				LocalKeymap provides harness.keymap,
 				LocalEditorSession provides session,
@@ -836,6 +887,7 @@ internal fun ComposeUiTest.mountParametersPanel(harness: ParametersPanelHarness)
 										inlineEditController = harness.inlineEditController,
 										editorSession = session,
 										rowDragCancel = harness.rowDragCancel,
+										scrubCancel = harness.scrubCancel,
 										keyformSheets = harness.keyformSheetViews,
 										commandRegistry = harness.registry,
 										keymap = harness.keymap,
@@ -905,6 +957,29 @@ internal class ControlBox(val left: Float, val top: Float, val right: Float, val
 	 * @return Offset The point.
 	 */
 	fun at(across: Float, down: Float = 0.5f): Offset = Offset(left + width * across, top + height * down)
+
+	/**
+	 * A point level with the box's center and [deltaX] pixels to the side of it, inside the box or past its edge, which
+	 * is where a number field's scrub goes.
+	 *
+	 * @param Float deltaX The distance from the center, rightward positive.
+	 * @return Offset The point.
+	 */
+	fun besideCenter(deltaX: Float): Offset = Offset(center.x + deltaX, center.y)
+
+	/**
+	 * A point on a dial in the box, by the part of a lap clockwise from 12 o'clock, which is where the dial's seam is.
+	 *
+	 * @param Float fraction The part of a lap, 0 at the seam and 0.25 at 3 o'clock.
+	 * @param Float reach How far out from the center, as a part of the box's half width.
+	 * @return Offset The point.
+	 */
+	fun atClock(fraction: Float, reach: Float = 0.8f): Offset {
+		val angle = fraction * 2.0 * PI
+		val radius = width / 2f * reach
+
+		return Offset(center.x + radius * sin(angle).toFloat(), center.y - radius * cos(angle).toFloat())
+	}
 }
 
 /**
@@ -978,6 +1053,42 @@ internal fun ComposeUiTest.sliderBox(harness: ParametersPanelHarness, rowIndex: 
 }
 
 /**
+ * Stands in for the OS cursor warp: records every request in screen pixels, and lands exactly where asked unless
+ * [lands] is off, as on a platform that cannot warp.
+ *
+ * @property Boolean lands Whether a request lands; off, every request returns null.
+ */
+internal class CursorWarpRecorder {
+	/** Every request, in screen pixels, in order. */
+	val requests = mutableListOf<Offset>()
+
+	var lands = true
+
+	/**
+	 * Records a request and lands it.
+	 *
+	 * @param Float screenX The requested screen x.
+	 * @param Float screenY The requested screen y.
+	 * @return Offset? Where the cursor landed, or null when [lands] is off.
+	 */
+	fun warp(screenX: Float, screenY: Float): Offset? {
+		val request = Offset(screenX, screenY)
+		requests.add(request)
+
+		return if (lands) request else null
+	}
+}
+
+/**
+ * Where a screen point, such as a recorded warp, sits in the panel body's pixels, which the pointer helpers take.
+ *
+ * @param Offset screenPoint The point in screen pixels.
+ * @return Offset The point in the panel body's pixels.
+ */
+@OptIn(ExperimentalTestApi::class)
+internal fun ComposeUiTest.panelPointOfScreen(screenPoint: Offset): Offset = screenPoint - onNodeWithTag(PANEL_BODY_TAG).fetchSemanticsNode().positionOnScreen
+
+/**
  * Where a pad row's pad sits, worked out the way [sliderBox] is.  The pad pads itself by 10 dp, keeps a
  * 3 : 2 shape, and sits directly under the two stacked axis rows.
  *
@@ -1005,6 +1116,91 @@ internal fun ComposeUiTest.padBox(
 		ControlBox(left = left, top = top, right = right, bottom = top + (right - left) / 1.5f)
 	}
 }
+
+/**
+ * Where a pad puts a pair of values: across its full width and height, x rising rightward and y upward.
+ *
+ * @param ControlBox pad The pad's box, from [padBox].
+ * @param Float xValue The horizontal axis's value.
+ * @param Float yValue The vertical axis's value.
+ * @param ClosedFloatingPointRange xRange The horizontal axis's range; the fixture's angle range by default.
+ * @param ClosedFloatingPointRange yRange The vertical axis's range; the fixture's angle range by default.
+ * @return Offset The point, in the panel body's pixels.
+ */
+internal fun padPointOf(
+	pad: ControlBox,
+	xValue: Float,
+	yValue: Float,
+	xRange: ClosedFloatingPointRange<Float> = -30f..30f,
+	yRange: ClosedFloatingPointRange<Float> = -30f..30f,
+): Offset {
+	val across = (xValue - xRange.start) / (xRange.endInclusive - xRange.start)
+	val up = (yValue - yRange.start) / (yRange.endInclusive - yRange.start)
+
+	return pad.at(across, 1f - up)
+}
+
+/**
+ * Where a repeating parameter's dial sits, worked out the way [sliderBox] is.  The island's content runs from 6 dp
+ * right of the grip to 24 dp right of the number field, and the dial is centered across it, the dial spacing below
+ * the value row.
+ *
+ * @param ParametersPanelHarness harness The mounted harness.
+ * @param Int rowIndex The row, 0 for the first composed row.
+ * @param String valueText The text the row's number field shows.
+ * @return ControlBox The dial's square in the panel body's pixels.
+ */
+@OptIn(ExperimentalTestApi::class)
+internal fun ComposeUiTest.dialBox(harness: ParametersPanelHarness, rowIndex: Int, valueText: String): ControlBox {
+	val grip = gripBounds(harness, rowIndex)
+	val field = numberFieldBounds(valueText)
+
+	return with(density) {
+		val centerX = (grip.right + 6.dp.toPx() + field.right + 24.dp.toPx()) / 2f
+		dialSquare(centerX, field.bottom + PARAMETER_DIAL_SPACING.toPx(), PARAMETER_DIAL_DIAMETER.toPx())
+	}
+}
+
+/**
+ * Where a pair row's two dials sit, when a repeating member gives the pair dials in place of its pad.  The island's
+ * content is split in two halves, each dial centered in its own, the dial spacing below the lower axis's value row.
+ *
+ * @param ParametersPanelHarness harness The mounted harness.
+ * @param Int rowIndex The row, 0 for the first composed row.
+ * @param String horizontalValueText The text the upper axis's number field shows.
+ * @param String verticalValueText The text the lower axis's number field shows.
+ * @return Pair<ControlBox, ControlBox> The upper axis's dial on the left, then the lower axis's on the right.
+ */
+@OptIn(ExperimentalTestApi::class)
+internal fun ComposeUiTest.pairDialBoxes(
+	harness: ParametersPanelHarness,
+	rowIndex: Int,
+	horizontalValueText: String,
+	verticalValueText: String,
+): Pair<ControlBox, ControlBox> {
+	val grip = gripBounds(harness, rowIndex)
+	val horizontalField = numberFieldBounds(horizontalValueText)
+	val verticalField = numberFieldBounds(verticalValueText)
+
+	return with(density) {
+		val contentLeft = grip.right + 6.dp.toPx()
+		val contentWidth = horizontalField.right + 24.dp.toPx() - contentLeft
+		val top = verticalField.bottom + PARAMETER_DIAL_SPACING.toPx()
+		val diameter = PARAMETER_DIAL_DIAMETER.toPx()
+		dialSquare(contentLeft + contentWidth / 4f, top, diameter) to dialSquare(contentLeft + contentWidth * 3f / 4f, top, diameter)
+	}
+}
+
+/**
+ * A dial's square from its center x, its top, and its diameter.
+ *
+ * @param Float centerX The dial's center x.
+ * @param Float top The dial's top edge.
+ * @param Float diameter The dial's diameter.
+ * @return ControlBox The square.
+ */
+private fun dialSquare(centerX: Float, top: Float, diameter: Float): ControlBox =
+	ControlBox(left = centerX - diameter / 2f, top = top, right = centerX + diameter / 2f, bottom = top + diameter)
 
 /**
  * A point on a slider row's island that belongs to no control: inside the island's own padding, at its
@@ -1105,6 +1301,20 @@ internal fun ComposeUiTest.releasePress() {
 internal fun ComposeUiTest.drag(from: Offset, through: List<Offset>) {
 	pressAndMove(from, through)
 	releasePress()
+}
+
+/**
+ * Rests the pointer at a point in the panel body with no button held, which is what shows a field's chevrons.
+ *
+ * @param Offset point Where the pointer rests.
+ */
+@OptIn(ExperimentalTestApi::class)
+internal fun ComposeUiTest.hoverAt(point: Offset) {
+	onNodeWithTag(PANEL_BODY_TAG).performMouseInput {
+		advanceEventTime(GESTURE_GAP_MILLIS)
+		moveTo(point)
+	}
+	waitForIdle()
 }
 
 /**

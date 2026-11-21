@@ -24,10 +24,12 @@ import org.umamo.edit.parameter.renameParameter
 import org.umamo.edit.parameter.renameParameterGroup
 import org.umamo.edit.parameter.setParameterLink
 import org.umamo.edit.parameter.setParameterRange
+import org.umamo.edit.parameter.setParameterRepeat
 import org.umamo.edit.structure.RowDropBand
 import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.kit.menu.ContextMenuArea
 import org.umamo.ui.kit.menu.MenuItem
+import org.umamo.ui.settings.RepeatControlSetting
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.workspace.rowdrag.RowDragController
@@ -43,6 +45,7 @@ private val INDENT_PER_DEPTH = 12.dp
  *
  * @param ParameterRow row The row to show.
  * @param Map<ParameterId, ParameterKeyMarks> keyMarksByParameter Each parameter's grid / blend key marks.
+ * @param RepeatControlSetting repeatControl The control the rigger prefers for a repeating parameter.
  * @param ParameterSelection parameterSelection The keyform-authoring target, which outlines its rows.
  * @param ParameterLabels labels The panel's localized chrome.
  * @param ParameterPoseState pose The pose the controls show and write.
@@ -56,6 +59,7 @@ private val INDENT_PER_DEPTH = 12.dp
 internal fun ParameterRowView(
 	row: ParameterRow,
 	keyMarksByParameter: Map<ParameterId, ParameterKeyMarks>,
+	repeatControl: RepeatControlSetting,
 	parameterSelection: ParameterSelection,
 	labels: ParameterLabels,
 	pose: ParameterPoseState,
@@ -152,6 +156,7 @@ internal fun ParameterRowView(
 				ParameterSliderRow(
 					row = row,
 					keyMarks = keyMarksByParameter[row.parameter.id],
+					repeatControl = repeatControl,
 					selected = row.parameter.id in parameterSelection,
 					labels = labels,
 					pose = pose,
@@ -165,6 +170,9 @@ internal fun ParameterRowView(
 			is ParameterRow.Pair2D -> {
 				ParameterPadRow(
 					row = row,
+					horizontalKeyMarks = keyMarksByParameter[row.horizontal.id],
+					verticalKeyMarks = keyMarksByParameter[row.vertical.id],
+					repeatControl = repeatControl,
 					selected = row.horizontal.id in parameterSelection || row.vertical.id in parameterSelection,
 					labels = labels,
 					pose = pose,
@@ -256,6 +264,7 @@ private fun ParameterGroupRow(
  *
  * @param ParameterRow.Single row The slider to show.
  * @param ParameterKeyMarks? keyMarks The parameter's grid / blend key marks, or null with none.
+ * @param RepeatControlSetting repeatControl The control the rigger prefers for a repeating parameter.
  * @param Boolean selected Whether the parameter is the keyform-authoring target.
  * @param ParameterLabels labels The panel's localized chrome.
  * @param ParameterPoseState pose The pose the slider shows and writes.
@@ -269,6 +278,7 @@ private fun ParameterGroupRow(
 private fun ParameterSliderRow(
 	row: ParameterRow.Single,
 	keyMarks: ParameterKeyMarks?,
+	repeatControl: RepeatControlSetting,
 	selected: Boolean,
 	labels: ParameterLabels,
 	pose: ParameterPoseState,
@@ -295,7 +305,7 @@ private fun ParameterSliderRow(
 			null
 		}
 	ContextMenuArea(
-		items = parameterSliderMenuItems(parameter.id, labels, session, viewState, createMenuItems),
+		itemsOnOpen = parameterSliderMenuItems(parameter, labels, session, viewState, createMenuItems),
 		modifier = modifier,
 	) {
 		ParameterIsland(
@@ -307,6 +317,7 @@ private fun ParameterSliderRow(
 		) {
 			ParameterSlider(
 				parameter = parameter,
+				control = singleControlOf(parameter, repeatControl),
 				keyMarks = keyMarks,
 				value = shownValue,
 				labels = labels,
@@ -316,22 +327,19 @@ private fun ParameterSliderRow(
 				},
 				rename = rename,
 				onPreview = { newValue -> pose.preview(parameter.id, newValue) },
+				onCancelPreview = { pose.cancelPreview(parameter) },
 				onCommitGesture = { pose.commitGesture(setOf(parameter.id)) },
 				onCommitValue = { newValue -> pose.commitValue(parameter.id, newValue) },
 				link = link,
 			)
 
 			if (rangeOpen) {
-				RangeFieldsRow(
+				ParameterRangeEditor(
 					parameter = parameter,
-					onSetRange = { min, default, max ->
-						session?.setParameterRange(
-							parameter.id,
-							min,
-							default,
-							max,
-						)
-					},
+					labels = labels,
+					onSetRange = { min, default, max -> session?.setParameterRange(parameter.id, min, default, max) },
+					// A document edit, not a pose write, so it bypasses the Edit-mode parameter lock as range edits do.
+					onSetRepeat = { repeat -> session?.setParameterRepeat(parameter.id, repeat) },
 				)
 			}
 		}
@@ -343,6 +351,9 @@ private fun ParameterSliderRow(
  * pad's context menu.  The island keys its open state on the horizontal (upper) member.
  *
  * @param ParameterRow.Pair2D row The pad to show.
+ * @param ParameterKeyMarks? horizontalKeyMarks The upper axis's grid / blend key marks, or null with none.
+ * @param ParameterKeyMarks? verticalKeyMarks The lower axis's grid / blend key marks, or null with none.
+ * @param RepeatControlSetting repeatControl The control the rigger prefers for a repeating parameter.
  * @param Boolean selected Whether either axis is the keyform-authoring target.
  * @param ParameterLabels labels The panel's localized chrome.
  * @param ParameterPoseState pose The pose the pad shows and writes.
@@ -355,6 +366,9 @@ private fun ParameterSliderRow(
 @Composable
 private fun ParameterPadRow(
 	row: ParameterRow.Pair2D,
+	horizontalKeyMarks: ParameterKeyMarks?,
+	verticalKeyMarks: ParameterKeyMarks?,
+	repeatControl: RepeatControlSetting,
 	selected: Boolean,
 	labels: ParameterLabels,
 	pose: ParameterPoseState,
@@ -387,7 +401,7 @@ private fun ParameterPadRow(
 			null
 		}
 	ContextMenuArea(
-		items = parameterPadMenuItems(horizontal, vertical, labels, session, viewState, createMenuItems),
+		itemsOnOpen = parameterPadMenuItems(horizontal, vertical, labels, session, viewState, createMenuItems),
 		modifier = modifier,
 	) {
 		ParameterIsland(
@@ -400,6 +414,9 @@ private fun ParameterPadRow(
 			ParameterPad2D(
 				horizontal = horizontal,
 				vertical = vertical,
+				control = pairControlOf(horizontal, vertical, repeatControl),
+				horizontalKeyMarks = horizontalKeyMarks,
+				verticalKeyMarks = verticalKeyMarks,
 				xValue = shownX,
 				yValue = shownY,
 				labels = labels,
@@ -410,6 +427,7 @@ private fun ParameterPadRow(
 				horizontalRename = horizontalRename,
 				verticalRename = verticalRename,
 				onPreview = { id, newValue -> pose.preview(id, newValue) },
+				onCancelPreview = { axis -> pose.cancelPreview(axis) },
 				onCommitGesture = { ids -> pose.commitGesture(ids) },
 				onCommitValue = { id, newValue -> pose.commitValue(id, newValue) },
 				link = link,
@@ -419,18 +437,18 @@ private fun ParameterPadRow(
 				// One range row per axis, each captioned with its axis name (user
 				// data, never localized).
 				RangeAxisLabel(horizontal.name)
-				RangeFieldsRow(
+				ParameterRangeEditor(
 					parameter = horizontal,
-					onSetRange = { min, default, max ->
-						session?.setParameterRange(horizontal.id, min, default, max)
-					},
+					labels = labels,
+					onSetRange = { min, default, max -> session?.setParameterRange(horizontal.id, min, default, max) },
+					onSetRepeat = { repeat -> session?.setParameterRepeat(horizontal.id, repeat) },
 				)
 				RangeAxisLabel(vertical.name)
-				RangeFieldsRow(
+				ParameterRangeEditor(
 					parameter = vertical,
-					onSetRange = { min, default, max ->
-						session?.setParameterRange(vertical.id, min, default, max)
-					},
+					labels = labels,
+					onSetRange = { min, default, max -> session?.setParameterRange(vertical.id, min, default, max) },
+					onSetRepeat = { repeat -> session?.setParameterRepeat(vertical.id, repeat) },
 				)
 			}
 		}

@@ -466,6 +466,7 @@
 	<string name="history_parameter_select">Select Parameter</string>
 	<string name="history_parameter_value">Adjust Parameter</string>
 	<string name="history_parameter_range">Edit Parameter Range</string>
+	<string name="history_parameter_repeat">Toggle Parameter Repeat</string>
 	<string name="history_parameter_link">Link Parameters</string>
 	<string name="history_parameter_unlink">Unlink Parameters</string>
 	<string name="history_parameter_move">Move Parameter</string>
@@ -694,6 +695,7 @@
 	<string name="cmd_relation_pick">Pick</string>
 	<string name="cmd_relation_remove">Remove</string>
 	<string name="cmd_relation_copy_to_selected">Copy to Selected</string>
+	<string name="cmd_parameter_toggle_repeat">Toggle Repeat</string>
 	<string name="outliner_menu_select_hierarchy">Select Hierarchy</string>
 
 	<!-- Topology operators (Shift+D / M / V / J), their history labels, and their refusal notices. -->
@@ -992,7 +994,6 @@
 	<string name="runtime_feature_motion_sync">Motion-sync</string>
 	<string name="runtime_feature_extended_blend_modes">Blend Mode</string>
 	<string name="runtime_feature_part_composite">Part Composite (Offscreen Drawing)</string>
-	<string name="runtime_feature_parameter_repeat">Parameter Repeat</string>
 	<string name="runtime_feature_art_path">Art Path</string>
 	<string name="properties_texture_source">Texture Source: %1$s</string>
 	<string name="properties_texture_own">Own Atlas Binding</string>
@@ -1283,6 +1284,7 @@
 	<string name="parameter_range_min">Min</string>
 	<string name="parameter_range_default">Default</string>
 	<string name="parameter_range_max">Max</string>
+	<string name="parameter_range_repeat">Repeat</string>
 
 	<!-- Settings window. Opened by the edit.preferences command (Edit menu / Ctrl+, / palette). -->
 	<string name="cmd_preferences">Settings</string>
@@ -1309,6 +1311,10 @@
 	<string name="settings_interface_language">Language</string>
 	<!-- The undo-history cap (interface.historyLimit): how many steps the History panel retains. -->
 	<string name="settings_interface_history_steps">History Steps</string>
+	<!-- parameters.repeatControl: the control a repeating parameter shows.  The slider choice gives a pair its pad. -->
+	<string name="settings_interface_repeat_control">Repeating Parameter Control</string>
+	<string name="settings_repeat_control_dial">Dial</string>
+	<string name="settings_repeat_control_slider">Slider and Pad</string>
 	<!-- app.checkForUpdates, in Preferences and Quick Setup. -->
 	<string name="settings_check_for_updates">Check for updates when Umamo starts</string>
 	<!-- Keybindings section: preset selection + the per-command rebinding editor. -->

@@ -16,6 +16,9 @@
 		"historyLimit": 200,
 		"layout": {
 			"workspaces": []
+		},
+		"parameters": {
+			"repeatControl": "dial"
 		}
 	},
 	"viewport": {

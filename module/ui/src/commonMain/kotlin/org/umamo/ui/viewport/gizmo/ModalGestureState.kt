@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.runtime.model.DrawableId
+import org.umamo.ui.kit.CursorWrapState
 
 /**
  * The per-area modal-gesture bookkeeping every gizmo overlay carries, bundled so the begin / end lifecycle

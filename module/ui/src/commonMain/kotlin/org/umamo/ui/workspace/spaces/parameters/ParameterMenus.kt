@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.spaces.parameters
 
 import androidx.compose.runtime.Composable
+import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorSession
 import org.umamo.edit.parameter.createParameter
 import org.umamo.edit.parameter.createParameterGroup
@@ -12,6 +13,12 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.RuntimeFeature
 import org.umamo.runtime.model.RuntimeTarget
+import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandRegistry
+import org.umamo.ui.action.Keymap
+import org.umamo.ui.action.LocalCommands
+import org.umamo.ui.action.LocalKeymap
+import org.umamo.ui.action.commandMenuItem
 import org.umamo.ui.kit.menu.MenuItem
 
 /*
@@ -20,8 +27,52 @@ import org.umamo.ui.kit.menu.MenuItem
  * thing wherever it shows.
  *
  * The builders are composable for the sake of their callbacks: a lambda written in composition is kept
- * across recompositions while what it captures is unchanged.
+ * across recompositions while what it captures is unchanged.  A row's menu holds a command's row, whose
+ * grayed state is a live query, so it is handed back as the builder its menu calls as it opens.
  */
+
+/** The command a parameter menu's Toggle Repeat entry runs, with the parameter as its argument. */
+private const val TOGGLE_REPEAT_COMMAND = "parameter.toggleRepeat"
+
+/**
+ * What a parameter menu builds its Toggle Repeat rows from: the command and its title, resolved in composition,
+ * and the registry and keymap a row dispatches through.
+ *
+ * @property Command command The registered Toggle Repeat command.
+ * @property String title The command's resolved title.
+ * @property CommandRegistry commands The registry a row dispatches through.
+ * @property Keymap keymap The keymap a row's accelerator is read from.
+ */
+private class ToggleRepeatEntry(
+	val command: Command,
+	val title: String,
+	private val commands: CommandRegistry,
+	private val keymap: Keymap,
+) {
+	/**
+	 * The command's row run on [parameterId], grayed as the command is for it when this is called.
+	 *
+	 * @param ParameterId parameterId The parameter the row toggles.
+	 * @param String label The row's label: the title, or an axis name in a pad's submenu.
+	 * @return MenuItem The row.
+	 */
+	fun rowFor(parameterId: ParameterId, label: String = title): MenuItem = commandMenuItem(command, label, commands, keymap, argument = parameterId)
+}
+
+/**
+ * The Toggle Repeat entry as this composition resolves it.
+ *
+ * @return ToggleRepeatEntry? The entry, or null while the command is not registered.
+ */
+@Composable
+private fun toggleRepeatEntry(): ToggleRepeatEntry? {
+	val commands = LocalCommands.current
+	val keymap = LocalKeymap.current
+	val command = commands[TOGGLE_REPEAT_COMMAND] ?: return null
+	val title = command.title?.let { resource -> stringResource(resource) } ?: command.id
+
+	return ToggleRepeatEntry(command, title, commands, keymap)
+}
 
 /**
  * Creates a parameter and opens its name for inline rename.
@@ -137,40 +188,47 @@ internal fun parameterGroupMenuItems(
 	)
 
 /**
- * A slider row's context menu: Rename and Delete Parameter, then the entries that create.
+ * A slider row's context menu: Rename, Toggle Repeat, and Delete Parameter, then the entries that create.
  *
- * @param ParameterId parameterId The parameter the menu acts on.
+ * @param Parameter parameter The parameter the menu acts on.
  * @param ParameterLabels labels The panel's localized chrome.
  * @param EditorSession? session The editing session, or null with none, which disables the entries.
  * @param ParametersViewState viewState The panel's view state, which holds the rename target.
  * @param List<MenuItem> createMenuItems The entries that create, which every parameter menu ends with.
- * @return List<MenuItem> The entries, in menu order.
+ * @return Function The builder the menu calls as it opens: the entries, in menu order.
  */
 @Composable
 internal fun parameterSliderMenuItems(
-	parameterId: ParameterId,
+	parameter: Parameter,
 	labels: ParameterLabels,
 	session: EditorSession?,
 	viewState: ParametersViewState,
 	createMenuItems: List<MenuItem>,
-): List<MenuItem> =
-	listOf(
-		MenuItem.Action(
-			label = labels.rename,
-			onSelect = { viewState.renamingParameterId = parameterId },
-			enabled = session != null,
-		),
-		MenuItem.Action(
-			label = labels.deleteParameter,
-			onSelect = { session?.deleteParameter(parameterId) },
-			enabled = session != null,
-		),
-		MenuItem.Separator,
-	) + createMenuItems
+): () -> List<MenuItem> {
+	val parameterId = parameter.id
+	val toggleRepeat = toggleRepeatEntry()
+
+	return {
+		listOfNotNull(
+			MenuItem.Action(
+				label = labels.rename,
+				onSelect = { viewState.renamingParameterId = parameterId },
+				enabled = session != null,
+			),
+			toggleRepeat?.rowFor(parameterId),
+			MenuItem.Action(
+				label = labels.deleteParameter,
+				onSelect = { session?.deleteParameter(parameterId) },
+				enabled = session != null,
+			),
+			MenuItem.Separator,
+		) + createMenuItems
+	}
+}
 
 /**
- * A pad row's context menu.  A pad holds two axes, so Rename and Delete Parameter each open a submenu
- * that asks which one; the axis names in it are user data, never localized.
+ * A pad row's context menu.  A pad holds two axes, so Rename, Toggle Repeat, and Delete Parameter each open a
+ * submenu that asks which one; the axis names in it are user data, never localized.
  *
  * @param Parameter horizontal The pad's X-axis parameter.
  * @param Parameter vertical The pad's Y-axis parameter.
@@ -178,7 +236,7 @@ internal fun parameterSliderMenuItems(
  * @param EditorSession? session The editing session, or null with none, which disables the entries.
  * @param ParametersViewState viewState The panel's view state, which holds the rename target.
  * @param List<MenuItem> createMenuItems The entries that create, which every parameter menu ends with.
- * @return List<MenuItem> The entries, in menu order.
+ * @return Function The builder the menu calls as it opens: the entries, in menu order.
  */
 @Composable
 internal fun parameterPadMenuItems(
@@ -188,41 +246,51 @@ internal fun parameterPadMenuItems(
 	session: EditorSession?,
 	viewState: ParametersViewState,
 	createMenuItems: List<MenuItem>,
-): List<MenuItem> =
-	listOf(
-		MenuItem.Submenu(
-			label = labels.rename,
-			items =
-				listOf(
-					MenuItem.Action(
-						horizontal.name,
-						onSelect = { viewState.renamingParameterId = horizontal.id },
-						enabled = session != null,
+): () -> List<MenuItem> {
+	val toggleRepeat = toggleRepeatEntry()
+
+	return {
+		listOfNotNull(
+			MenuItem.Submenu(
+				label = labels.rename,
+				items =
+					listOf(
+						MenuItem.Action(
+							horizontal.name,
+							onSelect = { viewState.renamingParameterId = horizontal.id },
+							enabled = session != null,
+						),
+						MenuItem.Action(
+							vertical.name,
+							onSelect = { viewState.renamingParameterId = vertical.id },
+							enabled = session != null,
+						),
 					),
-					MenuItem.Action(
-						vertical.name,
-						onSelect = { viewState.renamingParameterId = vertical.id },
-						enabled = session != null,
+				enabled = session != null,
+			),
+			toggleRepeat?.let { entry ->
+				val rows = listOf(horizontal, vertical).map { axis -> entry.rowFor(axis.id, axis.name) }
+
+				MenuItem.Submenu(label = entry.title, items = rows, enabled = rows.any { row -> (row as? MenuItem.Action)?.enabled == true })
+			},
+			MenuItem.Submenu(
+				label = labels.deleteParameter,
+				items =
+					listOf(
+						MenuItem.Action(
+							horizontal.name,
+							onSelect = { session?.deleteParameter(horizontal.id) },
+							enabled = session != null,
+						),
+						MenuItem.Action(
+							vertical.name,
+							onSelect = { session?.deleteParameter(vertical.id) },
+							enabled = session != null,
+						),
 					),
-				),
-			enabled = session != null,
-		),
-		MenuItem.Submenu(
-			label = labels.deleteParameter,
-			items =
-				listOf(
-					MenuItem.Action(
-						horizontal.name,
-						onSelect = { session?.deleteParameter(horizontal.id) },
-						enabled = session != null,
-					),
-					MenuItem.Action(
-						vertical.name,
-						onSelect = { session?.deleteParameter(vertical.id) },
-						enabled = session != null,
-					),
-				),
-			enabled = session != null,
-		),
-		MenuItem.Separator,
-	) + createMenuItems
+				enabled = session != null,
+			),
+			MenuItem.Separator,
+		) + createMenuItems
+	}
+}

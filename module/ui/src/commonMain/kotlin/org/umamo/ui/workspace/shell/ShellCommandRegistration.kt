@@ -41,6 +41,7 @@ import org.umamo.ui.workspace.commands.meshGenerationCommands
 import org.umamo.ui.workspace.commands.modeCommands
 import org.umamo.ui.workspace.commands.objectCommands
 import org.umamo.ui.workspace.commands.overlayCommands
+import org.umamo.ui.workspace.commands.parameterCommands
 import org.umamo.ui.workspace.commands.proportionalCommands
 import org.umamo.ui.workspace.commands.registerAll
 import org.umamo.ui.workspace.commands.relationCommands
@@ -228,6 +229,7 @@ internal fun RegisterShellCommands(
 					addAll(historyCommands(editorSession, availability, operationStrip))
 					addAll(objectCommands(editorSession, selection, availability))
 					addAll(relationCommands(editorSession, controllers.relationPick, routing, availability))
+					addAll(parameterCommands(editorSession, availability))
 					addAll(transformCommands(editorSession, routing, availability))
 					addAll(selectCommands(editorSession, routing, keyformSheetViews, availability))
 					addAll(snapCommands(editorSession, routing, availability, areaOverlays))

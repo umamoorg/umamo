@@ -34,12 +34,11 @@ class RuntimeTargetTest {
 			assertTrue(!RuntimeTarget.Cubism42.supports(feature), "$feature is 5.0+, not 4.2")
 			assertTrue(RuntimeTarget.Cubism50.supports(feature), "$feature is supported at 5.0")
 		}
-		// Blend mode, offscreen drawing, parameter repeat: SDK5.3+.
-		listOf(RuntimeFeature.ExtendedBlendModes, RuntimeFeature.PartComposite, RuntimeFeature.ParameterRepeat)
-			.forEach { feature ->
-				assertTrue(!RuntimeTarget.Cubism50.supports(feature), "$feature is 5.3+, not 5.0")
-				assertTrue(RuntimeTarget.Cubism53.supports(feature), "$feature is supported at 5.3")
-			}
+		// Blend mode, offscreen drawing: SDK5.3+.
+		listOf(RuntimeFeature.ExtendedBlendModes, RuntimeFeature.PartComposite).forEach { feature ->
+			assertTrue(!RuntimeTarget.Cubism50.supports(feature), "$feature is 5.3+, not 5.0")
+			assertTrue(RuntimeTarget.Cubism53.supports(feature), "$feature is supported at 5.3")
+		}
 		// ArtPath is "Latest Cubism only": no Cubism ceiling allows it.
 		assertTrue(!RuntimeTarget.Cubism53.supports(RuntimeFeature.ArtPath), "ArtPath is beyond every Cubism target")
 		assertTrue(RuntimeTarget.NoTarget.supports(RuntimeFeature.ArtPath), "ArtPath is authorable with no target")

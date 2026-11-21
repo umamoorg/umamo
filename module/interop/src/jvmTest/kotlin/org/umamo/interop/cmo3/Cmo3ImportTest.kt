@@ -502,6 +502,34 @@ class Cmo3ImportTest {
 		assertEquals(listOf(1f, 2f), binding.forms[2]?.controlPoints?.toList(), "form at key +1")
 	}
 
+	/** Corpus-free check that each parameter's isRepeat reaches its repeat flag, set and unset alike. */
+	@Test
+	fun readsEachParametersRepeatFlag() {
+		fun makeId(value: String) = Id("").apply { idstr = value }
+
+		fun makeGuid(value: String) = Guid("").apply { uuid = value }
+
+		val wheel =
+			CParameterSource().apply {
+				guid = makeGuid("param-wheel")
+				id = makeId("ParamWheel")
+				maxValue = 360f
+				isRepeat = true
+			}
+		val angle =
+			CParameterSource().apply {
+				guid = makeGuid("param-angle")
+				id = makeId("ParamAngleX")
+				minValue = -30f
+				maxValue = 30f
+			}
+		val model = CModelSource().apply { parameterSourceSet = CParameterSourceSet().apply { _sources = arrayListOf(wheel, angle) } }
+
+		val repeatById = Cmo3Import.fromModelSource(model).parameters.associate { parameter -> parameter.id.raw to parameter.repeat }
+
+		assertEquals(mapOf("ParamWheel" to true, "ParamAngleX" to false), repeatById)
+	}
+
 	/**
 	 * Corpus-free check that flat constraint records group into per-parameter limit curves sorted by
 	 * the constraint parameter's value, attached to the driving parameter they cap.

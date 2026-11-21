@@ -9,6 +9,7 @@ import org.umamo.runtime.model.ParameterLink
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -135,6 +136,22 @@ class ParametersEditLockTest {
 			assertPoseUntouched(this, harness, cursorBefore)
 		}
 
+	/** A dial press and a drag round its seam do nothing. */
+	@Test
+	fun editModeLocksADialScrub() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness(model = panelFixtureModel(repeating = setOf(PanelIds.bodyX)))
+			mountParametersPanel(harness)
+			val dial = dialBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
+			lock(this, harness)
+			val cursorBefore = harness.historyCursor
+
+			clickAt(dial.atClock(0.25f))
+			drag(dial.atClock(0.85f), listOf(dial.atClock(0.95f), dial.atClock(0.05f), dial.atClock(0.15f)))
+
+			assertPoseUntouched(this, harness, cursorBefore)
+		}
+
 	/** A typed value does nothing.  Typed into Eye Open, the one row whose rest value is not 0. */
 	@Test
 	fun editModeLocksATypedValue() =
@@ -144,6 +161,22 @@ class ParametersEditLockTest {
 
 			typeIntoNumberField(PanelValues.EYE_OPEN, "0.5")
 
+			assertPoseUntouched(this, harness, cursorBefore)
+			assertTrue(showsText(PanelValues.EYE_OPEN), "the row still shows its rest value")
+		}
+
+	/** A value field's scrub previews nothing and commits nothing.  Scrubbed on Eye Open, whose rest text is its own. */
+	@Test
+	fun editModeLocksAFieldScrub() =
+		runComposeUiTest {
+			val harness = lockedPanel(this)
+			val cursorBefore = harness.historyCursor
+			val field = numberFieldBounds(PanelValues.EYE_OPEN)
+
+			pressAndMove(field.center, listOf(field.besideCenter(-12f), field.besideCenter(-24f)))
+			assertNull(harness.live(PanelIds.eyeOpen), "a locked field scrub must not preview")
+
+			releasePress()
 			assertPoseUntouched(this, harness, cursorBefore)
 			assertTrue(showsText(PanelValues.EYE_OPEN), "the row still shows its rest value")
 		}
@@ -249,6 +282,32 @@ class ParametersEditLockTest {
 			assertEquals(2f, harness.live(PanelIds.bodyX), "the renderer is handed the committed pose back")
 		}
 
+	/** A value field's scrub held across the lock is dropped the same way: its release commits nothing. */
+	@Test
+	fun aFieldScrubHeldWhenTheLockEngagesIsDiscarded() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val field = numberFieldBounds(PanelValues.BODY_X)
+			pressAndMove(field.center, listOf(field.besideCenter(12f), field.besideCenter(24f)))
+			assertNotEquals(2f, harness.live(PanelIds.bodyX), "the scrub must really have previewed")
+
+			runOnIdle { harness.enterEditMode() }
+			waitForIdle()
+			val cursorLocked = harness.historyCursor
+
+			moveOn(listOf(field.besideCenter(36f)))
+			releasePress()
+			assertRowsShowRest(this, harness)
+			assertEquals(2f, harness.committed(PanelIds.bodyX), "the rest of the scrub and its release must move nothing")
+			assertEquals(cursorLocked, harness.historyCursor, "a dropped scrub records no step")
+
+			runOnIdle { harness.leaveEditMode() }
+			waitForIdle()
+			assertTrue(showsText(PanelValues.BODY_X), "the row shows the committed pose, not the dropped scrub")
+			assertEquals(2f, harness.live(PanelIds.bodyX), "the renderer is handed the committed pose back")
+		}
+
 	/** A pad drag held across the lock is dropped the same way, on both its axes. */
 	@Test
 	fun aPadDragHeldWhenTheLockEngagesIsDiscarded() =
@@ -284,6 +343,20 @@ class ParametersEditLockTest {
 			typeIntoNumberField("10.00", "20")
 
 			assertEquals(20f, harness.session.model.value.parameters.first { parameter -> parameter.id == PanelIds.bodyX }.max)
+			assertEquals(cursorBefore + 1, harness.historyCursor)
+		}
+
+	/** Repeat is the document's too, so Edit mode leaves its checkbox working. */
+	@Test
+	fun editModeLeavesRepeatEditable() =
+		runComposeUiTest {
+			val harness = lockedPanel(this)
+			clickAt(panelBoundsOfText(PanelNames.BODY_X).center)
+			val cursorBefore = harness.historyCursor
+
+			clickAt(panelBoundsOfText(harness.text.repeat).center)
+
+			assertTrue(harness.session.model.value.parameters.first { parameter -> parameter.id == PanelIds.bodyX }.repeat)
 			assertEquals(cursorBefore + 1, harness.historyCursor)
 		}
 
