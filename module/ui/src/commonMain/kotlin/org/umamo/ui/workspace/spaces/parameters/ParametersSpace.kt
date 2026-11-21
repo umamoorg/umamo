@@ -31,7 +31,10 @@ import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalLiveParams
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalSelection
+import org.umamo.ui.rememberStringSetting
 import org.umamo.ui.resources.*
+import org.umamo.ui.settings.ParametersSettings
+import org.umamo.ui.settings.RepeatControlSetting
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.rowdrag.RowDragController
 import org.umamo.ui.workspace.rowdrag.RowDragLabel
@@ -54,6 +57,7 @@ import org.umamo.ui.workspace.rowdrag.parkCancelOnSeam
  *
  *   ParameterPose.kt              the pose writes and their Edit-mode lock, and the follow rule
  *   ParameterRows.kt              the row model and what the panel asks of it
+ *   ParameterControlChoice.kt     which control a row shows: slider or dial, pad or dials
  *   ParametersDropRules.kt        where a dragged row may land
  *   ParameterObjectBinding.kt     which parameters drive a selection
  */
@@ -95,6 +99,9 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// Per-parameter key marks (circle grid keys / square blend keys) for the sliders; one graph pass,
 	// recomputed only when the model changes.
 	val keyMarksByParameter = remember(puppet) { puppet.parameterKeyMarks() }
+	// The control a repeating parameter shows, read once here and handed down, so the rows do not each subscribe.
+	val repeatControlKey by rememberStringSetting(ParametersSettings.REPEAT_CONTROL_KEY, ParametersSettings.REPEAT_CONTROL_DEFAULT.key)
+	val repeatControl = RepeatControlSetting.fromKey(repeatControlKey)
 
 	// The "affects the selected object" filter: when it is on and something is selected, restrict the panel
 	// to the parameters that drive the selection (effective, through the deformer chain).  Inert with no
@@ -200,6 +207,7 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 						ParameterRowView(
 							row = row,
 							keyMarksByParameter = keyMarksByParameter,
+							repeatControl = repeatControl,
 							parameterSelection = parameterSelection,
 							labels = labels,
 							pose = pose,

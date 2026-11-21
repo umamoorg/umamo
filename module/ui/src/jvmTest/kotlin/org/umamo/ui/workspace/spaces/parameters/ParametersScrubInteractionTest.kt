@@ -77,6 +77,40 @@ class ParametersScrubInteractionTest {
 			assertEquals(cursorBefore + 1, harness.historyCursor)
 		}
 
+	/** A press moves the value under the pointer at once, before the release commits it. */
+	@Test
+	fun aSliderPressPreviewsBeforeTheRelease() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val slider = sliderBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
+
+			pressAndMove(slider.at(0f), emptyList())
+
+			assertEquals(-10f, harness.live(PanelIds.bodyX), "the press jumps the value to the pointer")
+			assertEquals(2f, harness.committed(PanelIds.bodyX), "and only previews it")
+
+			releasePress()
+
+			assertEquals(-10f, harness.committed(PanelIds.bodyX))
+		}
+
+	/** A secondary press on the slider opens the row's menu and leaves the value where it was. */
+	@Test
+	fun aSecondaryPressOnTheSliderOpensTheMenuAndMovesNothing() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val slider = sliderBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
+			val cursorBefore = harness.historyCursor
+
+			secondaryClickAt(slider.at(0.1f))
+
+			assertEquals(2f, harness.live(PanelIds.bodyX), "a secondary press must not move the thumb")
+			assertEquals(cursorBefore, harness.historyCursor, "nor record a step")
+			assertTrue(popupShows(harness.text.rename), "the press opens the row's menu")
+		}
+
 	/** The pose the session restores is the pose the row shows. */
 	@Test
 	fun undoAndRedoReposeTheSlider() =

@@ -176,12 +176,13 @@ internal fun ParameterIsland(
 }
 
 /**
- * One labelled slider for a parameter, clamped to its range, with a numeric entry field and (when the
- * value is off its default) a reset glyph.  A repeating parameter shows a dial in place of the slider.
+ * One labelled slider for a parameter, held to its range (a repeating one wraps round it), with a numeric entry
+ * field and (when the value is off its default) a reset glyph.  It shows a dial in place of the slider when [control] says so.
  * A drag of the slider or a scrub of the field previews live and commits one step on release; a typed
  * value or the reset commits one step.
  *
  * @param Parameter parameter        The parameter to scrub.
+ * @param SingleControl control      The control the row shows, the slider or the dial.
  * @param ParameterKeyMarks? keyMarks The parameter's grid / blend key marks to draw on the slider, or null.
  * @param Float     value            The current value.
  * @param ParameterLabels labels     The panel's localized chrome.
@@ -197,6 +198,7 @@ internal fun ParameterIsland(
 @Composable
 internal fun ParameterSlider(
 	parameter: Parameter,
+	control: SingleControl,
 	keyMarks: ParameterKeyMarks?,
 	value: Float,
 	labels: ParameterLabels,
@@ -226,36 +228,42 @@ internal fun ParameterSlider(
 	val sliderKeyMarks = remember(keyMarks) { sliderKeyMarksOf(keyMarks) }
 	val accentColor = controlAccentOf(parameter.repeat, LocalUmamoColors.current)
 
-	if (parameter.repeat) {
-		// The dial reports laps past the seam, and the parameter's own rule wraps them, so the pose stays in range.
-		// Centered by its modifier, not in a box, so a drag frame runs no extra lambda.
-		Dial(
-			value = value,
-			onValueChange = { raw -> onPreview(parameter.wrapOrClamp(raw)) },
-			onValueChangeFinished = onCommitGesture,
-			valueRange = parameter.min..parameter.max,
-			keyMarks = sliderKeyMarks,
-			thumbShape = thumbShapeOf(parameter),
-			wraps = true,
-			accentColor = accentColor,
-			modifier =
-				Modifier
-					.padding(vertical = PARAMETER_DIAL_SPACING)
-					.fillMaxWidth()
-					.wrapContentWidth()
-					.size(PARAMETER_DIAL_DIAMETER),
-		)
-	} else {
-		Slider(
-			value = value,
-			onValueChange = onPreview,
-			onValueChangeFinished = onCommitGesture,
-			valueRange = parameter.min..parameter.max,
-			keyMarks = sliderKeyMarks,
-			thumbShape = thumbShapeOf(parameter),
-			accentColor = accentColor,
-			modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-		)
+	when (control) {
+		SingleControl.Dial -> {
+			// The dial reports laps past the seam, and the parameter's own rule wraps them, so the pose stays in range.
+			// Centered by its modifier, not in a box, so a drag frame runs no extra lambda.
+			Dial(
+				value = value,
+				onValueChange = { raw -> onPreview(parameter.wrapOrClamp(raw)) },
+				onValueChangeFinished = onCommitGesture,
+				valueRange = parameter.min..parameter.max,
+				keyMarks = sliderKeyMarks,
+				thumbShape = thumbShapeOf(parameter),
+				wraps = true,
+				accentColor = accentColor,
+				modifier =
+					Modifier
+						.padding(vertical = PARAMETER_DIAL_SPACING)
+						.fillMaxWidth()
+						.wrapContentWidth()
+						.size(PARAMETER_DIAL_DIAMETER),
+			)
+		}
+
+		SingleControl.Slider -> {
+			Slider(
+				value = value,
+				onValueChange = onPreview,
+				onValueChangeFinished = onCommitGesture,
+				valueRange = parameter.min..parameter.max,
+				keyMarks = sliderKeyMarks,
+				thumbShape = thumbShapeOf(parameter),
+				// A repeating value comes in at the other end once dragged past one, and the slider keeps it in range.
+				wraps = parameter.repeat,
+				accentColor = accentColor,
+				modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+			)
+		}
 	}
 }
 
@@ -303,11 +311,12 @@ private fun controlAccentOf(repeats: Boolean, colors: UmamoColors): Color = if (
  * its own axis alone.  The range chevron sits on the horizontal (upper) axis row; clicking either axis
  * name toggles the island's shared range editor.
  *
- * A pair with a repeating member shows a dial per axis in place of the pad, the upper axis on the left.  Each
+ * When [control] says so, the pair shows a dial per axis in place of the pad, the upper axis on the left.  Each
  * drives its own axis and commits it alone, and a member that does not repeat stops at its seam.
  *
  * @param Parameter horizontal       The X-axis parameter.
  * @param Parameter vertical         The Y-axis parameter.
+ * @param PairControl control        The control the row shows, the pad or a dial per axis.
  * @param ParameterKeyMarks? horizontalKeyMarks The X axis's key marks, which the pad or the axis's dial draws, or null with none.
  * @param ParameterKeyMarks? verticalKeyMarks The Y axis's key marks, which the pad or the axis's dial draws, or null with none.
  * @param Float     xValue           The current X value.
@@ -329,6 +338,7 @@ private fun controlAccentOf(repeats: Boolean, colors: UmamoColors): Color = if (
 internal fun ParameterPad2D(
 	horizontal: Parameter,
 	vertical: Parameter,
+	control: PairControl,
 	horizontalKeyMarks: ParameterKeyMarks?,
 	verticalKeyMarks: ParameterKeyMarks?,
 	xValue: Float,
@@ -414,29 +424,35 @@ internal fun ParameterPad2D(
 	// The pad has one handle for both axes, so it takes the repeat accent when either of them wraps.
 	val padAccentColor = controlAccentOf(horizontal.repeat || vertical.repeat, colors)
 
-	if (horizontal.repeat || vertical.repeat) {
-		Row(modifier = Modifier.fillMaxWidth().padding(vertical = PARAMETER_DIAL_SPACING)) {
-			ParameterPairDial(horizontal, xValue, horizontalKeyMarks, onPreview, onCommitGesture, Modifier.weight(1f))
-			ParameterPairDial(vertical, yValue, verticalKeyMarks, onPreview, onCommitGesture, Modifier.weight(1f))
+	when (control) {
+		PairControl.Dials -> {
+			Row(modifier = Modifier.fillMaxWidth().padding(vertical = PARAMETER_DIAL_SPACING)) {
+				ParameterPairDial(horizontal, xValue, horizontalKeyMarks, onPreview, onCommitGesture, Modifier.weight(1f))
+				ParameterPairDial(vertical, yValue, verticalKeyMarks, onPreview, onCommitGesture, Modifier.weight(1f))
+			}
 		}
-	} else {
-		val xKeyMarks = remember(horizontalKeyMarks) { sliderKeyMarksOf(horizontalKeyMarks) }
-		val yKeyMarks = remember(verticalKeyMarks) { sliderKeyMarksOf(verticalKeyMarks) }
-		Pad2D(
-			xValue = xValue,
-			yValue = yValue,
-			onChange = { newX, newY ->
-				onPreview(horizontal.id, newX)
-				onPreview(vertical.id, newY)
-			},
-			onChangeFinished = { onCommitGesture(setOf(horizontal.id, vertical.id)) },
-			xRange = horizontal.min..horizontal.max,
-			yRange = vertical.min..vertical.max,
-			xKeyMarks = xKeyMarks,
-			yKeyMarks = yKeyMarks,
-			accentColor = padAccentColor,
-			modifier = Modifier.padding(10.dp).fillMaxWidth(),
-		)
+
+		PairControl.Pad -> {
+			val xKeyMarks = remember(horizontalKeyMarks) { sliderKeyMarksOf(horizontalKeyMarks) }
+			val yKeyMarks = remember(verticalKeyMarks) { sliderKeyMarksOf(verticalKeyMarks) }
+			Pad2D(
+				xValue = xValue,
+				yValue = yValue,
+				onChange = { newX, newY ->
+					onPreview(horizontal.id, newX)
+					onPreview(vertical.id, newY)
+				},
+				onChangeFinished = { onCommitGesture(setOf(horizontal.id, vertical.id)) },
+				xRange = horizontal.min..horizontal.max,
+				yRange = vertical.min..vertical.max,
+				xKeyMarks = xKeyMarks,
+				yKeyMarks = yKeyMarks,
+				xWraps = horizontal.repeat,
+				yWraps = vertical.repeat,
+				accentColor = padAccentColor,
+				modifier = Modifier.padding(10.dp).fillMaxWidth(),
+			)
+		}
 	}
 }
 

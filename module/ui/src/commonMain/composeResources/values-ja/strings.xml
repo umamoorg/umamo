@@ -1220,6 +1220,9 @@
 	<string name="settings_interface_language">言語</string>
 	<!-- 取り消し履歴の上限（interface.historyLimit）。履歴パネルが保持するステップ数。 -->
 	<string name="settings_interface_history_steps">履歴のステップ数</string>
+	<string name="settings_interface_repeat_control">リピートパラメータの操作</string>
+	<string name="settings_repeat_control_dial">ダイヤル</string>
+	<string name="settings_repeat_control_slider">スライダーとパッド</string>
 	<string name="settings_check_for_updates">起動時にアップデートを確認する</string>
 	<!-- キーバインド設定：プリセット選択とコマンドごとの再割り当て編集。 -->
 	<string name="settings_keybindings_preset">プリセット</string>

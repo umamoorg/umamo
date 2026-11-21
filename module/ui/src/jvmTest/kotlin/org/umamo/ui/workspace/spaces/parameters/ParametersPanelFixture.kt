@@ -87,6 +87,7 @@ import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.parseKeyChord
+import org.umamo.ui.kit.LocalCursorWarp
 import org.umamo.ui.kit.container.OverflowRow
 import org.umamo.ui.kit.field.LocalScrubCancel
 import org.umamo.ui.kit.field.ScrubCancelController
@@ -638,6 +639,9 @@ internal class ParametersPanelHarness(
 			canAddArtwork = { true },
 		)
 
+	/** The cursor warp every control in the panel uses, so no test moves the real pointer. */
+	val cursorWarps = CursorWarpRecorder()
+
 	/** The size the keyform sheet is laid out at, when one is mounted. */
 	var sheetSize by mutableStateOf(DpSize(PANEL_SHEET_WIDTH, PANEL_SHEET_HEIGHT))
 
@@ -827,6 +831,7 @@ internal fun ComposeUiTest.mountParametersPanel(harness: ParametersPanelHarness)
 				LocalInlineEditController provides harness.inlineEditController,
 				LocalRowDragCancel provides harness.rowDragCancel,
 				LocalScrubCancel provides harness.scrubCancel,
+				LocalCursorWarp provides harness.cursorWarps::warp,
 				LocalCommands provides harness.registry,
 				LocalKeymap provides harness.keymap,
 				LocalEditorSession provides session,
@@ -1046,6 +1051,42 @@ internal fun ComposeUiTest.sliderBox(harness: ParametersPanelHarness, rowIndex: 
 		)
 	}
 }
+
+/**
+ * Stands in for the OS cursor warp: records every request in screen pixels, and lands exactly where asked unless
+ * [lands] is off, as on a platform that cannot warp.
+ *
+ * @property Boolean lands Whether a request lands; off, every request returns null.
+ */
+internal class CursorWarpRecorder {
+	/** Every request, in screen pixels, in order. */
+	val requests = mutableListOf<Offset>()
+
+	var lands = true
+
+	/**
+	 * Records a request and lands it.
+	 *
+	 * @param Float screenX The requested screen x.
+	 * @param Float screenY The requested screen y.
+	 * @return Offset? Where the cursor landed, or null when [lands] is off.
+	 */
+	fun warp(screenX: Float, screenY: Float): Offset? {
+		val request = Offset(screenX, screenY)
+		requests.add(request)
+
+		return if (lands) request else null
+	}
+}
+
+/**
+ * Where a screen point, such as a recorded warp, sits in the panel body's pixels, which the pointer helpers take.
+ *
+ * @param Offset screenPoint The point in screen pixels.
+ * @return Offset The point in the panel body's pixels.
+ */
+@OptIn(ExperimentalTestApi::class)
+internal fun ComposeUiTest.panelPointOfScreen(screenPoint: Offset): Offset = screenPoint - onNodeWithTag(PANEL_BODY_TAG).fetchSemanticsNode().positionOnScreen
 
 /**
  * Where a pad row's pad sits, worked out the way [sliderBox] is.  The pad pads itself by 10 dp, keeps a
