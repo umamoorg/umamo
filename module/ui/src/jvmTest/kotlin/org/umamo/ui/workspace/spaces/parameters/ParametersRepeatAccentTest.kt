@@ -9,6 +9,8 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.v2.runComposeUiTest
 import org.umamo.ui.kit.field.SLIDER_THUMB_RADIUS
+import org.umamo.ui.settings.ParametersSettings
+import org.umamo.ui.settings.RepeatControlSetting
 import org.umamo.ui.theme.umamoDarkColors
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -19,8 +21,8 @@ import kotlin.test.assertTrue
 private const val CHANNEL_TOLERANCE = 3
 
 /**
- * Pins the accent each parameter control draws in: a repeating parameter's dial in the repeat accent, every other
- * control in the plain one, and in a pair where one member repeats, each dial in its own member's.
+ * Pins the accent each parameter control draws in: a repeating parameter's dial or slider in the repeat accent, every
+ * other control in the plain one, and in a pair where one member repeats, each dial in its own member's.
  *
  * A pixel test on purpose: the row hands the color down to the kit control, and a call site that drops it draws in
  * the plain accent with nothing else to show for it.  Every sample sits on a stretch of fill that no key mark, hand,
@@ -54,6 +56,20 @@ class ParametersRepeatAccentTest {
 
 			// The fill runs to the thumb at 0.6 of the track, and the key at 0 sits at the middle.
 			assertColorNear(colors.accent, panel.colorAt(slider.at(0.25f)), "a slider's fill")
+		}
+
+	/** Under the slider choice a repeating parameter's slider draws its fill in the repeat accent, as its dial would. */
+	@Test
+	fun aRepeatingSliderDrawsInTheRepeatAccent() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness(model = panelFixtureModel(repeating = setOf(PanelIds.bodyX)))
+			harness.settings.setString(ParametersSettings.REPEAT_CONTROL_KEY, RepeatControlSetting.Slider.key)
+			mountParametersPanel(harness)
+			val slider = sliderBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
+			val panel = capturePanel()
+
+			// The fill runs to the thumb at 0.6 of the track, and the key at 0 sits at the middle.
+			assertColorNear(colors.repeatAccent, panel.colorAt(slider.at(0.25f)), "a repeating slider's fill")
 		}
 
 	/** In a pair where only the upper member repeats, its dial takes the repeat accent and the other's keeps the plain one. */

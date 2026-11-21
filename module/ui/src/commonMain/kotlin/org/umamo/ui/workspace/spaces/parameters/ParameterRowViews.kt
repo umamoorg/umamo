@@ -29,6 +29,7 @@ import org.umamo.edit.structure.RowDropBand
 import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.kit.menu.ContextMenuArea
 import org.umamo.ui.kit.menu.MenuItem
+import org.umamo.ui.settings.RepeatControlSetting
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.workspace.rowdrag.RowDragController
@@ -44,6 +45,7 @@ private val INDENT_PER_DEPTH = 12.dp
  *
  * @param ParameterRow row The row to show.
  * @param Map<ParameterId, ParameterKeyMarks> keyMarksByParameter Each parameter's grid / blend key marks.
+ * @param RepeatControlSetting repeatControl The control the rigger prefers for a repeating parameter.
  * @param ParameterSelection parameterSelection The keyform-authoring target, which outlines its rows.
  * @param ParameterLabels labels The panel's localized chrome.
  * @param ParameterPoseState pose The pose the controls show and write.
@@ -57,6 +59,7 @@ private val INDENT_PER_DEPTH = 12.dp
 internal fun ParameterRowView(
 	row: ParameterRow,
 	keyMarksByParameter: Map<ParameterId, ParameterKeyMarks>,
+	repeatControl: RepeatControlSetting,
 	parameterSelection: ParameterSelection,
 	labels: ParameterLabels,
 	pose: ParameterPoseState,
@@ -153,6 +156,7 @@ internal fun ParameterRowView(
 				ParameterSliderRow(
 					row = row,
 					keyMarks = keyMarksByParameter[row.parameter.id],
+					repeatControl = repeatControl,
 					selected = row.parameter.id in parameterSelection,
 					labels = labels,
 					pose = pose,
@@ -168,6 +172,7 @@ internal fun ParameterRowView(
 					row = row,
 					horizontalKeyMarks = keyMarksByParameter[row.horizontal.id],
 					verticalKeyMarks = keyMarksByParameter[row.vertical.id],
+					repeatControl = repeatControl,
 					selected = row.horizontal.id in parameterSelection || row.vertical.id in parameterSelection,
 					labels = labels,
 					pose = pose,
@@ -259,6 +264,7 @@ private fun ParameterGroupRow(
  *
  * @param ParameterRow.Single row The slider to show.
  * @param ParameterKeyMarks? keyMarks The parameter's grid / blend key marks, or null with none.
+ * @param RepeatControlSetting repeatControl The control the rigger prefers for a repeating parameter.
  * @param Boolean selected Whether the parameter is the keyform-authoring target.
  * @param ParameterLabels labels The panel's localized chrome.
  * @param ParameterPoseState pose The pose the slider shows and writes.
@@ -272,6 +278,7 @@ private fun ParameterGroupRow(
 private fun ParameterSliderRow(
 	row: ParameterRow.Single,
 	keyMarks: ParameterKeyMarks?,
+	repeatControl: RepeatControlSetting,
 	selected: Boolean,
 	labels: ParameterLabels,
 	pose: ParameterPoseState,
@@ -310,6 +317,7 @@ private fun ParameterSliderRow(
 		) {
 			ParameterSlider(
 				parameter = parameter,
+				control = singleControlOf(parameter, repeatControl),
 				keyMarks = keyMarks,
 				value = shownValue,
 				labels = labels,
@@ -345,6 +353,7 @@ private fun ParameterSliderRow(
  * @param ParameterRow.Pair2D row The pad to show.
  * @param ParameterKeyMarks? horizontalKeyMarks The upper axis's grid / blend key marks, or null with none.
  * @param ParameterKeyMarks? verticalKeyMarks The lower axis's grid / blend key marks, or null with none.
+ * @param RepeatControlSetting repeatControl The control the rigger prefers for a repeating parameter.
  * @param Boolean selected Whether either axis is the keyform-authoring target.
  * @param ParameterLabels labels The panel's localized chrome.
  * @param ParameterPoseState pose The pose the pad shows and writes.
@@ -359,6 +368,7 @@ private fun ParameterPadRow(
 	row: ParameterRow.Pair2D,
 	horizontalKeyMarks: ParameterKeyMarks?,
 	verticalKeyMarks: ParameterKeyMarks?,
+	repeatControl: RepeatControlSetting,
 	selected: Boolean,
 	labels: ParameterLabels,
 	pose: ParameterPoseState,
@@ -404,6 +414,7 @@ private fun ParameterPadRow(
 			ParameterPad2D(
 				horizontal = horizontal,
 				vertical = vertical,
+				control = pairControlOf(horizontal, vertical, repeatControl),
 				horizontalKeyMarks = horizontalKeyMarks,
 				verticalKeyMarks = verticalKeyMarks,
 				xValue = shownX,

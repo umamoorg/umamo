@@ -11,7 +11,7 @@
 1.) (Everything required for glue, deformers, and so on.)
 2.) UMA Format - Mostly done, a few final pieces to go through.  I'm leaving it "unfinished" as pre-v1.0 for the format until Umamo 1.0 is ready to release.
 
-## 0.6.0 Goals
+## 0.6.0 Goals - Late December, Early January
 0.) Merge in the existing language translations.(Some were merged.)
 1.) Finish 3D Depth Rotation and Merge
 2.) Fix Platform Bugs - Linux and MacOS
@@ -19,9 +19,12 @@
 4.) Rotation Deformer Gizmos and Editing
 5.) Github Issues and Pull Requests
 
-## 0.7.0 Goals
+## 0.7.0 Goals - January
 5.) Glue Gizmos and Editing - Part of all of this may end up happening with "Proper Bone and Skeleton System" in 0.6.0.
 6.) Modifiers - Generate -> Mirror - This will also seed being able to mirror things along with other potential modifiers.
+
+### 0.8.0 Goals - February
+1.) (Tentative) Brush/Tool Backend Machinery.  See: https://github.com/umamoorg/umamo/pull/376
 
 ## VERY IMPORTANT
 * Hire translators for localization.
