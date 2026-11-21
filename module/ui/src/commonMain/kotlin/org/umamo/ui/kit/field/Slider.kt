@@ -14,6 +14,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.pointerInput
@@ -66,6 +67,7 @@ data class SliderKeyMark(
  *   Empty by default.
  * @param SliderKeyShape thumbShape The thumb's shape (Circle for a key-form parameter, Square for a
  *   blend-shape parameter); defaults to Circle.
+ * @param Color accentColor The fill's color; the theme's accent when unspecified.
  */
 @Composable
 fun Slider(
@@ -76,12 +78,13 @@ fun Slider(
 	valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
 	keyMarks: List<SliderKeyMark> = emptyList(),
 	thumbShape: SliderKeyShape = SliderKeyShape.Circle,
+	accentColor: Color = Color.Unspecified,
 ) {
 	val colors = LocalUmamoColors.current
 	val span = (valueRange.endInclusive - valueRange.start).takeIf { it != 0f } ?: 1f
 	val fraction = ((value - valueRange.start) / span).coerceIn(0f, 1f)
 	val trackColor = colors.sliderTrack
-	val fillColor = colors.accent
+	val fillColor = accentColor.takeOrElse { colors.accent }
 	val thumbColor = colors.sliderThumb
 	val tickColor = colors.guideLine
 	// pointerInput is keyed only on valueRange, so it does not restart when a recomposition hands in a new

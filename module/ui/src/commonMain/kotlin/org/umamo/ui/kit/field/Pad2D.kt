@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isTertiaryPressed
@@ -43,6 +44,7 @@ private val PAD_LINE_WIDTH = 1.dp
  * @param List xKeyMarks The X axis's keys, each with its shape: a line on the pad, and the values a held-Ctrl drag
  *   snaps that axis to.  Empty by default.
  * @param List yKeyMarks The Y axis's keys, the same way.  Empty by default.
+ * @param Color accentColor The color of the ring round the handle; the theme's accent when unspecified.
  */
 @Composable
 fun Pad2D(
@@ -55,6 +57,7 @@ fun Pad2D(
 	yRange: ClosedFloatingPointRange<Float> = 0f..1f,
 	xKeyMarks: List<SliderKeyMark> = emptyList(),
 	yKeyMarks: List<SliderKeyMark> = emptyList(),
+	accentColor: Color = Color.Unspecified,
 ) {
 	val colors = LocalUmamoColors.current
 	val xFraction = padFractionOf(xValue, xRange)
@@ -65,7 +68,7 @@ fun Pad2D(
 	val keyColor = colors.guideLine
 	val crossColor = colors.divider
 	val handleColor = colors.sliderThumb
-	val handleRingColor = colors.accent
+	val handleRingColor = accentColor.takeOrElse { colors.accent }
 	val xKeyValues = remember(xKeyMarks) { padKeyLineValues(xKeyMarks) }
 	val yKeyValues = remember(yKeyMarks) { padKeyLineValues(yKeyMarks) }
 	val keyPips = remember(xKeyMarks, yKeyMarks) { padKeyPips(xKeyMarks, yKeyMarks) }

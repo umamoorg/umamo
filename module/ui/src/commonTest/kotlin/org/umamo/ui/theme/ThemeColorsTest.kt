@@ -41,6 +41,7 @@ class ThemeColorsTest {
 		assertEquals(Color(0xFFD394ED), colors.accentHover, "accentHover")
 		assertEquals(Color(0xFFA96FC1), colors.accentPressed, "accentPressed")
 		assertEquals(Color(0xFFFFFFFF), colors.accentText, "accentText")
+		assertEquals(Color(0xFFFCDD83), colors.repeatAccent, "repeatAccent")
 		assertEquals(brandPurple, colors.selection, "selection")
 		assertEquals(Color(0xFFFFFFFF), colors.selectionText, "selectionText")
 		assertEquals(Color(0xFF545454), colors.controlBackground, "controlBackground")
