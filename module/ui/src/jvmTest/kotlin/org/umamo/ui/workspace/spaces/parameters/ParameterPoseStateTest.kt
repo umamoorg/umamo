@@ -11,7 +11,9 @@ import org.umamo.edit.parameter.renameParameter
 import org.umamo.runtime.model.ParameterKind
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotSame
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 
 /**
@@ -111,6 +113,47 @@ class ParameterPoseStateTest {
 			runOnIdle { seen.last().commitValue(PanelIds.bodyX, 7f) }
 			waitForIdle()
 			assertEquals(7f, harness.committed(PanelIds.bodyX))
+		}
+
+	/** A cancel puts back the value the session committed, which no preview reaches, and records nothing. */
+	@Test
+	fun aCancelPutsBackTheCommittedValue() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			val seen = collectPoseStates(harness)
+			val bodyX = parameterOf(harness, PanelIds.bodyX)
+			val cursorBefore = harness.historyCursor
+			runOnIdle { seen.last().preview(PanelIds.bodyX, 7f) }
+			waitForIdle()
+			assertEquals(7f, harness.live(PanelIds.bodyX), "precondition: the preview reached the renderer")
+
+			runOnIdle { seen.last().cancelPreview(bodyX) }
+			waitForIdle()
+
+			assertEquals(2f, harness.live(PanelIds.bodyX), "the renderer is handed the committed value back")
+			assertEquals(2f, runOnIdle { seen.last().valueOf(bodyX) }, "and so is the panel")
+			assertEquals(cursorBefore, harness.historyCursor, "a cancel records no step")
+		}
+
+	/** A parameter the committed pose names no value for is at its default, so that is where a cancel puts it. */
+	@Test
+	fun aCancelOfAParameterThePoseDoesNotNameGoesBackToItsDefault() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			val seen = collectPoseStates(harness)
+			val extraId = runOnIdle { harness.session.createParameter("Extra", ParameterKind.NORMAL) }
+			waitForIdle()
+			val extra = parameterOf(harness, extraId)
+			assertNull(harness.committed(extraId), "precondition: the pose names no value for a new parameter")
+			assertNotEquals(extra.default, extra.max, "precondition: the preview below moves the parameter")
+			runOnIdle { seen.last().preview(extraId, extra.max) }
+			waitForIdle()
+
+			runOnIdle { seen.last().cancelPreview(extra) }
+			waitForIdle()
+
+			assertEquals(extra.default, harness.live(extraId))
+			assertEquals(extra.default, runOnIdle { seen.last().valueOf(extra) })
 		}
 
 	/** A recomposition that changes nothing the state is keyed on hands back the same instance. */

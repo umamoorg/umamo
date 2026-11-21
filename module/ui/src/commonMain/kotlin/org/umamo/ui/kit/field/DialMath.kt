@@ -51,16 +51,20 @@ fun dialFractionAt(x: Float, y: Float, centerX: Float, centerY: Float, deadZone:
  * @param Int laps The laps made before the step.
  * @param Float previousFraction The pointer's fraction of a lap before the step.
  * @param Float fraction The pointer's fraction of a lap after it.
+ * @param Boolean wraps Whether the dial's owner wraps the value at the seam; false holds the count to -1..1.
  * @return Int The laps made after the step.
  */
-fun dialLapsAfter(laps: Int, previousFraction: Float, fraction: Float): Int {
+fun dialLapsAfter(laps: Int, previousFraction: Float, fraction: Float, wraps: Boolean): Int {
 	val step = fraction - previousFraction
+	val next =
+		when {
+			step < -0.5f -> laps + 1
+			step > 0.5f -> laps - 1
+			else -> laps
+		}
 
-	return when {
-		step < -0.5f -> laps + 1
-		step > 0.5f -> laps - 1
-		else -> laps
-	}
+	// Held on every step, crossing or not, so a count made while the owner wrapped folds in once it clamps.
+	return if (wraps) next else next.coerceIn(-1, 1)
 }
 
 /**

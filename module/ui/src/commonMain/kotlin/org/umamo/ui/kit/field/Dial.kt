@@ -46,10 +46,11 @@ private const val DIAL_FULL_TURN = (2.0 * PI).toFloat()
  * smaller side.
  *
  * [onValueChange] is handed where the pointer has carried the value, laps included: inside [valueRange] until the
- * drag crosses the seam, and past an end by one span for every lap after.  The owner brings that back into range,
- * wrapping or clamping as its value does, and hands the result back as [value].  [onValueChangeFinished] fires once
- * for each gesture that moved the value, so a caller can treat a whole drag as one undo step.  While Ctrl is held, a
- * value near a key mark latches onto it.
+ * drag crosses the seam, and past an end after.  A wrapping owner is handed one span more for every lap, and a
+ * clamping one at most one span past an end, so the first crossing back brings its value in again.  The owner brings
+ * that back into range, wrapping or clamping as its value does, and hands the result back as [value].
+ * [onValueChangeFinished] fires once for each gesture that moved the value, so a caller can treat a whole drag as one
+ * undo step.  While Ctrl is held, a value near a key mark latches onto it.
  *
  * @param Float value The current value, inside [valueRange].
  * @param Function onValueChange Called with the value under the pointer, laps included, on the press and each drag frame.
@@ -60,7 +61,8 @@ private const val DIAL_FULL_TURN = (2.0 * PI).toFloat()
  *   snaps to.  Empty by default.
  * @param SliderKeyShape thumbShape The thumb's shape, as on the slider; defaults to Circle.
  * @param Boolean wraps Whether the owner wraps the value at the seam.  A held-Ctrl snap then reaches a key across
- *   the seam; a value that clamps snaps along the range alone.
+ *   the seam, and the laps count without limit; a value that clamps snaps along the range alone, and its laps stop
+ *   one out either side.
  */
 @Composable
 fun Dial(
@@ -118,7 +120,7 @@ fun Dial(
 							val fraction = dialFractionAt(position.x, position.y, width / 2f, height / 2f, deadZone)
 
 							if (fraction != null) {
-								laps = lastFraction?.let { previous -> dialLapsAfter(laps, previous, fraction) } ?: laps
+								laps = lastFraction?.let { previous -> dialLapsAfter(laps, previous, fraction, currentWraps) } ?: laps
 								lastFraction = fraction
 								val raw = dialValue(fraction, laps, valueRange)
 								val snapTargets = if (ctrlHeld) currentSnapValues else emptyList()

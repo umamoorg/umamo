@@ -9,6 +9,7 @@ import org.umamo.runtime.model.ParameterLink
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -164,6 +165,22 @@ class ParametersEditLockTest {
 			assertTrue(showsText(PanelValues.EYE_OPEN), "the row still shows its rest value")
 		}
 
+	/** A value field's scrub previews nothing and commits nothing.  Scrubbed on Eye Open, whose rest text is its own. */
+	@Test
+	fun editModeLocksAFieldScrub() =
+		runComposeUiTest {
+			val harness = lockedPanel(this)
+			val cursorBefore = harness.historyCursor
+			val field = numberFieldBounds(PanelValues.EYE_OPEN)
+
+			pressAndMove(field.center, listOf(field.besideCenter(-12f), field.besideCenter(-24f)))
+			assertNull(harness.live(PanelIds.eyeOpen), "a locked field scrub must not preview")
+
+			releasePress()
+			assertPoseUntouched(this, harness, cursorBefore)
+			assertTrue(showsText(PanelValues.EYE_OPEN), "the row still shows its rest value")
+		}
+
 	/** Every row shows its default in Edit mode, so no row offers a reset to press. */
 	@Test
 	fun editModeOffersNoReset() =
@@ -262,6 +279,32 @@ class ParametersEditLockTest {
 			runOnIdle { harness.leaveEditMode() }
 			waitForIdle()
 			assertTrue(showsText(PanelValues.BODY_X), "the row shows the committed pose, not the dropped drag")
+			assertEquals(2f, harness.live(PanelIds.bodyX), "the renderer is handed the committed pose back")
+		}
+
+	/** A value field's scrub held across the lock is dropped the same way: its release commits nothing. */
+	@Test
+	fun aFieldScrubHeldWhenTheLockEngagesIsDiscarded() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val field = numberFieldBounds(PanelValues.BODY_X)
+			pressAndMove(field.center, listOf(field.besideCenter(12f), field.besideCenter(24f)))
+			assertNotEquals(2f, harness.live(PanelIds.bodyX), "the scrub must really have previewed")
+
+			runOnIdle { harness.enterEditMode() }
+			waitForIdle()
+			val cursorLocked = harness.historyCursor
+
+			moveOn(listOf(field.besideCenter(36f)))
+			releasePress()
+			assertRowsShowRest(this, harness)
+			assertEquals(2f, harness.committed(PanelIds.bodyX), "the rest of the scrub and its release must move nothing")
+			assertEquals(cursorLocked, harness.historyCursor, "a dropped scrub records no step")
+
+			runOnIdle { harness.leaveEditMode() }
+			waitForIdle()
+			assertTrue(showsText(PanelValues.BODY_X), "the row shows the committed pose, not the dropped scrub")
 			assertEquals(2f, harness.live(PanelIds.bodyX), "the renderer is handed the committed pose back")
 		}
 

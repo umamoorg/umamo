@@ -44,18 +44,46 @@ class DialMathTest {
 	/** A fall from near a whole lap to near none is a lap forward; the rise the other way is a lap back. */
 	@Test
 	fun crossingTheSeamCountsALap() {
-		assertEquals(1, dialLapsAfter(0, 0.95f, 0.05f))
-		assertEquals(-1, dialLapsAfter(0, 0.05f, 0.95f))
-		assertEquals(2, dialLapsAfter(1, 0.9f, 0.1f))
-		assertEquals(0, dialLapsAfter(1, 0.1f, 0.9f))
+		assertEquals(1, dialLapsAfter(0, 0.95f, 0.05f, wraps = true))
+		assertEquals(-1, dialLapsAfter(0, 0.05f, 0.95f, wraps = true))
+		assertEquals(2, dialLapsAfter(1, 0.9f, 0.1f, wraps = true), "a wrapping count runs on past one lap")
+		assertEquals(0, dialLapsAfter(1, 0.1f, 0.9f, wraps = true))
 	}
 
 	/** A step under half a lap is the short way round and crosses nothing, however long it is. */
 	@Test
 	fun aStepUnderHalfALapCrossesNothing() {
-		assertEquals(0, dialLapsAfter(0, 0.1f, 0.55f))
-		assertEquals(0, dialLapsAfter(0, 0.55f, 0.1f))
-		assertEquals(3, dialLapsAfter(3, 0.4f, 0.6f))
+		assertEquals(0, dialLapsAfter(0, 0.1f, 0.55f, wraps = true))
+		assertEquals(0, dialLapsAfter(0, 0.55f, 0.1f, wraps = true))
+		assertEquals(3, dialLapsAfter(3, 0.4f, 0.6f, wraps = true), "a wrapping count keeps every lap it made")
+	}
+
+	/** A clamping count stops one lap out either side, so the first crossing back is in range again. */
+	@Test
+	fun aClampingCountStopsOneLapOut() {
+		var forward = 0
+
+		repeat(3) {
+			forward = dialLapsAfter(forward, 0.95f, 0.05f, wraps = false)
+			assertEquals(1, forward, "past max the count holds at one lap")
+		}
+
+		assertEquals(0, dialLapsAfter(forward, 0.05f, 0.95f, wraps = false), "one crossing back is in range")
+		var back = 0
+
+		repeat(3) {
+			back = dialLapsAfter(back, 0.05f, 0.95f, wraps = false)
+			assertEquals(-1, back, "below min the count holds at one lap back")
+		}
+
+		assertEquals(0, dialLapsAfter(back, 0.95f, 0.05f, wraps = false), "one crossing forward is in range")
+	}
+
+	/** A count made while the owner wrapped folds in to one lap on the next step once it clamps, crossing or not. */
+	@Test
+	fun aClampingCountFoldsInACountMadeWhileWrapping() {
+		assertEquals(1, dialLapsAfter(3, 0.4f, 0.6f, wraps = false))
+		assertEquals(-1, dialLapsAfter(-3, 0.6f, 0.4f, wraps = false))
 	}
 
 	/** On the first lap the value is inside the range; every lap out moves it one span past an end. */
