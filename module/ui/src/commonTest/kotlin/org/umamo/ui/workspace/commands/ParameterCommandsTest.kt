@@ -13,8 +13,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * Pins Toggle Repeat: it runs on the parameter it is aimed at, under the same runtime-target gate as the
- * checkbox, and grays everywhere it has nothing to aim at.
+ * Pins Toggle Repeat: it runs on the parameter it is aimed at, under every runtime target, and grays
+ * everywhere it has nothing to aim at.
  */
 class ParameterCommandsTest {
 	private val drip = ParameterId("ParamDrip")
@@ -56,23 +56,23 @@ class ParameterCommandsTest {
 		assertTrue(toggleRepeatOver(session).isAvailable(angle))
 	}
 
-	/** Below 5.3 it offers only to turn a flag the rig already holds off. */
+	/** The oldest target offers it both ways, since no target restricts repeat. */
 	@Test
-	fun belowFiveThreeItOnlyTurnsAFlagOff() {
-		val session = EditorSession(rig(RuntimeTarget.Cubism50))
+	fun theOldestTargetOffersItBothWays() {
+		val session = EditorSession(rig(RuntimeTarget.Cubism30))
 
-		assertFalse(toggleRepeatOver(session).isAvailable(angle), "5.0 has no repeating parameters to author")
-		assertTrue(toggleRepeatOver(session).isAvailable(drip), "the flag the rig holds can still be turned off")
+		assertTrue(toggleRepeatOver(session).isAvailable(angle), "a normal parameter can be made to repeat")
+		assertTrue(toggleRepeatOver(session).isAvailable(drip), "a repeating parameter can be turned back")
 	}
 
 	/** A run flips the flag as one step, and the registry refuses a run its gate refuses. */
 	@Test
 	fun aRunTogglesTheFlagAsOneStep() {
-		val session = EditorSession(rig(RuntimeTarget.Cubism50))
+		val session = EditorSession(rig(RuntimeTarget.Cubism30))
 		val registry = CommandRegistry().also { registry -> registry.registerAll(parameterCommands(session, SessionAvailability(session))) }
 		val stepsBefore = session.historyView.value.steps.size
 
-		assertFalse(registry.invoke("parameter.toggleRepeat", angle), "the gate holds at dispatch too")
+		assertFalse(registry.invoke("parameter.toggleRepeat", ParameterId("ParamGone")), "the gate holds at dispatch too")
 		assertEquals(stepsBefore, session.historyView.value.steps.size)
 
 		assertTrue(registry.invoke("parameter.toggleRepeat", drip))

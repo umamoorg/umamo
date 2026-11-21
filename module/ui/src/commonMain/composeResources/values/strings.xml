@@ -994,7 +994,6 @@
 	<string name="runtime_feature_motion_sync">Motion-sync</string>
 	<string name="runtime_feature_extended_blend_modes">Blend Mode</string>
 	<string name="runtime_feature_part_composite">Part Composite (Offscreen Drawing)</string>
-	<string name="runtime_feature_parameter_repeat">Parameter Repeat</string>
 	<string name="runtime_feature_art_path">Art Path</string>
 	<string name="properties_texture_source">Texture Source: %1$s</string>
 	<string name="properties_texture_own">Own Atlas Binding</string>

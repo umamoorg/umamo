@@ -722,7 +722,6 @@
 	<string name="runtime_feature_motion_sync">Synchronisation de mouvements</string>
 	<string name="runtime_feature_extended_blend_modes">Mod de Mélange</string>
 	<string name="runtime_feature_part_composite">Partie Composite (Rendu en dehors de l'écran)</string>
-	<string name="runtime_feature_parameter_repeat">Répéter le Paramètre</string>
 	<string name="runtime_feature_art_path">Chemin de l'Art</string>
 	<string name="properties_texture_source">Source de la Texture: %1$s</string>
 	<string name="properties_texture_own">Posséder un Binding Atlas</string>
