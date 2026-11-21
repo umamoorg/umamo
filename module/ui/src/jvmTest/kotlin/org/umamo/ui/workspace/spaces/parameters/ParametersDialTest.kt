@@ -179,6 +179,35 @@ class ParametersDialTest {
 			assertNear(-24f, harness.committed(PanelIds.angleY), "the repeating member still wraps")
 		}
 
+	/**
+	 * A member that does not repeat follows the pointer again on the first crossing back, however many turns the
+	 * pointer made past its seam, past max and below min alike.  Each step is under half a lap, so it reads the short
+	 * way round.
+	 */
+	@Test
+	fun aMemberThatDoesNotRepeatFollowsOnTheFirstCrossingBack() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness(model = panelFixtureModel(repeating = setOf(PanelIds.angleY)))
+			mountParametersPanel(harness)
+			val (left, _) = pairDialBoxes(harness, PanelRows.ANGLE_PAD, PanelValues.ANGLE_X, PanelValues.ANGLE_Y)
+			val clockwiseLap = listOf(0.3f, 0.55f, 0.8f, 0.05f)
+			val counterclockwiseLap = listOf(0.7f, 0.45f, 0.2f, 0.95f)
+
+			pressAndMove(left.atClock(0.85f), (listOf(0.95f, 0.05f) + clockwiseLap + clockwiseLap).map { fraction -> left.atClock(fraction) })
+			assertEquals(30f, harness.live(PanelIds.angleX), "three turns past the seam, a clamping axis waits at max")
+
+			moveOn(listOf(left.atClock(0.95f), left.atClock(0.9f)))
+			releasePress()
+			assertNear(24f, harness.committed(PanelIds.angleX), "one crossing back and it follows the pointer again")
+
+			pressAndMove(left.atClock(0.15f), (listOf(0.05f, 0.95f) + counterclockwiseLap + counterclockwiseLap).map { fraction -> left.atClock(fraction) })
+			assertEquals(-30f, harness.live(PanelIds.angleX), "three turns below the seam, it waits at min")
+
+			moveOn(listOf(left.atClock(0.05f), left.atClock(0.1f)))
+			releasePress()
+			assertNear(-24f, harness.committed(PanelIds.angleX), "one crossing back and it follows from min")
+		}
+
 	/** On a repeating axis a typed value past the range wraps into it rather than landing on an end. */
 	@Test
 	fun aTypedValueWrapsOnARepeatingAxis() =
