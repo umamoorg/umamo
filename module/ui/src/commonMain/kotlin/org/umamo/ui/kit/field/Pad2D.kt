@@ -1,37 +1,48 @@
 package org.umamo.ui.kit.field
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.LocalUmamoColors
 
+/** The handle's radius. */
+private val PAD_HANDLE_RADIUS = 5.dp
+
+/** The width of the frame, the center cross, and the key lines. */
+private val PAD_LINE_WIDTH = 1.dp
+
 /**
- * A flat, draggable 2D pad for a LINKED ("combined") parameter pair: a recessed square drawing a
- * nine-point reference grid plus a single handle, set by tap or drag anywhere on the control.  The Y axis
- * runs bottom to top over [yRange] - screen-top is the maximum, matching how Cubism orients its
- * combined-parameter pad.
+ * A flat 2D pad that sets two values at once: a recessed 3 : 2 rectangle with one handle, the X axis across and the Y
+ * axis up, so the top edge is the Y maximum.  A press jumps the handle to the pointer and a drag follows it, each axis
+ * held to its ends past an edge.  Supply the width through [modifier]; the height follows from the shape.
  *
- * The control is sized entirely by [modifier]: supply both a width and a bounded height (e.g.
- * `Modifier.fillMaxWidth().heightIn(max = 200.dp)`), because a Canvas otherwise expands to fill all the
- * space offered.  Each axis maps independently, so a non-square pad is fine.
- *
- * @param Float    xValue          The current X-axis value.
- * @param Float    yValue          The current Y-axis value.
- * @param Function onChange        Called with (newX, newY) on each tap / drag frame (the preview).
- * @param Modifier modifier        Layout modifier (supply the width and a bounded height).
- * @param Function onChangeFinished Called once when the gesture ends (tap, drag release, or cancel).
+ * @param Float xValue The current X-axis value.
+ * @param Float yValue The current Y-axis value.
+ * @param Function onChange Called with (newX, newY) on the press and each drag frame (the preview).
+ * @param Modifier modifier Layout modifier (supply the width).
+ * @param Function onChangeFinished Called once when the gesture ends (release or cancel).
  * @param ClosedFloatingPointRange xRange The X-axis min..max range.
  * @param ClosedFloatingPointRange yRange The Y-axis min..max range.
+ * @param List xKeyMarks The X axis's keys, each with its shape: a line on the pad, and the values a held-Ctrl drag
+ *   snaps that axis to.  Empty by default.
+ * @param List yKeyMarks The Y axis's keys, the same way.  Empty by default.
  */
 @Composable
 fun Pad2D(
@@ -42,108 +53,140 @@ fun Pad2D(
 	onChangeFinished: () -> Unit = {},
 	xRange: ClosedFloatingPointRange<Float> = 0f..1f,
 	yRange: ClosedFloatingPointRange<Float> = 0f..1f,
+	xKeyMarks: List<SliderKeyMark> = emptyList(),
+	yKeyMarks: List<SliderKeyMark> = emptyList(),
 ) {
 	val colors = LocalUmamoColors.current
-	val xSpan = (xRange.endInclusive - xRange.start).takeIf { it != 0f } ?: 1f
-	val ySpan = (yRange.endInclusive - yRange.start).takeIf { it != 0f } ?: 1f
-	val xFraction = ((xValue - xRange.start) / xSpan).coerceIn(0f, 1f)
+	val xFraction = padFractionOf(xValue, xRange)
 	// Y is inverted: the maximum sits at the top, so a value fraction of 1 maps to screen y = 0.
-	val yFractionFromTop = 1f - ((yValue - yRange.start) / ySpan).coerceIn(0f, 1f)
+	val yFractionFromTop = 1f - padFractionOf(yValue, yRange)
 	val trackColor = colors.sliderTrack
 	val borderColor = colors.controlBorder
-	val gridColor = colors.guideLine
+	val keyColor = colors.guideLine
 	val crossColor = colors.divider
 	val handleColor = colors.sliderThumb
 	val handleRingColor = colors.accent
-	// pointerInput is keyed only on the ranges, so it does not restart when a recomposition hands in a new
-	// onChange (a reused list slot binding to a different pair).  Read the latest through this so a drag
-	// always drives the current pair, never the one that first occupied the slot.
+	val xKeyValues = remember(xKeyMarks) { padKeyLineValues(xKeyMarks) }
+	val yKeyValues = remember(yKeyMarks) { padKeyLineValues(yKeyMarks) }
+	val keyPips = remember(xKeyMarks, yKeyMarks) { padKeyPips(xKeyMarks, yKeyMarks) }
+	// pointerInput is keyed only on the ranges, so it does not restart when a recomposition hands in a new onChange (a
+	// reused list slot binding to a different pair).  Read the latest through these so a drag always drives the current
+	// pair, never the one that first occupied the slot.
 	val currentOnChange by rememberUpdatedState(onChange)
 	val currentOnChangeFinished by rememberUpdatedState(onChangeFinished)
+	val currentXKeyValues by rememberUpdatedState(xKeyValues)
+	val currentYKeyValues by rememberUpdatedState(yKeyValues)
 	Canvas(
 		modifier =
 			modifier
 				.aspectRatio(1.5f)
 				.pointerInput(xRange, yRange) {
-					detectTapGestures { offset ->
-						currentOnChange(
-							valueAt(offset.x, size.width.toFloat(), xRange, invert = false),
-							valueAt(offset.y, size.height.toFloat(), yRange, invert = true),
-						)
-						currentOnChangeFinished()
-					}
-				}
-				.pointerInput(xRange, yRange) {
-					detectDragGestures(
-						onDragEnd = { currentOnChangeFinished() },
-						onDragCancel = { currentOnChangeFinished() },
-					) { change, _ ->
-						change.consume()
-						currentOnChange(
-							valueAt(change.position.x, size.width.toFloat(), xRange, invert = false),
-							valueAt(change.position.y, size.height.toFloat(), yRange, invert = true),
-						)
+					val snapRadius = KEY_SNAP_RADIUS.toPx()
+					awaitEachGesture {
+						val down = awaitFirstDown()
+
+						// A secondary press opens the row's menu and a middle press belongs to the view; neither moves the handle.
+						if (currentEvent.buttons.isSecondaryPressed || currentEvent.buttons.isTertiaryPressed) {
+							return@awaitEachGesture
+						}
+
+						// Claimed, so the press never reaches a surface under the pad that answers a click.
+						down.consume()
+						var position = down.position
+						var ctrlHeld = currentEvent.keyboardModifiers.isCtrlPressed
+
+						try {
+							while (true) {
+								val width = size.width.toFloat()
+								val height = size.height.toFloat()
+								val xSnapTargets = if (ctrlHeld) currentXKeyValues else emptyList()
+								val ySnapTargets = if (ctrlHeld) currentYKeyValues else emptyList()
+								currentOnChange(
+									padAxisSnapped(padValueAt(position.x, width, xRange, invert = false), xSnapTargets, snapRadius, width, xRange),
+									padAxisSnapped(padValueAt(position.y, height, yRange, invert = true), ySnapTargets, snapRadius, height, yRange),
+								)
+
+								// Ctrl is read off every event, so it can join a drag already under way.
+								val event = awaitPointerEvent()
+								val change = event.changes.firstOrNull { candidate -> candidate.id == down.id } ?: break
+								change.consume()
+
+								if (!change.pressed) {
+									break
+								}
+
+								position = change.position
+								ctrlHeld = event.keyboardModifiers.isCtrlPressed
+							}
+						} finally {
+							// The press has already moved the handle, so every gesture is committed, once: on release, or on
+							// the cancellation that ends a pad torn down mid-drag.
+							currentOnChangeFinished()
+						}
 					}
 				},
 	) {
 		val padWidth = size.width
 		val padHeight = size.height
+		val lineWidth = PAD_LINE_WIDTH.toPx()
 		drawRect(color = trackColor, size = Size(padWidth, padHeight))
-		drawRect(color = borderColor, size = Size(padWidth, padHeight), style = Stroke(width = 1.dp.toPx()))
-		// A faint center cross for orientation; the thirds would over-clutter, so the center is enough.
-		drawLine(crossColor, Offset(padWidth / 2f, 0f), Offset(padWidth / 2f, padHeight), strokeWidth = 1.dp.toPx())
-		drawLine(crossColor, Offset(0f, padHeight / 2f), Offset(padWidth, padHeight / 2f), strokeWidth = 1.dp.toPx())
-		// Nine reference dots at the 0 / 0.5 / 1 grid intersections on each axis.
-		val dotRadius = 1.5.dp.toPx()
+		drawRect(color = borderColor, size = Size(padWidth, padHeight), style = Stroke(width = lineWidth))
+		drawLine(crossColor, Offset(padWidth / 2f, 0f), Offset(padWidth / 2f, padHeight), strokeWidth = lineWidth)
+		drawLine(crossColor, Offset(0f, padHeight / 2f), Offset(padWidth, padHeight / 2f), strokeWidth = lineWidth)
 
-		for (gridRow in 0..2) {
-			for (gridColumn in 0..2) {
-				val center = Offset(padWidth * gridColumn / 2f, padHeight * gridRow / 2f)
-				drawCircle(color = gridColor, radius = dotRadius, center = center)
-			}
+		// The key lines go over the cross, so a key at the center still reads.
+		for (keyValue in xKeyValues) {
+			val lineX = padWidth * padFractionOf(keyValue, xRange)
+			drawLine(crossColor, Offset(lineX, 0f), Offset(lineX, padHeight), strokeWidth = lineWidth)
 		}
 
-		// The handle at the current value (X across, Y measured from the top).
-		val handleCenter =
-			Offset(
-				(padWidth * xFraction).coerceIn(0f, padWidth),
-				(padHeight * yFractionFromTop).coerceIn(0f, padHeight),
-			)
-		drawCircle(color = handleColor, radius = 5.dp.toPx(), center = handleCenter)
-		drawCircle(
-			color = handleRingColor,
-			radius = 5.dp.toPx(),
-			center = handleCenter,
-			style = Stroke(width = 1.5.dp.toPx()),
-		)
+		for (keyValue in yKeyValues) {
+			val lineY = padHeight * (1f - padFractionOf(keyValue, yRange))
+			drawLine(crossColor, Offset(0f, lineY), Offset(padWidth, lineY), strokeWidth = lineWidth)
+		}
+
+		val pipRadius = SLIDER_KEY_MARK_RADIUS.toPx()
+
+		for (pip in keyPips) {
+			val pipX = padWidth * padFractionOf(pip.x, xRange)
+			val pipY = padHeight * (1f - padFractionOf(pip.y, yRange))
+			drawPadKeyPip(pip.shape, keyColor, pipX, pipY, pipRadius)
+		}
+
+		val handleCenter = Offset(padWidth * xFraction, padHeight * yFractionFromTop)
+		val handleRadius = PAD_HANDLE_RADIUS.toPx()
+		drawCircle(color = handleColor, radius = handleRadius, center = handleCenter)
+		drawCircle(color = handleRingColor, radius = handleRadius, center = handleCenter, style = Stroke(width = 1.5.dp.toPx()))
 	}
 }
 
 /**
- * Maps a pointer coordinate within [extent] onto [range], clamped to the ends.  When [invert] is set the
- * axis is flipped so coordinate 0 (the top of a Canvas) becomes the range maximum - used for the Y axis,
- * where screen-top should read as the highest value.
+ * Draws one key pip centered at ([centerX], [centerY]) in the slider's mark shapes, the mixed pip being the rounded
+ * square's top half over the circle's bottom half.
  *
- * @param Float   coordinate The pointer position along the axis (x or y).
- * @param Float   extent     The axis length in pixels (width or height).
- * @param ClosedFloatingPointRange range The min..max value range.
- * @param Boolean invert     When true, flip so coordinate 0 maps to the range maximum.
- * @return Float The clamped value for that coordinate.
+ * @param PadKeyPipShape shape The pip's shape.
+ * @param Color color The fill color.
+ * @param Float centerX The pip's center x.
+ * @param Float centerY The pip's center y.
+ * @param Float radius The circle's radius, or the square's half-side.
  */
-private fun valueAt(
-	coordinate: Float,
-	extent: Float,
-	range: ClosedFloatingPointRange<Float>,
-	invert: Boolean,
-): Float {
-	val safeExtent = extent.takeIf { it > 0f } ?: 1f
-	val rawFraction = (coordinate / safeExtent).coerceIn(0f, 1f)
-	val fraction =
-		if (invert) {
-			1f - rawFraction
-		} else {
-			rawFraction
+private fun DrawScope.drawPadKeyPip(shape: PadKeyPipShape, color: Color, centerX: Float, centerY: Float, radius: Float) {
+	when (shape) {
+		PadKeyPipShape.Circle -> {
+			drawSliderShape(SliderKeyShape.Circle, color, centerX, centerY, radius)
 		}
 
-	return range.start + fraction * (range.endInclusive - range.start)
+		PadKeyPipShape.Square -> {
+			drawSliderShape(SliderKeyShape.Square, color, centerX, centerY, radius)
+		}
+
+		PadKeyPipShape.SquareOverCircle -> {
+			// The whole circle, then the square's top half over it.  The square holds the circle, so one clip edge splits
+			// the two with no seam between them.
+			drawSliderShape(SliderKeyShape.Circle, color, centerX, centerY, radius)
+			clipRect(left = centerX - radius, top = centerY - radius, right = centerX + radius, bottom = centerY) {
+				drawSliderShape(SliderKeyShape.Square, color, centerX, centerY, radius)
+			}
+		}
+	}
 }
