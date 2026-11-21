@@ -252,7 +252,7 @@ internal val PANEL_FIXTURE_POSE: Map<ParameterId, Float> =
  * The fixture rig.
  *
  * @param RuntimeTarget runtimeTarget The runtime the rig targets, which decides whether a blend-shape
- *   parameter may be created.
+ *   parameter may be created and whether Repeat is offered.
  * @param Set<ParameterId> repeating The parameters that wrap past their limits; none by default.
  * @param FloatArray bodyXKeys The values the drawable is keyed at on Body X; 0 alone by default.
  * @param FloatArray angleXKeys The values a second drawable is keyed at on Angle X; none by default.
