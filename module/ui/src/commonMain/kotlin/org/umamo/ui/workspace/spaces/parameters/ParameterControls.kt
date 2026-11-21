@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
@@ -23,9 +24,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.runtime.eval.wrapOrClamp
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterKind
@@ -35,6 +39,7 @@ import org.umamo.ui.kit.button.DisclosureChevron
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.button.IconButtonAppearance
 import org.umamo.ui.kit.field.Checkbox
+import org.umamo.ui.kit.field.Dial
 import org.umamo.ui.kit.field.FieldStack
 import org.umamo.ui.kit.field.NumberField
 import org.umamo.ui.kit.field.Pad2D
@@ -61,6 +66,12 @@ private const val RESET_EPSILON = 1e-4f
  * the not-yet-committed max.
  */
 private val RANGE_FIELD_LIMIT = -1_000_000f..1_000_000f
+
+/** The diameter of the dial a repeating parameter shows in place of its slider. */
+internal val PARAMETER_DIAL_DIAMETER: Dp = 120.dp
+
+/** The space above and below a dial, between it and the value row over it. */
+internal val PARAMETER_DIAL_SPACING: Dp = 6.dp
 
 /**
  * One name's inline rename as the row showing it sees it: whether the field is open, and what opening,
@@ -157,8 +168,8 @@ internal fun ParameterIsland(
 
 /**
  * One labelled slider for a parameter, clamped to its range, with a numeric entry field and (when the
- * value is off its default) a reset glyph.  The slider drag previews live and commits one step on release;
- * the field / reset commit one step each.
+ * value is off its default) a reset glyph.  A repeating parameter shows a dial in place of the slider.
+ * The drag previews live and commits one step on release; the field / reset commit one step each.
  *
  * @param Parameter parameter        The parameter to scrub.
  * @param ParameterKeyMarks? keyMarks The parameter's grid / blend key marks to draw on the slider, or null.
@@ -187,10 +198,8 @@ internal fun ParameterSlider(
 	link: ParameterLinkAction?,
 ) {
 	ParameterValueRow(
-		name = parameter.name,
+		parameter = parameter,
 		value = value,
-		default = parameter.default,
-		range = parameter.min..parameter.max,
 		labels = labels,
 		showRangeToggle = true,
 		showLeadingSlot = true,
@@ -200,25 +209,65 @@ internal fun ParameterSlider(
 		onCommitValue = onCommitValue,
 		link = link,
 	)
-	// Circle marks for grid keys, square marks for blend-shape keys; the thumb takes the parameter's own
-	// kind (a blend-shape parameter reads as a square knob even before it has any keys).
-	val sliderKeyMarks =
-		remember(keyMarks) {
-			buildList {
-				keyMarks?.gridKeys?.forEach { keyValue -> add(SliderKeyMark(keyValue, SliderKeyShape.Circle)) }
-				keyMarks?.blendKeys?.forEach { keyValue -> add(SliderKeyMark(keyValue, SliderKeyShape.Square)) }
-			}
-		}
-	Slider(
-		value = value,
-		onValueChange = onPreview,
-		onValueChangeFinished = onCommitGesture,
-		valueRange = parameter.min..parameter.max,
-		keyMarks = sliderKeyMarks,
-		thumbShape = if (parameter.kind == ParameterKind.BLEND_SHAPE) SliderKeyShape.Square else SliderKeyShape.Circle,
-		modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-	)
+	val sliderKeyMarks = remember(keyMarks) { sliderKeyMarksOf(keyMarks) }
+
+	if (parameter.repeat) {
+		// The dial reports laps past the seam, and the parameter's own rule wraps them, so the pose stays in range.
+		// Centered by its modifier, not in a box, so a drag frame runs no extra lambda.
+		Dial(
+			value = value,
+			onValueChange = { raw -> onPreview(parameter.wrapOrClamp(raw)) },
+			onValueChangeFinished = onCommitGesture,
+			valueRange = parameter.min..parameter.max,
+			keyMarks = sliderKeyMarks,
+			thumbShape = thumbShapeOf(parameter),
+			wraps = true,
+			modifier =
+				Modifier
+					.padding(vertical = PARAMETER_DIAL_SPACING)
+					.fillMaxWidth()
+					.wrapContentWidth()
+					.size(PARAMETER_DIAL_DIAMETER),
+		)
+	} else {
+		Slider(
+			value = value,
+			onValueChange = onPreview,
+			onValueChangeFinished = onCommitGesture,
+			valueRange = parameter.min..parameter.max,
+			keyMarks = sliderKeyMarks,
+			thumbShape = thumbShapeOf(parameter),
+			modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+		)
+	}
 }
+
+/**
+ * The marks a parameter's slider or dial draws at its keys: a circle at each grid key and a square at each
+ * blend-shape key.
+ *
+ * @param ParameterKeyMarks? keyMarks The parameter's grid / blend key values, or null with none.
+ * @return List<SliderKeyMark> The marks, grid keys first.
+ */
+private fun sliderKeyMarksOf(keyMarks: ParameterKeyMarks?): List<SliderKeyMark> =
+	buildList {
+		keyMarks?.gridKeys?.forEach { keyValue -> add(SliderKeyMark(keyValue, SliderKeyShape.Circle)) }
+		keyMarks?.blendKeys?.forEach { keyValue -> add(SliderKeyMark(keyValue, SliderKeyShape.Square)) }
+	}
+
+/**
+ * The thumb a parameter's slider or dial takes, from the parameter's own kind, so a blend-shape parameter reads as
+ * a square knob even before it has any keys.
+ *
+ * @param Parameter parameter The parameter the control drives.
+ * @return SliderKeyShape Square for a blend-shape parameter, Circle otherwise.
+ */
+private fun thumbShapeOf(parameter: Parameter): SliderKeyShape =
+	if (parameter.kind == ParameterKind.BLEND_SHAPE) {
+		SliderKeyShape.Square
+	} else {
+		SliderKeyShape.Circle
+	}
 
 /**
  * One 2D pad for a LINKED parameter pair: a labelled numeric/reset row per axis above a [Pad2D] that
@@ -226,8 +275,13 @@ internal fun ParameterSlider(
  * and commits one step (covering both parameters) on release.  The range chevron sits on the horizontal
  * (upper) axis row; clicking either axis name toggles the island's shared range editor.
  *
+ * A pair with a repeating member shows a dial per axis in place of the pad, the upper axis on the left.  Each
+ * drives its own axis and commits it alone, and a member that does not repeat stops at its seam.
+ *
  * @param Parameter horizontal       The X-axis parameter.
  * @param Parameter vertical         The Y-axis parameter.
+ * @param ParameterKeyMarks? horizontalKeyMarks The X axis's key marks, which its dial draws, or null with none.
+ * @param ParameterKeyMarks? verticalKeyMarks The Y axis's key marks, which its dial draws, or null with none.
  * @param Float     xValue           The current X value.
  * @param Float     yValue           The current Y value.
  * @param ParameterLabels labels     The panel's localized chrome.
@@ -246,6 +300,8 @@ internal fun ParameterSlider(
 internal fun ParameterPad2D(
 	horizontal: Parameter,
 	vertical: Parameter,
+	horizontalKeyMarks: ParameterKeyMarks?,
+	verticalKeyMarks: ParameterKeyMarks?,
 	xValue: Float,
 	yValue: Float,
 	labels: ParameterLabels,
@@ -288,10 +344,8 @@ internal fun ParameterPad2D(
 				listOf(
 					{ position ->
 						ParameterValueRow(
-							name = horizontal.name,
+							parameter = horizontal,
 							value = xValue,
-							default = horizontal.default,
-							range = horizontal.min..horizontal.max,
 							labels = labels,
 							showRangeToggle = false,
 							showLeadingSlot = false,
@@ -305,10 +359,8 @@ internal fun ParameterPad2D(
 					},
 					{ position ->
 						ParameterValueRow(
-							name = vertical.name,
+							parameter = vertical,
 							value = yValue,
-							default = vertical.default,
-							range = vertical.min..vertical.max,
 							labels = labels,
 							showRangeToggle = false,
 							showLeadingSlot = false,
@@ -324,30 +376,83 @@ internal fun ParameterPad2D(
 				),
 		)
 	}
-	Pad2D(
-		xValue = xValue,
-		yValue = yValue,
-		onChange = { newX, newY ->
-			onPreview(horizontal.id, newX)
-			onPreview(vertical.id, newY)
-		},
-		onChangeFinished = { onCommitGesture(setOf(horizontal.id, vertical.id)) },
-		xRange = horizontal.min..horizontal.max,
-		yRange = vertical.min..vertical.max,
-		modifier = Modifier.padding(10.dp).fillMaxWidth(),
-	)
+
+	if (horizontal.repeat || vertical.repeat) {
+		Row(modifier = Modifier.fillMaxWidth().padding(vertical = PARAMETER_DIAL_SPACING)) {
+			ParameterPairDial(horizontal, xValue, horizontalKeyMarks, onPreview, onCommitGesture, Modifier.weight(1f))
+			ParameterPairDial(vertical, yValue, verticalKeyMarks, onPreview, onCommitGesture, Modifier.weight(1f))
+		}
+	} else {
+		Pad2D(
+			xValue = xValue,
+			yValue = yValue,
+			onChange = { newX, newY ->
+				onPreview(horizontal.id, newX)
+				onPreview(vertical.id, newY)
+			},
+			onChangeFinished = { onCommitGesture(setOf(horizontal.id, vertical.id)) },
+			xRange = horizontal.min..horizontal.max,
+			yRange = vertical.min..vertical.max,
+			modifier = Modifier.padding(10.dp).fillMaxWidth(),
+		)
+	}
+}
+
+/**
+ * One axis's dial in a pair that shows dials in place of its pad, captioned with the axis's name so the two read
+ * apart.  The name is user data, never localized.
+ *
+ * The dial reports laps past its seam and the axis's own rule resolves them: a repeating axis wraps, and one that
+ * does not stops at the seam until the pointer comes back across it.
+ *
+ * @param Parameter parameter The axis the dial drives.
+ * @param Float value The axis's current value.
+ * @param ParameterKeyMarks? keyMarks The axis's key marks, or null with none.
+ * @param Function onPreview Called per drag frame with (id, value) for this axis (transient).
+ * @param Function onCommitGesture Called on release with this axis alone, to commit it as one step.
+ * @param Modifier modifier The layout modifier (the caller supplies the weight).
+ */
+@Composable
+private fun ParameterPairDial(
+	parameter: Parameter,
+	value: Float,
+	keyMarks: ParameterKeyMarks?,
+	onPreview: (ParameterId, Float) -> Unit,
+	onCommitGesture: (Set<ParameterId>) -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	val dialKeyMarks = remember(keyMarks) { sliderKeyMarksOf(keyMarks) }
+	Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+		Dial(
+			value = value,
+			onValueChange = { raw -> onPreview(parameter.id, parameter.wrapOrClamp(raw)) },
+			onValueChangeFinished = { onCommitGesture(setOf(parameter.id)) },
+			valueRange = parameter.min..parameter.max,
+			keyMarks = dialKeyMarks,
+			thumbShape = thumbShapeOf(parameter),
+			wraps = parameter.repeat,
+			modifier = Modifier.size(PARAMETER_DIAL_DIAMETER),
+		)
+		Text(
+			text = parameter.name,
+			style = LocalUmamoTypography.current.labelSmall,
+			color = LocalUmamoColors.current.textMuted,
+			maxLines = 1,
+			overflow = TextOverflow.Ellipsis,
+			modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp),
+		)
+	}
 }
 
 /**
  * The shared label row above a slider or pad axis: a leading range chevron (on the island's toggle
  * row), the clickable parameter name (name and chevron both toggle the island's range editor, the name
- * highlighted while it is open), an optional reset glyph (shown only when [value] is off [default]),
- * and a numeric entry field clamped to [range].
+ * highlighted while it is open), an optional reset glyph (shown only when [value] is off its default),
+ * and a numeric entry field held to the parameter's range, which a repeating parameter wraps into and
+ * any other clamps to.
  *
- * @param String   name             The parameter display name.
+ * @param Parameter parameter       The parameter the row shows: its name, default, and range.
  * @param Float    value            The current value.
- * @param Float    default          The parameter's default (neutral) value.
- * @param ClosedFloatingPointRange range The value range the numeric field clamps to.
  * @param ParameterLabels labels    The panel's localized chrome.
  * @param Boolean  showRangeToggle  Whether this row's leading slot draws the island's chevron (versus a
  *                                  matching spacer); only consulted when [showLeadingSlot] is true.
@@ -365,10 +470,8 @@ internal fun ParameterPad2D(
  */
 @Composable
 private fun ParameterValueRow(
-	name: String,
+	parameter: Parameter,
 	value: Float,
-	default: Float,
-	range: ClosedFloatingPointRange<Float>,
 	labels: ParameterLabels,
 	showRangeToggle: Boolean,
 	showLeadingSlot: Boolean,
@@ -410,7 +513,7 @@ private fun ParameterValueRow(
 
 			if (rename.renaming) {
 				InlineRenameField(
-					initialName = name,
+					initialName = parameter.name,
 					textStyle = LocalUmamoTypography.current.labelSmall.copy(color = colors.text),
 					cursorColor = colors.text,
 					onCommit = rename.onCommit,
@@ -419,7 +522,7 @@ private fun ParameterValueRow(
 				)
 			} else {
 				Text(
-					text = name,
+					text = parameter.name,
 					style = LocalUmamoTypography.current.labelSmall,
 					color = if (rangeOpen) colors.accent else colors.text,
 					modifier = Modifier.padding(start = 4.dp),
@@ -427,10 +530,10 @@ private fun ParameterValueRow(
 			}
 		}
 
-		if (abs(value - default) > RESET_EPSILON) {
+		if (abs(value - parameter.default) > RESET_EPSILON) {
 			IconButton(
 				icon = LocalUmamoIcons.reset,
-				onClick = { onCommitValue(default) },
+				onClick = { onCommitValue(parameter.default) },
 				contentDescription = labels.reset,
 				size = DpSize(20.dp, 20.dp),
 				appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
@@ -441,9 +544,11 @@ private fun ParameterValueRow(
 		NumberField(
 			value = value,
 			onValueChange = onCommitValue,
-			range = range,
+			range = parameter.min..parameter.max,
 			modifier = Modifier.width(64.dp),
 			stackPosition = stackPosition,
+			// The parameter's own rule, which the eval reads it through: a repeating value wraps, any other clamps.
+			bringIntoRange = { raw -> parameter.wrapOrClamp(raw) },
 		)
 		// A fixed-width trailing slot whether or not this row offers a link edit, so the number
 		// fields stay column-aligned across all rows.

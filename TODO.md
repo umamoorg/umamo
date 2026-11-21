@@ -127,6 +127,7 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 		* Change icon on picker to an eyedropper.
 
 ## Parameters
+* Scrubbing the Number Input on a parameter needs to update the live value.
 * Parameter templates:
 	* Need a way to apply these without having to do a fresh import.
 

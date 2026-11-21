@@ -149,13 +149,16 @@ import org.umamo.ui.workspace.shell.toShellKeyStroke
 import org.umamo.ui.workspace.spaces.keyformsheet.KeyformSheetSpace
 import org.umamo.ui.workspace.spaces.outliner.OutlinerSpace
 import org.umamo.ui.workspace.spaces.sources.SourcesSpace
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /*
  * What the Parameters panel's composition tests share: one small rig that has every row kind the panel
- * draws, a miniature shell to mount the panel under, and the geometry that finds the two controls with
- * no semantics of their own (the slider and the pad are each a bare Canvas).
+ * draws, a miniature shell to mount the panel under, and the geometry that finds the controls with no
+ * semantics of their own (the slider, the pad, and the dial are each a bare Canvas).
  *
  * The rig, in panel order:
  *
@@ -245,9 +248,14 @@ internal val PANEL_FIXTURE_POSE: Map<ParameterId, Float> =
  * @param RuntimeTarget runtimeTarget The runtime the rig targets, which decides whether a blend-shape
  *   parameter may be created.
  * @param Set<ParameterId> repeating The parameters that wrap past their limits; none by default.
+ * @param FloatArray bodyXKeys The values the drawable is keyed at on Body X; 0 alone by default.
  * @return PuppetModel The rig.
  */
-internal fun panelFixtureModel(runtimeTarget: RuntimeTarget = RuntimeTarget.NoTarget, repeating: Set<ParameterId> = emptySet()): PuppetModel {
+internal fun panelFixtureModel(
+	runtimeTarget: RuntimeTarget = RuntimeTarget.NoTarget,
+	repeating: Set<ParameterId> = emptySet(),
+	bodyXKeys: FloatArray = floatArrayOf(0f),
+): PuppetModel {
 	val parameters =
 		listOf(
 			Parameter(PanelIds.eyeOpen, PanelNames.EYE_OPEN, min = 0f, max = 1f, default = 1f),
@@ -271,8 +279,8 @@ internal fun panelFixtureModel(runtimeTarget: RuntimeTarget = RuntimeTarget.NoTa
 			mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2)),
 			geometryGrid =
 				KeyformGrid(
-					listOf(KeyformAxis(PanelIds.bodyX, floatArrayOf(0f))),
-					listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(6)))),
+					listOf(KeyformAxis(PanelIds.bodyX, bodyXKeys)),
+					bodyXKeys.indices.map { keyIndex -> KeyformCell(intArrayOf(keyIndex), MeshDeltaForm(FloatArray(6))) },
 				),
 		)
 
@@ -915,6 +923,20 @@ internal class ControlBox(val left: Float, val top: Float, val right: Float, val
 	 * @return Offset The point.
 	 */
 	fun at(across: Float, down: Float = 0.5f): Offset = Offset(left + width * across, top + height * down)
+
+	/**
+	 * A point on a dial in the box, by the part of a lap clockwise from 12 o'clock, which is where the dial's seam is.
+	 *
+	 * @param Float fraction The part of a lap, 0 at the seam and 0.25 at 3 o'clock.
+	 * @param Float reach How far out from the center, as a part of the box's half width.
+	 * @return Offset The point.
+	 */
+	fun atClock(fraction: Float, reach: Float = 0.8f): Offset {
+		val angle = fraction * 2.0 * PI
+		val radius = width / 2f * reach
+
+		return Offset(center.x + radius * sin(angle).toFloat(), center.y - radius * cos(angle).toFloat())
+	}
 }
 
 /**
@@ -1015,6 +1037,68 @@ internal fun ComposeUiTest.padBox(
 		ControlBox(left = left, top = top, right = right, bottom = top + (right - left) / 1.5f)
 	}
 }
+
+/**
+ * Where a repeating parameter's dial sits, worked out the way [sliderBox] is.  The island's content runs from 6 dp
+ * right of the grip to 24 dp right of the number field, and the dial is centered across it, the dial spacing below
+ * the value row.
+ *
+ * @param ParametersPanelHarness harness The mounted harness.
+ * @param Int rowIndex The row, 0 for the first composed row.
+ * @param String valueText The text the row's number field shows.
+ * @return ControlBox The dial's square in the panel body's pixels.
+ */
+@OptIn(ExperimentalTestApi::class)
+internal fun ComposeUiTest.dialBox(harness: ParametersPanelHarness, rowIndex: Int, valueText: String): ControlBox {
+	val grip = gripBounds(harness, rowIndex)
+	val field = numberFieldBounds(valueText)
+
+	return with(density) {
+		val centerX = (grip.right + 6.dp.toPx() + field.right + 24.dp.toPx()) / 2f
+		dialSquare(centerX, field.bottom + PARAMETER_DIAL_SPACING.toPx(), PARAMETER_DIAL_DIAMETER.toPx())
+	}
+}
+
+/**
+ * Where a pair row's two dials sit, when a repeating member gives the pair dials in place of its pad.  The island's
+ * content is split in two halves, each dial centered in its own, the dial spacing below the lower axis's value row.
+ *
+ * @param ParametersPanelHarness harness The mounted harness.
+ * @param Int rowIndex The row, 0 for the first composed row.
+ * @param String horizontalValueText The text the upper axis's number field shows.
+ * @param String verticalValueText The text the lower axis's number field shows.
+ * @return Pair<ControlBox, ControlBox> The upper axis's dial on the left, then the lower axis's on the right.
+ */
+@OptIn(ExperimentalTestApi::class)
+internal fun ComposeUiTest.pairDialBoxes(
+	harness: ParametersPanelHarness,
+	rowIndex: Int,
+	horizontalValueText: String,
+	verticalValueText: String,
+): Pair<ControlBox, ControlBox> {
+	val grip = gripBounds(harness, rowIndex)
+	val horizontalField = numberFieldBounds(horizontalValueText)
+	val verticalField = numberFieldBounds(verticalValueText)
+
+	return with(density) {
+		val contentLeft = grip.right + 6.dp.toPx()
+		val contentWidth = horizontalField.right + 24.dp.toPx() - contentLeft
+		val top = verticalField.bottom + PARAMETER_DIAL_SPACING.toPx()
+		val diameter = PARAMETER_DIAL_DIAMETER.toPx()
+		dialSquare(contentLeft + contentWidth / 4f, top, diameter) to dialSquare(contentLeft + contentWidth * 3f / 4f, top, diameter)
+	}
+}
+
+/**
+ * A dial's square from its center x, its top, and its diameter.
+ *
+ * @param Float centerX The dial's center x.
+ * @param Float top The dial's top edge.
+ * @param Float diameter The dial's diameter.
+ * @return ControlBox The square.
+ */
+private fun dialSquare(centerX: Float, top: Float, diameter: Float): ControlBox =
+	ControlBox(left = centerX - diameter / 2f, top = top, right = centerX + diameter / 2f, bottom = top + diameter)
 
 /**
  * A point on a slider row's island that belongs to no control: inside the island's own padding, at its

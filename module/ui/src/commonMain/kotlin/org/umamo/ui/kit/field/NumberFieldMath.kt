@@ -96,17 +96,20 @@ fun formatDecimals(value: Float, decimals: Int): String {
 
 /**
  * Maps a horizontal drag onto a new value: [startValue] plus one [step] per
- * [NUMBER_FIELD_SCRUB_PIXELS_PER_STEP] pixels of [deltaPx], clamped to [range].  Rightward drag
+ * [NUMBER_FIELD_SCRUB_PIXELS_PER_STEP] pixels of [deltaPx], brought into [range].  Rightward drag
  * increases, leftward decreases (screen-x convention).
  *
  * @param Float startValue The value at the gesture's start.
  * @param Float deltaPx The total horizontal drag distance from the start, in pixels.
  * @param Float step The value increment per scrub notch.
- * @param ClosedFloatingPointRange range The clamp range.
+ * @param ClosedFloatingPointRange range The field's range.
+ * @param Function bringIntoRange How a value past [range] comes back into it; clamps to the nearer end by default.
  * @return Float The scrubbed value.
  */
-fun scrubValue(startValue: Float, deltaPx: Float, step: Float, range: ClosedFloatingPointRange<Float>): Float {
-	val raw = startValue + (deltaPx / NUMBER_FIELD_SCRUB_PIXELS_PER_STEP) * step
-
-	return raw.coerceIn(range.start, range.endInclusive)
-}
+fun scrubValue(
+	startValue: Float,
+	deltaPx: Float,
+	step: Float,
+	range: ClosedFloatingPointRange<Float>,
+	bringIntoRange: (Float) -> Float = { raw -> raw.coerceIn(range.start, range.endInclusive) },
+): Float = bringIntoRange(startValue + (deltaPx / NUMBER_FIELD_SCRUB_PIXELS_PER_STEP) * step)

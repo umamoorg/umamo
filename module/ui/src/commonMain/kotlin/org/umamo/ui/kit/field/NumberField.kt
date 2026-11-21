@@ -104,6 +104,8 @@ private val NUMBER_FIELD_HEIGHT = FIELD_CONTROL_HEIGHT
  * @param Function? onPreview Called with each in-flight value while the field is being drag-scrubbed.
  * @param Function? onScrubCancel Called when a drag-scrub is cancelled (Escape, or the gesture dropped), so
  *   whatever [onPreview] drove can be put back; the field itself returns to [value].
+ * @param Function? bringIntoRange How a typed, scrubbed, or stepped value outside [range] comes back into it, or null
+ *   to clamp it to the nearer end.  A value whose ends meet wraps instead.
  */
 @Composable
 fun NumberField(
@@ -121,12 +123,14 @@ fun NumberField(
 	keyState: KeyedFieldState = KeyedFieldState.None,
 	onPreview: ((Float) -> Unit)? = null,
 	onScrubCancel: (() -> Unit)? = null,
+	bringIntoRange: ((Float) -> Float)? = null,
 ) {
 	val bounded = showFill && range.start.isFinite() && range.endInclusive.isFinite() && range.endInclusive > range.start
 	NumberFieldCore(
 		keyState = keyState,
 		value = value,
 		range = range,
+		bringIntoRange = bringIntoRange ?: { raw -> raw.coerceIn(range.start, range.endInclusive) },
 		step = step,
 		bounded = bounded,
 		format = { toFormat -> formatDecimals(toFormat, decimals) },
@@ -192,6 +196,7 @@ fun NumberField(
 		onScrubCancel = onScrubCancel,
 		value = value.toFloat(),
 		range = floatRange,
+		bringIntoRange = { raw -> raw.coerceIn(floatRange.start, floatRange.endInclusive) },
 		step = step.toFloat(),
 		bounded = bounded,
 		format = { toFormat -> toFormat.roundToInt().toString() },
@@ -212,6 +217,7 @@ fun NumberField(
  *
  * @param Float value The current value (the source of truth while idle).
  * @param ClosedFloatingPointRange range The clamp range.
+ * @param Function bringIntoRange Brings a typed, scrubbed, or stepped value from outside [range] back into it.
  * @param Float step The chevron / scrub increment.
  * @param Boolean bounded Whether to draw the magnitude fill (a usable finite range).
  * @param Function format Formats a value for display and for seeding the editor.
@@ -230,6 +236,7 @@ fun NumberField(
 private fun NumberFieldCore(
 	value: Float,
 	range: ClosedFloatingPointRange<Float>,
+	bringIntoRange: (Float) -> Float,
 	step: Float,
 	bounded: Boolean,
 	format: (Float) -> String,
@@ -246,9 +253,9 @@ private fun NumberFieldCore(
 ) {
 	val shapes = LocalUmamoShapes.current
 	val shape = stackedShape(shapes.small, stackPosition, StackAxis.Vertical)
-	// Parses typed text, clamps to the range, and commits; an unparseable entry does nothing.
+	// Parses typed text, brings it into the range, and commits; an unparseable entry does nothing.
 	val commitTyped: (String) -> Unit = { typed ->
-		parse(typed)?.let { parsed -> onCommit(parsed.coerceIn(range.start, range.endInclusive)) }
+		parse(typed)?.let { parsed -> onCommit(bringIntoRange(parsed)) }
 	}
 
 	if (plain) {
@@ -353,7 +360,7 @@ private fun NumberFieldCore(
 			onScrub = { totalDeltaPx ->
 				// A cancelled drag's remaining moves are dead: the field stays on its value and previews nothing.
 				if (!scrubGesture.cancelled) {
-					val scrubbed = scrubValue(scrubStartValue, totalDeltaPx, step, range)
+					val scrubbed = scrubValue(scrubStartValue, totalDeltaPx, step, range, bringIntoRange)
 					dragValue = scrubbed
 					// Reported live so the caller can drive whatever the value affects while the drag is still
 					// happening.  Without it a scrub moves the number and nothing else until release, which
@@ -372,7 +379,7 @@ private fun NumberFieldCore(
 				currentSeam.release(scrubGesture.cancel)
 			},
 			onScrubCancel = scrubGesture.cancel,
-			onStep = { direction -> onCommit((value + direction * step).coerceIn(range.start, range.endInclusive)) },
+			onStep = { direction -> onCommit(bringIntoRange(value + direction * step)) },
 			// Forwarded on the RESTING face, the one every real field shows: this is the background tint that
 			// warns a typed value is unkeyed and dies on the next scrub, so every enabled field must carry it,
 			// not only the disabled-plain display path.

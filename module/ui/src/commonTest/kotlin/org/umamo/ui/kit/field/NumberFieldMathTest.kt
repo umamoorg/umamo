@@ -73,6 +73,17 @@ class NumberFieldMathTest {
 	}
 
 	@Test
+	fun scrubValueBringsAValueInByTheFieldsOwnRule() {
+		val tenNotches = NUMBER_FIELD_SCRUB_PIXELS_PER_STEP * 10f
+		val wrap = { raw: Float -> 0f + (raw - 0f).mod(8f) }
+
+		// Ten steps up from 3 on a 0..8 loop comes round to 5.
+		assertEquals(5f, scrubValue(3f, tenNotches, 1f, 0f..8f, wrap), 1e-4f)
+		// Inside the range the rule changes nothing.
+		assertEquals(4f, scrubValue(3f, NUMBER_FIELD_SCRUB_PIXELS_PER_STEP, 1f, 0f..8f, wrap), 1e-4f)
+	}
+
+	@Test
 	fun stackPositionResolvesFromIndexAndCount() {
 		assertEquals(StackPosition.Single, stackPositionOf(0, 1))
 		assertEquals(StackPosition.First, stackPositionOf(0, 3))

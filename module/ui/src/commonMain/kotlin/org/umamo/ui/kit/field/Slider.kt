@@ -22,10 +22,10 @@ import org.umamo.ui.theme.LocalUmamoColors
 import kotlin.math.abs
 
 /** The thumb dot's radius; the thumb travels inset by this from each end so it never spills past the control. */
-private val SLIDER_THUMB_RADIUS = 5.dp
+internal val SLIDER_THUMB_RADIUS = 5.dp
 
 /** A per-key marker's half-extent; kept under the thumb radius so the current-value thumb stays dominant. */
-private val SLIDER_KEY_MARK_RADIUS = 3.5.dp
+internal val SLIDER_KEY_MARK_RADIUS = 3.5.dp
 
 /**
  * The shape a slider draws for its thumb and for a per-key marker.  A circle marks a key-form (grid) point;
@@ -175,7 +175,7 @@ fun Slider(
  * @param Float          centerY The marker center y.
  * @param Float          radius  The circle radius, or the square's half-side.
  */
-private fun DrawScope.drawSliderShape(shape: SliderKeyShape, color: Color, centerX: Float, centerY: Float, radius: Float) {
+internal fun DrawScope.drawSliderShape(shape: SliderKeyShape, color: Color, centerX: Float, centerY: Float, radius: Float) {
 	when (shape) {
 		SliderKeyShape.Circle -> {
 			drawCircle(color = color, radius = radius, center = Offset(centerX, centerY))

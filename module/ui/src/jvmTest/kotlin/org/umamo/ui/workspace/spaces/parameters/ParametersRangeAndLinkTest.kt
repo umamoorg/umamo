@@ -74,6 +74,8 @@ class ParametersRangeAndLinkTest {
 		runComposeUiTest {
 			val harness = ParametersPanelHarness()
 			mountParametersPanel(harness)
+			// The dial a repeating Body X shows is taller than its slider; folding the group above keeps its editor in the panel.
+			clickAt(panelBoundsOfText(PanelNames.FACE).center)
 			clickAt(panelBoundsOfText(PanelNames.BODY_X).center)
 			val cursorBefore = harness.historyCursor
 			val targetBefore = harness.session.parameterSelection.value
@@ -127,6 +129,8 @@ class ParametersRangeAndLinkTest {
 		runComposeUiTest {
 			val harness = ParametersPanelHarness(model = panelFixtureModel(RuntimeTarget.Cubism50, repeating = setOf(PanelIds.bodyX)))
 			mountParametersPanel(harness)
+			// The dial a repeating Body X shows is taller than its slider; folding the group above keeps its editor in the panel.
+			clickAt(panelBoundsOfText(PanelNames.FACE).center)
 			clickAt(panelBoundsOfText(PanelNames.BODY_X).center)
 			assertTrue(showsText(harness.text.repeat), "a flag the target cannot author still shows")
 

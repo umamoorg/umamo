@@ -171,6 +171,8 @@ internal fun ParameterRowView(
 			is ParameterRow.Pair2D -> {
 				ParameterPadRow(
 					row = row,
+					horizontalKeyMarks = keyMarksByParameter[row.horizontal.id],
+					verticalKeyMarks = keyMarksByParameter[row.vertical.id],
 					selected = row.horizontal.id in parameterSelection || row.vertical.id in parameterSelection,
 					labels = labels,
 					pose = pose,
@@ -349,6 +351,8 @@ private fun ParameterSliderRow(
  * pad's context menu.  The island keys its open state on the horizontal (upper) member.
  *
  * @param ParameterRow.Pair2D row The pad to show.
+ * @param ParameterKeyMarks? horizontalKeyMarks The upper axis's grid / blend key marks, or null with none.
+ * @param ParameterKeyMarks? verticalKeyMarks The lower axis's grid / blend key marks, or null with none.
  * @param Boolean selected Whether either axis is the keyform-authoring target.
  * @param ParameterLabels labels The panel's localized chrome.
  * @param ParameterPoseState pose The pose the pad shows and writes.
@@ -362,6 +366,8 @@ private fun ParameterSliderRow(
 @Composable
 private fun ParameterPadRow(
 	row: ParameterRow.Pair2D,
+	horizontalKeyMarks: ParameterKeyMarks?,
+	verticalKeyMarks: ParameterKeyMarks?,
 	selected: Boolean,
 	labels: ParameterLabels,
 	pose: ParameterPoseState,
@@ -408,6 +414,8 @@ private fun ParameterPadRow(
 			ParameterPad2D(
 				horizontal = horizontal,
 				vertical = vertical,
+				horizontalKeyMarks = horizontalKeyMarks,
+				verticalKeyMarks = verticalKeyMarks,
 				xValue = shownX,
 				yValue = shownY,
 				labels = labels,
