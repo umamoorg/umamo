@@ -1218,6 +1218,20 @@ internal fun ComposeUiTest.drag(from: Offset, through: List<Offset>) {
 }
 
 /**
+ * Rests the pointer at a point in the panel body with no button held, which is what shows a field's chevrons.
+ *
+ * @param Offset point Where the pointer rests.
+ */
+@OptIn(ExperimentalTestApi::class)
+internal fun ComposeUiTest.hoverAt(point: Offset) {
+	onNodeWithTag(PANEL_BODY_TAG).performMouseInput {
+		advanceEventTime(GESTURE_GAP_MILLIS)
+		moveTo(point)
+	}
+	waitForIdle()
+}
+
+/**
  * A single click at a point in the panel body.
  *
  * @param Offset point Where to click.
