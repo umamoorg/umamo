@@ -88,6 +88,8 @@ import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.parseKeyChord
 import org.umamo.ui.kit.container.OverflowRow
+import org.umamo.ui.kit.field.LocalScrubCancel
+import org.umamo.ui.kit.field.ScrubCancelController
 import org.umamo.ui.kit.textentry.InlineEditController
 import org.umamo.ui.kit.textentry.LocalInlineEditController
 import org.umamo.ui.model.DrawableThumbnailProvider
@@ -523,6 +525,9 @@ internal class ParametersPanelHarness(
 	val outlinerScope = AreaScope(PANEL_OUTLINER_AREA_ID)
 	val inlineEditController = InlineEditController()
 	val rowDragCancel = RowDragCancelController()
+
+	/** The number-field scrub seam, one instance shared by the fields and the key ladder, as the shell shares it. */
+	val scrubCancel = ScrubCancelController()
 	val overlays = ShellOverlayState()
 	val registry = CommandRegistry()
 	val keymap = Keymap(mapOf(parseKeyChord("primary+KeyS")!! to PANEL_SHORTCUT_COMMAND))
@@ -799,6 +804,7 @@ internal fun ComposeUiTest.mountParametersPanel(harness: ParametersPanelHarness)
 			CompositionLocalProvider(
 				LocalInlineEditController provides harness.inlineEditController,
 				LocalRowDragCancel provides harness.rowDragCancel,
+				LocalScrubCancel provides harness.scrubCancel,
 				LocalCommands provides harness.registry,
 				LocalKeymap provides harness.keymap,
 				LocalEditorSession provides session,
@@ -854,6 +860,7 @@ internal fun ComposeUiTest.mountParametersPanel(harness: ParametersPanelHarness)
 										inlineEditController = harness.inlineEditController,
 										editorSession = session,
 										rowDragCancel = harness.rowDragCancel,
+										scrubCancel = harness.scrubCancel,
 										keyformSheets = harness.keyformSheetViews,
 										commandRegistry = harness.registry,
 										keymap = harness.keymap,
@@ -923,6 +930,15 @@ internal class ControlBox(val left: Float, val top: Float, val right: Float, val
 	 * @return Offset The point.
 	 */
 	fun at(across: Float, down: Float = 0.5f): Offset = Offset(left + width * across, top + height * down)
+
+	/**
+	 * A point level with the box's center and [deltaX] pixels to the side of it, inside the box or past its edge, which
+	 * is where a number field's scrub goes.
+	 *
+	 * @param Float deltaX The distance from the center, rightward positive.
+	 * @return Offset The point.
+	 */
+	fun besideCenter(deltaX: Float): Offset = Offset(center.x + deltaX, center.y)
 
 	/**
 	 * A point on a dial in the box, by the part of a lap clockwise from 12 o'clock, which is where the dial's seam is.

@@ -30,12 +30,15 @@ import org.umamo.ui.model.LiveParamsHandle
  * @param ParameterPoseWriter writer The lock-gated writes, which echo into [values].
  * @param Boolean showsRest Whether every control shows its parameter's default: the pose is pinned, and
  *   the editor shows the rig at rest.  [values] keeps the pinned pose, which shows again once unpinned.
+ * @param Function committedPose Reads the session's committed pose as it stands, which a cancelled preview
+ *   goes back to.  Empty with no session.
  */
 @Stable
 internal class ParameterPoseState(
 	private val values: SnapshotStateMap<ParameterId, Float>,
 	private val writer: ParameterPoseWriter,
 	private val showsRest: Boolean,
+	private val committedPose: () -> Map<ParameterId, Float>,
 ) {
 	/**
 	 * The value a parameter's control shows.  A snapshot read, so it belongs in the scope that draws the
@@ -74,6 +77,18 @@ internal class ParameterPoseState(
 	 */
 	fun preview(id: ParameterId, newValue: Float) {
 		writer.preview(id, newValue)
+	}
+
+	/**
+	 * Drops a gesture's previews of one parameter, putting back the value the session last committed.
+	 *
+	 * A preview never reaches the session's pose, so that pose is what the gesture started from.  A parameter it
+	 * names no value for is at its default, as the renderer reads it.
+	 *
+	 * @param Parameter parameter The parameter whose previews to drop.
+	 */
+	fun cancelPreview(parameter: Parameter) {
+		writer.preview(parameter.id, committedPose()[parameter.id] ?: parameter.default)
 	}
 
 	/**
@@ -185,11 +200,13 @@ internal fun rememberParameterPoseState(puppet: PuppetModel, liveParams: LivePar
 
 	// The values outlive the lock: a mode change builds a new writer around the same map, so the pose the
 	// panel holds carries across it.  Locked, the panel shows the rest pose, as the viewport does.
-	return remember(values, liveParams, parametersLocked) {
+	return remember(values, liveParams, parametersLocked, session) {
 		ParameterPoseState(
 			values,
 			ParameterPoseWriter(liveParams, parametersLocked) { id, newValue -> values[id] = newValue },
 			showsRest = parametersLocked,
+			// Read when a cancel asks, not captured here: the pose moves with every commit.
+			committedPose = { session?.pose?.value.orEmpty() },
 		)
 	}
 }

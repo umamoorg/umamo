@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.spaces.parameters
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -8,9 +9,12 @@ import org.umamo.edit.ParameterSelection
 import org.umamo.edit.parameter.createParameter
 import org.umamo.edit.parameter.renameParameter
 import org.umamo.runtime.model.ParameterKind
+import org.umamo.ui.kit.field.NUMBER_FIELD_SCRUB_PIXELS_PER_STEP
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -127,6 +131,95 @@ class ParametersScrubInteractionTest {
 
 			typeIntoNumberField("7.00", "99")
 			assertEquals(10f, harness.committed(PanelIds.bodyX), "a value past the range lands on its end")
+		}
+
+	/** A scrub of the value field drives the rig as it goes, and its release is one step, as a slider drag is. */
+	@Test
+	fun aFieldScrubPreviewsLiveAndCommitsOnceOnRelease() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val field = numberFieldBounds(PanelValues.BODY_X)
+			val cursorBefore = harness.historyCursor
+
+			pressAndMove(field.center, listOf(field.besideCenter(12f), field.besideCenter(24f)))
+
+			val previewed = harness.live(PanelIds.bodyX)
+			assertTrue(previewed != null && previewed > 2f, "the renderer has to see the scrub as it happens, and saw $previewed")
+			assertEquals(2f, harness.committed(PanelIds.bodyX), "a preview must never reach the session's pose")
+			assertEquals(cursorBefore, harness.historyCursor, "a preview must not record an undo step")
+
+			releasePress()
+			assertEquals(previewed, harness.committed(PanelIds.bodyX), "the release commits the value the scrub last showed")
+			assertEquals(cursorBefore + 1, harness.historyCursor, "a whole scrub is one undo step")
+		}
+
+	/** Escape mid-scrub hands the renderer and the row the committed value back, and the rest of the drag is dead. */
+	@Test
+	fun escapeMidFieldScrubPutsThePoseBack() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val field = numberFieldBounds(PanelValues.BODY_X)
+			val cursorBefore = harness.historyCursor
+			pressAndMove(field.center, listOf(field.besideCenter(12f), field.besideCenter(24f)))
+			assertFalse(showsText(PanelValues.BODY_X), "precondition: the scrub moved the row off its value")
+			assertNotEquals(2f, harness.live(PanelIds.bodyX), "precondition: and the renderer with it")
+
+			pressKey(Key.Escape)
+
+			assertEquals(2f, harness.live(PanelIds.bodyX), "a cancelled scrub hands the renderer the committed value back")
+			assertTrue(showsText(PanelValues.BODY_X), "and the row")
+			assertNull(harness.scrubCancel.cancel, "the seam is released with the scrub")
+
+			moveOn(listOf(field.besideCenter(36f)))
+			assertEquals(2f, harness.live(PanelIds.bodyX), "the rest of a cancelled drag previews nothing")
+
+			releasePress()
+			assertEquals(2f, harness.committed(PanelIds.bodyX))
+			assertEquals(cursorBefore, harness.historyCursor, "a cancelled scrub records no step")
+		}
+
+	/** A pad axis's field scrubs its own axis, and the other stays where it was. */
+	@Test
+	fun aPadAxisFieldScrubMovesItsOwnAxisAlone() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val field = numberFieldBounds(PanelValues.ANGLE_X)
+			val cursorBefore = harness.historyCursor
+
+			pressAndMove(field.center, listOf(field.besideCenter(12f), field.besideCenter(24f)))
+
+			val previewed = harness.live(PanelIds.angleX)
+			assertTrue(previewed != null && previewed > 3f, "the scrubbed axis previews live, and saw $previewed")
+			assertEquals(-4f, harness.live(PanelIds.angleY), "the other axis is not touched")
+
+			releasePress()
+			assertEquals(previewed, harness.committed(PanelIds.angleX))
+			assertEquals(-4f, harness.committed(PanelIds.angleY))
+			assertEquals(cursorBefore + 1, harness.historyCursor)
+		}
+
+	/** On a repeating parameter the field's preview wraps past an end (D10), as its commit does. */
+	@Test
+	fun aRepeatingFieldScrubWrapsAsItPreviews() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness(model = panelFixtureModel(repeating = setOf(PanelIds.bodyX)))
+			mountParametersPanel(harness)
+			val field = numberFieldBounds(PanelValues.BODY_X)
+			// Sixteen steps left of 2 is -14, four past the minimum of -10 and short of a whole period of 20, so only a
+			// wrap brings it back above where it started.  Leftward because the field sits at the panel's right edge.
+			val travel = NUMBER_FIELD_SCRUB_PIXELS_PER_STEP * 16f
+
+			pressAndMove(field.center, listOf(0.25f, 0.5f, 0.75f, 1f).map { part -> field.besideCenter(-travel * part) })
+
+			val previewed = harness.live(PanelIds.bodyX)
+			assertTrue(previewed != null && previewed > 2f && previewed <= 10f, "a scrub past the minimum wraps in from the maximum, and saw $previewed")
+			assertEquals(2f, harness.committed(PanelIds.bodyX))
+
+			releasePress()
+			assertEquals(previewed, harness.committed(PanelIds.bodyX))
 		}
 
 	/** The glyph is an offer to go back, so a row already on its default has none. */
