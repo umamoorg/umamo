@@ -24,14 +24,17 @@ val MENU_SEARCH_ROWS_MAX_HEIGHT: Dp = 320.dp
  */
 sealed interface MenuItem {
 	/**
-	 * A selectable row: an optional leading [icon], the [label], an optional [shortcut] accelerator
-	 * right-aligned, running [onSelect] on click.  A disabled row renders dimmed and ignores clicks.
+	 * A selectable row: an optional leading tick or [icon], the [label], an optional [shortcut]
+	 * accelerator right-aligned, running [onSelect] on click.  A disabled row renders dimmed and ignores clicks.
 	 *
 	 * @property String label The display text (already-resolved chrome or user data).
 	 * @property Function onSelect Invoked when the row is chosen.
 	 * @property String? shortcut The right-aligned accelerator hint (e.g. "Ctrl+O"), or null for none.
 	 * @property Boolean enabled Whether the row is interactive.
 	 * @property UmamoIcon? icon The leading glyph, or null for a text-only row.
+	 * @property Boolean? checked Whether the row is the choice in effect, ticked when true, or null for a row that
+	 *   is not a choice.  The tick takes the leading slot in place of the [icon], and a panel holding any choice
+	 *   row reserves that slot on every row, so its labels share one edge.
 	 */
 	data class Action(
 		val label: String,
@@ -39,6 +42,7 @@ sealed interface MenuItem {
 		val shortcut: String? = null,
 		val enabled: Boolean = true,
 		val icon: UmamoIcon? = null,
+		val checked: Boolean? = null,
 	) : MenuItem
 
 	/**

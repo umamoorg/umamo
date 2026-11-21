@@ -1,4 +1,4 @@
-package org.umamo.ui.viewport.gizmo
+package org.umamo.ui.kit
 
 import androidx.compose.ui.geometry.Offset
 import java.awt.MouseInfo
@@ -30,7 +30,7 @@ private val cursorWarpRobot: Robot? by lazy {
  * @param Float screenY The requested absolute screen y in pixels.
  * @return Offset? The absolute screen position the cursor landed at, or null when no Robot is available.
  */
-actual fun warpViewportCursor(screenX: Float, screenY: Float): Offset? {
+actual fun warpCursor(screenX: Float, screenY: Float): Offset? {
 	val robot = cursorWarpRobot ?: return null
 	robot.mouseMove(screenX.roundToInt(), screenY.roundToInt())
 	// MouseInfo can be unavailable (headless edge cases): fall back to the rounded request, the best

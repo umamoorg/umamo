@@ -8,6 +8,8 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -18,16 +20,19 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ParameterControl
 import org.umamo.edit.ParameterMoveSubject
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.parameter.renameParameter
 import org.umamo.edit.parameter.renameParameterGroup
 import org.umamo.edit.parameter.setParameterLink
 import org.umamo.edit.parameter.setParameterRange
+import org.umamo.edit.parameter.setParameterRepeat
 import org.umamo.edit.structure.RowDropBand
 import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.kit.menu.ContextMenuArea
 import org.umamo.ui.kit.menu.MenuItem
+import org.umamo.ui.settings.RepeatControlSetting
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.workspace.rowdrag.RowDragController
@@ -43,12 +48,16 @@ private val INDENT_PER_DEPTH = 12.dp
  *
  * @param ParameterRow row The row to show.
  * @param Map<ParameterId, ParameterKeyMarks> keyMarksByParameter Each parameter's grid / blend key marks.
+ * @param RepeatControlSetting repeatControl The control the rigger prefers for a repeating parameter.
+ * @param State<Map<ParameterId, ParameterControl>> parameterControls The control each parameter, or pair by its
+ *   horizontal member, was set to show; a row reads its own entry, so a pick runs that row alone.
  * @param ParameterSelection parameterSelection The keyform-authoring target, which outlines its rows.
  * @param ParameterLabels labels The panel's localized chrome.
  * @param ParameterPoseState pose The pose the controls show and write.
  * @param ParametersViewState viewState The panel's view state.
  * @param EditorSession? session The editing session, or null with none.
  * @param List<MenuItem> createMenuItems The entries that create, which every parameter menu ends with.
+ * @param ParameterRowMenus rowMenus What a row's menu reads from the command registry, resolved once by the panel.
  * @param RowDragController<ParameterMoveSubject> dragController The panel's drag state.
  * @param Function onDrop Invoked on release of a drag that began on this row, to apply the move.
  */
@@ -56,12 +65,15 @@ private val INDENT_PER_DEPTH = 12.dp
 internal fun ParameterRowView(
 	row: ParameterRow,
 	keyMarksByParameter: Map<ParameterId, ParameterKeyMarks>,
+	repeatControl: RepeatControlSetting,
+	parameterControls: State<Map<ParameterId, ParameterControl>>,
 	parameterSelection: ParameterSelection,
 	labels: ParameterLabels,
 	pose: ParameterPoseState,
 	viewState: ParametersViewState,
 	session: EditorSession?,
 	createMenuItems: List<MenuItem>,
+	rowMenus: ParameterRowMenus,
 	dragController: RowDragController<ParameterMoveSubject>,
 	onDrop: () -> Unit,
 ) {
@@ -152,12 +164,15 @@ internal fun ParameterRowView(
 				ParameterSliderRow(
 					row = row,
 					keyMarks = keyMarksByParameter[row.parameter.id],
+					repeatControl = repeatControl,
+					parameterControls = parameterControls,
 					selected = row.parameter.id in parameterSelection,
 					labels = labels,
 					pose = pose,
 					viewState = viewState,
 					session = session,
 					createMenuItems = createMenuItems,
+					rowMenus = rowMenus,
 					modifier = Modifier.weight(1f),
 				)
 			}
@@ -165,12 +180,17 @@ internal fun ParameterRowView(
 			is ParameterRow.Pair2D -> {
 				ParameterPadRow(
 					row = row,
+					horizontalKeyMarks = keyMarksByParameter[row.horizontal.id],
+					verticalKeyMarks = keyMarksByParameter[row.vertical.id],
+					repeatControl = repeatControl,
+					parameterControls = parameterControls,
 					selected = row.horizontal.id in parameterSelection || row.vertical.id in parameterSelection,
 					labels = labels,
 					pose = pose,
 					viewState = viewState,
 					session = session,
 					createMenuItems = createMenuItems,
+					rowMenus = rowMenus,
 					modifier = Modifier.weight(1f),
 				)
 			}
@@ -256,6 +276,8 @@ private fun ParameterGroupRow(
  *
  * @param ParameterRow.Single row The slider to show.
  * @param ParameterKeyMarks? keyMarks The parameter's grid / blend key marks, or null with none.
+ * @param RepeatControlSetting repeatControl The control the rigger prefers for a repeating parameter.
+ * @param State<Map<ParameterId, ParameterControl>> parameterControls The control each parameter was set to show.
  * @param Boolean selected Whether the parameter is the keyform-authoring target.
  * @param ParameterLabels labels The panel's localized chrome.
  * @param ParameterPoseState pose The pose the slider shows and writes.
@@ -263,24 +285,30 @@ private fun ParameterGroupRow(
  *   the rename target.
  * @param EditorSession? session The editing session, or null with none.
  * @param List<MenuItem> createMenuItems The entries that create, which the row's menu ends with.
+ * @param ParameterRowMenus rowMenus What the row's menu reads from the command registry, resolved once by the panel.
  * @param Modifier modifier The layout modifier (the caller supplies the row weight).
  */
 @Composable
 private fun ParameterSliderRow(
 	row: ParameterRow.Single,
 	keyMarks: ParameterKeyMarks?,
+	repeatControl: RepeatControlSetting,
+	parameterControls: State<Map<ParameterId, ParameterControl>>,
 	selected: Boolean,
 	labels: ParameterLabels,
 	pose: ParameterPoseState,
 	viewState: ParametersViewState,
 	session: EditorSession?,
 	createMenuItems: List<MenuItem>,
+	rowMenus: ParameterRowMenus,
 	modifier: Modifier = Modifier,
 ) {
 	val parameter = row.parameter
 	// Read through state, so the island's callback stays the same object while the panel builds new rows.
 	val currentRow by rememberUpdatedState(row)
 	val shownValue by pose.rememberShownValue(parameter)
+	// Read inside the island, as the value is, so another row's pick runs nothing here.
+	val controlOverride by remember(parameterControls, parameter.id) { derivedStateOf { parameterControls.value[parameter.id] } }
 	val linkCandidateId = row.linkCandidateId
 	val rangeOpen = viewState.openRangeEditors[parameter.id] == true
 	val rename = parameterRenameSlot(parameter.id, rangeEditorId = parameter.id, viewState, session)
@@ -295,7 +323,7 @@ private fun ParameterSliderRow(
 			null
 		}
 	ContextMenuArea(
-		items = parameterSliderMenuItems(parameter.id, labels, session, viewState, createMenuItems),
+		itemsOnOpen = parameterSliderMenuItems(parameter, labels, session, viewState, createMenuItems, rowMenus),
 		modifier = modifier,
 	) {
 		ParameterIsland(
@@ -307,6 +335,7 @@ private fun ParameterSliderRow(
 		) {
 			ParameterSlider(
 				parameter = parameter,
+				control = singleControlOf(parameter, repeatControl, controlOverride),
 				keyMarks = keyMarks,
 				value = shownValue,
 				labels = labels,
@@ -316,22 +345,19 @@ private fun ParameterSliderRow(
 				},
 				rename = rename,
 				onPreview = { newValue -> pose.preview(parameter.id, newValue) },
+				onCancelPreview = { pose.cancelPreview(parameter) },
 				onCommitGesture = { pose.commitGesture(setOf(parameter.id)) },
 				onCommitValue = { newValue -> pose.commitValue(parameter.id, newValue) },
 				link = link,
 			)
 
 			if (rangeOpen) {
-				RangeFieldsRow(
+				ParameterRangeEditor(
 					parameter = parameter,
-					onSetRange = { min, default, max ->
-						session?.setParameterRange(
-							parameter.id,
-							min,
-							default,
-							max,
-						)
-					},
+					labels = labels,
+					onSetRange = { min, default, max -> session?.setParameterRange(parameter.id, min, default, max) },
+					// A document edit, not a pose write, so it bypasses the Edit-mode parameter lock as range edits do.
+					onSetRepeat = { repeat -> session?.setParameterRepeat(parameter.id, repeat) },
 				)
 			}
 		}
@@ -339,10 +365,15 @@ private fun ParameterSliderRow(
 }
 
 /**
- * A linked pair's row: the island holding the pad and, while open, a range editor per axis, under the
+ * A linked pair's row: the island holding the pad or its two dials and, while open, a range editor per axis, under the
  * pad's context menu.  The island keys its open state on the horizontal (upper) member.
  *
  * @param ParameterRow.Pair2D row The pad to show.
+ * @param ParameterKeyMarks? horizontalKeyMarks The upper axis's grid / blend key marks, or null with none.
+ * @param ParameterKeyMarks? verticalKeyMarks The lower axis's grid / blend key marks, or null with none.
+ * @param RepeatControlSetting repeatControl The control the rigger prefers for a repeating parameter.
+ * @param State<Map<ParameterId, ParameterControl>> parameterControls The control each pair was set to show, by its
+ *   horizontal member.
  * @param Boolean selected Whether either axis is the keyform-authoring target.
  * @param ParameterLabels labels The panel's localized chrome.
  * @param ParameterPoseState pose The pose the pad shows and writes.
@@ -350,17 +381,23 @@ private fun ParameterSliderRow(
  *   the rename target.
  * @param EditorSession? session The editing session, or null with none.
  * @param List<MenuItem> createMenuItems The entries that create, which the row's menu ends with.
+ * @param ParameterRowMenus rowMenus What the row's menu reads from the command registry, resolved once by the panel.
  * @param Modifier modifier The layout modifier (the caller supplies the row weight).
  */
 @Composable
 private fun ParameterPadRow(
 	row: ParameterRow.Pair2D,
+	horizontalKeyMarks: ParameterKeyMarks?,
+	verticalKeyMarks: ParameterKeyMarks?,
+	repeatControl: RepeatControlSetting,
+	parameterControls: State<Map<ParameterId, ParameterControl>>,
 	selected: Boolean,
 	labels: ParameterLabels,
 	pose: ParameterPoseState,
 	viewState: ParametersViewState,
 	session: EditorSession?,
 	createMenuItems: List<MenuItem>,
+	rowMenus: ParameterRowMenus,
 	modifier: Modifier = Modifier,
 ) {
 	// The callbacks below hold the two parameters, or the row through state, never the row itself: the
@@ -371,6 +408,8 @@ private fun ParameterPadRow(
 	val currentRow by rememberUpdatedState(row)
 	val shownX by pose.rememberShownValue(horizontal)
 	val shownY by pose.rememberShownValue(vertical)
+	// A pair keys its control on its upper axis, as it keys its range editor.
+	val controlOverride by remember(parameterControls, horizontal.id) { derivedStateOf { parameterControls.value[horizontal.id] } }
 	val rangeOpen = viewState.openRangeEditors[horizontal.id] == true
 	// Double-clicking an axis name renames it, as the menu's per-axis entry does.  Either name toggles
 	// the one range editor the pad keys on its upper axis, so that is the one a double click gives back.
@@ -387,7 +426,7 @@ private fun ParameterPadRow(
 			null
 		}
 	ContextMenuArea(
-		items = parameterPadMenuItems(horizontal, vertical, labels, session, viewState, createMenuItems),
+		itemsOnOpen = parameterPadMenuItems(horizontal, vertical, labels, session, viewState, createMenuItems, rowMenus),
 		modifier = modifier,
 	) {
 		ParameterIsland(
@@ -400,6 +439,9 @@ private fun ParameterPadRow(
 			ParameterPad2D(
 				horizontal = horizontal,
 				vertical = vertical,
+				control = pairControlOf(horizontal, vertical, repeatControl, controlOverride),
+				horizontalKeyMarks = horizontalKeyMarks,
+				verticalKeyMarks = verticalKeyMarks,
 				xValue = shownX,
 				yValue = shownY,
 				labels = labels,
@@ -410,6 +452,7 @@ private fun ParameterPadRow(
 				horizontalRename = horizontalRename,
 				verticalRename = verticalRename,
 				onPreview = { id, newValue -> pose.preview(id, newValue) },
+				onCancelPreview = { axis -> pose.cancelPreview(axis) },
 				onCommitGesture = { ids -> pose.commitGesture(ids) },
 				onCommitValue = { id, newValue -> pose.commitValue(id, newValue) },
 				link = link,
@@ -419,18 +462,18 @@ private fun ParameterPadRow(
 				// One range row per axis, each captioned with its axis name (user
 				// data, never localized).
 				RangeAxisLabel(horizontal.name)
-				RangeFieldsRow(
+				ParameterRangeEditor(
 					parameter = horizontal,
-					onSetRange = { min, default, max ->
-						session?.setParameterRange(horizontal.id, min, default, max)
-					},
+					labels = labels,
+					onSetRange = { min, default, max -> session?.setParameterRange(horizontal.id, min, default, max) },
+					onSetRepeat = { repeat -> session?.setParameterRepeat(horizontal.id, repeat) },
 				)
 				RangeAxisLabel(vertical.name)
-				RangeFieldsRow(
+				ParameterRangeEditor(
 					parameter = vertical,
-					onSetRange = { min, default, max ->
-						session?.setParameterRange(vertical.id, min, default, max)
-					},
+					labels = labels,
+					onSetRange = { min, default, max -> session?.setParameterRange(vertical.id, min, default, max) },
+					onSetRepeat = { repeat -> session?.setParameterRepeat(vertical.id, repeat) },
 				)
 			}
 		}

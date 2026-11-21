@@ -11,16 +11,21 @@
 1.) (Everything required for glue, deformers, and so on.)
 2.) UMA Format - Mostly done, a few final pieces to go through.  I'm leaving it "unfinished" as pre-v1.0 for the format until Umamo 1.0 is ready to release.
 
-## 0.6.0 Goals
+## 0.6.0 Goals - Late December, Early January
 0.) Merge in the existing language translations.(Some were merged.)
 1.) Finish 3D Depth Rotation and Merge
 2.) Fix Platform Bugs - Linux and MacOS
 3.) Proper Bone and Skeleton System
 4.) Rotation Deformer Gizmos and Editing
+5.) Github Issues and Pull Requests
 
-## 0.7.0 Goals
+## 0.7.0 Goals - January
 5.) Glue Gizmos and Editing - Part of all of this may end up happening with "Proper Bone and Skeleton System" in 0.6.0.
 6.) Modifiers - Generate -> Mirror - This will also seed being able to mirror things along with other potential modifiers.
+
+### 0.8.0 Goals - February
+1.) (Tentative) Brush/Tool Backend Machinery.  See: https://github.com/umamoorg/umamo/pull/376
+2.) Polish UMA.md format document and publish it.
 
 ## VERY IMPORTANT
 * Hire translators for localization.
@@ -126,6 +131,7 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 		* Change icon on picker to an eyedropper.
 
 ## Parameters
+* Scrubbing the Number Input on a parameter needs to update the live value.
 * Parameter templates:
 	* Need a way to apply these without having to do a fresh import.
 
@@ -199,6 +205,7 @@ See format planning document: docs/plan/uma-format.md
 * Key/mouse/pen input overlay for recording/streaming.
 * History playback for proof of work.  The history system is there, but that is a lot of track over a long session.  So capture a snapshot every time period or number of snapshots.
 * A proper bone skeleton system with bendy bones.
+* MIDI Protocol Support
 
 ## Rights Management
 * One time, permanently dismissable message dialog informing users to not edit MOC3 files without permission from the author.

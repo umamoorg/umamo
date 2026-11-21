@@ -38,9 +38,8 @@ import org.umamo.runtime.model.screenColor
  * What can be carried is asked of the SECTION TABLE, not of [RuntimeTarget.supports].  The two ladders
  * are close but not the same, and where they differ the section table is the one that decides what a
  * file can hold: [RuntimeTarget] follows the official editor's target dialog, which gates the reversed
- * mask at Cubism 4.0 and the parameter repeat at Cubism 5.3 even though both are carried by every MOC3 version back
- * to v1.  Stripping on the editor's ladder would make a v5 file that uses either one round-trip
- * LOSSILY through a v5 export - LimeBirb's repeating parameters are exactly that case in the corpus.
+ * mask at Cubism 4.0 even though its constant-flag bit is carried by every MOC3 version back to v1.
+ * Stripping on the editor's ladder would drop from a v1 or v2 export a mask the file has room for.
  *
  * The consequence is that a pre-export confirmation built on
  * [org.umamo.runtime.model.unsupportedFeaturesInUse] can name a feature this does not strip.  That is
@@ -122,13 +121,12 @@ object Moc3VersionDowngrade {
 						stripPartComposites(stripped, ::report)
 					}
 
-					// Carried by EVERY moc version, so `carries` is unconditionally true for both and neither
-					// ever reaches this loop: the reversed mask is a bit in the constant-flag byte and
-					// parameter repeat is section 54, and both go back to v1.  The arm exists to keep the
-					// `when` exhaustive, not because there is work to do.  If a future version gate ever
-					// drops one of them, this has to grow a real strip - returning the model unchanged would
-					// write the feature into a file with nowhere to put it.
-					RuntimeFeature.ReversedMask, RuntimeFeature.ParameterRepeat -> {
+					// Carried by EVERY moc version, so `carries` is unconditionally true and this never runs:
+					// the reversed mask is a bit in the constant-flag byte, which goes back to v1.  The arm
+					// exists to keep the `when` exhaustive, not because there is work to do.  If a future
+					// version gate ever drops it, this has to grow a real strip - returning the model
+					// unchanged would write the feature into a file with nowhere to put it.
+					RuntimeFeature.ReversedMask -> {
 						stripped
 					}
 
@@ -169,8 +167,6 @@ object Moc3VersionDowngrade {
 			RuntimeFeature.ExtendedBlendModes -> Section.ARTMESH_EXTENDED_BLEND.indexIn(version) >= 0
 
 			RuntimeFeature.PartComposite -> Section.OFFSCREEN_OWNER_PART.indexIn(version) >= 0
-
-			RuntimeFeature.ParameterRepeat -> Section.PARAM_REPEAT.indexIn(version) >= 0
 
 			// The reversed mask is a BIT in the drawable/offscreen constant-flag byte, not a section of
 			// its own, and that byte is in every version - so no moc version has to give it up.

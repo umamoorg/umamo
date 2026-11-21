@@ -11,6 +11,7 @@ import org.umamo.edit.DEFAULT_PROPORTIONAL_EDIT_STATE
 import org.umamo.edit.DepthSurface
 import org.umamo.edit.EditorMode
 import org.umamo.edit.MeshSelectMode
+import org.umamo.edit.ParameterControl
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.Pose
 import org.umamo.edit.ProportionalEditState
@@ -106,6 +107,17 @@ fun sessionStateJson(viewState: SessionViewState, pose: Pose, model: PuppetModel
 				}
 			},
 		)
+		// UMA §7.4: `parameterControls` lists each parameter, or pair by its horizontal member, set to a control of
+		// its own, in the model's parameter order, so an entry whose parameter was deleted is not written.
+		val controlled =
+			model.parameters.mapNotNull { parameter ->
+				val control = viewState.parameterControls[parameter.id] ?: return@mapNotNull null
+				buildJsonObject {
+					put("parameter", JsonPrimitive(parameter.id.raw))
+					put("control", JsonPrimitive(parameterControlWireName(control)))
+				}
+			}
+		put("parameterControls", if (controlled.isEmpty()) JsonNull else JsonArray(controlled))
 	}
 
 /**
@@ -147,7 +159,30 @@ fun sessionViewStateOf(tree: JsonObject?): SessionViewState? {
 					connectedOnly = booleanOf(block, "connectedOnly") ?: false,
 				)
 			},
+		parameterControls = parameterControlsOf(tree),
 	)
+}
+
+/**
+ * The controls a document's parameters were set to show, by parameter id: an entry that is not an object, names no
+ * parameter, or names a control this reader does not know is skipped (UMA §7.1), and a later entry for the same id
+ * wins, as in the pose.
+ *
+ * @param JsonObject tree The session block as the file held it.
+ * @return Map The controls, empty when the file saved none.
+ */
+private fun parameterControlsOf(tree: JsonObject): Map<ParameterId, ParameterControl> {
+	val entries = tree["parameterControls"] as? JsonArray ?: return emptyMap()
+	val controls = LinkedHashMap<ParameterId, ParameterControl>()
+
+	for (entry in entries) {
+		val block = entry as? JsonObject ?: continue
+		val parameterId = stringOf(block, "parameter") ?: continue
+		val control = stringOf(block, "control")?.let { wireName -> ParameterControl.entries.firstOrNull { control -> parameterControlWireName(control) == wireName } } ?: continue
+		controls[ParameterId(parameterId)] = control
+	}
+
+	return controls
 }
 
 /**
@@ -285,4 +320,17 @@ private fun depthSurfaceWireName(surface: DepthSurface): String =
 		DepthSurface.Flat -> "flat"
 		DepthSurface.Cylinder -> "cylinder"
 		DepthSurface.Sphere -> "sphere"
+	}
+
+/**
+ * A parameter control's name in the editor entry.
+ *
+ * @param ParameterControl control The control.
+ * @return String The wire name.
+ */
+private fun parameterControlWireName(control: ParameterControl): String =
+	// UMA §7.4: `parameterControls[].control`.
+	when (control) {
+		ParameterControl.Slider -> "slider"
+		ParameterControl.Dial -> "dial"
 	}

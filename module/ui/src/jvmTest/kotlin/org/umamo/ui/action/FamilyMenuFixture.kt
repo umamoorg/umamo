@@ -82,6 +82,34 @@ internal fun commandMenuBuilderOf(
 }
 
 /**
+ * The builder of an arranged menu a list's items each open on themselves, composed once over [commands], then called
+ * with the argument of whichever item opens it.
+ *
+ * @param List<CommandMenuRow> rows The menu's rows.
+ * @param CommandRegistry commands The registry the menu is read from and dispatches through.
+ * @param Keymap keymap The keymap the accelerators are read from; unbound unless a case binds one.
+ * @return Function The builder.
+ */
+@OptIn(ExperimentalTestApi::class)
+internal fun commandMenuForBuilderOf(
+	rows: List<CommandMenuRow>,
+	commands: CommandRegistry,
+	keymap: Keymap = Keymap(emptyMap()),
+): (Any) -> List<MenuItem> {
+	var builder: ((Any) -> List<MenuItem>)? = null
+	runComposeUiTest {
+		setContent {
+			CompositionLocalProvider(LocalCommands provides commands, LocalKeymap provides keymap) {
+				builder = rememberCommandMenuFor(rows)
+			}
+		}
+		waitForIdle()
+	}
+
+	return checkNotNull(builder) { "the menu was never composed" }
+}
+
+/**
  * An arranged menu over [commands] as it is when opened now.
  *
  * @param List<CommandMenuRow> rows The menu's rows.

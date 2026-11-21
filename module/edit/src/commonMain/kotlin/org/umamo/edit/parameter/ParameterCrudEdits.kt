@@ -403,6 +403,9 @@ private fun removeParameterLeaf(nodes: List<ParameterNode>, id: ParameterId): Li
  */
 fun EditorSession.createParameter(name: String, kind: ParameterKind = ParameterKind.NORMAL): ParameterId {
 	val id = model.value.freshParameterId()
+	// A minted id may be one a deleted parameter held, whose control pick waits for an undo of that delete.  The
+	// pick was that parameter's, so the new one starts by following the preference.
+	setParameterControl(id, null)
 	mutate(ParameterChange.Create(id)) { model -> model.withParameterCreated(id, name, kind) }
 
 	return id

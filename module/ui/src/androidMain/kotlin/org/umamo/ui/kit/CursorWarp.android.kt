@@ -1,13 +1,13 @@
-package org.umamo.ui.viewport.gizmo
+package org.umamo.ui.kit
 
 import androidx.compose.ui.geometry.Offset
 
 /**
- * Android actual: touch has no cursor to warp, so a modal transform simply stops at the viewport edge.
+ * Android actual: touch has no cursor to warp, so a gesture past an edge carries on without one.
  * Always returns null so the caller does not compensate its gesture anchor.
  *
  * @param Float screenX Unused - there is no cursor to move.
  * @param Float screenY Unused - there is no cursor to move.
  * @return Offset? Always null - no warp happens.
  */
-actual fun warpViewportCursor(screenX: Float, screenY: Float): Offset? = null
+actual fun warpCursor(screenX: Float, screenY: Float): Offset? = null

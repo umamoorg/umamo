@@ -248,6 +248,7 @@ class Cmo3ToMoc3CrossFormatTest {
 				check("parameter ${parameter.id} maximum", parameter.maximumValue, mine.maximumValue)
 				check("parameter ${parameter.id} default", parameter.defaultValue, mine.defaultValue)
 				check("parameter ${parameter.id} type", parameter.type, mine.type)
+				check("parameter ${parameter.id} repeat", parameter.repeats, mine.repeats)
 			}
 		}
 

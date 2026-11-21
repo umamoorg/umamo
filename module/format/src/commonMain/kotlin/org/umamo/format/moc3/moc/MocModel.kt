@@ -13,8 +13,8 @@ public data class CanvasInfo(
 
 /**
  * A model parameter (slider).  [type] is null on MOC3 versions without `Parameter.Types` (< 4).
- * [repeats] is the Cubism 5.3+ "Parameter repeat flags" (section 54): true wraps the value into
- * `[minimumValue, maximumValue)` instead of clamping.
+ * [repeats] is the "Parameter repeat flags" (section 54, present at every version): true marks an
+ * axis that wraps past its limits instead of clamping (MOC3 §5.5).
  */
 public data class MocParameter(
 	val id: String,

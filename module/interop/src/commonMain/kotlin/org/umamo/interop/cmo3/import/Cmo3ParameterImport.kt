@@ -36,6 +36,8 @@ internal fun importParameters(context: Cmo3ImportContext): List<Parameter> =
 			default = source.defaultValue,
 			// CMO3: CParameterSource field paramType - MORPH_TARGET marks a blend-shape axis.
 			kind = if ((source.paramType as? Type) == Type.MORPH_TARGET) ParameterKind.BLEND_SHAPE else ParameterKind.NORMAL,
+			// CMO3: CParameterSource field isRepeat.
+			repeat = source.isRepeat,
 		)
 	}
 

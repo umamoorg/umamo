@@ -475,7 +475,6 @@
 	<string name="runtime_feature_motion_sync">모션-싱크</string>
 	<string name="runtime_feature_extended_blend_modes">혼합 모드</string>
 	<string name="runtime_feature_part_composite">파트 컴포지트 (오프스크린 드로잉)</string>
-	<string name="runtime_feature_parameter_repeat">파라미터 반복</string>
 	<string name="runtime_feature_art_path">아트 패스</string>
 	<string name="properties_texture_source">텍스처 소스: %1$s</string>
 	<string name="properties_texture_own">개별 아틀라스 바인딩</string>

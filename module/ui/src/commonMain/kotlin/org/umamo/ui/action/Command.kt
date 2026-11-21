@@ -70,6 +70,23 @@ fun interface CommandState {
 }
 
 /**
+ * Reports whether a command is the one in effect for a given argument: the control a parameter was set to show, among
+ * the commands that set it.  The argument-aware form of [CommandState], as [CommandArgumentAvailability] is of
+ * [CommandAvailability].
+ *
+ * A `fun interface` so a table passes a lambda reading live state, evaluated fresh at each query.
+ */
+fun interface CommandArgumentState {
+	/**
+	 * Reports whether the command is the one in effect for [argument].
+	 *
+	 * @param Any? argument What the command would run with, or null for none.
+	 * @return Boolean True while it is.
+	 */
+	fun isOnFor(argument: Any?): Boolean
+}
+
+/**
  * Lists the arguments a command is offered with, where it is run with one of several: Open Recent's row per file.  A
  * menu shows such a command as a submenu of them, so the list is part of the command and any surface showing it
  * offers the same rows.
@@ -125,8 +142,10 @@ data class CommandChoice(val label: String, val argument: Any?)
  * @property UmamoIcon? icon The command's glyph wherever a pie slot, a menu row, or a chip stands for it, or null
  *   for a command with none drawn.
  * @property CommandState? state Whether the command is the one in effect, which a control listing its family lights
- *   (never a dispatch guard), or null for a command that is never "the current one".  Its table decides what it
- *   reports with no document open, so a control shows the same face before the first file opens.
+ *   and a check-list menu ticks (never a dispatch guard), or null for a command that is never "the current one".  Its table
+ *   decides what it reports with no document open, so a control shows the same face before the first file opens.
+ * @property CommandArgumentState? stateFor Whether the command is the one in effect for the argument a row runs it
+ *   with, in place of [state], or null for a command whose state does not depend on its argument.
  * @property CommandChoices? choices The arguments the command is offered with, a row apiece, or null for a command
  *   that is one row.  Never read by dispatch: the handler takes whatever argument it is run with.
  * @property CommandHandler handler The work to perform when invoked.
@@ -143,6 +162,7 @@ data class Command(
 	val groupLabel: StringResource? = null,
 	val icon: UmamoIcon? = null,
 	val state: CommandState? = null,
+	val stateFor: CommandArgumentState? = null,
 	val choices: CommandChoices? = null,
 	val handler: CommandHandler,
 ) {
@@ -150,6 +170,7 @@ data class Command(
 		require(groupLabel == null || group != null) { "Command $id has a group label and no group to show it under" }
 		// A command no family shows may go unlabeled (the palette hides it); a family is a list of rows.
 		require(group == null || rowLabel != null) { "Command $id is a member of $group with no label for its row" }
+		require(state == null || stateFor == null) { "Command $id reports its state both with and without an argument" }
 	}
 
 	/** The label of the command's row in a listing of its group: its [groupLabel], else its [title]. */
@@ -164,10 +185,15 @@ data class Command(
 	 */
 	fun isAvailable(argument: Any? = null): Boolean = availability.isAvailable() && availableFor?.isAvailableFor(argument) != false
 
+	/** Whether the command reports a state at all, with or without an argument: a button for it says whether it is lit. */
+	val reportsState: Boolean get() = state != null || stateFor != null
+
 	/**
-	 * Reports whether the command is the one in effect.
+	 * Reports whether the command is the one in effect, run with [argument].
 	 *
-	 * @return Boolean True while its [state] reports on; false for a command that reports no state.
+	 * @param Any? argument What it would run with, or null for none.
+	 * @return Boolean True while its [state], or its [stateFor] over that argument, reports on; false for a command
+	 *   that reports no state.
 	 */
-	fun isOn(): Boolean = state?.isOn() == true
+	fun isOn(argument: Any? = null): Boolean = state?.isOn() ?: stateFor?.isOnFor(argument) ?: false
 }

@@ -339,6 +339,7 @@
 	<string name="group_uv_mirror">ミラー</string>
 	<string name="group_keyform_key">キーフレーム</string>
 	<string name="group_relation">リレーション</string>
+	<string name="group_parameter_control">操作</string>
 	<string name="group_viewport_tools">ツール</string>
 	<string name="cmd_mesh_grab">頂点を移動</string>
 	<string name="cmd_mesh_scale">頂点を拡縮</string>
@@ -416,6 +417,7 @@
 	<string name="history_parameter_select">パラメータ選択</string>
 	<string name="history_parameter_value">パラメータを調整</string>
 	<string name="history_parameter_range">パラメータの範囲を編集</string>
+	<string name="history_parameter_repeat">パラメータのリピートを切り替え</string>
 	<string name="history_parameter_link">パラメータをリンク</string>
 	<string name="history_parameter_unlink">パラメータのリンクを解除</string>
 	<string name="history_parameter_move">パラメータを移動</string>
@@ -634,6 +636,12 @@
 	<string name="cmd_relation_pick">取得</string>
 	<string name="cmd_relation_remove">削除</string>
 	<string name="cmd_relation_copy_to_selected">選択項目にコピー</string>
+	<string name="cmd_parameter_toggle_repeat">リピートを切り替え</string>
+	<string name="menu_parameter_control_follow">設定に従う</string>
+	<string name="menu_parameter_control_slider">スライダー</string>
+	<string name="menu_parameter_control_dial">ダイヤル</string>
+	<string name="menu_parameter_pair_control_pad">パッド</string>
+	<string name="menu_parameter_pair_control_dials">2つのダイヤル</string>
 	<string name="outliner_menu_select_hierarchy">階層を選択</string>
 
 	<string name="cmd_mesh_duplicate">複製</string>
@@ -914,7 +922,6 @@
 	<string name="runtime_feature_motion_sync">モーションシンク</string>
 	<string name="runtime_feature_extended_blend_modes">ブレンドモード</string>
 	<string name="runtime_feature_part_composite">パーツ合成（オフスクリーン描画）</string>
-	<string name="runtime_feature_parameter_repeat">パラメータのリピート</string>
 	<string name="runtime_feature_art_path">アートパス</string>
 	<string name="properties_texture_source">テクスチャソース: %1$s</string>
 	<string name="properties_texture_own">独自のアトラス割り当て</string>
@@ -1197,6 +1204,7 @@
 	<string name="parameter_range_min">最小</string>
 	<string name="parameter_range_default">既定</string>
 	<string name="parameter_range_max">最大</string>
+	<string name="parameter_range_repeat">リピート</string>
 
 	<!-- 設定ウィンドウ。edit.preferences コマンド（編集メニュー / Ctrl+, / パレット）で開く。 -->
 	<string name="cmd_preferences">設定</string>
@@ -1218,6 +1226,9 @@
 	<string name="settings_interface_language">言語</string>
 	<!-- 取り消し履歴の上限（interface.historyLimit）。履歴パネルが保持するステップ数。 -->
 	<string name="settings_interface_history_steps">履歴のステップ数</string>
+	<string name="settings_interface_repeat_control">リピートパラメータの操作</string>
+	<string name="settings_repeat_control_dial">ダイヤル</string>
+	<string name="settings_repeat_control_slider">スライダーとパッド</string>
 	<string name="settings_check_for_updates">起動時にアップデートを確認する</string>
 	<!-- キーバインド設定：プリセット選択とコマンドごとの再割り当て編集。 -->
 	<string name="settings_keybindings_preset">プリセット</string>

@@ -147,6 +147,17 @@ class CommandControlsTest {
 			assertEquals(1, runCount)
 		}
 
+	/** A command whose state takes an argument reads as lit the same way: the button says so as well as showing it. */
+	@Test
+	fun anIconButtonIsLitForACommandWhoseStateTakesAnArgument() =
+		runComposeUiTest {
+			val tool = Command("test.tool", title = Res.string.menu_file_new, icon = LocalUmamoIcons.cursor, stateFor = { argument -> argument == null }, handler = {})
+			val commands = CommandRegistry().also { registry -> registry.register(tool) }
+			mount(commands) { CommandIconButton(tool) }
+
+			assertEquals(1, litButtons("New"))
+		}
+
 	/**
 	 * A button may say more than its command knows: a glyph and hover text of its own, and something done around the
 	 * dispatch.  When it is grayed and what it runs are still the command's.

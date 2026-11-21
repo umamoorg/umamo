@@ -2,6 +2,7 @@ package org.umamo.ui.workspace.spaces.parameters
 
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.Selection
+import org.umamo.edit.parameter.padLinks
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
@@ -82,11 +83,12 @@ internal fun buildLinkInfo(puppet: PuppetModel): LinkInfo {
 	for (link in puppet.parameterLinks) {
 		linkMemberIds.add(link.horizontal)
 		linkMemberIds.add(link.vertical)
+	}
 
-		if (link.horizontal in animatableIds && link.vertical in animatableIds) {
-			verticalByHorizontal[link.horizontal] = link.vertical
-			verticalMembers.add(link.vertical)
-		}
+	// Which links fold into a pad is the model's to say, so the commands a row's menu runs ask the same question.
+	for ((horizontal, vertical) in puppet.padLinks()) {
+		verticalByHorizontal[horizontal] = vertical
+		verticalMembers.add(vertical)
 	}
 
 	return LinkInfo(animatableIds, verticalByHorizontal, verticalMembers, linkMemberIds)

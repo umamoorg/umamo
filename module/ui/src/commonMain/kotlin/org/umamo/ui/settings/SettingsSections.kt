@@ -73,8 +73,11 @@ import org.umamo.ui.resources.settings_import_watch_mode_notify
 import org.umamo.ui.resources.settings_import_watch_mode_off
 import org.umamo.ui.resources.settings_interface_history_steps
 import org.umamo.ui.resources.settings_interface_language
+import org.umamo.ui.resources.settings_interface_repeat_control
 import org.umamo.ui.resources.settings_interface_theme
 import org.umamo.ui.resources.settings_pen_coming_soon
+import org.umamo.ui.resources.settings_repeat_control_dial
+import org.umamo.ui.resources.settings_repeat_control_slider
 import org.umamo.ui.resources.settings_theme_dark
 import org.umamo.ui.resources.settings_theme_light
 import org.umamo.ui.resources.settings_theme_system
@@ -100,13 +103,19 @@ private const val THEME_KEY = "interface.theme"
 private const val THEME_DEFAULT = "dark"
 
 /**
- * The Interface section: theme, language, and the undo-history depth.  All three are wired end-to-end -
- * writing the key re-themes / re-localizes the running app and re-caps the open document's undo stack -
- * so each auto-saves with immediate visible effect.
+ * The Interface section: theme, language, the undo-history depth, and the control a repeating parameter shows.
+ * Each is wired end-to-end - writing the key re-themes / re-localizes the running app, re-caps the open document's
+ * undo stack, or swaps the Parameters panel's controls - so each auto-saves with immediate visible effect.
  */
 @Composable
 internal fun InterfaceSection() {
 	var historyLimit by rememberIntSetting(HistorySettings.HISTORY_LIMIT_KEY, HistorySettings.HISTORY_LIMIT_DEFAULT)
+	var repeatControlKey by rememberStringSetting(ParametersSettings.REPEAT_CONTROL_KEY, ParametersSettings.REPEAT_CONTROL_DEFAULT.key)
+	val repeatControlLabels =
+		linkedMapOf(
+			RepeatControlSetting.Dial.key to stringResource(Res.string.settings_repeat_control_dial),
+			RepeatControlSetting.Slider.key to stringResource(Res.string.settings_repeat_control_slider),
+		)
 
 	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_ROW_SPACING)) {
 		ThemeSettingRow()
@@ -119,6 +128,15 @@ internal fun InterfaceSection() {
 				onValueChange = { committed -> historyLimit = committed },
 				range = HistorySettings.HISTORY_LIMIT_RANGE,
 				modifier = Modifier.width(80.dp),
+			)
+		}
+		// A pair with a repeating member follows the same choice: the slider choice gives it its pad.
+		SettingRow(label = stringResource(Res.string.settings_interface_repeat_control)) {
+			SelectField(
+				selected = RepeatControlSetting.fromKey(repeatControlKey).key,
+				options = repeatControlLabels.keys.toList(),
+				label = { value -> repeatControlLabels[value] ?: value },
+				onSelect = { value -> repeatControlKey = value },
 			)
 		}
 		UpdateCheckSettingRow()

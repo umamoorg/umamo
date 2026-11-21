@@ -69,10 +69,6 @@ private fun PuppetModel.usesFeature(feature: RuntimeFeature, activeComposites: L
 			parts.any { part -> part.isIsolated }
 		}
 
-		RuntimeFeature.ParameterRepeat -> {
-			parameters.any { parameter -> parameter.repeat }
-		}
-
 		// Not representable in PuppetModel (motion-sync is a sidecar family, an art path survives only as
 		// CMO3 round-trip payload), so the model alone cannot show their use.
 		RuntimeFeature.MotionSync,

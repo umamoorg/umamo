@@ -17,6 +17,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
@@ -73,6 +74,7 @@ class SessionViewStateTest {
 				pivotMode = TransformPivotMode.Cursor,
 				proportionalEnabled = true,
 				proportionalSettings = ProportionalEditState(ProportionalFalloff.Sharp, 64f, connectedOnly = true),
+				parameterControls = mapOf(ParameterId("ParamAngleX") to ParameterControl.Dial),
 			)
 
 		val session = EditorSession(meshedModel, initialViewState = saved)
@@ -83,6 +85,7 @@ class SessionViewStateTest {
 		assertEquals(UvCursor(0.25f, 0.75f), session.uvCursor.value)
 		assertEquals(TransformPivotMode.Cursor, session.pivotMode.value)
 		assertEquals(ProportionalEditState(ProportionalFalloff.Sharp, 64f, connectedOnly = true), session.proportionalEdit.value)
+		assertEquals(mapOf(ParameterId("ParamAngleX") to ParameterControl.Dial), session.parameterControls.value)
 		assertFalse(session.canUndo.value, "nothing restored is an undo step")
 		assertFalse(session.dirty.value, "and nothing restored is a change to the document")
 		assertNull(session.notice.value, "and nothing restored posts a notice")
@@ -108,12 +111,38 @@ class SessionViewStateTest {
 			SessionViewState(
 				selection = Selection(setOf(SelectionTarget.Drawable(DrawableId("a")), SelectionTarget.Drawable(DrawableId("gone"))), SelectionTarget.Drawable(DrawableId("gone"))),
 				parameterSelection = ParameterSelection(setOf(ParameterId("ParamGone")), ParameterId("ParamGone")),
+				parameterControls = mapOf(ParameterId("ParamGone") to ParameterControl.Dial, ParameterId("ParamAngleX") to ParameterControl.Slider),
 			)
 
 		val session = EditorSession(meshedModel, initialViewState = saved)
 
 		assertEquals(Selection(setOf(SelectionTarget.Drawable(DrawableId("a"))), SelectionTarget.Drawable(DrawableId("a"))), session.selection.value)
 		assertTrue(session.parameterSelection.value.isEmpty)
+		assertEquals(mapOf(ParameterId("ParamAngleX") to ParameterControl.Slider), session.parameterControls.value)
+	}
+
+	/** Picking a parameter's control is no undo step and no change to the document, and following again clears it. */
+	@Test
+	fun aParameterControlIsNeitherAStepNorAChange() {
+		val session = EditorSession(meshedModel)
+		val angleX = ParameterId("ParamAngleX")
+		val published = session.parameterControls.value
+
+		session.setParameterControl(angleX, null)
+		assertSame(published, session.parameterControls.value, "following a parameter that already follows publishes nothing")
+
+		session.setParameterControl(angleX, ParameterControl.Dial)
+		assertEquals(mapOf(angleX to ParameterControl.Dial), session.parameterControls.value)
+		assertEquals(mapOf(angleX to ParameterControl.Dial), session.viewState().parameterControls, "a save gathers it")
+
+		val picked = session.parameterControls.value
+		session.setParameterControl(angleX, ParameterControl.Dial)
+		assertSame(picked, session.parameterControls.value, "picking the same control again publishes nothing")
+
+		session.setParameterControl(angleX, null)
+		assertTrue(session.parameterControls.value.isEmpty(), "following the preference again leaves no entry")
+		assertFalse(session.canUndo.value, "a pick is no undo step")
+		assertFalse(session.dirty.value, "and no change to the document")
 	}
 
 	/** A saved Edit mode opens the session in Edit over the restored selection, with the saved select mode. */

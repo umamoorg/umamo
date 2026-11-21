@@ -166,7 +166,7 @@ class Moc3VersionDowngradeTest {
 		assertEquals(emptyList(), rotation.blendShapes, "rotation blend shapes must be gone")
 		assertEquals(emptyList(), drawable.blendShapes, "mesh blend shapes must be gone")
 		// NOT stripped at v1: the mask bit and the repeat section exist in every moc version, whatever
-		// the editor's target dialog says about when a rigger may author them.
+		// the editor's target dialog says about when a rigger may author the mask.
 		assertTrue(drawable.invertMask, "the reversed mask is carried by every version")
 		assertTrue(puppet.parameters.any { it.repeat }, "the repeat flag is carried by every version")
 		assertEquals(BlendMode.Normal, drawable.blendMode, "Overlay has no pre-5.3 ancestor")
@@ -180,14 +180,12 @@ class Moc3VersionDowngradeTest {
 			"a blend-shape parameter must demote to normal",
 		)
 
-		// The pre-export scan and the strip differ by exactly the two features the editor gates later
-		// than the file format does - the scan over-warns about them, and pinning that here is what keeps
+		// The pre-export scan and the strip differ by exactly the one feature the editor gates later
+		// than the file format does - the scan over-warns about it, and pinning that here is what keeps
 		// the difference deliberate instead of a drift nobody notices.
 		assertEquals(
-			original.unsupportedFeaturesInUse(RuntimeTarget.Cubism30) -
-				setOf(RuntimeFeature.ReversedMask, RuntimeFeature.ParameterRepeat),
-			strippedFeatures(stripped.notices) -
-				setOf(RuntimeFeature.ReversedMask, RuntimeFeature.ParameterRepeat),
+			original.unsupportedFeaturesInUse(RuntimeTarget.Cubism30) - RuntimeFeature.ReversedMask,
+			strippedFeatures(stripped.notices) - RuntimeFeature.ReversedMask,
 			"the strip and the scan disagree about what a 3.0 export loses",
 		)
 	}
