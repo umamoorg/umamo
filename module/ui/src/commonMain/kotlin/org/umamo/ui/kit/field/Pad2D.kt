@@ -1,8 +1,6 @@
 package org.umamo.ui.kit.field
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -16,11 +14,10 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.takeOrElse
-import androidx.compose.ui.input.pointer.isCtrlPressed
-import androidx.compose.ui.input.pointer.isSecondaryPressed
-import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.unit.dp
+import org.umamo.ui.kit.LocalCursorWarp
 import org.umamo.ui.theme.LocalUmamoColors
 
 /** The handle's radius. */
@@ -32,7 +29,12 @@ private val PAD_LINE_WIDTH = 1.dp
 /**
  * A flat 2D pad that sets two values at once: a recessed 3 : 2 rectangle with one handle, the X axis across and the Y
  * axis up, so the top edge is the Y maximum.  A press jumps the handle to the pointer and a drag follows it, each axis
- * held to its ends past an edge.  Supply the width through [modifier]; the height follows from the shape.
+ * held to its ends past an edge unless it wraps.  Supply the width through [modifier]; the height follows from the
+ * shape.
+ *
+ * An axis that wraps carries a drag past either edge round to the other, as a wrapping [Slider] does: past an edge by
+ * more than [CONTROL_WRAP_DETENT], its value comes in at the other edge, and the cursor is moved to the handle where
+ * the platform allows.  The other axis keeps stopping at its edges.
  *
  * @param Float xValue The current X-axis value.
  * @param Float yValue The current Y-axis value.
@@ -44,6 +46,8 @@ private val PAD_LINE_WIDTH = 1.dp
  * @param List xKeyMarks The X axis's keys, each with its shape: a line on the pad, and the values a held-Ctrl drag
  *   snaps that axis to.  Empty by default.
  * @param List yKeyMarks The Y axis's keys, the same way.  Empty by default.
+ * @param Boolean xWraps Whether the X axis wraps past its edges; false by default.
+ * @param Boolean yWraps Whether the Y axis wraps past its edges; false by default.
  * @param Color accentColor The color of the ring round the handle; the theme's accent when unspecified.
  */
 @Composable
@@ -57,6 +61,8 @@ fun Pad2D(
 	yRange: ClosedFloatingPointRange<Float> = 0f..1f,
 	xKeyMarks: List<SliderKeyMark> = emptyList(),
 	yKeyMarks: List<SliderKeyMark> = emptyList(),
+	xWraps: Boolean = false,
+	yWraps: Boolean = false,
 	accentColor: Color = Color.Unspecified,
 ) {
 	val colors = LocalUmamoColors.current
@@ -79,54 +85,35 @@ fun Pad2D(
 	val currentOnChangeFinished by rememberUpdatedState(onChangeFinished)
 	val currentXKeyValues by rememberUpdatedState(xKeyValues)
 	val currentYKeyValues by rememberUpdatedState(yKeyValues)
+	val currentXWraps by rememberUpdatedState(xWraps)
+	val currentYWraps by rememberUpdatedState(yWraps)
+	val currentWarp by rememberUpdatedState(LocalCursorWarp.current)
+	val placement = remember { ControlPlacement() }
 	Canvas(
 		modifier =
 			modifier
 				.aspectRatio(1.5f)
+				.onPlaced { coordinates -> placement.coordinates = coordinates }
 				.pointerInput(xRange, yRange) {
 					val snapRadius = KEY_SNAP_RADIUS.toPx()
-					awaitEachGesture {
-						val down = awaitFirstDown()
-
-						// A secondary press opens the row's menu and a middle press belongs to the view; neither moves the handle.
-						if (currentEvent.buttons.isSecondaryPressed || currentEvent.buttons.isTertiaryPressed) {
-							return@awaitEachGesture
-						}
-
-						// Claimed, so the press never reaches a surface under the pad that answers a click.
-						down.consume()
-						var position = down.position
-						var ctrlHeld = currentEvent.keyboardModifiers.isCtrlPressed
-
-						try {
-							while (true) {
-								val width = size.width.toFloat()
-								val height = size.height.toFloat()
-								val xSnapTargets = if (ctrlHeld) currentXKeyValues else emptyList()
-								val ySnapTargets = if (ctrlHeld) currentYKeyValues else emptyList()
-								currentOnChange(
-									padAxisSnapped(padValueAt(position.x, width, xRange, invert = false), xSnapTargets, snapRadius, width, xRange),
-									padAxisSnapped(padValueAt(position.y, height, yRange, invert = true), ySnapTargets, snapRadius, height, yRange),
-								)
-
-								// Ctrl is read off every event, so it can join a drag already under way.
-								val event = awaitPointerEvent()
-								val change = event.changes.firstOrNull { candidate -> candidate.id == down.id } ?: break
-								change.consume()
-
-								if (!change.pressed) {
-									break
-								}
-
-								position = change.position
-								ctrlHeld = event.keyboardModifiers.isCtrlPressed
-							}
-						} finally {
-							// The press has already moved the handle, so every gesture is committed, once: on release, or on
-							// the cancellation that ends a pad torn down mid-drag.
-							currentOnChangeFinished()
-						}
-					}
+					trackControlDrags(
+						// Each axis spans the pad's full extent, as the drawing below maps it.
+						horizontalAxisOf = { size -> ControlWrapAxis(0f, size.width.toFloat().coerceAtLeast(1f), currentXWraps) },
+						verticalAxisOf = { size -> ControlWrapAxis(0f, size.height.toFloat().coerceAtLeast(1f), currentYWraps) },
+						warp = { currentWarp },
+						placement = placement,
+						onDrag = { control, ctrlHeld ->
+							val width = size.width.toFloat()
+							val height = size.height.toFloat()
+							val xSnapTargets = if (ctrlHeld) currentXKeyValues else emptyList()
+							val ySnapTargets = if (ctrlHeld) currentYKeyValues else emptyList()
+							currentOnChange(
+								padAxisSnapped(padValueAt(control.x, width, xRange, invert = false), xSnapTargets, snapRadius, width, xRange),
+								padAxisSnapped(padValueAt(control.y, height, yRange, invert = true), ySnapTargets, snapRadius, height, yRange),
+							)
+						},
+						onFinished = { currentOnChangeFinished() },
+					)
 				},
 	) {
 		val padWidth = size.width

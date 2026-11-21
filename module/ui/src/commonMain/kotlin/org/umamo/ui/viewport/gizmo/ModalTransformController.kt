@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.drop
 import org.umamo.edit.EditorSession
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.action.controlIsDistinctFromPrimary
+import org.umamo.ui.kit.CursorWrapState
 
 /**
  * The commit-side seam of a modal G / S / R gesture: what differs between the Edit overlay (per-mesh
