@@ -359,7 +359,7 @@ private fun ParameterSliderRow(
 }
 
 /**
- * A linked pair's row: the island holding the pad and, while open, a range editor per axis, under the
+ * A linked pair's row: the island holding the pad or its two dials and, while open, a range editor per axis, under the
  * pad's context menu.  The island keys its open state on the horizontal (upper) member.
  *
  * @param ParameterRow.Pair2D row The pad to show.

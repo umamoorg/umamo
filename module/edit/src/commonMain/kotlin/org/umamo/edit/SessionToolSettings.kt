@@ -5,8 +5,8 @@ import org.umamo.runtime.model.ParameterId
 
 /**
  * The tool settings a session carries between gestures and a saved document carries between sessions:
- * the 2D and UV cursors, the transform pivot mode, proportional editing, and the control each parameter shows.  Unlike
- * [SessionToolLatches] these survive mode switches and are laid in from [SessionViewState] at open; like
+ * the 2D and UV cursors, the transform pivot mode, proportional editing, and the control each parameter shows.
+ * Unlike [SessionToolLatches] these survive mode switches and are laid in from [SessionViewState] at open; like
  * them they are never snapshotted and never enter the change bus.  [EditorSession] exposes this surface by
  * delegation.
  */

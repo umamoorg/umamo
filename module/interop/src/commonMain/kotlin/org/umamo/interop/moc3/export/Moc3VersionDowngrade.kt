@@ -39,7 +39,7 @@ import org.umamo.runtime.model.screenColor
  * are close but not the same, and where they differ the section table is the one that decides what a
  * file can hold: [RuntimeTarget] follows the official editor's target dialog, which gates the reversed
  * mask at Cubism 4.0 even though its constant-flag bit is carried by every MOC3 version back to v1.
- * Stripping on the editor's ladder would drop from a v1 or v3 export a mask the file has room for.
+ * Stripping on the editor's ladder would drop from a v1 or v2 export a mask the file has room for.
  *
  * The consequence is that a pre-export confirmation built on
  * [org.umamo.runtime.model.unsupportedFeaturesInUse] can name a feature this does not strip.  That is

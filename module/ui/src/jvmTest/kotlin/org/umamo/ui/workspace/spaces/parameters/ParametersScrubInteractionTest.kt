@@ -236,7 +236,7 @@ class ParametersScrubInteractionTest {
 			assertEquals(cursorBefore + 1, harness.historyCursor)
 		}
 
-	/** On a repeating parameter the field's preview wraps past an end (D10), as its commit does. */
+	/** On a repeating parameter the field's preview wraps past an end, as its commit does. */
 	@Test
 	fun aRepeatingFieldScrubWrapsAsItPreviews() =
 		runComposeUiTest {

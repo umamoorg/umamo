@@ -5,7 +5,7 @@ import kotlin.test.assertEquals
 
 /**
  * Pins the pad's axis math: a pointer maps over the full extent and holds at the ends, the vertical axis runs up, each
- * axis's Ctrl latch reaches the same pixel distance whatever the pad's size, and a pip's shape shows the kinds of key
+ * axis's Ctrl snap reaches the same pixel distance whatever the pad's size, and a pip's shape shows the kinds of key
  * that meet at it.
  */
 class PadMathTest {

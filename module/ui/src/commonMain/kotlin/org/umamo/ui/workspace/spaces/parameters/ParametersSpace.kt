@@ -101,7 +101,7 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// Per-parameter key marks (circle grid keys / square blend keys) for the sliders; one graph pass,
 	// recomputed only when the model changes.
 	val keyMarksByParameter = remember(puppet) { puppet.parameterKeyMarks() }
-	// The control a repeating parameter shows, read once here and handed down, so the rows do not each subscribe.
+	// The control a repeating parameter shows unless set otherwise, read once here and handed down, so the rows do not each subscribe.
 	val repeatControlKey by rememberStringSetting(ParametersSettings.REPEAT_CONTROL_KEY, ParametersSettings.REPEAT_CONTROL_DEFAULT.key)
 	val repeatControl = RepeatControlSetting.fromKey(repeatControlKey)
 	// The control each parameter was set to show, held as state and never read here: each row reads its own entry,

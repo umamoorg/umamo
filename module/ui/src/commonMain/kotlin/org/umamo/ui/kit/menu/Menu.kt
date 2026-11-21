@@ -399,8 +399,8 @@ private fun MenuSubmenuRow(
 			onRequestOpen()
 		}
 	}
-	// Close after a grace once neither the row nor the flyout is hovered, re-checking after the delay so a
-	// diagonal move from the row across the gap onto the flyout keeps it open.
+	// Close after a grace once neither the row nor the flyout is hovered.  A hover on either restarts the effect,
+	// cancelling the pending close, so a diagonal move from the row across the gap onto the flyout keeps it open.
 	LaunchedEffect(rowHovered, flyoutHovered) {
 		if (!rowHovered && !flyoutHovered) {
 			delay(SUBMENU_CLOSE_GRACE_MS.milliseconds)

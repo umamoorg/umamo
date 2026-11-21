@@ -1159,7 +1159,7 @@ internal fun padPointOf(
 }
 
 /**
- * Where a repeating parameter's dial sits, worked out the way [sliderBox] is.  The island's content runs from 6 dp
+ * Where a single parameter's dial sits, worked out the way [sliderBox] is.  The island's content runs from 6 dp
  * right of the grip to 24 dp right of the number field, and the dial is centered across it, the dial spacing below
  * the value row.
  *
@@ -1180,7 +1180,7 @@ internal fun ComposeUiTest.dialBox(harness: ParametersPanelHarness, rowIndex: In
 }
 
 /**
- * Where a pair row's two dials sit, when a repeating member gives the pair dials in place of its pad.  The island's
+ * Where a pair row's two dials sit, when the pair shows dials in place of its pad.  The island's
  * content is split in two halves, each dial centered in its own, the dial spacing below the lower axis's value row.
  *
  * @param ParametersPanelHarness harness The mounted harness.

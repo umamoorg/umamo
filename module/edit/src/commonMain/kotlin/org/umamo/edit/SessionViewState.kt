@@ -53,8 +53,9 @@ data class SessionViewState(
 
 /**
  * This state with every reference [model] cannot satisfy taken out: a selected target, or a parameter's control,
- * the model lacks is dropped, and an active that did not survive falls to one that did.  A saved file can name an object deleted by another
- * writer or by a hand edit, and a selection holding a ghost would hand every command a target that is not there.
+ * the model lacks is dropped, and an active that did not survive falls to one that did.  A saved file can name an
+ * object deleted by another writer or by a hand edit, and a selection holding a ghost would hand every command a
+ * target that is not there.
  *
  * @param PuppetModel model The model the session opens on.
  * @return SessionViewState The state that fits the model.

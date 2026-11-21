@@ -20,7 +20,7 @@ class ParametersSettingsTest {
 		val settings = bundledSettings()
 
 		assertEquals(ParametersSettings.REPEAT_CONTROL_DEFAULT.key, settings.getString(ParametersSettings.REPEAT_CONTROL_KEY))
-		assertEquals(RepeatControlSetting.Dial, ParametersSettings.REPEAT_CONTROL_DEFAULT, "the dial stays the default (D1, D14)")
+		assertEquals(RepeatControlSetting.Dial, ParametersSettings.REPEAT_CONTROL_DEFAULT, "the dial stays the default")
 	}
 
 	/** Each choice reads back from its own key, and a key nothing knows reads as the default. */

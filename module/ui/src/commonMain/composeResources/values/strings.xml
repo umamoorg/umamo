@@ -1317,7 +1317,7 @@
 	<string name="settings_interface_language">Language</string>
 	<!-- The undo-history cap (interface.historyLimit): how many steps the History panel retains. -->
 	<string name="settings_interface_history_steps">History Steps</string>
-	<!-- parameters.repeatControl: the control a repeating parameter shows.  The slider choice gives a pair its pad. -->
+	<!-- interface.parameters.repeatControl: the control a repeating parameter shows.  The slider choice gives a pair its pad. -->
 	<string name="settings_interface_repeat_control">Repeating Parameter Control</string>
 	<string name="settings_repeat_control_dial">Dial</string>
 	<string name="settings_repeat_control_slider">Slider and Pad</string>

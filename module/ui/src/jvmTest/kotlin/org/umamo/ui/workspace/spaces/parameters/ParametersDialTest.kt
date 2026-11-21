@@ -194,14 +194,14 @@ class ParametersDialTest {
 			val counterclockwiseLap = listOf(0.7f, 0.45f, 0.2f, 0.95f)
 
 			pressAndMove(left.atClock(0.85f), (listOf(0.95f, 0.05f) + clockwiseLap + clockwiseLap).map { fraction -> left.atClock(fraction) })
-			assertEquals(30f, harness.live(PanelIds.angleX), "three turns past the seam, a clamping axis waits at max")
+			assertEquals(30f, harness.live(PanelIds.angleX), "across the seam and two laps on, a clamping axis waits at max")
 
 			moveOn(listOf(left.atClock(0.95f), left.atClock(0.9f)))
 			releasePress()
 			assertNear(24f, harness.committed(PanelIds.angleX), "one crossing back and it follows the pointer again")
 
 			pressAndMove(left.atClock(0.15f), (listOf(0.05f, 0.95f) + counterclockwiseLap + counterclockwiseLap).map { fraction -> left.atClock(fraction) })
-			assertEquals(-30f, harness.live(PanelIds.angleX), "three turns below the seam, it waits at min")
+			assertEquals(-30f, harness.live(PanelIds.angleX), "below the seam and two laps on, it waits at min")
 
 			moveOn(listOf(left.atClock(0.05f), left.atClock(0.1f)))
 			releasePress()

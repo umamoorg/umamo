@@ -8,9 +8,9 @@ import org.umamo.runtime.model.ParameterId
 /**
  * The tool settings a session carries between gestures and a saved document carries between sessions: the
  * 2D and UV cursors, the transform pivot mode, proportional editing with the configuration it
- * re-enables with, and the control each parameter shows.  Apart from the transient latches ([ToolLatches]) because these are
- * what [seed] lays in from a saved [SessionViewState] and what the session's viewState() gathers back; the
- * public face is [SessionToolSettings], which [EditorSession] delegates to this one instance.
+ * re-enables with, and the control each parameter shows.  Apart from the transient latches ([ToolLatches])
+ * because these are what [seed] lays in from a saved [SessionViewState] and what the session's viewState()
+ * gathers back; the public face is [SessionToolSettings], which [EditorSession] delegates to this one instance.
  *
  * @param Function notify Emits a transient user notice (the proportional toggles confirm through it).
  */

@@ -5,7 +5,7 @@ import kotlin.math.abs
 
 /**
  * How close, on screen, a held-Ctrl scrub has to come to a key before it latches onto it.  One reach for
- * the parameter slider and the keyform sheet, so a key pulls the same way wherever it is drawn.
+ * the parameter slider, dial, and pad and the keyform sheet, so a key pulls the same way wherever it is drawn.
  */
 val KEY_SNAP_RADIUS = 6.dp
 

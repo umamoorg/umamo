@@ -20,7 +20,7 @@ import kotlin.test.assertTrue
  * Pins the control preference: under the slider choice a repeating parameter shows its slider, which wraps, and a pair
  * with a repeating member its pad, and changing the choice swaps the controls in the open panel.  A parameter's or a
  * pair's own pick beats the preference, outlives Repeat, and keys a pair on its upper member.  The panel's other suites
- * run at the default, the dial.
+ * run at the default, the dial, except where a case sets the slider choice.
  *
  * Body X runs -10..10.  Angle X and Angle Y run -30..30.
  */
@@ -113,7 +113,7 @@ class ParametersRepeatControlTest {
 			waitForIdle()
 			clickAt(dialBox(harness, PanelRows.BODY_X, PanelValues.BODY_X).atClock(0.25f))
 
-			assertNear(-5f, harness.committed(PanelIds.bodyX), "a quarter turn round -10..10, where the slider would leave it at 0")
+			assertNear(-5f, harness.committed(PanelIds.bodyX), "a quarter turn round -10..10, where the slider would leave it at 2")
 		}
 
 	/** A Dial pick outlives Repeat: turned off, the parameter keeps its dial, which now stops at its seam. */
