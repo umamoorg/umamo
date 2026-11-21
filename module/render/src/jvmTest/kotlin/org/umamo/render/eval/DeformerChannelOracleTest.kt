@@ -220,9 +220,9 @@ class DeformerChannelOracleTest {
 			}
 
 			// Raw, not clamped to the declared range: a keyform axis can carry key positions outside it (nothing
-			// in the format forbids a rig keeping keys from a since-narrowed range), and both evaluators bring the
-			// value into [min, max] before evaluating (a clamp on a normal axis, a wrap on a repeating one), so a
-			// visit past the range gates that rule too.
+			// in the format forbids a rig keeping keys from a since-narrowed range), and both evaluators resolve the
+			// value into [min, max] before evaluating, clamping it or, on a repeating axis, wrapping it
+			// (`ParameterRepeatOracleTest` measures the runtime's), so a visit past the range gates that too.
 			for (value in visits.distinct().sorted()) {
 				// Skip the default - the empty pose already covers it, and repeating it wastes a dump.
 				if (value == parameter.defaultValue) {

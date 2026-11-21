@@ -3,13 +3,14 @@ package org.umamo.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.umamo.runtime.model.ParameterId
 
 /**
  * The tool settings a session carries between gestures and a saved document carries between sessions: the
- * 2D and UV cursors, the transform pivot mode, and proportional editing with the configuration it
- * re-enables with.  Apart from the transient latches ([ToolLatches]) because these are
- * what [seed] lays in from a saved [SessionViewState] and what the session's viewState() gathers back; the
- * public face is [SessionToolSettings], which [EditorSession] delegates to this one instance.
+ * 2D and UV cursors, the transform pivot mode, proportional editing with the configuration it
+ * re-enables with, and the control each parameter shows.  Apart from the transient latches ([ToolLatches])
+ * because these are what [seed] lays in from a saved [SessionViewState] and what the session's viewState()
+ * gathers back; the public face is [SessionToolSettings], which [EditorSession] delegates to this one instance.
  *
  * @param Function notify Emits a transient user notice (the proportional toggles confirm through it).
  */
@@ -51,6 +52,11 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 
 	/** The proportional configuration, live or remembered (see [SessionToolSettings.proportionalSettings]). */
 	override val proportionalSettings: StateFlow<ProportionalEditState> = mutableProportionalSettings.asStateFlow()
+
+	private val mutableParameterControls = MutableStateFlow<Map<ParameterId, ParameterControl>>(emptyMap())
+
+	/** The control each parameter was set to show (see [SessionToolSettings.parameterControls]). */
+	override val parameterControls: StateFlow<Map<ParameterId, ParameterControl>> = mutableParameterControls.asStateFlow()
 
 	/**
 	 * Places (or moves) the 2D cursor.
@@ -223,9 +229,26 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	}
 
 	/**
+	 * Sets the control [parameterId] shows, or puts it back on the preference; a write that changes nothing publishes
+	 * nothing.
+	 *
+	 * @param ParameterId parameterId The parameter, or a pair's horizontal member.
+	 * @param ParameterControl? control The control to show, or null to follow the preference.
+	 */
+	override fun setParameterControl(parameterId: ParameterId, control: ParameterControl?) {
+		val controls = mutableParameterControls.value
+
+		if (controls[parameterId] == control) {
+			return
+		}
+
+		mutableParameterControls.value = if (control == null) controls - parameterId else controls + (parameterId to control)
+	}
+
+	/**
 	 * Lays a saved session's tool state in, silently: the cursors, the pivot mode, the depth rotation's pivot depth and
-	 * surface, and proportional editing with the configuration it would re-enable with.  Called once, as the session
-	 * is built, so nothing here is a gesture and nothing here posts a notice.
+	 * surface, proportional editing with the configuration it would re-enable with, and the parameters' controls.
+	 * Called once, as the session is built, so nothing here is a gesture and nothing here posts a notice.
 	 *
 	 * @param SessionViewState viewState The saved state, already fitted to the model.
 	 */
@@ -239,6 +262,7 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 			mutableProportionalSettings.value = settings.copy(radiusWorld = clampProportionalRadius(settings.radiusWorld))
 		}
 		mutableProportionalEdit.value = mutableProportionalSettings.value.takeIf { viewState.proportionalEnabled }
+		mutableParameterControls.value = viewState.parameterControls
 	}
 }
 

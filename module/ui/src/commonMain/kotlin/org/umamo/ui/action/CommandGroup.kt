@@ -170,6 +170,12 @@ enum class CommandFamily(val heading: StringResource, private val parentOf: () -
 
 	/** What is done to a relation field or one row of a relation list: a Properties field's own menu. */
 	Relation(Res.string.group_relation),
+
+	/** The control a parameter's row shows: following the preference, then one member per control. */
+	ParameterControl(Res.string.group_parameter_control),
+
+	/** The control a linked pair's row shows: following the preference, then one member per control. */
+	PairControl(Res.string.group_parameter_control),
 	;
 
 	override val parent: CommandListing? get() = parentOf()

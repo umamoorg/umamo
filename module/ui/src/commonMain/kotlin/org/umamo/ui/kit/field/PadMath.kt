@@ -3,7 +3,7 @@ package org.umamo.ui.kit.field
 import kotlin.math.abs
 
 /*
- * Pure, Compose-free pad math: the value a pointer sets along one axis of the pad, the held-Ctrl latch each axis
+ * Pure, Compose-free pad math: the value a pointer sets along one axis of the pad, the held-Ctrl snap each axis
  * applies by itself, and the pips the pad draws where its two axes' keys cross.  Kept apart so the pad's behavior is
  * unit testable without a Compose harness (see PadMathTest).
  *

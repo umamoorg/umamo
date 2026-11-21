@@ -39,8 +39,8 @@ import androidx.compose.ui.graphics.Color
  * @property Color panelBorder        Hairline border around panels, dialogs, and popups.
  * @property Color panelBorderHover   Border pop on hover (area chrome, select fields).
  * @property Color controlBorder      Inset border around controls; the Pad2D frame.
- * @property Color guideLine          Mid-strength drawn line-work: the Pad2D key lines and pips, slider ticks, in-menu
- *   dividers, and the area drag-indicator strip.
+ * @property Color guideLine          Mid-strength drawn line-work: the Pad2D key lines and pips, slider and dial ticks,
+ *   in-menu dividers, and the area drag-indicator strip.
  * @property Color treeGuideLine      Outliner ancestry guide lines.
  * @property Color text               Primary text and text cursors.
  * @property Color textMuted          Secondary / dimmed text, placeholders, and muted glyphs.

@@ -380,6 +380,7 @@
 	<string name="group_uv_mirror">Mirror</string>
 	<string name="group_keyform_key">Keyframe</string>
 	<string name="group_relation">Relation</string>
+	<string name="group_parameter_control">Control</string>
 	<string name="group_viewport_tools">Tools</string>
 	<string name="cmd_mesh_grab">Grab Vertices</string>
 	<string name="cmd_mesh_scale">Scale Vertices</string>
@@ -696,6 +697,11 @@
 	<string name="cmd_relation_remove">Remove</string>
 	<string name="cmd_relation_copy_to_selected">Copy to Selected</string>
 	<string name="cmd_parameter_toggle_repeat">Toggle Repeat</string>
+	<string name="cmd_parameter_control_follow">Follow Settings</string>
+	<string name="cmd_parameter_control_slider">Slider</string>
+	<string name="cmd_parameter_control_dial">Dial</string>
+	<string name="cmd_parameter_pair_control_pad">Pad</string>
+	<string name="cmd_parameter_pair_control_dials">Two Dials</string>
 	<string name="outliner_menu_select_hierarchy">Select Hierarchy</string>
 
 	<!-- Topology operators (Shift+D / M / V / J), their history labels, and their refusal notices. -->
@@ -1311,7 +1317,7 @@
 	<string name="settings_interface_language">Language</string>
 	<!-- The undo-history cap (interface.historyLimit): how many steps the History panel retains. -->
 	<string name="settings_interface_history_steps">History Steps</string>
-	<!-- parameters.repeatControl: the control a repeating parameter shows.  The slider choice gives a pair its pad. -->
+	<!-- interface.parameters.repeatControl: the control a repeating parameter shows.  The slider choice gives a pair its pad. -->
 	<string name="settings_interface_repeat_control">Repeating Parameter Control</string>
 	<string name="settings_repeat_control_dial">Dial</string>
 	<string name="settings_repeat_control_slider">Slider and Pad</string>

@@ -25,6 +25,7 @@
 
 ### 0.8.0 Goals - February
 1.) (Tentative) Brush/Tool Backend Machinery.  See: https://github.com/umamoorg/umamo/pull/376
+2.) Polish UMA.md format document and publish it.
 
 ## VERY IMPORTANT
 * Hire translators for localization.

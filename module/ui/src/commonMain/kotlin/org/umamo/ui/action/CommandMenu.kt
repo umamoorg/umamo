@@ -49,8 +49,9 @@ sealed interface CommandMenuRow {
 	 * @property CommandFamily family The family.
 	 * @property String? openerId The command that opens the family as a pie, whose title then labels the submenu and
 	 *   without which the row is left out; null for a family nothing opens, which goes under its own heading.
+	 * @property Any? argument What every row runs its command with, as [Members] has it, or null to run each with none.
 	 */
-	data class Family(val family: CommandFamily, val openerId: String? = null) : CommandMenuRow
+	data class Family(val family: CommandFamily, val openerId: String? = null, val argument: Any? = null) : CommandMenuRow
 
 	/**
 	 * A named run of rows as a submenu.  Left out when none of its rows is there.
@@ -178,7 +179,7 @@ private fun arrangedRow(row: CommandMenuRow, commands: CommandRegistry): List<Re
 			if (label == null || familyRows.isEmpty()) {
 				emptyList()
 			} else {
-				listOf(ResolvedRow.Submenu(label, familyRows))
+				listOf(ResolvedRow.Submenu(label, if (row.argument == null) familyRows else runWith(row.argument, familyRows)))
 			}
 		}
 
@@ -355,7 +356,8 @@ private fun menuItemOf(
  *
  * A command offered with a list of arguments is a submenu of them, a row apiece under the argument's own label, and
  * cannot open while the list is empty.  Any other command is one row, with its glyph and whatever chord the keymap
- * binds to it - unless the row runs it with an argument, since the chord runs it with none.
+ * binds to it - unless the row runs it with an argument, since the chord runs it with none.  A command that reports a
+ * state is a choice row, ticked while it is the one in effect for that argument.
  *
  * @param Command command The command the entry stands for.
  * @param String label The entry's label, already resolved.
@@ -390,6 +392,7 @@ internal fun commandMenuItem(
 		shortcut = if (argument == null) keymap.chordFor(command.id)?.let { chord -> formatAccelerator(chord) } else null,
 		enabled = available,
 		icon = command.icon,
+		checked = if (command.reportsState) command.isOn(argument) else null,
 	)
 }
 

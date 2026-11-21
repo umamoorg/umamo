@@ -372,6 +372,12 @@ private fun keyedTriangle(id: DrawableId, axes: List<KeyformAxis>): Drawable {
  * @property String rangeMaximum The range editor's maximum caption.
  * @property String repeat The range editor's Repeat checkbox.
  * @property String toggleRepeat The Toggle Repeat entry of a parameter row's menu.
+ * @property String control The Control submenu of a parameter row's menu.
+ * @property String controlFollow The Control submenu's Follow Settings row, on a slider's menu and a pad's.
+ * @property String controlSlider The single Control submenu's Slider row.
+ * @property String controlDial The single Control submenu's Dial row.
+ * @property String controlPad The pair Control submenu's Pad row.
+ * @property String controlDials The pair Control submenu's Two Dials row.
  * @property String more The overflow chip a narrow header collapses into.
  * @property String trackGeometry The keyform sheet's label for a geometry track.
  * @property String keyformInsert The keyform sheet's Insert Key lane entry.
@@ -440,6 +446,12 @@ internal class PanelText(
 	val rangeMaximum: String,
 	val repeat: String,
 	val toggleRepeat: String,
+	val control: String,
+	val controlFollow: String,
+	val controlSlider: String,
+	val controlDial: String,
+	val controlPad: String,
+	val controlDials: String,
 	val more: String,
 	val trackGeometry: String,
 	val keyformInsert: String,
@@ -776,6 +788,12 @@ internal fun ComposeUiTest.mountParametersPanel(harness: ParametersPanelHarness)
 				rangeMaximum = stringResource(Res.string.parameter_range_max),
 				repeat = stringResource(Res.string.parameter_range_repeat),
 				toggleRepeat = stringResource(Res.string.cmd_parameter_toggle_repeat),
+				control = stringResource(Res.string.group_parameter_control),
+				controlFollow = stringResource(Res.string.cmd_parameter_control_follow),
+				controlSlider = stringResource(Res.string.cmd_parameter_control_slider),
+				controlDial = stringResource(Res.string.cmd_parameter_control_dial),
+				controlPad = stringResource(Res.string.cmd_parameter_pair_control_pad),
+				controlDials = stringResource(Res.string.cmd_parameter_pair_control_dials),
 				more = stringResource(Res.string.header_more),
 				trackGeometry = stringResource(Res.string.track_geometry),
 				keyformInsert = stringResource(Res.string.cmd_keyform_insert),
@@ -1141,7 +1159,7 @@ internal fun padPointOf(
 }
 
 /**
- * Where a repeating parameter's dial sits, worked out the way [sliderBox] is.  The island's content runs from 6 dp
+ * Where a single parameter's dial sits, worked out the way [sliderBox] is.  The island's content runs from 6 dp
  * right of the grip to 24 dp right of the number field, and the dial is centered across it, the dial spacing below
  * the value row.
  *
@@ -1162,7 +1180,7 @@ internal fun ComposeUiTest.dialBox(harness: ParametersPanelHarness, rowIndex: In
 }
 
 /**
- * Where a pair row's two dials sit, when a repeating member gives the pair dials in place of its pad.  The island's
+ * Where a pair row's two dials sit, when the pair shows dials in place of its pad.  The island's
  * content is split in two halves, each dial centered in its own, the dial spacing below the lower axis's value row.
  *
  * @param ParametersPanelHarness harness The mounted harness.

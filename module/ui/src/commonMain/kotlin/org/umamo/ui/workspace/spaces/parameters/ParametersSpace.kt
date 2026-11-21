@@ -22,9 +22,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import org.umamo.edit.ParameterControl
 import org.umamo.edit.ParameterMoveSubject
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.Selection
+import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.menu.ContextMenuArea
 import org.umamo.ui.model.LocalEditorSession
@@ -99,9 +101,12 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// Per-parameter key marks (circle grid keys / square blend keys) for the sliders; one graph pass,
 	// recomputed only when the model changes.
 	val keyMarksByParameter = remember(puppet) { puppet.parameterKeyMarks() }
-	// The control a repeating parameter shows, read once here and handed down, so the rows do not each subscribe.
+	// The control a repeating parameter shows unless set otherwise, read once here and handed down, so the rows do not each subscribe.
 	val repeatControlKey by rememberStringSetting(ParametersSettings.REPEAT_CONTROL_KEY, ParametersSettings.REPEAT_CONTROL_DEFAULT.key)
 	val repeatControl = RepeatControlSetting.fromKey(repeatControlKey)
+	// The control each parameter was set to show, held as state and never read here: each row reads its own entry,
+	// so a pick runs the row it changes and not the panel.
+	val parameterControls = remember(session) { session?.parameterControls ?: MutableStateFlow(emptyMap<ParameterId, ParameterControl>()) }.collectAsState()
 
 	// The "affects the selected object" filter: when it is on and something is selected, restrict the panel
 	// to the parameters that drive the selection (effective, through the deformer chain).  Inert with no
@@ -208,6 +213,7 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 							row = row,
 							keyMarksByParameter = keyMarksByParameter,
 							repeatControl = repeatControl,
+							parameterControls = parameterControls,
 							parameterSelection = parameterSelection,
 							labels = labels,
 							pose = pose,

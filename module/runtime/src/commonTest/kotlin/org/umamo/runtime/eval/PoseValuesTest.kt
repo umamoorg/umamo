@@ -25,7 +25,10 @@ class PoseValuesTest {
 		}
 	}
 
-	/** Umamo keeps exactly max where the runtime evaluates it as min, so the max key stays reachable. */
+	/**
+	 * Umamo keeps exactly max where the runtime evaluates it as min (measured in ParameterRepeatOracleTest), so the
+	 * max key stays reachable.
+	 */
 	@Test
 	fun bothEndsStandOnARepeatingAxis() {
 		assertEquals(0f, unit(repeat = true).wrapOrClamp(0f))

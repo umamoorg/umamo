@@ -70,7 +70,7 @@ private const val RESET_EPSILON = 1e-4f
  */
 private val RANGE_FIELD_LIMIT = -1_000_000f..1_000_000f
 
-/** The diameter of the dial a repeating parameter shows in place of its slider. */
+/** The diameter of the dial a row shows in place of its slider, and of each dial a pair shows in place of its pad. */
 internal val PARAMETER_DIAL_DIAMETER: Dp = 120.dp
 
 /** The space above and below a dial, between it and the value row over it. */
@@ -230,7 +230,7 @@ internal fun ParameterSlider(
 
 	when (control) {
 		SingleControl.Dial -> {
-			// The dial reports laps past the seam, and the parameter's own rule wraps them, so the pose stays in range.
+			// The dial reports laps past the seam, and the parameter's own rule brings them back, so the pose stays in range.
 			// Centered by its modifier, not in a box, so a drag frame runs no extra lambda.
 			Dial(
 				value = value,
