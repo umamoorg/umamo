@@ -10,8 +10,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isTertiaryPressed
@@ -63,6 +65,7 @@ private const val DIAL_FULL_TURN = (2.0 * PI).toFloat()
  * @param Boolean wraps Whether the owner wraps the value at the seam.  A held-Ctrl snap then reaches a key across
  *   the seam, and the laps count without limit; a value that clamps snaps along the range alone, and its laps stop
  *   one out either side.
+ * @param Color accentColor The color of the fill and the hand; the theme's accent when unspecified.
  */
 @Composable
 fun Dial(
@@ -74,11 +77,12 @@ fun Dial(
 	keyMarks: List<SliderKeyMark> = emptyList(),
 	thumbShape: SliderKeyShape = SliderKeyShape.Circle,
 	wraps: Boolean = true,
+	accentColor: Color = Color.Unspecified,
 ) {
 	val colors = LocalUmamoColors.current
 	val fill = dialFillFraction(value, valueRange)
 	val trackColor = colors.sliderTrack
-	val fillColor = colors.accent
+	val fillColor = accentColor.takeOrElse { colors.accent }
 	val thumbColor = colors.sliderThumb
 	val tickColor = colors.guideLine
 	// pointerInput is keyed only on valueRange, so it does not restart when a recomposition hands in new callbacks (a

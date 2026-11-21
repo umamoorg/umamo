@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -54,6 +55,7 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.theme.UmamoColors
 import org.umamo.ui.theme.UmamoIcon
 import kotlin.math.abs
 
@@ -222,6 +224,7 @@ internal fun ParameterSlider(
 		link = link,
 	)
 	val sliderKeyMarks = remember(keyMarks) { sliderKeyMarksOf(keyMarks) }
+	val accentColor = controlAccentOf(parameter.repeat, LocalUmamoColors.current)
 
 	if (parameter.repeat) {
 		// The dial reports laps past the seam, and the parameter's own rule wraps them, so the pose stays in range.
@@ -234,6 +237,7 @@ internal fun ParameterSlider(
 			keyMarks = sliderKeyMarks,
 			thumbShape = thumbShapeOf(parameter),
 			wraps = true,
+			accentColor = accentColor,
 			modifier =
 				Modifier
 					.padding(vertical = PARAMETER_DIAL_SPACING)
@@ -249,6 +253,7 @@ internal fun ParameterSlider(
 			valueRange = parameter.min..parameter.max,
 			keyMarks = sliderKeyMarks,
 			thumbShape = thumbShapeOf(parameter),
+			accentColor = accentColor,
 			modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
 		)
 	}
@@ -280,6 +285,16 @@ private fun thumbShapeOf(parameter: Parameter): SliderKeyShape =
 	} else {
 		SliderKeyShape.Circle
 	}
+
+/**
+ * The accent a parameter's control draws its fill in: the repeat accent when its value wraps, so it reads apart from a
+ * control that clamps, and the plain accent otherwise.
+ *
+ * @param Boolean repeats Whether the value the control drives wraps; for a pad, whether either axis does.
+ * @param UmamoColors colors The palette.
+ * @return Color The accent.
+ */
+private fun controlAccentOf(repeats: Boolean, colors: UmamoColors): Color = if (repeats) colors.repeatAccent else colors.accent
 
 /**
  * One 2D pad for a LINKED parameter pair: a labelled numeric/reset row per axis above a [Pad2D] that
@@ -396,6 +411,9 @@ internal fun ParameterPad2D(
 		)
 	}
 
+	// The pad has one handle for both axes, so it takes the repeat accent when either of them wraps.
+	val padAccentColor = controlAccentOf(horizontal.repeat || vertical.repeat, colors)
+
 	if (horizontal.repeat || vertical.repeat) {
 		Row(modifier = Modifier.fillMaxWidth().padding(vertical = PARAMETER_DIAL_SPACING)) {
 			ParameterPairDial(horizontal, xValue, horizontalKeyMarks, onPreview, onCommitGesture, Modifier.weight(1f))
@@ -416,6 +434,7 @@ internal fun ParameterPad2D(
 			yRange = vertical.min..vertical.max,
 			xKeyMarks = xKeyMarks,
 			yKeyMarks = yKeyMarks,
+			accentColor = padAccentColor,
 			modifier = Modifier.padding(10.dp).fillMaxWidth(),
 		)
 	}
@@ -454,6 +473,7 @@ private fun ParameterPairDial(
 			keyMarks = dialKeyMarks,
 			thumbShape = thumbShapeOf(parameter),
 			wraps = parameter.repeat,
+			accentColor = controlAccentOf(parameter.repeat, LocalUmamoColors.current),
 			modifier = Modifier.size(PARAMETER_DIAL_DIAMETER),
 		)
 		Text(
