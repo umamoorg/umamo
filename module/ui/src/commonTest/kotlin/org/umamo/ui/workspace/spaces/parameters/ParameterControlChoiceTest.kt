@@ -28,7 +28,7 @@ class ParameterControlChoiceTest {
 		val clamping = parameter("ParamAngleZ", repeat = false)
 
 		for (preference in RepeatControlSetting.entries) {
-			assertEquals(SingleControl.Slider, singleControlOf(clamping, preference, override = null), preference.key)
+			assertEquals(ParameterControl.Slider, singleControlOf(clamping, preference, override = null), preference.key)
 		}
 	}
 
@@ -37,8 +37,8 @@ class ParameterControlChoiceTest {
 	fun aRepeatingParameterFollowsThePreference() {
 		val repeating = parameter("ParamDrip", repeat = true)
 
-		assertEquals(SingleControl.Dial, singleControlOf(repeating, RepeatControlSetting.Dial, override = null))
-		assertEquals(SingleControl.Slider, singleControlOf(repeating, RepeatControlSetting.Slider, override = null))
+		assertEquals(ParameterControl.Dial, singleControlOf(repeating, RepeatControlSetting.Dial, override = null))
+		assertEquals(ParameterControl.Slider, singleControlOf(repeating, RepeatControlSetting.Slider, override = null))
 	}
 
 	/** A pair with no repeating member shows the pad whatever the preference. */
@@ -76,8 +76,8 @@ class ParameterControlChoiceTest {
 			val parameter = parameter("ParamDrip", repeat)
 
 			for (preference in RepeatControlSetting.entries) {
-				assertEquals(SingleControl.Dial, singleControlOf(parameter, preference, ParameterControl.Dial), "repeat=$repeat under ${preference.key}")
-				assertEquals(SingleControl.Slider, singleControlOf(parameter, preference, ParameterControl.Slider), "repeat=$repeat under ${preference.key}")
+				assertEquals(ParameterControl.Dial, singleControlOf(parameter, preference, ParameterControl.Dial), "repeat=$repeat under ${preference.key}")
+				assertEquals(ParameterControl.Slider, singleControlOf(parameter, preference, ParameterControl.Slider), "repeat=$repeat under ${preference.key}")
 			}
 		}
 	}

@@ -12,6 +12,8 @@ import org.umamo.ui.action.CommandRegistry
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -131,6 +133,55 @@ class ParameterCommandsTest {
 			assertFalse(command.isAvailable(eyeY), "$id never on the lower member")
 			assertFalse(command.isAvailable(angle), "$id never on a parameter in no link")
 			assertFalse(command.isAvailable(null), "$id with no parameter")
+		}
+	}
+
+	/**
+	 * A rig whose link has a flat lower member: the panel folds no pad over it, so its upper member keeps a row of
+	 * its own.
+	 *
+	 * @return PuppetModel The rig.
+	 */
+	private fun flatLinkRig(): PuppetModel =
+		rig(RuntimeTarget.NoTarget).let { model ->
+			model.copy(
+				parameters = model.parameters + listOf(Parameter(eyeX, "Eye X", -1f, 1f, 0f), Parameter(eyeY, "Eye Y", 0f, 0f, 0f)),
+				parameterLinks = listOf(ParameterLink(eyeX, eyeY)),
+			)
+		}
+
+	/** A member of a link the panel shows no pad for is on a row of its own, so the single row's control is its, and the pair's is nobody's. */
+	@Test
+	fun aMemberOfALinkThatShowsNoPadTakesTheSingleRowsControl() {
+		val session = EditorSession(flatLinkRig())
+		val registry = CommandRegistry().also { registry -> registry.registerAll(parameterCommands(session, SessionAvailability(session))) }
+
+		for (id in listOf("parameter.control.follow", "parameter.control.slider", "parameter.control.dial")) {
+			assertTrue(commandOver(session, id).isAvailable(eyeX), "$id on the member whose row is its own")
+		}
+
+		for (id in listOf("parameter.pairControl.follow", "parameter.pairControl.pad", "parameter.pairControl.dials")) {
+			assertFalse(commandOver(session, id).isAvailable(eyeX), "$id where no pad shows")
+		}
+
+		assertTrue(registry.invoke("parameter.control.dial", eyeX))
+		assertEquals(ParameterControl.Dial, session.parameterControls.value[eyeX])
+		assertTrue(commandOver(session, "parameter.control.dial").isOn(eyeX), "the pick is the one in effect")
+	}
+
+	/**
+	 * A control is a row in its family and nothing else: untitled, so neither the palette nor the keybindings list
+	 * offers a command that no chord could run.
+	 */
+	@Test
+	fun aControlIsARowAndNothingElse() {
+		val controls = parameterCommands(null, SessionAvailability(null)).filter { command -> command.group != null }
+
+		assertEquals(6, controls.size)
+
+		for (command in controls) {
+			assertNull(command.title, "${command.id} has a title to list")
+			assertNotNull(command.rowLabel, "${command.id} has no label for its row")
 		}
 	}
 

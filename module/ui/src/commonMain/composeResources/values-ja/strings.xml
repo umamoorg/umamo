@@ -637,11 +637,11 @@
 	<string name="cmd_relation_remove">削除</string>
 	<string name="cmd_relation_copy_to_selected">選択項目にコピー</string>
 	<string name="cmd_parameter_toggle_repeat">リピートを切り替え</string>
-	<string name="cmd_parameter_control_follow">設定に従う</string>
-	<string name="cmd_parameter_control_slider">スライダー</string>
-	<string name="cmd_parameter_control_dial">ダイヤル</string>
-	<string name="cmd_parameter_pair_control_pad">パッド</string>
-	<string name="cmd_parameter_pair_control_dials">2つのダイヤル</string>
+	<string name="menu_parameter_control_follow">設定に従う</string>
+	<string name="menu_parameter_control_slider">スライダー</string>
+	<string name="menu_parameter_control_dial">ダイヤル</string>
+	<string name="menu_parameter_pair_control_pad">パッド</string>
+	<string name="menu_parameter_pair_control_dials">2つのダイヤル</string>
 	<string name="outliner_menu_select_hierarchy">階層を選択</string>
 
 	<string name="cmd_mesh_duplicate">複製</string>

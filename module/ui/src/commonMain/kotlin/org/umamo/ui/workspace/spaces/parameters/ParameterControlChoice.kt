@@ -4,15 +4,6 @@ import org.umamo.edit.ParameterControl
 import org.umamo.runtime.model.Parameter
 import org.umamo.ui.settings.RepeatControlSetting
 
-/** The control a single parameter's island shows. */
-internal enum class SingleControl {
-	/** The linear slider, which stops at its ends. */
-	Slider,
-
-	/** The dial, which loops round its seam. */
-	Dial,
-}
-
 /** The control a linked pair's island shows. */
 internal enum class PairControl {
 	/** The 2D pad, which drives both axes at once. */
@@ -29,16 +20,10 @@ internal enum class PairControl {
  * @param Parameter parameter The parameter.
  * @param RepeatControlSetting preference The control the rigger prefers for a repeating parameter.
  * @param ParameterControl? override The control the parameter was set to, or null to follow the preference.
- * @return SingleControl The control.
+ * @return ParameterControl The control.
  */
-internal fun singleControlOf(parameter: Parameter, preference: RepeatControlSetting, override: ParameterControl?): SingleControl {
-	val control = override ?: if (parameter.repeat) preference.control() else ParameterControl.Slider
-
-	return when (control) {
-		ParameterControl.Slider -> SingleControl.Slider
-		ParameterControl.Dial -> SingleControl.Dial
-	}
-}
+internal fun singleControlOf(parameter: Parameter, preference: RepeatControlSetting, override: ParameterControl?): ParameterControl =
+	override ?: if (parameter.repeat) preference.control() else ParameterControl.Slider
 
 /**
  * The control a linked pair shows: the one the pair was set to, whether or not a member repeats, else a dial per

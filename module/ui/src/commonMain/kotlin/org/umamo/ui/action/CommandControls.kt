@@ -126,7 +126,7 @@ internal fun CommandIconButton(
 		onClick = { around { commands.invoke(command.id) } },
 		contentDescription = description ?: command.title?.let { title -> stringResource(title) } ?: command.id,
 		// A command that can be the one in effect says so to assistive technology as well as by its fill.
-		modifier = if (command.state != null) modifier.semantics { selected = lit } else modifier,
+		modifier = if (command.reportsState) modifier.semantics { selected = lit } else modifier,
 		appearance = appearance,
 		size = size,
 		glyphSize = glyphSize,

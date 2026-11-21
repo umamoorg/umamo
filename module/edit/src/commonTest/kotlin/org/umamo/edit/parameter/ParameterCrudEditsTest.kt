@@ -1,6 +1,7 @@
 package org.umamo.edit.parameter
 
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ParameterControl
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
@@ -128,6 +129,27 @@ class ParameterCrudEditsTest {
 		val blend = session.model.value.parameters.first { it.id == blendId }
 		assertEquals(ParameterKind.BLEND_SHAPE, blend.kind, "BLEND_SHAPE is carried through to the model")
 		assertTrue(session.model.value.drawables.all { it.blendShapes.isEmpty() }, "a fresh blend parameter keys nothing yet")
+	}
+
+	/**
+	 * A control pick belongs to the parameter it was made on: it waits out that parameter's deletion, so an undo finds
+	 * it, and a new parameter minted on the freed id starts with none.
+	 */
+	@Test
+	fun aNewParameterTakesNoControlFromADeletedOne() {
+		val session = EditorSession(model(listOf(parameter(angleX))))
+		val first = session.createParameter("First")
+		session.setParameterControl(first, ParameterControl.Dial)
+
+		session.deleteParameter(first)
+		session.undo()
+		assertEquals(ParameterControl.Dial, session.parameterControls.value[first], "an undone delete finds the pick")
+
+		session.redo()
+		val second = session.createParameter("Second")
+
+		assertEquals(first, second, "the freed id is minted again")
+		assertNull(session.parameterControls.value[second], "the new parameter follows the preference")
 	}
 
 	/** The minted parameter id skips ids already present. */

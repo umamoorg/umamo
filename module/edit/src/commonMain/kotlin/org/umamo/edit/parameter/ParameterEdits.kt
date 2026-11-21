@@ -99,6 +99,18 @@ fun PuppetModel.withParameterLink(horizontal: ParameterId, vertical: ParameterId
 }
 
 /**
+ * The links the Parameters panel shows as one pad: those whose two members both have a range to move through.  A
+ * link with a flat member still occupies both, but its members keep rows of their own, so whatever asks which row
+ * a parameter is on asks here.
+ *
+ * @return List<ParameterLink> The links, in the model's order.
+ */
+fun PuppetModel.padLinks(): List<ParameterLink> {
+	val movable = parameters.filter { parameter -> parameter.max > parameter.min }.mapTo(HashSet()) { parameter -> parameter.id }
+	return parameterLinks.filter { link -> link.horizontal in movable && link.vertical in movable }
+}
+
+/**
  * Sets parameter [id]'s range and default, and brings its live pose value back into the new range, as one
  * undo step so undo restores both together.
  *

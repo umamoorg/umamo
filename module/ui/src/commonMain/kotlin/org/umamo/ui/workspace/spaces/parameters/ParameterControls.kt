@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.ParameterControl
 import org.umamo.runtime.eval.wrapOrClamp
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -182,7 +183,7 @@ internal fun ParameterIsland(
  * value or the reset commits one step.
  *
  * @param Parameter parameter        The parameter to scrub.
- * @param SingleControl control      The control the row shows, the slider or the dial.
+ * @param ParameterControl control   The control the row shows, the slider or the dial.
  * @param ParameterKeyMarks? keyMarks The parameter's grid / blend key marks to draw on the slider, or null.
  * @param Float     value            The current value.
  * @param ParameterLabels labels     The panel's localized chrome.
@@ -198,7 +199,7 @@ internal fun ParameterIsland(
 @Composable
 internal fun ParameterSlider(
 	parameter: Parameter,
-	control: SingleControl,
+	control: ParameterControl,
 	keyMarks: ParameterKeyMarks?,
 	value: Float,
 	labels: ParameterLabels,
@@ -229,7 +230,7 @@ internal fun ParameterSlider(
 	val accentColor = controlAccentOf(parameter.repeat, LocalUmamoColors.current)
 
 	when (control) {
-		SingleControl.Dial -> {
+		ParameterControl.Dial -> {
 			// The dial reports laps past the seam, and the parameter's own rule brings them back, so the pose stays in range.
 			// Centered by its modifier, not in a box, so a drag frame runs no extra lambda.
 			Dial(
@@ -239,7 +240,8 @@ internal fun ParameterSlider(
 				valueRange = parameter.min..parameter.max,
 				keyMarks = sliderKeyMarks,
 				thumbShape = thumbShapeOf(parameter),
-				wraps = true,
+				// A dial may be picked for a parameter that does not repeat, and that one stops at its seam.
+				wraps = parameter.repeat,
 				accentColor = accentColor,
 				modifier =
 					Modifier
@@ -250,7 +252,7 @@ internal fun ParameterSlider(
 			)
 		}
 
-		SingleControl.Slider -> {
+		ParameterControl.Slider -> {
 			Slider(
 				value = value,
 				onValueChange = onPreview,

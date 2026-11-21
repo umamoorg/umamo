@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.spaces.parameters
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorSession
@@ -22,7 +23,7 @@ import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.commandMenuItem
-import org.umamo.ui.action.rememberCommandMenu
+import org.umamo.ui.action.rememberCommandMenuFor
 import org.umamo.ui.kit.menu.MenuItem
 
 /*
@@ -33,10 +34,19 @@ import org.umamo.ui.kit.menu.MenuItem
  * The builders are composable for the sake of their callbacks: a lambda written in composition is kept
  * across recompositions while what it captures is unchanged.  A row's menu holds a command's row, whose
  * grayed state is a live query, so it is handed back as the builder its menu calls as it opens.
+ *
+ * What a row's menu reads from the command registry is the same for every row but the parameter it runs
+ * with, so the panel resolves it once (ParameterRowMenus) and each row only supplies its parameter.
  */
 
 /** The command a parameter menu's Toggle Repeat entry runs, with the parameter as its argument. */
 private const val TOGGLE_REPEAT_COMMAND = "parameter.toggleRepeat"
+
+/** A slider row's Control submenu, to be run with the row's parameter. */
+private val SINGLE_CONTROL_ROWS = listOf(CommandMenuRow.Family(CommandFamily.ParameterControl))
+
+/** A pad row's Control submenu, to be run with the pair's horizontal member. */
+private val PAIR_CONTROL_ROWS = listOf(CommandMenuRow.Family(CommandFamily.PairControl))
 
 /**
  * What a parameter menu builds its Toggle Repeat rows from: the command and its title, resolved in composition,
@@ -47,7 +57,7 @@ private const val TOGGLE_REPEAT_COMMAND = "parameter.toggleRepeat"
  * @property CommandRegistry commands The registry a row dispatches through.
  * @property Keymap keymap The keymap a row's accelerator is read from.
  */
-private class ToggleRepeatEntry(
+internal class ToggleRepeatEntry(
 	val command: Command,
 	val title: String,
 	private val commands: CommandRegistry,
@@ -64,7 +74,7 @@ private class ToggleRepeatEntry(
 }
 
 /**
- * The Toggle Repeat entry as this composition resolves it.
+ * The Toggle Repeat entry as this composition resolves it, the same object while it resolves the same.
  *
  * @return ToggleRepeatEntry? The entry, or null while the command is not registered.
  */
@@ -75,7 +85,39 @@ private fun toggleRepeatEntry(): ToggleRepeatEntry? {
 	val command = commands[TOGGLE_REPEAT_COMMAND] ?: return null
 	val title = command.title?.let { resource -> stringResource(resource) } ?: command.id
 
-	return ToggleRepeatEntry(command, title, commands, keymap)
+	return remember(command, title, commands, keymap) { ToggleRepeatEntry(command, title, commands, keymap) }
+}
+
+/**
+ * What every parameter row's menu reads from the command registry, resolved once for the panel: the Toggle Repeat
+ * entry, and the Control submenu of a slider's row and of a pad's.  A row supplies only the parameter each runs with.
+ *
+ * Immutable so Compose compares it by value, and every member is the same object while the registry resolves the
+ * same, so a row handed this again skips.
+ *
+ * @property ToggleRepeatEntry? toggleRepeat The Toggle Repeat entry, or null while the command is not registered.
+ * @property Function singleControl A slider row's Control submenu, run with the parameter the menu opens on.
+ * @property Function pairControl A pad row's Control submenu, run with the pair's horizontal member.
+ */
+@Immutable
+internal data class ParameterRowMenus(
+	val toggleRepeat: ToggleRepeatEntry?,
+	val singleControl: (ParameterId) -> List<MenuItem>,
+	val pairControl: (ParameterId) -> List<MenuItem>,
+)
+
+/**
+ * The rows' share of the command registry as this composition resolves it.
+ *
+ * @return ParameterRowMenus The entry and the two submenu builders.
+ */
+@Composable
+internal fun rememberParameterRowMenus(): ParameterRowMenus {
+	val toggleRepeat = toggleRepeatEntry()
+	val singleControl = rememberCommandMenuFor(SINGLE_CONTROL_ROWS)
+	val pairControl = rememberCommandMenuFor(PAIR_CONTROL_ROWS)
+
+	return remember(toggleRepeat, singleControl, pairControl) { ParameterRowMenus(toggleRepeat, singleControl, pairControl) }
 }
 
 /**
@@ -200,6 +242,7 @@ internal fun parameterGroupMenuItems(
  * @param EditorSession? session The editing session, or null with none, which disables the entries.
  * @param ParametersViewState viewState The panel's view state, which holds the rename target.
  * @param List<MenuItem> createMenuItems The entries that create, which every parameter menu ends with.
+ * @param ParameterRowMenus rowMenus What the menu reads from the command registry, resolved by the panel.
  * @return Function The builder the menu calls as it opens: the entries, in menu order.
  */
 @Composable
@@ -209,10 +252,9 @@ internal fun parameterSliderMenuItems(
 	session: EditorSession?,
 	viewState: ParametersViewState,
 	createMenuItems: List<MenuItem>,
+	rowMenus: ParameterRowMenus,
 ): () -> List<MenuItem> {
 	val parameterId = parameter.id
-	val toggleRepeat = toggleRepeatEntry()
-	val control = rememberCommandMenu(remember(parameterId) { listOf(CommandMenuRow.Family(CommandFamily.ParameterControl, argument = parameterId)) })
 
 	return {
 		buildList {
@@ -223,10 +265,10 @@ internal fun parameterSliderMenuItems(
 						onSelect = { viewState.renamingParameterId = parameterId },
 						enabled = session != null,
 					),
-					toggleRepeat?.rowFor(parameterId),
+					rowMenus.toggleRepeat?.rowFor(parameterId),
 				),
 			)
-			addAll(control())
+			addAll(rowMenus.singleControl(parameterId))
 			addAll(
 				listOf(
 					MenuItem.Action(
@@ -253,6 +295,7 @@ internal fun parameterSliderMenuItems(
  * @param EditorSession? session The editing session, or null with none, which disables the entries.
  * @param ParametersViewState viewState The panel's view state, which holds the rename target.
  * @param List<MenuItem> createMenuItems The entries that create, which every parameter menu ends with.
+ * @param ParameterRowMenus rowMenus What the menu reads from the command registry, resolved by the panel.
  * @return Function The builder the menu calls as it opens: the entries, in menu order.
  */
 @Composable
@@ -263,10 +306,10 @@ internal fun parameterPadMenuItems(
 	session: EditorSession?,
 	viewState: ParametersViewState,
 	createMenuItems: List<MenuItem>,
+	rowMenus: ParameterRowMenus,
 ): () -> List<MenuItem> {
-	val toggleRepeat = toggleRepeatEntry()
+	val toggleRepeat = rowMenus.toggleRepeat
 	val horizontalId = horizontal.id
-	val control = rememberCommandMenu(remember(horizontalId) { listOf(CommandMenuRow.Family(CommandFamily.PairControl, argument = horizontalId)) })
 
 	return {
 		buildList {
@@ -296,7 +339,7 @@ internal fun parameterPadMenuItems(
 					},
 				),
 			)
-			addAll(control())
+			addAll(rowMenus.pairControl(horizontalId))
 			addAll(
 				listOf(
 					MenuItem.Submenu(

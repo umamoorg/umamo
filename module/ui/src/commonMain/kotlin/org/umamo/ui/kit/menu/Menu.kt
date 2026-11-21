@@ -404,7 +404,12 @@ private fun MenuSubmenuRow(
 	LaunchedEffect(rowHovered, flyoutHovered) {
 		if (!rowHovered && !flyoutHovered) {
 			delay(SUBMENU_CLOSE_GRACE_MS.milliseconds)
-			onRequestClose()
+
+			// Read again as the grace ends: a hover is written a frame before the recomposition that restarts this
+			// effect, and a grace that ends inside that frame must not close the flyout under the pointer.
+			if (!rowHovered && !flyoutHovered) {
+				onRequestClose()
+			}
 		}
 	}
 

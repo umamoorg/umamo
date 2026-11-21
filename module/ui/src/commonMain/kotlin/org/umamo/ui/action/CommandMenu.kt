@@ -73,8 +73,9 @@ private sealed interface ResolvedRow {
 	 * @property Command command The command the row stands for.
 	 * @property String label The resolved label.
 	 * @property Any? argument What the row runs the command with, or null for none.
+	 * @property Boolean checkList Whether the row sits in a check-list family, and so carries a tick slot.
 	 */
-	data class Of(val command: Command, val label: String, val argument: Any? = null) : ResolvedRow
+	data class Of(val command: Command, val label: String, val argument: Any? = null, val checkList: Boolean = false) : ResolvedRow
 
 	/**
 	 * A family as a submenu.
@@ -126,6 +127,25 @@ internal fun rememberCommandMenu(rows: List<CommandMenuRow>): () -> List<MenuIte
 	val resolved = arrangedRows(rows, commands)
 
 	return remember(resolved, commands, keymap) { { resolved.map { row -> menuItemOf(row, commands, keymap) } } }
+}
+
+/**
+ * An arranged menu for a list whose every item opens it on itself, as the builder to call when the menu opens:
+ * [rows] resolved once for the whole list, and every row run with the argument the opening item hands over.
+ *
+ * The composition calling this is subscribed to the registry, as [rememberCommandMenu]'s is, and the builder is the
+ * same object while the rows resolve the same, so it can be handed down a list without recomposing it.
+ *
+ * @param List<CommandMenuRow> rows The menu's rows.
+ * @return Function The builder: the menu's entries for an argument, with each row's grayed state as it is when called.
+ */
+@Composable
+internal fun rememberCommandMenuFor(rows: List<CommandMenuRow>): (argument: Any) -> List<MenuItem> {
+	val commands = LocalCommands.current
+	val keymap = LocalKeymap.current
+	val resolved = arrangedRows(rows, commands)
+
+	return remember(resolved, commands, keymap) { { argument -> runWith(argument, resolved).map { row -> menuItemOf(row, commands, keymap) } } }
 }
 
 /**
@@ -303,9 +323,15 @@ private fun blocksOf(family: CommandFamily): List<List<CommandListing>> {
  */
 @Composable
 private fun listingRows(listing: CommandListing, commands: CommandRegistry): List<ResolvedRow> {
+	// The check-list style is the family's to choose, and a section's rows are its family's.
+	val checkList =
+		when (listing) {
+			is CommandFamily -> listing.checkList
+			is CommandSection -> listing.parent.checkList
+		}
 	val own =
 		commands.membersOf(listing).map { command ->
-			ResolvedRow.Of(command, command.rowLabel?.let { label -> stringResource(label) } ?: command.id)
+			ResolvedRow.Of(command, command.rowLabel?.let { label -> stringResource(label) } ?: command.id, checkList = checkList)
 		}
 	val submenus =
 		CommandFamily.entries.filter { nested -> nested.parent == listing }.mapNotNull { nested ->
@@ -336,7 +362,7 @@ private fun menuItemOf(
 ): MenuItem =
 	when (row) {
 		is ResolvedRow.Of -> {
-			commandMenuItem(row.command, row.label, commands, keymap, row.argument)
+			commandMenuItem(row.command, row.label, commands, keymap, row.argument, checkList = row.checkList)
 		}
 
 		is ResolvedRow.Submenu -> {
@@ -356,14 +382,16 @@ private fun menuItemOf(
  *
  * A command offered with a list of arguments is a submenu of them, a row apiece under the argument's own label, and
  * cannot open while the list is empty.  Any other command is one row, with its glyph and whatever chord the keymap
- * binds to it - unless the row runs it with an argument, since the chord runs it with none.  A command that reports a
- * state is a choice row, ticked while it is the one in effect for that argument.
+ * binds to it - unless the row runs it with an argument, since the chord runs it with none.  In a check list the row
+ * is a choice row, ticked while its command is the one in effect for that argument; anywhere else it carries no tick,
+ * whatever state its command reports.
  *
  * @param Command command The command the entry stands for.
  * @param String label The entry's label, already resolved.
  * @param CommandRegistry commands The registry the entry dispatches through.
  * @param Keymap keymap The keymap the accelerator is read from.
  * @param Any? argument What the entry runs the command with, or null for none.
+ * @param Boolean checkList Whether the entry sits in a check list, the style its family opts into.
  * @param Function around Runs the dispatch it is handed, for a site that has to set something up for the command to
  *   read and clear it after: a menu owns the pointer by the time a row is picked, so a command that reads what the
  *   pointer was over needs that published again around its run.
@@ -375,6 +403,7 @@ internal fun commandMenuItem(
 	commands: CommandRegistry,
 	keymap: Keymap,
 	argument: Any? = null,
+	checkList: Boolean = false,
 	around: (dispatch: () -> Unit) -> Unit = { dispatch -> dispatch() },
 ): MenuItem {
 	val available = command.isAvailable(argument)
@@ -392,7 +421,7 @@ internal fun commandMenuItem(
 		shortcut = if (argument == null) keymap.chordFor(command.id)?.let { chord -> formatAccelerator(chord) } else null,
 		enabled = available,
 		icon = command.icon,
-		checked = if (command.reportsState) command.isOn(argument) else null,
+		checked = if (checkList) command.isOn(argument) else null,
 	)
 }
 

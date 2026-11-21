@@ -15,6 +15,9 @@ import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandTable
+import org.umamo.ui.action.commandMenuItem
+import org.umamo.ui.action.defaultKeymap
+import org.umamo.ui.kit.menu.MenuItem
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.menu_select_kind_drawables
 import org.umamo.ui.resources.menu_select_kind_parts
@@ -27,6 +30,7 @@ import org.umamo.ui.workspace.AreaOverlayHub
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -289,6 +293,27 @@ class CommandGroupTableTest {
 		assertEquals(listOf("mode.object"), inEffect(CommandFamily.EditorMode))
 		assertEquals(emptyList(), inEffect(CommandFamily.SelectMode))
 		assertEquals(emptyList(), inEffect(CommandFamily.ProportionalFalloff))
+	}
+
+	/**
+	 * The editor-mode family is no check list, so the row a menu builds for a mode wears that mode's glyph and no
+	 * tick, the current mode's included.
+	 */
+	@Test
+	fun aModesMenuRowWearsItsGlyphAndNoTick() {
+		val session = commandFixtureSession(EditorMode.Edit)
+		val registry = CommandRegistry().also { registry -> everyCommandTable(session).forEach { command -> registry.register(command) } }
+		val keymap = defaultKeymap()
+		val modes = registry.inGroup(CommandFamily.EditorMode)
+
+		assertTrue(modes.any { mode -> mode.isOn() }, "one mode is current")
+
+		for (mode in modes) {
+			val row = commandMenuItem(mode, mode.id, registry, keymap) as MenuItem.Action
+
+			assertNull(row.checked, "${mode.id} carries a tick slot")
+			assertNotNull(row.icon, "${mode.id} lost its glyph")
+		}
 	}
 
 	/** A button or a chip shows a member by its glyph, so a member of these families with none drawn would have no face. */
