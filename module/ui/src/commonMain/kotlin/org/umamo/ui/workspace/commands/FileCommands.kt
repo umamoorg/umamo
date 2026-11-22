@@ -279,11 +279,15 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 			availability = CommandAvailability { artwork()?.canReload?.invoke() == true },
 			icon = LocalUmamoIcons.refresh,
 		) { argument -> artwork()?.reloadArtwork?.invoke(routing.operationStripArea(), argument as? ReloadScope) },
+		// Run only with a request: it pairs particular tiles with a particular layer, which a tile chip, a review row,
+		// or a drop names and a chord cannot.  needsArgument keeps it off the keybindings page and the palette, where
+		// it could only ever do nothing.
 		Command(
 			"sources.relink",
 			title = Res.string.cmd_sources_relink,
 			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
+			needsArgument = true,
 		) { argument ->
 			val request = argument as? RelinkRequest ?: return@Command
 			artwork()?.relinkArtwork?.invoke(request, routing.operationStripArea())
@@ -295,20 +299,27 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 			availability = CommandAvailability { artwork() != null },
 			icon = LocalUmamoIcons.wand,
 		) { artwork()?.matchArtwork?.invoke(routing.operationStripArea()) },
+		// Run only with the file record a Sources row's menu names.  The space keeps no selected or hovered row for a
+		// chord to act on, so needsArgument keeps it off the keybindings page and the palette, where it could only ever
+		// do nothing.
 		Command(
 			"sources.replaceArtwork",
 			title = Res.string.cmd_sources_replace_artwork,
 			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
+			needsArgument = true,
 		) { argument ->
 			val request = argument as? ReplaceRequest ?: return@Command
 			artwork()?.replaceArtwork?.invoke(request, routing.operationStripArea())
 		},
+		// Run only with the tile a Sources row names, for the same reason as Replace Artwork: no selected or hovered
+		// row gives a chord a tile to act on.
 		Command(
 			"sources.deleteArt",
 			title = Res.string.cmd_sources_delete_art,
 			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
+			needsArgument = true,
 		) { argument ->
 			val request = argument as? DeleteArtRequest ?: return@Command
 			artwork()?.deleteArt?.invoke(request)
