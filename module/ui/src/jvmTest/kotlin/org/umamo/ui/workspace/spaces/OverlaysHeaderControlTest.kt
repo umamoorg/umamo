@@ -467,7 +467,7 @@ class OverlaysHeaderControlTest {
 		/** The English descriptions the hover case looks for: a heading's, a row's, and a field's. */
 		const val GUIDES_DESCRIPTION = "The visual helpers for placement and alignment."
 		const val GRID_DESCRIPTION = "The divided grid behind the scene that is used for snapping and visual alignment."
-		const val SCALE_DESCRIPTION = "The spacing of the major grid lines, in world units; in the UV editor, in texels."
+		const val SCALE_DESCRIPTION = "The spacing of the major grid lines, in world units; in the UV Editor area, in texels."
 
 		/** Comfortably past the tooltip's dwell delay. */
 		const val TOOLTIP_WAIT_MILLIS = 1_000L
