@@ -1379,7 +1379,6 @@
 	<string name="settings_colors_role_idle">Idle</string>
 	<string name="settings_colors_role_selected">Selected</string>
 	<string name="settings_colors_role_active">Active</string>
-	<string name="settings_colors_role_offkey">Off-key</string>
 	<string name="settings_colors_role_unkeyed">Unkeyed</string>
 	<string name="settings_colors_role_hovered">Hovered</string>
 	<!-- Relation pick (a Properties eyedropper): the near-cursor badge naming what a click would bind. -->

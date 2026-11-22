@@ -51,7 +51,6 @@ import org.umamo.ui.resources.settings_colors_pinned_placement
 import org.umamo.ui.resources.settings_colors_role_active
 import org.umamo.ui.resources.settings_colors_role_hovered
 import org.umamo.ui.resources.settings_colors_role_idle
-import org.umamo.ui.resources.settings_colors_role_offkey
 import org.umamo.ui.resources.settings_colors_role_selected
 import org.umamo.ui.resources.settings_colors_role_unkeyed
 import org.umamo.ui.resources.settings_colors_selection_highlight
@@ -385,19 +384,16 @@ internal fun ColorsSection() {
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_idle), ViewportColorSettings.VERTEX_IDLE_KEY, ViewportColorSettings.VERTEX_IDLE_DEFAULT)
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), ViewportColorSettings.VERTEX_SELECTED_KEY, ViewportColorSettings.VERTEX_SELECTED_DEFAULT)
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), ViewportColorSettings.VERTEX_ACTIVE_KEY, ViewportColorSettings.VERTEX_ACTIVE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_offkey), ViewportColorSettings.VERTEX_OFFKEY_KEY, ViewportColorSettings.VERTEX_OFFKEY_DEFAULT)
 
 			ColorGroupHeading(stringResource(Res.string.settings_colors_group_edge))
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_idle), ViewportColorSettings.EDGE_IDLE_KEY, ViewportColorSettings.EDGE_IDLE_DEFAULT)
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), ViewportColorSettings.EDGE_SELECTED_KEY, ViewportColorSettings.EDGE_SELECTED_DEFAULT)
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), ViewportColorSettings.EDGE_ACTIVE_KEY, ViewportColorSettings.EDGE_ACTIVE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_offkey), ViewportColorSettings.EDGE_OFFKEY_KEY, ViewportColorSettings.EDGE_OFFKEY_DEFAULT)
 
 			ColorGroupHeading(stringResource(Res.string.settings_colors_group_face))
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_idle), ViewportColorSettings.FACE_IDLE_KEY, ViewportColorSettings.FACE_IDLE_DEFAULT)
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), ViewportColorSettings.FACE_SELECTED_KEY, ViewportColorSettings.FACE_SELECTED_DEFAULT)
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), ViewportColorSettings.FACE_ACTIVE_KEY, ViewportColorSettings.FACE_ACTIVE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_offkey), ViewportColorSettings.FACE_OFFKEY_KEY, ViewportColorSettings.FACE_OFFKEY_DEFAULT)
 
 			Text(text = stringResource(Res.string.settings_colors_deformers), style = typography.titleSmall)
 
@@ -428,7 +424,7 @@ private fun ColorGroupHeading(label: String) {
 /**
  * One color row: a role label bound to a [HexColorField] editing the given settings key write-through.
  *
- * @param String label The already-localized role label (Idle / Selected / Active / Off-key).
+ * @param String label The already-localized role label (Idle / Selected / Active).
  * @param String key The dotted settings key the row edits.
  * @param String defaultHex The bundled default used when the key is absent.
  */

@@ -1286,7 +1286,6 @@
 	<string name="settings_colors_role_idle">通常</string>
 	<string name="settings_colors_role_selected">選択中</string>
 	<string name="settings_colors_role_active">アクティブ</string>
-	<string name="settings_colors_role_offkey">キー外</string>
 	<string name="settings_colors_role_unkeyed">キー未設定</string>
 	<string name="settings_colors_role_hovered">ホバー中</string>
 	<!-- リレーション選択（スポイト）：クリックで取得する対象を示すカーソル脇のバッジ。 -->
