@@ -1327,23 +1327,23 @@
 	<string name="settings_theme_light">Light</string>
 	<string name="settings_theme_system">System</string>
 	<string name="settings_interface_language">Language</string>
-	<string name="settings_interface_language_description">The language of the menus, panels, and messages.  The names in your document are never translated.</string>
+	<string name="settings_interface_language_description">The language of the menus, panels, and messages.</string>
 	<!-- The undo-history cap (interface.historyLimit): how many steps the History panel retains. -->
 	<string name="settings_interface_history_steps">History Steps</string>
-	<string name="settings_interface_history_steps_description">How many steps the History panel keeps for undo.  Lowering it never drops the current state or what is left to redo.</string>
+	<string name="settings_interface_history_steps_description">How many steps the History panel keeps for undo.  Increasing the amount of steps increases the amount of memory used by the application.</string>
 	<!-- interface.parameters.repeatControl: the control a repeating parameter shows.  The slider choice gives a pair its pad. -->
 	<string name="settings_interface_repeat_control">Repeating Parameter Control</string>
-	<string name="settings_interface_repeat_control_description">The control the Parameters panel shows for a parameter that repeats.  With Slider and Pad, a pair with a repeating member gets its pad.</string>
+	<string name="settings_interface_repeat_control_description">The control type the Parameters area shows for repeating parameters.  By default repeating parameters will show a circular dial.  Setting this to Slider and Pad will always show a slider or 2D pad for repeating parameters.</string>
 	<string name="settings_repeat_control_dial">Dial</string>
 	<string name="settings_repeat_control_slider">Slider and Pad</string>
 	<!-- app.checkForUpdates, in Preferences and Quick Setup: the row's heading, then its checkbox. -->
 	<string name="settings_check_for_updates_heading">Check for Updates</string>
 	<string name="settings_check_for_updates_at_startup">At Startup</string>
-	<string name="settings_check_for_updates_at_startup_description">Checks for a newer version of Umamo each time it starts.</string>
+	<string name="settings_check_for_updates_at_startup_description">Whether the application should check for updates on startup.</string>
 	<!-- Keybindings section: preset selection + the per-command rebinding editor. -->
 	<string name="settings_keybindings_preset">Preset</string>
 	<string name="settings_keybindings_preset_quick">Keybindings Preset</string>
-	<string name="settings_keybindings_preset_description">The keymap every shortcut starts from.  Shortcuts you rebind yourself are kept on top of whichever preset is chosen.</string>
+	<string name="settings_keybindings_preset_description">Choose from a set of shortcuts that suit your preferences.  Selecting a set will override any changed shortcuts.</string>
 	<string name="settings_keymap_preset_default">Default</string>
 	<string name="settings_keymap_preset_cubism">Cubism</string>
 	<string name="settings_keymap_preset_blender">Blender</string>
@@ -1357,25 +1357,25 @@
 	<!-- Placeholder section (the real editor lands with the pen backend). -->
 	<string name="settings_pen_coming_soon">Pen configuration is coming soon.</string>
 	<string name="settings_import_parameter_template">Parameter Template</string>
-	<string name="settings_import_parameter_template_description">The parameters a new model starts with when its artwork is imported.</string>
+	<string name="settings_import_parameter_template_description">The default parameter template that new models create from imported artwork will start with.</string>
 	<string name="settings_import_alignment">Align Added Artwork</string>
-	<string name="settings_import_alignment_description">Where a later artwork file is placed on the canvas.  The import's own Align setting starts from this choice.</string>
+	<string name="settings_import_alignment_description">When adding artwork to a document use this alignment position as the 0,0 X/Z position.</string>
 	<string name="settings_import_watch_mode">Watched Artwork Files</string>
-	<string name="settings_import_watch_mode_description">What a document does when one of its artwork files changes on disk.</string>
+	<string name="settings_import_watch_mode_description">The action to take when a watched artwork file changes on disk.</string>
 	<string name="settings_import_watch_mode_auto">Reload Automatically</string>
 	<string name="settings_import_watch_mode_notify">Notify Only</string>
 	<string name="settings_import_watch_mode_off">Off</string>
 	<!-- Two Sources toggles, each a heading and its checkbox. -->
 	<string name="settings_import_deleting_art">Deleting Art</string>
 	<string name="settings_import_also_ignore_layer">Also Mark Layer as Ignored</string>
-	<string name="settings_import_also_ignore_layer_description">When art is deleted in the Sources area, also marks its layer as ignored, so a reload does not bring the art back.</string>
+	<string name="settings_import_also_ignore_layer_description">When deleting artwork from the sources also mark the artwork layer as ignored.  This will prevent the layer from returning when reloading the source artwork.</string>
 	<string name="settings_import_layer_positions">Layer Positions</string>
 	<string name="settings_import_from_world_axes">Measure From World Axes</string>
-	<string name="settings_import_from_world_axes_description">In the Sources area, measures layer positions from the world axes instead of the artwork's top-left corner.</string>
+	<string name="settings_import_from_world_axes_description">In the Sources area, measure layer positions from the world axes instead of the artwork's top left corner.</string>
 	<string name="settings_import_parameter_template_humanoid">Humanoid</string>
 	<string name="settings_import_parameter_template_none">None</string>
 	<string name="settings_import_birth_mesh">Initial Mesh</string>
-	<string name="settings_import_birth_mesh_description">The mesh each new drawable starts with: one generated from its art, or a plain quad.</string>
+	<string name="settings_import_birth_mesh_description">What kind of drawable mesh to generate when importing artwork.  Quad generates a square two triangle fan over every layer while Generated from Art will create a complex mesh.</string>
 	<string name="settings_import_birth_mesh_automatic">Generated from Art</string>
 	<string name="settings_import_birth_mesh_quad">Quad</string>
 	<string name="settings_import_mesh_preset">Mesh Generation Preset</string>
