@@ -610,7 +610,6 @@
 	<string name="settings_colors_role_idle">대기</string>
 	<string name="settings_colors_role_selected">선택됨</string>
 	<string name="settings_colors_role_active">활성</string>
-	<string name="settings_colors_role_offkey">키 외</string>
 	<string name="pick_hover_drawable">드로어블: %1$s</string>
 	<string name="pick_hover_part">파트: %1$s</string>
 	<string name="pick_hover_deformer">디포머: %1$s</string>

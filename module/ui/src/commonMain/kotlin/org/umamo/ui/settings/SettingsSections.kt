@@ -44,8 +44,6 @@ import org.umamo.ui.resources.settings_colors_role_hovered
 import org.umamo.ui.resources.settings_colors_role_hovered_description
 import org.umamo.ui.resources.settings_colors_role_idle
 import org.umamo.ui.resources.settings_colors_role_idle_description
-import org.umamo.ui.resources.settings_colors_role_offkey
-import org.umamo.ui.resources.settings_colors_role_offkey_description
 import org.umamo.ui.resources.settings_colors_role_selected
 import org.umamo.ui.resources.settings_colors_role_selected_description
 import org.umamo.ui.resources.settings_colors_role_unkeyed
@@ -438,7 +436,6 @@ private enum class ColorRole(val label: StringResource, val description: StringR
 	Idle(Res.string.settings_colors_role_idle, Res.string.settings_colors_role_idle_description),
 	Selected(Res.string.settings_colors_role_selected, Res.string.settings_colors_role_selected_description),
 	Active(Res.string.settings_colors_role_active, Res.string.settings_colors_role_active_description),
-	OffKey(Res.string.settings_colors_role_offkey, Res.string.settings_colors_role_offkey_description),
 	Unkeyed(Res.string.settings_colors_role_unkeyed, Res.string.settings_colors_role_unkeyed_description),
 	Hovered(Res.string.settings_colors_role_hovered, Res.string.settings_colors_role_hovered_description),
 }
@@ -484,19 +481,16 @@ internal fun ColorsSection(folds: PreferencesFolds) {
 			ColorRoleRow(ColorRole.Idle, ViewportColorSettings.VERTEX_IDLE_KEY, ViewportColorSettings.VERTEX_IDLE_DEFAULT)
 			ColorRoleRow(ColorRole.Selected, ViewportColorSettings.VERTEX_SELECTED_KEY, ViewportColorSettings.VERTEX_SELECTED_DEFAULT)
 			ColorRoleRow(ColorRole.Active, ViewportColorSettings.VERTEX_ACTIVE_KEY, ViewportColorSettings.VERTEX_ACTIVE_DEFAULT)
-			ColorRoleRow(ColorRole.OffKey, ViewportColorSettings.VERTEX_OFFKEY_KEY, ViewportColorSettings.VERTEX_OFFKEY_DEFAULT)
 		}
 		SettingsSubsection(folds, PreferencesSection.ColorsMeshEditingEdge) {
 			ColorRoleRow(ColorRole.Idle, ViewportColorSettings.EDGE_IDLE_KEY, ViewportColorSettings.EDGE_IDLE_DEFAULT)
 			ColorRoleRow(ColorRole.Selected, ViewportColorSettings.EDGE_SELECTED_KEY, ViewportColorSettings.EDGE_SELECTED_DEFAULT)
 			ColorRoleRow(ColorRole.Active, ViewportColorSettings.EDGE_ACTIVE_KEY, ViewportColorSettings.EDGE_ACTIVE_DEFAULT)
-			ColorRoleRow(ColorRole.OffKey, ViewportColorSettings.EDGE_OFFKEY_KEY, ViewportColorSettings.EDGE_OFFKEY_DEFAULT)
 		}
 		SettingsSubsection(folds, PreferencesSection.ColorsMeshEditingFace) {
 			ColorRoleRow(ColorRole.Idle, ViewportColorSettings.FACE_IDLE_KEY, ViewportColorSettings.FACE_IDLE_DEFAULT)
 			ColorRoleRow(ColorRole.Selected, ViewportColorSettings.FACE_SELECTED_KEY, ViewportColorSettings.FACE_SELECTED_DEFAULT)
 			ColorRoleRow(ColorRole.Active, ViewportColorSettings.FACE_ACTIVE_KEY, ViewportColorSettings.FACE_ACTIVE_DEFAULT)
-			ColorRoleRow(ColorRole.OffKey, ViewportColorSettings.FACE_OFFKEY_KEY, ViewportColorSettings.FACE_OFFKEY_DEFAULT)
 		}
 	}
 	SettingsCard(folds, PreferencesSection.ColorsDeformers) {
