@@ -1375,35 +1375,35 @@
 	<string name="settings_import_parameter_template_humanoid">Humanoid</string>
 	<string name="settings_import_parameter_template_none">None</string>
 	<string name="settings_import_birth_mesh">Initial Mesh</string>
-	<string name="settings_import_birth_mesh_description">What kind of drawable mesh to generate when importing artwork.  Quad generates a square two triangle fan over every layer while Generated from Art will create a complex mesh.</string>
-	<string name="settings_import_birth_mesh_automatic">Generated from Art</string>
+	<string name="settings_import_birth_mesh_description">What kind of drawable mesh to generate when importing artwork.  Quad generates a square two triangle fan over every layer while Generate Mesh from Art will create a complex mesh.</string>
+	<string name="settings_import_birth_mesh_automatic">Generate Mesh from Art</string>
 	<string name="settings_import_birth_mesh_quad">Quad</string>
 	<string name="settings_import_mesh_preset">Mesh Generation Preset</string>
-	<string name="settings_import_mesh_preset_description">How fine generated meshes are, for an import and for the first Generate Mesh from Art of a session.</string>
+	<string name="settings_import_mesh_preset_description">When Initial Mesh is set to Generate Mesh from Art this is the preset that will be used for the generation.</string>
 	<!-- Viewport section: wheel-zoom increments, in percent per notch (the field shows the % itself). -->
 	<string name="settings_viewport_zoom_step">Zoom Step</string>
 	<string name="settings_viewport_zoom_step_description">How far one notch of the mouse wheel zooms, in percent.</string>
 	<string name="settings_viewport_zoom_step_coarse">Coarse Zoom Step</string>
 	<string name="settings_viewport_zoom_step_coarse_description">How far one notch zooms while Shift is held, in percent.</string>
 	<string name="settings_viewport_grid_scale">Grid Scale</string>
-	<string name="settings_viewport_grid_scale_description">The spacing of the viewport's major grid lines, in world units.  An area given its own grid in its overlays keeps it.</string>
+	<string name="settings_viewport_grid_scale_description">The default spacing of the viewport's major grid lines, in world units.</string>
 	<string name="settings_viewport_grid_subdivisions">Grid Subdivisions</string>
 	<string name="settings_viewport_grid_subdivisions_description">How many minor lines divide each major cell of the viewport's grid.</string>
 	<string name="settings_viewport_uv_grid_scale">UV Grid Scale</string>
-	<string name="settings_viewport_uv_grid_scale_description">The spacing of the UV editor's major grid lines, in texels.  An area given its own grid in its overlays keeps it.</string>
+	<string name="settings_viewport_uv_grid_scale_description">The default spacing of the UV editor's major grid lines, in texels.</string>
 	<string name="settings_viewport_uv_grid_subdivisions">UV Grid Subdivisions</string>
 	<string name="settings_viewport_uv_grid_subdivisions_description">How many minor lines divide each major cell of the UV editor's grid.</string>
 	<!-- Viewport section: the rendering toggles (viewport.rendering.*) under one heading, then the chrome's defaults (viewport.showToolbar / showSidebar) under another. -->
 	<string name="settings_viewport_supersample_heading">Supersampling</string>
 	<string name="settings_viewport_supersample_quality">2x Render Quality</string>
-	<string name="settings_viewport_supersample_quality_description">Renders the viewport at twice its resolution for smoother edges, at some cost in speed.</string>
+	<string name="settings_viewport_supersample_quality_description">Render puppets in the viewports at 2x quality at a cost to performance.  Turn this off for lower performing computers.</string>
 	<string name="settings_viewport_supersample_keep_while_resizing">Continue While Resizing</string>
-	<string name="settings_viewport_supersample_keep_while_resizing_description">Keeps supersampling while a panel is being resized.  Off, frames drawn during the resize render at normal quality.</string>
+	<string name="settings_viewport_supersample_keep_while_resizing_description">Continue supersampling while resizing the interface, moving the puppet, or transforming object.  Turn this off for lower performing computers.</string>
 	<string name="settings_viewport_show_by_default">Show by Default</string>
 	<string name="settings_viewport_default_toolbar">Toolbar</string>
-	<string name="settings_viewport_default_toolbar_description">Shows the toolbar in each viewport until it is hidden there.</string>
+	<string name="settings_viewport_default_toolbar_description">Shows the Toolbar in every viewport by default until it is intentionally hidden.</string>
 	<string name="settings_viewport_default_sidebar">Sidebar</string>
-	<string name="settings_viewport_default_sidebar_description">Shows the sidebar in each viewport until it is hidden there.</string>
+	<string name="settings_viewport_default_sidebar_description">Shows the Sidebar in every viewport by default until it is intentionally hidden.</string>
 	<!-- Colors section: the viewport selection highlight, then the Edit-mode gizmo palette (viewport.meshEdit.*), grouped element × state, then the warp lattice (viewport.deformer.*). -->
 	<string name="settings_colors_viewport">Viewport</string>
 	<string name="settings_colors_selection_highlight">Selection Highlight</string>
@@ -1411,9 +1411,9 @@
 	<string name="settings_colors_active_selection_highlight">Active Selection Highlight</string>
 	<string name="settings_colors_active_selection_highlight_description">The tint mixed over the active drawable in the viewport.</string>
 	<string name="settings_colors_warning">Warning</string>
-	<string name="settings_colors_warning_description">The outline of a tile that overlaps a neighbor or spills off its page.</string>
+	<string name="settings_colors_warning_description">The outline of a tile that overlaps a neighbor or spills off the atlas page.</string>
 	<string name="settings_colors_pinned_placement">Pinned Placement</string>
-	<string name="settings_colors_pinned_placement_description">The edges of a pinned tile's islands in the UV editor.</string>
+	<string name="settings_colors_pinned_placement_description">The meshh edge color of a pinned tile on an atlas page in the UV editor.</string>
 	<string name="settings_colors_mesh_edit">Mesh Editing</string>
 	<string name="settings_colors_group_vertex">Vertex</string>
 	<string name="settings_colors_group_edge">Edge</string>
@@ -1421,13 +1421,13 @@
 	<string name="settings_colors_deformers">Deformers</string>
 	<!-- The role rows, shared by the Vertex, Edge, and Face sub-panels and the Deformers card; each description fits every group it appears in. -->
 	<string name="settings_colors_role_idle">Idle</string>
-	<string name="settings_colors_role_idle_description">Shown while not selected.</string>
+	<string name="settings_colors_role_idle_description">Color shown while not selected.</string>
 	<string name="settings_colors_role_selected">Selected</string>
-	<string name="settings_colors_role_selected_description">Shown while selected.</string>
+	<string name="settings_colors_role_selected_description">Color shown while selected.</string>
 	<string name="settings_colors_role_active">Active</string>
-	<string name="settings_colors_role_active_description">Shown for the active one, the last one selected.</string>
+	<string name="settings_colors_role_active_description">Color shown for the active selection.  (Last Selected)</string>
 	<string name="settings_colors_role_offkey">Off-key</string>
-	<string name="settings_colors_role_offkey_description">Shown while the pose sits between keys, where the mesh cannot be edited.</string>
+	<string name="settings_colors_role_offkey_description">Color shown for an unkey pose.</string>
 	<string name="settings_colors_role_unkeyed">Unkeyed</string>
 	<string name="settings_colors_role_unkeyed_description">A lattice shaped in Pose mode that has not been keyed yet.</string>
 	<string name="settings_colors_role_hovered">Hovered</string>
