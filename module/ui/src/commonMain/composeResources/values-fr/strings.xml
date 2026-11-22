@@ -873,7 +873,6 @@
 	<string name="settings_keybindings_reset">Réinitialiser vers un Préréglage</string>
 	<string name="settings_keybindings_press_shortcut">Appuyez sur un raccourci…</string>
 	<string name="settings_keybindings_unbound">Délier</string>
-	<string name="settings_keybindings_clear">Vider le raccourci</string>
 	<!-- %1$s is the shortcut, %2$s is the command it is already bound to. -->
 	<string name="settings_keybindings_conflict">%1$s est déja lié à “%2$s”. Le relier ?</string>
 	<string name="settings_keybindings_reassign">Réassigner</string>

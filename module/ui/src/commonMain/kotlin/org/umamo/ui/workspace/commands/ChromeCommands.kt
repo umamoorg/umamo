@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandTable
 import org.umamo.ui.action.KeymapCategory
@@ -14,8 +15,8 @@ import org.umamo.ui.workspace.rowdrag.RowDragCancelController
 
 /**
  * The shell-chrome commands: overlay toggles (palette, preferences, Help), the project links, the drag
- * cancels, and workspace tab navigation.  All are real registry commands so a key binding (or a menu)
- * drives them through the one dispatch point - no key handling hardcoded in the shell.
+ * cancels, and workspace tab navigation.  All are real registry commands, so a key binding, a menu, or the
+ * shell's key ladder drives them through the one dispatch point.
  *
  * Several are rows of the bar's menus and name the block they sit in: the settings close the Edit menu, the
  * tab navigation opens the Workspace menu, and the links, Quick Setup, and the two dialogs are three blocks of
@@ -42,11 +43,11 @@ internal fun chromeCommands(
 		CommandTable.Chrome,
 		Command(
 			"palette.toggle",
-			title = null,
+			title = Res.string.cmd_command_palette,
+			availability = CommandAvailability { !overlays.paletteVisible },
+			keymapCategory = KeymapCategory.Edit,
 		) { overlays.paletteVisible = !overlays.paletteVisible },
-		// Cancels whichever kind of area drag is in flight - the two are separate mechanisms (a corner
-		// drag splits/joins, a divider drag re-ratios) and only ever one is live, so both are addressed
-		// here rather than splitting the one Escape-bound command in two.
+		// Cancels whichever kind of area drag is in flight.
 		Command(
 			"area.dragCancel",
 			title = null,

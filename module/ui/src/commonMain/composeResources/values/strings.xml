@@ -430,6 +430,7 @@
 	<string name="cmd_unhide_all">Unhide All</string>
 
 	<!-- Command palette. -->
+	<string name="cmd_command_palette">Command Palette</string>
 	<string name="search_hint">Search</string>
 	<string name="search_clear">Clear search</string>
 
@@ -1355,7 +1356,8 @@
 	<string name="settings_keybindings_reset">Reset to Preset</string>
 	<string name="settings_keybindings_press_shortcut">Press a shortcut…</string>
 	<string name="settings_keybindings_unbound">Unbound</string>
-	<string name="settings_keybindings_clear">Clear shortcut</string>
+	<string name="settings_keybindings_remove">Remove Shortcut</string>
+	<string name="settings_keybindings_add">Add Shortcut</string>
 	<!-- %1$s is the shortcut, %2$s is the command it is already bound to. -->
 	<string name="settings_keybindings_conflict">%1$s is already bound to “%2$s”.  Reassign it?</string>
 	<string name="settings_keybindings_reassign">Reassign</string>
