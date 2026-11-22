@@ -57,6 +57,7 @@ ktlint_umamo_no-command-table-export = disabled
 ktlint_umamo_no-hand-built-command-row = disabled
 ktlint_umamo_no-main-dispatcher = disabled
 ktlint_umamo_session-extension-placement = disabled
+ktlint_umamo_command-argument-wrapping = disabled
 
 [*.{yml,yaml,json,toml}]
 indent_style = space

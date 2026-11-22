@@ -54,12 +54,10 @@ public class NoCommandOutsideTablesRule :
 			emit(node.startOffset, "A `Command(...)` is built only in the command tables ($COMMAND_TABLES_PACKAGE), which `registerAll` registers; declare it there and dispatch it by id", false)
 		}
 	}
-
-	private companion object {
-		/** The command class. */
-		const val COMMAND_CLASS = "org.umamo.ui.action.Command"
-	}
 }
+
+/** The command class, whose constructor the tables call once per command. */
+internal const val COMMAND_CLASS = "org.umamo.ui.action.Command"
 
 /** The package the command tables live in, one file per domain: where a command is built, and whose data stays its own. */
 internal const val COMMAND_TABLES_PACKAGE = "org.umamo.ui.workspace.commands"

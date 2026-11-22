@@ -15,6 +15,7 @@ class UmamoRuleSetProviderTest {
 		assertEquals(
 			listOf(
 				"umamo:blank-line-around-control-flow",
+				"umamo:command-argument-wrapping",
 				"umamo:comment-sentence-spacing",
 				"umamo:docblock-tags",
 				"umamo:function-docblock",

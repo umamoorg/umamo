@@ -40,32 +40,72 @@ internal fun viewCommands(cameras: AreaCameraHub, routing: CommandRouting, viewp
 
 	return commandTable(
 		CommandTable.View,
-		Command("view.fit", title = Res.string.cmd_view_fit, availability = hasViewport, spaces = SpaceScope.WorkSurfaces) {
+		Command(
+			"view.fit",
+			title = Res.string.cmd_view_fit,
+			availability = hasViewport,
+			spaces = SpaceScope.WorkSurfaces,
+		) {
 			hoveredCamera()?.fit()
 		},
-		Command("view.zoomActualSize", title = Res.string.cmd_view_actual_size, availability = hasViewport, spaces = SpaceScope.WorkSurfaces) {
+		Command(
+			"view.zoomActualSize",
+			title = Res.string.cmd_view_actual_size,
+			availability = hasViewport,
+			spaces = SpaceScope.WorkSurfaces,
+		) {
 			hoveredCamera()?.actualSize()
 		},
-		Command("view.zoomIn", title = Res.string.cmd_view_zoom_in, availability = hasViewport, spaces = SpaceScope.WorkSurfaces) {
+		Command(
+			"view.zoomIn",
+			title = Res.string.cmd_view_zoom_in,
+			availability = hasViewport,
+			spaces = SpaceScope.WorkSurfaces,
+		) {
 			hoveredCamera()?.zoomIn(coarse = false)
 		},
-		Command("view.zoomOut", title = Res.string.cmd_view_zoom_out, availability = hasViewport, spaces = SpaceScope.WorkSurfaces) {
+		Command(
+			"view.zoomOut",
+			title = Res.string.cmd_view_zoom_out,
+			availability = hasViewport,
+			spaces = SpaceScope.WorkSurfaces,
+		) {
 			hoveredCamera()?.zoomOut(coarse = false)
 		},
 		// Coarse (Shift) variants take a larger zoom step - they are titled so they also surface in the palette.
-		Command("view.zoomInCoarse", title = Res.string.cmd_view_zoom_in_coarse, availability = hasViewport, spaces = SpaceScope.WorkSurfaces) {
+		Command(
+			"view.zoomInCoarse",
+			title = Res.string.cmd_view_zoom_in_coarse,
+			availability = hasViewport,
+			spaces = SpaceScope.WorkSurfaces,
+		) {
 			hoveredCamera()?.zoomIn(coarse = true)
 		},
-		Command("view.zoomOutCoarse", title = Res.string.cmd_view_zoom_out_coarse, availability = hasViewport, spaces = SpaceScope.WorkSurfaces) {
+		Command(
+			"view.zoomOutCoarse",
+			title = Res.string.cmd_view_zoom_out_coarse,
+			availability = hasViewport,
+			spaces = SpaceScope.WorkSurfaces,
+		) {
 			hoveredCamera()?.zoomOut(coarse = true)
 		},
 		// Zoom Region (Blender's Shift+B): arms a drag-a-box-to-frame gesture on the hovered surface.
-		Command("view.zoomRegion", title = Res.string.cmd_view_zoom_region, availability = hasViewport, spaces = SpaceScope.WorkSurfaces) {
+		Command(
+			"view.zoomRegion",
+			title = Res.string.cmd_view_zoom_region,
+			availability = hasViewport,
+			spaces = SpaceScope.WorkSurfaces,
+		) {
 			hoveredCamera()?.armZoomRegion()
 		},
 		// Frame Selected (Blender's numpad-period): fit the camera to the selection's bounds - world
 		// bounds in the viewport, covered UV bounds in a hovered UV editor.
-		Command("view.frameSelected", title = Res.string.cmd_view_frame_selected, availability = hasViewport, spaces = SpaceScope.WorkSurfaces) {
+		Command(
+			"view.frameSelected",
+			title = Res.string.cmd_view_frame_selected,
+			availability = hasViewport,
+			spaces = SpaceScope.WorkSurfaces,
+		) {
 			hoveredCamera()?.frameSelected()
 		},
 	)

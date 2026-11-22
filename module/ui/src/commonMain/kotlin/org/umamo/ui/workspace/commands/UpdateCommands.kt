@@ -17,4 +17,11 @@ import org.umamo.ui.resources.menu_check_for_updates
  * @return List<Command> The commands to register.
  */
 internal fun updateCommands(onCheck: () -> Unit): List<Command> =
-	commandTable(CommandTable.Update, Command("help.checkForUpdates", title = Res.string.menu_check_for_updates, group = CommandSection.HelpUpdates) { onCheck() })
+	commandTable(
+		CommandTable.Update,
+		Command(
+			"help.checkForUpdates",
+			title = Res.string.menu_check_for_updates,
+			group = CommandSection.HelpUpdates,
+		) { onCheck() },
+	)

@@ -99,7 +99,13 @@ internal fun keyformCommands(
 		kind: PoseKeyKind,
 		available: CommandAvailability,
 	): Command =
-		Command(id, title = title, availability = available, group = CommandFamily.InsertKey, groupLabel = label) {
+		Command(
+			id,
+			title = title,
+			availability = available,
+			group = CommandFamily.InsertKey,
+			groupLabel = label,
+		) {
 			editorSession?.let { session ->
 				session.posedKeyTracks(kind)?.let { tracks -> session.captureKeysOnTracks(tracks, null, KeyformAim.Pose) }
 				session.closePieMenu()
@@ -177,7 +183,11 @@ internal fun keyformCommands(
 						(editorSession.pendingChannelEdits.value.isNotEmpty() || editorSession.pendingLatticeEdits.value.isNotEmpty())
 				},
 		) { editorSession?.clearPoseEdits() },
-		Command("keyform.deleteSelectedKeys", title = Res.string.cmd_keyform_delete_keys, availability = availability.canEditKeys) {
+		Command(
+			"keyform.deleteSelectedKeys",
+			title = Res.string.cmd_keyform_delete_keys,
+			availability = availability.canEditKeys,
+		) {
 			val sheet = keyformSheets.resolveForSelection(hoveredSheetArea())
 			val removals = sheet?.selectedTracks().orEmpty()
 
@@ -190,13 +200,25 @@ internal fun keyformCommands(
 				}
 			}
 		},
-		Command("keyform.nudgeKeyLeft", title = Res.string.cmd_keyform_nudge_left, availability = availability.canEditKeys) {
+		Command(
+			"keyform.nudgeKeyLeft",
+			title = Res.string.cmd_keyform_nudge_left,
+			availability = availability.canEditKeys,
+		) {
 			keyformSheets.resolveForSelection(hoveredSheetArea())?.nudgeSelection(-KEYFORM_NUDGE_FRACTION)
 		},
-		Command("keyform.nudgeKeyRight", title = Res.string.cmd_keyform_nudge_right, availability = availability.canEditKeys) {
+		Command(
+			"keyform.nudgeKeyRight",
+			title = Res.string.cmd_keyform_nudge_right,
+			availability = availability.canEditKeys,
+		) {
 			keyformSheets.resolveForSelection(hoveredSheetArea())?.nudgeSelection(KEYFORM_NUDGE_FRACTION)
 		},
-		Command("keyform.frameAll", title = Res.string.cmd_keyform_frame_all, availability = availability.hasDocument) {
+		Command(
+			"keyform.frameAll",
+			title = Res.string.cmd_keyform_frame_all,
+			availability = availability.hasDocument,
+		) {
 			keyformSheets.resolve(hoveredSheetArea())?.frameAll?.invoke()
 		},
 	)

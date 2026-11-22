@@ -71,8 +71,18 @@ internal fun fileCommands(
 ): List<Command> =
 	commandTable(
 		CommandTable.File,
-		Command("file.new", title = Res.string.cmd_file_new, group = CommandSection.FileDocument, groupLabel = Res.string.menu_file_new) { onNew() },
-		Command("file.open", title = Res.string.cmd_file_open, group = CommandSection.FileDocument, groupLabel = Res.string.menu_file_open) { onOpen() },
+		Command(
+			"file.new",
+			title = Res.string.cmd_file_new,
+			group = CommandSection.FileDocument,
+			groupLabel = Res.string.menu_file_new,
+		) { onNew() },
+		Command(
+			"file.open",
+			title = Res.string.cmd_file_open,
+			group = CommandSection.FileDocument,
+			groupLabel = Res.string.menu_file_open,
+		) { onOpen() },
 		// No title, like the other argument-only commands: the palette has nothing to offer without a path.  In
 		// the File menu it is Open Recent, a row per recent file, each handing over its own path.  Anything that
 		// opens a file it was handed belongs on this id, since the way in is what carries the unsaved-changes gate.
@@ -100,11 +110,25 @@ internal fun fileCommands(
 			group = CommandSection.FileDocument,
 			groupLabel = Res.string.menu_file_save_as,
 		) { onSaveAs() },
-		Command("file.importCmo3", title = Res.string.cmd_import_cmo3, group = CommandSection.ImportPuppet, groupLabel = Res.string.menu_import_cmo3) { onImportCmo3() },
+		Command(
+			"file.importCmo3",
+			title = Res.string.cmd_import_cmo3,
+			group = CommandSection.ImportPuppet,
+			groupLabel = Res.string.menu_import_cmo3,
+		) { onImportCmo3() },
 		// MOC3 comes in through its own row rather than one merged "import" filter, keeping the
 		// source-project / baked-runtime distinction visible in the UI.
-		Command("file.importMoc3", title = Res.string.cmd_import_moc3, group = CommandSection.ImportPuppet, groupLabel = Res.string.menu_import_moc3) { onImportMoc3() },
-		Command("file.exit", title = Res.string.menu_exit, group = CommandSection.FileSession) { onExit() },
+		Command(
+			"file.importMoc3",
+			title = Res.string.cmd_import_moc3,
+			group = CommandSection.ImportPuppet,
+			groupLabel = Res.string.menu_import_moc3,
+		) { onImportMoc3() },
+		Command(
+			"file.exit",
+			title = Res.string.menu_exit,
+			group = CommandSection.FileSession,
+		) { onExit() },
 	)
 
 /**

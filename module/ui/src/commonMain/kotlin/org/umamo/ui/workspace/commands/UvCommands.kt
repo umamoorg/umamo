@@ -197,13 +197,28 @@ internal fun uvCommands(
 		// editor's per-area texture selection - cycling pins with wrap-around, follow clears the pin.
 		// Mode-agnostic (reviewing pages is not an Edit-mode operation), palette-discoverable, and
 		// unbound by default like the rest of the table.
-		Command("uv.page.next", title = Res.string.cmd_uv_page_next, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
+		Command(
+			"uv.page.next",
+			title = Res.string.cmd_uv_page_next,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+		) {
 			requestUvPage(UvPageKind.NextPage)
 		},
-		Command("uv.page.previous", title = Res.string.cmd_uv_page_previous, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
+		Command(
+			"uv.page.previous",
+			title = Res.string.cmd_uv_page_previous,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+		) {
 			requestUvPage(UvPageKind.PreviousPage)
 		},
-		Command("uv.page.followSelection", title = Res.string.cmd_uv_page_follow, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
+		Command(
+			"uv.page.followSelection",
+			title = Res.string.cmd_uv_page_follow,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+		) {
 			requestUvPage(UvPageKind.FollowSelection)
 		},
 		// Placement pins (Blender's P / Alt+P in the UV editor): Object mode, where the selection names
@@ -217,7 +232,12 @@ internal fun uvCommands(
 		) {
 			setPins(pinned = true)
 		},
-		Command("uv.unpinPlacement", title = Res.string.cmd_uv_unpin_placement, availability = availability.inObjectMode, spaces = SpaceScope.UvEditor) {
+		Command(
+			"uv.unpinPlacement",
+			title = Res.string.cmd_uv_unpin_placement,
+			availability = availability.inObjectMode,
+			spaces = SpaceScope.UvEditor,
+		) {
 			setPins(pinned = false)
 		},
 	)
