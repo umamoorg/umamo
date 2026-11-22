@@ -47,15 +47,12 @@
 			"vertexIdle": "#FFFF00EC",
 			"vertexSelected": "#FFFF7A00",
 			"vertexActive": "#FF7DE400",
-			"vertexOffKey": "#66888888",
 			"edgeIdle": "#99000000",
 			"edgeSelected": "#FFFF7A00",
 			"edgeActive": "#FF7DE400",
-			"edgeOffKey": "#44888888",
 			"faceIdle": "#22000000",
 			"faceSelected": "#66FF7A00",
-			"faceActive": "#FF7DE400",
-			"faceOffKey": "#44888888"
+			"faceActive": "#FF7DE400"
 		},
 		"deformer": {
 			"latticeIdle": "#80FFFFFF",

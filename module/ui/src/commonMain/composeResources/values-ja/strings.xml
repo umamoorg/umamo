@@ -1332,8 +1332,6 @@
 	<string name="settings_colors_role_selected_description">選択中の色。</string>
 	<string name="settings_colors_role_active">アクティブ</string>
 	<string name="settings_colors_role_active_description">アクティブなもの（最後に選択したもの）の色。</string>
-	<string name="settings_colors_role_offkey">キー外</string>
-	<string name="settings_colors_role_offkey_description">ポーズがキーの間にあり、メッシュを編集できないときの色。</string>
 	<string name="settings_colors_role_unkeyed">キー未設定</string>
 	<string name="settings_colors_role_unkeyed_description">ポーズモードで形を変え、まだキーを設定していない格子。</string>
 	<string name="settings_colors_role_hovered">ホバー中</string>

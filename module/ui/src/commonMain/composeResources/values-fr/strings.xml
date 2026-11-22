@@ -905,7 +905,6 @@
 	<string name="settings_colors_role_idle">Inactif</string>
 	<string name="settings_colors_role_selected">Sélectionné</string>
 	<string name="settings_colors_role_active">Actif</string>
-	<string name="settings_colors_role_offkey">En dehors de la clé</string>
 	<!-- Relation pick (a Properties eyedropper): the near-cursor badge naming what a click would bind. -->
 	<string name="pick_hover_drawable">Drawable: %1$s</string>
 	<string name="pick_hover_part">Partie: %1$s</string>

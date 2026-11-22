@@ -1426,8 +1426,6 @@
 	<string name="settings_colors_role_selected_description">Color shown while selected.</string>
 	<string name="settings_colors_role_active">Active</string>
 	<string name="settings_colors_role_active_description">Color shown for the active selection.  (Last Selected)</string>
-	<string name="settings_colors_role_offkey">Off-key</string>
-	<string name="settings_colors_role_offkey_description">Color shown for an unkey pose.</string>
 	<string name="settings_colors_role_unkeyed">Unkeyed</string>
 	<string name="settings_colors_role_unkeyed_description">A lattice shaped in Pose mode that has not been keyed yet.</string>
 	<string name="settings_colors_role_hovered">Hovered</string>
