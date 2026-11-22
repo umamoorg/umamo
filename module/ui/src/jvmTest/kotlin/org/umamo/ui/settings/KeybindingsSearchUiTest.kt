@@ -24,6 +24,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import kotlinx.coroutines.runBlocking
 import okio.Path.Companion.toPath
 import okio.fakefilesystem.FakeFileSystem
+import org.jetbrains.compose.resources.stringResource
 import org.umamo.settings.Settings
 import org.umamo.storage.OkioAppStorage
 import org.umamo.ui.LocalSettings
@@ -41,6 +42,9 @@ import org.umamo.ui.kit.textentry.LocalKeyCapture
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.cmd_mesh_grab
 import org.umamo.ui.resources.cmd_preferences
+import org.umamo.ui.resources.settings_keybindings_category_edit
+import org.umamo.ui.resources.settings_keybindings_search_record
+import org.umamo.ui.resources.settings_keybindings_unbound
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.workspace.ConfirmRequest
 import org.umamo.ui.workspace.ShellOverlayState
@@ -58,10 +62,23 @@ import kotlin.test.assertTrue
  * folded card and hides what does not match, and the record button looks a pressed chord up without the ladder
  * taking the press for Preferences.
  *
- * Two commands sit on two cards: Grab Vertices under Transform, bound to Ctrl+S, and Settings under Edit, unbound.
+ * Two commands sit on two cards: the grab command under Transform, bound to Ctrl+S, and the settings command under
+ * Edit, unbound.  Every lookup goes by the string the page renders, read in composition, so a reworded string never
+ * breaks one.
  */
 @OptIn(ExperimentalTestApi::class)
 class KeybindingsSearchUiTest {
+	/**
+	 * The page's text as the running locale renders it.
+	 *
+	 * @property String grab The bound command's title.
+	 * @property String settings The unbound command's title.
+	 * @property String editHeading The heading of the unbound command's card.
+	 * @property String unbound What an unbound command's chip reads.
+	 * @property String record The record button's label.
+	 */
+	private class PageLabels(val grab: String, val settings: String, val editHeading: String, val unbound: String, val record: String)
+
 	/**
 	 * Mounts the page under a root that routes keys through the modal ladder, with Preferences marked open.
 	 *
@@ -69,14 +86,14 @@ class KeybindingsSearchUiTest {
 	 * @param ShellOverlayState overlays  The shell's overlay state.
 	 * @param KeyCaptureController keyCapture The capture controller the ladder and the page share.
 	 * @param Function          beforeMount Prepares the settings before the page reads them (a fold, say).
-	 * @return Settings The settings the page reads and writes.
+	 * @return PageLabels The page's text, for the lookups.
 	 */
 	private fun mount(
 		test: ComposeUiTest,
 		overlays: ShellOverlayState,
 		keyCapture: KeyCaptureController = KeyCaptureController(),
 		beforeMount: (Settings) -> Unit = {},
-	): Settings {
+	): PageLabels {
 		val fileSystem = FakeFileSystem()
 		fileSystem.createDirectories("/config".toPath())
 		val settings = Settings.load(OkioAppStorage(fileSystem, "/config".toPath(), "/data".toPath()), runBlocking { defaultSettingsJson() })
@@ -91,7 +108,16 @@ class KeybindingsSearchUiTest {
 		)
 		val keymap = Keymap(mapOf(parseKeyChord("primary+KeyS")!! to "test.grab"))
 		val rootFocus = FocusRequester()
+		var labels: PageLabels? = null
 		test.setContent {
+			labels =
+				PageLabels(
+					grab = stringResource(Res.string.cmd_mesh_grab),
+					settings = stringResource(Res.string.cmd_preferences),
+					editHeading = stringResource(Res.string.settings_keybindings_category_edit),
+					unbound = stringResource(Res.string.settings_keybindings_unbound),
+					record = stringResource(Res.string.settings_keybindings_search_record),
+				)
 			UmamoTheme {
 				CompositionLocalProvider(LocalSettings provides settings, LocalCommands provides registry, LocalKeymap provides keymap, LocalKeyCapture provides keyCapture) {
 					Box(
@@ -126,7 +152,7 @@ class KeybindingsSearchUiTest {
 		rootFocus.requestFocus()
 		test.waitForIdle()
 
-		return settings
+		return checkNotNull(labels) { "the page composed" }
 	}
 
 	/**
@@ -149,23 +175,23 @@ class KeybindingsSearchUiTest {
 	fun aQueryOpensAFoldedCardAndHidesTheRest() {
 		runComposeUiTest {
 			val overlays = ShellOverlayState().apply { settingsVisible = true }
-			mount(this, overlays) { settings -> PreferencesFolds(settings).toggle(keybindingFoldId(KeymapCategory.Transform)) }
+			val labels = mount(this, overlays) { settings -> PreferencesFolds(settings).toggle(keybindingFoldId(KeymapCategory.Transform)) }
 
-			onNodeWithText("Grab Vertices", useUnmergedTree = true).assertDoesNotExist()
-			onNodeWithText("Settings", useUnmergedTree = true).assertExists()
+			onNodeWithText(labels.grab, useUnmergedTree = true).assertDoesNotExist()
+			onNodeWithText(labels.settings, useUnmergedTree = true).assertExists()
 
 			onNode(hasSetTextAction()).performTextInput("grab")
 			waitForIdle()
 
-			onNodeWithText("Grab Vertices", useUnmergedTree = true).assertExists()
-			onNodeWithText("Settings", useUnmergedTree = true).assertDoesNotExist()
-			onNodeWithText("Edit", useUnmergedTree = true).assertDoesNotExist()
+			onNodeWithText(labels.grab, useUnmergedTree = true).assertExists()
+			onNodeWithText(labels.settings, useUnmergedTree = true).assertDoesNotExist()
+			onNodeWithText(labels.editHeading, useUnmergedTree = true).assertDoesNotExist()
 
 			onNode(hasSetTextAction()).performTextReplacement("")
 			waitForIdle()
 
-			onNodeWithText("Grab Vertices", useUnmergedTree = true).assertDoesNotExist()
-			onNodeWithText("Settings", useUnmergedTree = true).assertExists()
+			onNodeWithText(labels.grab, useUnmergedTree = true).assertDoesNotExist()
+			onNodeWithText(labels.settings, useUnmergedTree = true).assertExists()
 		}
 	}
 
@@ -174,13 +200,13 @@ class KeybindingsSearchUiTest {
 	fun aQueryMatchesAShownShortcut() {
 		runComposeUiTest {
 			val overlays = ShellOverlayState().apply { settingsVisible = true }
-			mount(this, overlays)
+			val labels = mount(this, overlays)
 
 			onNode(hasSetTextAction()).performTextInput("ctrl+s")
 			waitForIdle()
 
-			onNodeWithText("Grab Vertices", useUnmergedTree = true).assertExists()
-			onNodeWithText("Settings", useUnmergedTree = true).assertDoesNotExist()
+			onNodeWithText(labels.grab, useUnmergedTree = true).assertExists()
+			onNodeWithText(labels.settings, useUnmergedTree = true).assertDoesNotExist()
 		}
 	}
 
@@ -190,9 +216,9 @@ class KeybindingsSearchUiTest {
 		runComposeUiTest {
 			val overlays = ShellOverlayState().apply { settingsVisible = true }
 			val keyCapture = KeyCaptureController()
-			mount(this, overlays, keyCapture)
+			val labels = mount(this, overlays, keyCapture)
 
-			onNodeWithContentDescription("Search by pressing a shortcut", useUnmergedTree = true).performClick()
+			onNodeWithContentDescription(labels.record, useUnmergedTree = true).performClick()
 			waitForIdle()
 			assertTrue(keyCapture.active, "the record button announces its capture to the ladder")
 
@@ -200,8 +226,8 @@ class KeybindingsSearchUiTest {
 
 			assertFalse(keyCapture.active, "a recorded chord ends the capture")
 			assertTrue(overlays.settingsVisible)
-			onNodeWithText("Grab Vertices", useUnmergedTree = true).assertExists()
-			onNodeWithText("Settings", useUnmergedTree = true).assertDoesNotExist()
+			onNodeWithText(labels.grab, useUnmergedTree = true).assertExists()
+			onNodeWithText(labels.settings, useUnmergedTree = true).assertDoesNotExist()
 		}
 	}
 
@@ -211,9 +237,9 @@ class KeybindingsSearchUiTest {
 		runComposeUiTest {
 			val overlays = ShellOverlayState().apply { settingsVisible = true }
 			val keyCapture = KeyCaptureController()
-			mount(this, overlays, keyCapture)
+			val labels = mount(this, overlays, keyCapture)
 
-			onNodeWithContentDescription("Search by pressing a shortcut", useUnmergedTree = true).performClick()
+			onNodeWithContentDescription(labels.record, useUnmergedTree = true).performClick()
 			waitForIdle()
 			onNodeWithTag("root").performKeyInput {
 				keyDown(Key.Escape)
@@ -223,8 +249,8 @@ class KeybindingsSearchUiTest {
 
 			assertFalse(keyCapture.active)
 			assertTrue(overlays.settingsVisible, "Escape cancels the recording, not Preferences")
-			onNodeWithText("Grab Vertices", useUnmergedTree = true).assertExists()
-			onNodeWithText("Settings", useUnmergedTree = true).assertExists()
+			onNodeWithText(labels.grab, useUnmergedTree = true).assertExists()
+			onNodeWithText(labels.settings, useUnmergedTree = true).assertExists()
 		}
 	}
 
@@ -233,17 +259,17 @@ class KeybindingsSearchUiTest {
 	fun armingAChipEndsARecording() {
 		runComposeUiTest {
 			val overlays = ShellOverlayState().apply { settingsVisible = true }
-			mount(this, overlays)
+			val labels = mount(this, overlays)
 
-			onNodeWithContentDescription("Search by pressing a shortcut", useUnmergedTree = true).performClick()
+			onNodeWithContentDescription(labels.record, useUnmergedTree = true).performClick()
 			waitForIdle()
-			onNodeWithText("Unbound", useUnmergedTree = true).performClick()
+			onNodeWithText(labels.unbound, useUnmergedTree = true).performClick()
 			waitForIdle()
 
 			pressControlS(this)
 
-			assertNotNull(overlays.pendingConfirm, "the chip took the press, and Grab Vertices already holds it")
-			onNodeWithText("Settings", useUnmergedTree = true).assertExists()
+			assertNotNull(overlays.pendingConfirm, "the chip took the press, and the grab command already holds it")
+			onNodeWithText(labels.settings, useUnmergedTree = true).assertExists()
 		}
 	}
 }
