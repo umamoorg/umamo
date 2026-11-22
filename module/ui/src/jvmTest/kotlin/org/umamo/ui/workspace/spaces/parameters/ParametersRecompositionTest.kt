@@ -243,8 +243,9 @@ class ParametersRecompositionTest {
 			moveOn(moves)
 
 			val named = counter.namedRuns()
-			assertEquals(setOf("ParameterSlider", "ParameterValueRow"), named.keys, "a dial scrub must run the moved row's controls and no other composable")
+			assertEquals(setOf("ParameterSlider", "ParameterValueRow", "ParameterDial"), named.keys, "a dial scrub must run the moved row's controls and no other composable")
 			assertTrue(named.getValue("ParameterSlider") <= moves.size, "the dial's row runs at most once per move, and ran ${named["ParameterSlider"]} times")
+			assertTrue(named.getValue("ParameterDial") <= moves.size, "and so does its dial, which ran ${named["ParameterDial"]} times")
 			assertTrue(
 				counter.lambdaRuns() <= moves.size,
 				"only the moved row re-reads its value, once per move; ${counter.lambdaRuns()} lambdas ran for ${moves.size} moves",
@@ -267,11 +268,12 @@ class ParametersRecompositionTest {
 
 			val named = counter.namedRuns()
 			assertEquals(
-				setOf("ParameterPad2D", "ParameterValueRow", "ParameterPairDial"),
+				setOf("ParameterPad2D", "ParameterValueRow", "ParameterPairDial", "ParameterDial"),
 				named.keys,
 				"a pair dial scrub must run the pair's controls and no other composable",
 			)
 			assertTrue(named.getValue("ParameterPairDial") <= moves.size, "only the moved dial runs; the pair's dials ran ${named["ParameterPairDial"]} times")
+			assertTrue(named.getValue("ParameterDial") <= moves.size, "the dial inside it likewise; they ran ${named["ParameterDial"]} times")
 			assertTrue(named.getValue("ParameterValueRow") <= moves.size, "only the moved axis's value row runs; they ran ${named["ParameterValueRow"]} times")
 			assertTrue(
 				counter.lambdaRuns() <= PAIR_DIAL_LAMBDAS_PER_MOVE * moves.size,

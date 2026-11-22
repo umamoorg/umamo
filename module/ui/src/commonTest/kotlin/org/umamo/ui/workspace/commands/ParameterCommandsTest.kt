@@ -9,6 +9,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandRegistry
+import org.umamo.ui.action.bindableCommands
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -158,6 +159,7 @@ class ParameterCommandsTest {
 
 		for (id in listOf("parameter.control.follow", "parameter.control.slider", "parameter.control.dial")) {
 			assertTrue(commandOver(session, id).isAvailable(eyeX), "$id on the member whose row is its own")
+			assertFalse(commandOver(session, id).isAvailable(eyeY), "$id on the flat member, which has no row at all")
 		}
 
 		for (id in listOf("parameter.pairControl.follow", "parameter.pairControl.pad", "parameter.pairControl.dials")) {
@@ -170,17 +172,27 @@ class ParameterCommandsTest {
 	}
 
 	/**
-	 * A control is a row in its family and nothing else: untitled, so neither the palette nor the keybindings list
-	 * offers a command that no chord could run.
+	 * Every command here runs with the parameter a row hands it, and says so: none applies with no argument, and the
+	 * keybindings list offers none of them, Toggle Repeat included though it has a title to list.  A control is
+	 * untitled besides, since only its family's menu ever shows it.
 	 */
 	@Test
-	fun aControlIsARowAndNothingElse() {
-		val controls = parameterCommands(null, SessionAvailability(null)).filter { command -> command.group != null }
+	fun everyCommandNeedsItsParameterAndIsNeverOfferedAChord() {
+		val session = EditorSession(pairedRig())
+		val commands = parameterCommands(session, SessionAvailability(session))
 
-		assertEquals(6, controls.size)
+		assertEquals(7, commands.size)
 
-		for (command in controls) {
-			assertNull(command.title, "${command.id} has a title to list")
+		for (command in commands) {
+			assertTrue(command.needsArgument, "${command.id} does not say it needs an argument")
+			assertFalse(command.isAvailable(null), "${command.id} applies with nothing to aim it")
+		}
+
+		assertEquals(emptyList(), bindableCommands(commands).map { command -> command.id }, "a binding to any of them could never fire")
+		assertNotNull(commands.single { command -> command.id == "parameter.toggleRepeat" }.title, "Toggle Repeat's row goes by its title")
+
+		for (command in commands.filter { command -> command.group != null }) {
+			assertNull(command.title, "${command.id} has a title nothing shows")
 			assertNotNull(command.rowLabel, "${command.id} has no label for its row")
 		}
 	}

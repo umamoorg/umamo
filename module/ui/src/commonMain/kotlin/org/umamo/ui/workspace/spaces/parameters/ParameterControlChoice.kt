@@ -23,7 +23,7 @@ internal enum class PairControl {
  * @return ParameterControl The control.
  */
 internal fun singleControlOf(parameter: Parameter, preference: RepeatControlSetting, override: ParameterControl?): ParameterControl =
-	override ?: if (parameter.repeat) preference.control() else ParameterControl.Slider
+	controlOf(parameter.repeat, preference, override)
 
 /**
  * The control a linked pair shows: the one the pair was set to, whether or not a member repeats, else a dial per
@@ -36,14 +36,23 @@ internal fun singleControlOf(parameter: Parameter, preference: RepeatControlSett
  *   preference.
  * @return PairControl The control.
  */
-internal fun pairControlOf(horizontal: Parameter, vertical: Parameter, preference: RepeatControlSetting, override: ParameterControl?): PairControl {
-	val control = override ?: if (horizontal.repeat || vertical.repeat) preference.control() else ParameterControl.Slider
-
-	return when (control) {
+internal fun pairControlOf(horizontal: Parameter, vertical: Parameter, preference: RepeatControlSetting, override: ParameterControl?): PairControl =
+	when (controlOf(horizontal.repeat || vertical.repeat, preference, override)) {
 		ParameterControl.Slider -> PairControl.Pad
 		ParameterControl.Dial -> PairControl.Dials
 	}
-}
+
+/**
+ * The rule a row and a pair both choose by: the control that was picked, else the preferred one where something
+ * repeats, else the slider.
+ *
+ * @param Boolean repeats Whether the parameter repeats; for a pair, whether either member does.
+ * @param RepeatControlSetting preference The control the rigger prefers for a repeating parameter.
+ * @param ParameterControl? override The control that was picked, or null to follow the preference.
+ * @return ParameterControl The control, a pair reading its slider as the pad and its dial as a dial per axis.
+ */
+private fun controlOf(repeats: Boolean, preference: RepeatControlSetting, override: ParameterControl?): ParameterControl =
+	override ?: if (repeats) preference.control() else ParameterControl.Slider
 
 /**
  * The control this preference names, in the vocabulary a parameter's own choice uses.

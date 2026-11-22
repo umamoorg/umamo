@@ -14,8 +14,8 @@ internal fun Command.isOfferedIn(kind: SpaceKind?): Boolean = spaces.appliesIn(k
 
 /**
  * The commands the palette offers over a surface of [hoveredKind]: titled, currently available, and
- * belonging to that space.  The rest are hidden rather than dimmed: the keybindings editor still lists the
- * whole table.
+ * belonging to that space.  The rest are hidden rather than dimmed: the keybindings editor still lists
+ * every command a chord can run ([bindableCommands]).
  *
  * @param List<Command> commands The registered commands, in registration order.
  * @param SpaceKind? hoveredKind The space the pointer last touched, or null before it touched any.
@@ -23,3 +23,11 @@ internal fun Command.isOfferedIn(kind: SpaceKind?): Boolean = spaces.appliesIn(k
  */
 internal fun paletteCommands(commands: List<Command>, hoveredKind: SpaceKind?): List<Command> =
 	commands.filter { command -> command.title != null && command.isOfferedIn(hoveredKind) }
+
+/**
+ * Command that can be bound to a key.
+ *
+ * @param List<Command> commands The registered commands, in registration order.
+ * @return List<Command> The commands to list, in the order given.
+ */
+internal fun bindableCommands(commands: List<Command>): List<Command> = commands.filter { command -> command.title != null && !command.needsArgument }

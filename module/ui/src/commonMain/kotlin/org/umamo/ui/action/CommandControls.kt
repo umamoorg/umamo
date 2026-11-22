@@ -120,13 +120,15 @@ internal fun CommandIconButton(
 ) {
 	val commands = LocalCommands.current
 	val glyph = icon ?: command.icon ?: return
-	val lit = command.isOn()
+	// A button runs its command with no argument, so the state it shows is the one that takes none.
+	val state = command.state
+	val lit = state?.isOn() == true
 	IconButton(
 		icon = glyph,
 		onClick = { around { commands.invoke(command.id) } },
 		contentDescription = description ?: command.title?.let { title -> stringResource(title) } ?: command.id,
 		// A command that can be the one in effect says so to assistive technology as well as by its fill.
-		modifier = if (command.reportsState) modifier.semantics { selected = lit } else modifier,
+		modifier = if (state != null) modifier.semantics { selected = lit } else modifier,
 		appearance = appearance,
 		size = size,
 		glyphSize = glyphSize,

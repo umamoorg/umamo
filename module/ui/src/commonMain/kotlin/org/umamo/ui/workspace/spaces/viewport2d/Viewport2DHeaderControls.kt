@@ -10,13 +10,11 @@ import androidx.compose.runtime.setValue
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.LocalCommands
-import org.umamo.ui.action.LocalKeymap
-import org.umamo.ui.action.commandMenuItem
+import org.umamo.ui.action.rememberFamilyMenu
 import org.umamo.ui.kit.BelowAnchorPositionProvider
 import org.umamo.ui.kit.chip.DropdownChip
 import org.umamo.ui.kit.container.OverflowRowScope
 import org.umamo.ui.kit.menu.Menu
-import org.umamo.ui.kit.menu.MenuItem
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.spaces.MeshSelectModeButtons
@@ -60,7 +58,6 @@ fun OverflowRowScope.viewport2DHeaderControls(scope: AreaScope) {
 @Composable
 private fun EditorModeDropdown() {
 	val commands = LocalCommands.current
-	val keymap = LocalKeymap.current
 	val session = LocalEditorSession.current
 	val enabled = session != null
 	val editorMode = session?.mode?.collectAsState()?.value
@@ -71,9 +68,8 @@ private fun EditorModeDropdown() {
 	// is named by the family.
 	val currentLabel = stringResource(current?.rowLabel ?: CommandFamily.EditorMode.heading)
 	var expanded by remember { mutableStateOf(false) }
-	// One row per mode, each its command's own: its glyph, and its bound chord (none by default - a hint appears if
-	// the user binds one).  The labels are resolved here, and the rows are built as the menu opens.
-	val rows = modes.map { mode -> mode to (mode.rowLabel?.let { label -> stringResource(label) } ?: mode.id) }
+	// The family's own menu: one row per mode, each its command's, in whatever style the family declares.
+	val modeMenu = rememberFamilyMenu(CommandFamily.EditorMode)
 	DropdownChip(
 		expanded = expanded,
 		onExpandRequest = { expanded = true },
@@ -84,7 +80,7 @@ private fun EditorModeDropdown() {
 	) {
 		// The menu's own dismiss closes the popup, so a row's pick need not toggle `expanded`.
 		Menu(
-			items = rows.map { (mode, label) -> commandMenuItem(mode, label, commands, keymap) },
+			items = modeMenu(),
 			onDismissRequest = { expanded = false },
 			positionProvider = BelowAnchorPositionProvider,
 		)

@@ -133,23 +133,42 @@ class ParameterCrudEditsTest {
 
 	/**
 	 * A control pick belongs to the parameter it was made on: it waits out that parameter's deletion, so an undo finds
-	 * it, and a new parameter minted on the freed id starts with none.
+	 * it, and an id that still holds one is never minted again, so no new parameter takes the pick up by any path
+	 * through the history.
 	 */
 	@Test
-	fun aNewParameterTakesNoControlFromADeletedOne() {
+	fun anIdThatHoldsAControlPickIsNeverMintedAgain() {
 		val session = EditorSession(model(listOf(parameter(angleX))))
 		val first = session.createParameter("First")
 		session.setParameterControl(first, ParameterControl.Dial)
-
 		session.deleteParameter(first)
-		session.undo()
-		assertEquals(ParameterControl.Dial, session.parameterControls.value[first], "an undone delete finds the pick")
 
-		session.redo()
 		val second = session.createParameter("Second")
 
-		assertEquals(first, second, "the freed id is minted again")
+		assertEquals(ParameterId("Param2"), second, "the id that holds the deleted parameter's pick is passed over")
 		assertNull(session.parameterControls.value[second], "the new parameter follows the preference")
+
+		session.undo()
+		session.undo()
+		assertTrue(session.model.value.parameters.any { it.id == first }, "the delete is undone")
+		assertEquals(ParameterControl.Dial, session.parameterControls.value[first], "and finds its pick")
+
+		session.redo()
+		session.redo()
+		assertTrue(session.model.value.parameters.any { it.id == second }, "the create is redone")
+		assertNull(session.parameterControls.value[second], "and takes no pick with it")
+	}
+
+	/** An id whose parameter left no pick behind is free to mint again, so ids do not climb for nothing. */
+	@Test
+	fun anIdThatHoldsNoPickIsMintedAgain() {
+		val session = EditorSession(model(listOf(parameter(angleX))))
+		val first = session.createParameter("First")
+		session.setParameterControl(first, ParameterControl.Dial)
+		session.setParameterControl(first, null)
+		session.deleteParameter(first)
+
+		assertEquals(first, session.createParameter("Second"))
 	}
 
 	/** The minted parameter id skips ids already present. */

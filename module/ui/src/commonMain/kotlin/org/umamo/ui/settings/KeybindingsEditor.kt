@@ -51,6 +51,7 @@ import org.umamo.ui.action.KEYMAP_PRESET_KEY
 import org.umamo.ui.action.KeyChord
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
+import org.umamo.ui.action.bindableCommands
 import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.action.keyChordOf
 import org.umamo.ui.action.keyName
@@ -122,7 +123,7 @@ internal fun KeymapPresetSettingRow(onSelect: () -> Unit = {}, quick: Boolean = 
  * The keybindings editor: pick a preset, then rebind individual commands.  The preset dropdown and every
  * rebind write through settings (input.keybinding.preset / .overrides) and the shell re-resolves the live
  * [LocalKeymap] reactively, so a change takes effect across menus, the palette, and dispatch immediately.
- * Only titled commands appear, since an untitled command is an internal action with no user-facing label.
+ * Only the commands a chord can run appear, under their titles ([bindableCommands]).
  */
 @Composable
 internal fun KeybindingsEditor() {
@@ -152,26 +153,26 @@ internal fun KeybindingsEditor() {
 				// The scrollbar is overlaid on this column's trailing edge, so the rows reserve its width
 				// or the clear button on every row sits underneath the bar.
 				Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(end = SCROLLBAR_THICKNESS)) {
-					for (command in commands.all()) {
-						val titleResource = command.title ?: continue
+					for ((id, title) in bindableCommands(commands.all())) {
+						val titleResource = title ?: continue
 						KeybindingRow(
 							title = stringResource(titleResource),
-							chord = keymap.chordFor(command.id),
-							capturing = capturingCommandId == command.id,
-							onStartCapture = { capturingCommandId = command.id },
+							chord = keymap.chordFor(id),
+							capturing = capturingCommandId == id,
+							onStartCapture = { capturingCommandId = id },
 							onCancelCapture = { capturingCommandId = null },
 							onClear = {
-								unbindCommand(settings, command.id)
+								unbindCommand(settings, id)
 								capturingCommandId = null
 							},
 							onCaptured = { captured ->
 								capturingCommandId = null
 								val existingCommandId = keymap.commandFor(captured)
 
-								if (existingCommandId != null && existingCommandId != command.id) {
-									pendingConflict = KeybindingConflict(command.id, captured, existingCommandId)
+								if (existingCommandId != null && existingCommandId != id) {
+									pendingConflict = KeybindingConflict(id, captured, existingCommandId)
 								} else {
-									rebindCommand(settings, command.id, captured)
+									rebindCommand(settings, id, captured)
 								}
 							},
 						)

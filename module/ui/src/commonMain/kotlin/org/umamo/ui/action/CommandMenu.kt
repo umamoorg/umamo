@@ -38,8 +38,9 @@ sealed interface CommandMenuRow {
 	 *
 	 * @property CommandListing group The family or the section.
 	 * @property Any? argument What every row runs its command with, for a menu opened on one thing among several
-	 *   (a workspace's tab), or null to run each with none.  A row run with an argument shows no accelerator: the
-	 *   chord runs the command with none, which may not be the same thing.
+	 *   (a workspace's tab), or null to name none.  A row run with an argument shows no accelerator: the chord runs
+	 *   the command with none, which may not be the same thing.  It holds against the argument a menu is opened with
+	 *   ([rememberCommandMenuFor]), which aims only the rows that name none.
 	 */
 	data class Members(val group: CommandListing, val argument: Any? = null) : CommandMenuRow
 
@@ -49,9 +50,8 @@ sealed interface CommandMenuRow {
 	 * @property CommandFamily family The family.
 	 * @property String? openerId The command that opens the family as a pie, whose title then labels the submenu and
 	 *   without which the row is left out; null for a family nothing opens, which goes under its own heading.
-	 * @property Any? argument What every row runs its command with, as [Members] has it, or null to run each with none.
 	 */
-	data class Family(val family: CommandFamily, val openerId: String? = null, val argument: Any? = null) : CommandMenuRow
+	data class Family(val family: CommandFamily, val openerId: String? = null) : CommandMenuRow
 
 	/**
 	 * A named run of rows as a submenu.  Left out when none of its rows is there.
@@ -122,30 +122,30 @@ internal fun rememberFamilyMenu(family: CommandFamily): () -> List<MenuItem> {
  */
 @Composable
 internal fun rememberCommandMenu(rows: List<CommandMenuRow>): () -> List<MenuItem> {
-	val commands = LocalCommands.current
-	val keymap = LocalKeymap.current
-	val resolved = arrangedRows(rows, commands)
+	val menu = rememberCommandMenuFor(rows)
 
-	return remember(resolved, commands, keymap) { { resolved.map { row -> menuItemOf(row, commands, keymap) } } }
+	return remember(menu) { { menu(null) } }
 }
 
 /**
- * An arranged menu for a list whose every item opens it on itself, as the builder to call when the menu opens:
- * [rows] resolved once for the whole list, and every row run with the argument the opening item hands over.
+ * An arranged menu, as the builder to call with what the menu is opened on: [rows] resolved once, and every row
+ * that names no argument of its own run with the one handed over.  A list whose items each open the same menu on
+ * themselves resolves it once for all of them this way.
  *
- * The composition calling this is subscribed to the registry, as [rememberCommandMenu]'s is, and the builder is the
+ * The composition calling this is subscribed to the registry, as [rememberFamilyMenu]'s is, and the builder is the
  * same object while the rows resolve the same, so it can be handed down a list without recomposing it.
  *
  * @param List<CommandMenuRow> rows The menu's rows.
- * @return Function The builder: the menu's entries for an argument, with each row's grayed state as it is when called.
+ * @return Function The builder: the menu's entries for an argument, or for none, with each row's grayed state as it
+ *   is when called.
  */
 @Composable
-internal fun rememberCommandMenuFor(rows: List<CommandMenuRow>): (argument: Any) -> List<MenuItem> {
+internal fun rememberCommandMenuFor(rows: List<CommandMenuRow>): (argument: Any?) -> List<MenuItem> {
 	val commands = LocalCommands.current
 	val keymap = LocalKeymap.current
 	val resolved = arrangedRows(rows, commands)
 
-	return remember(resolved, commands, keymap) { { argument -> runWith(argument, resolved).map { row -> menuItemOf(row, commands, keymap) } } }
+	return remember(resolved, commands, keymap) { { argument -> aimedAt(argument, resolved).map { row -> menuItemOf(row, commands, keymap) } } }
 }
 
 /**
@@ -180,11 +180,7 @@ private fun arrangedRow(row: CommandMenuRow, commands: CommandRegistry): List<Re
 					is CommandSection -> listingRows(group, commands)
 				}
 
-			if (row.argument == null) {
-				members
-			} else {
-				runWith(row.argument, members)
-			}
+			aimedAt(row.argument, members)
 		}
 
 		is CommandMenuRow.Family -> {
@@ -199,7 +195,7 @@ private fun arrangedRow(row: CommandMenuRow, commands: CommandRegistry): List<Re
 			if (label == null || familyRows.isEmpty()) {
 				emptyList()
 			} else {
-				listOf(ResolvedRow.Submenu(label, if (row.argument == null) familyRows else runWith(row.argument, familyRows)))
+				listOf(ResolvedRow.Submenu(label, familyRows))
 			}
 		}
 
@@ -219,20 +215,26 @@ private fun arrangedRow(row: CommandMenuRow, commands: CommandRegistry): List<Re
 	}
 
 /**
- * [rows] with every command row, at any depth, set to run its command with [argument].
+ * [rows] with every command row, at any depth, that names no argument yet set to run its command with [argument].
+ * A row that already names one keeps it: the argument nearest a row is the one it runs with.
  *
- * @param Any argument The argument.
+ * @param Any? argument The argument, or null to leave every row as it is.
  * @param List<ResolvedRow> rows The rows.
- * @return List<ResolvedRow> The rows, each command row carrying the argument.
+ * @return List<ResolvedRow> The rows, each command row carrying an argument where one is named for it.
  */
-private fun runWith(argument: Any, rows: List<ResolvedRow>): List<ResolvedRow> =
-	rows.map { row ->
+private fun aimedAt(argument: Any?, rows: List<ResolvedRow>): List<ResolvedRow> {
+	if (argument == null) {
+		return rows
+	}
+
+	return rows.map { row ->
 		when (row) {
-			is ResolvedRow.Of -> row.copy(argument = argument)
-			is ResolvedRow.Submenu -> row.copy(rows = runWith(argument, row.rows))
+			is ResolvedRow.Of -> if (row.argument == null) row.copy(argument = argument) else row
+			is ResolvedRow.Submenu -> row.copy(rows = aimedAt(argument, row.rows))
 			ResolvedRow.Rule -> row
 		}
 	}
+}
 
 /**
  * [rows] without the rules that separate nothing: one at either end, and all but the first of a run.
@@ -362,7 +364,7 @@ private fun menuItemOf(
 ): MenuItem =
 	when (row) {
 		is ResolvedRow.Of -> {
-			commandMenuItem(row.command, row.label, commands, keymap, row.argument, checkList = row.checkList)
+			menuItemFor(row.command, row.label, commands, keymap, row.argument, row.checkList) { dispatch -> dispatch() }
 		}
 
 		is ResolvedRow.Submenu -> {
@@ -382,16 +384,17 @@ private fun menuItemOf(
  *
  * A command offered with a list of arguments is a submenu of them, a row apiece under the argument's own label, and
  * cannot open while the list is empty.  Any other command is one row, with its glyph and whatever chord the keymap
- * binds to it - unless the row runs it with an argument, since the chord runs it with none.  In a check list the row
- * is a choice row, ticked while its command is the one in effect for that argument; anywhere else it carries no tick,
- * whatever state its command reports.
+ * binds to it - unless the row runs it with an argument, since the chord runs it with none.
+ *
+ * A row built here stands outside any family's menu, so it carries no tick slot whatever state its command reports:
+ * the check-list style is a family's, and reaches a row through that family's menu ([rememberFamilyMenu], or a
+ * family or section named in an arrangement).
  *
  * @param Command command The command the entry stands for.
  * @param String label The entry's label, already resolved.
  * @param CommandRegistry commands The registry the entry dispatches through.
  * @param Keymap keymap The keymap the accelerator is read from.
  * @param Any? argument What the entry runs the command with, or null for none.
- * @param Boolean checkList Whether the entry sits in a check list, the style its family opts into.
  * @param Function around Runs the dispatch it is handed, for a site that has to set something up for the command to
  *   read and clear it after: a menu owns the pointer by the time a row is picked, so a command that reads what the
  *   pointer was over needs that published again around its run.
@@ -403,8 +406,30 @@ internal fun commandMenuItem(
 	commands: CommandRegistry,
 	keymap: Keymap,
 	argument: Any? = null,
-	checkList: Boolean = false,
 	around: (dispatch: () -> Unit) -> Unit = { dispatch -> dispatch() },
+): MenuItem = menuItemFor(command, label, commands, keymap, argument, checkList = false, around)
+
+/**
+ * The menu entry for [command], in a check list or out of one.  In a check list the row is a choice row, ticked
+ * while its command is the one in effect for the argument it runs with.
+ *
+ * @param Command command The command the entry stands for.
+ * @param String label The entry's label, already resolved.
+ * @param CommandRegistry commands The registry the entry dispatches through.
+ * @param Keymap keymap The keymap the accelerator is read from.
+ * @param Any? argument What the entry runs the command with, or null for none.
+ * @param Boolean checkList Whether the entry is a row of a check-list family's menu.
+ * @param Function around Runs the dispatch it is handed.
+ * @return MenuItem The entry, grayed when the command does not apply as this is called.
+ */
+private fun menuItemFor(
+	command: Command,
+	label: String,
+	commands: CommandRegistry,
+	keymap: Keymap,
+	argument: Any?,
+	checkList: Boolean,
+	around: (dispatch: () -> Unit) -> Unit,
 ): MenuItem {
 	val available = command.isAvailable(argument)
 	val choices = command.choices

@@ -378,28 +378,9 @@ class CommandMenuTest {
 	}
 
 	/**
-	 * A family row aimed at one thing runs every row with that argument, as an inline group does, and grays each by
-	 * it: a parameter's Control submenu, opened on that parameter.
-	 */
-	@Test
-	fun aFamilyRowRunsItsRowsWithItsArgument() {
-		val received = ArrayList<Any?>()
-		val save = Command("file.save", title = null, availableFor = { argument -> argument == "bravo" }, group = CommandFamily.MergeTarget, groupLabel = Res.string.menu_file_save, handler = { argument -> received.add(argument) })
-		val registry = registryOf(save)
-		val aimed = commandMenuOf(listOf(CommandMenuRow.Family(CommandFamily.MergeTarget, argument = "bravo")), registry).single() as MenuItem.Submenu
-		val elsewhere = commandMenuOf(listOf(CommandMenuRow.Family(CommandFamily.MergeTarget, argument = "alpha")), registry)
-
-		assertEquals(listOf("Merge >", "  Save"), menuOutline(listOf(aimed)))
-		assertEquals(listOf("Merge > (off)", "  Save (off)"), menuOutline(elsewhere), "the row does not apply to that argument")
-
-		(aimed.items.single() as MenuItem.Action).onSelect()
-
-		assertEquals(listOf<Any?>("bravo"), received)
-	}
-
-	/**
 	 * A menu every item of a list opens on itself is resolved once: the one builder runs its rows with whichever
-	 * argument it is called with, and grays and ticks them by that argument.
+	 * argument it is called with, a family row's included, and grays and ticks them by that argument - a parameter's
+	 * Control submenu, opened on that parameter.
 	 */
 	@Test
 	fun aMenuResolvedOnceRunsItsRowsWithTheArgumentItOpensOn() {
@@ -419,7 +400,7 @@ class CommandMenuTest {
 
 		assertEquals(false, rowFor("alpha").checked)
 		assertEquals(true, rowFor("bravo").checked, "the tick is the argument's")
-		assertEquals(false, rowFor("charlie").enabled, "and so is the grayed state")
+		assertEquals(listOf("Control > (off)", "  Save (off)"), menuOutline(menu("charlie")), "and so is the grayed state, the submenu's with its row's")
 
 		rowFor("alpha").onSelect()
 		rowFor("bravo").onSelect()
@@ -428,9 +409,27 @@ class CommandMenuTest {
 	}
 
 	/**
+	 * A row that names an argument of its own keeps it when the menu is opened with another: the argument nearest a
+	 * row is the one it runs with, so a menu can aim some rows itself and leave the rest to what it is opened on.
+	 */
+	@Test
+	fun aRowsOwnArgumentHoldsAgainstTheOneTheMenuOpensWith() {
+		val received = ArrayList<Any?>()
+		val merge = Command("test.merge", title = null, group = CommandFamily.MergeTarget, groupLabel = Res.string.menu_file_save, handler = { argument -> received.add(argument) })
+		val control = Command("test.control", title = null, group = CommandFamily.ParameterControl, groupLabel = Res.string.menu_file_new, handler = { argument -> received.add(argument) })
+		val rows = listOf(CommandMenuRow.Members(CommandFamily.MergeTarget, argument = "its own"), CommandMenuRow.Members(CommandFamily.ParameterControl))
+		val menu = commandMenuForBuilderOf(rows, registryOf(merge, control))
+
+		menu("opened on").forEach { row -> (row as MenuItem.Action).onSelect() }
+		menu(null).forEach { row -> (row as MenuItem.Action).onSelect() }
+
+		assertEquals(listOf<Any?>("its own", "opened on", "its own", null), received)
+	}
+
+	/**
 	 * In a check-list family a command's row is a choice row, ticked while the command is the one in effect for the
-	 * argument the row runs it with.  The family opts into that style: in any other family, and in a row built outside
-	 * one, a command keeps no tick slot whatever state it reports.
+	 * argument the row runs it with.  The family opts into that style, and its menu is the only way a row gets it: in
+	 * any other family, and in a row built outside one, a command keeps no tick slot whatever state it reports.
 	 */
 	@Test
 	fun aChoiceRowIsTickedWhileItIsTheOneInEffect() {
@@ -440,20 +439,22 @@ class CommandMenuTest {
 		val plain = Command("test.plain", title = Res.string.menu_file_open, handler = {})
 		val registry = registryOf(choice, lit, plain)
 		val keymap = defaultKeymap()
+		val menu = commandMenuForBuilderOf(listOf(CommandMenuRow.Family(CommandFamily.ParameterControl)), registry)
+		val tickFor = { argument: String -> ((menu(argument).single() as MenuItem.Submenu).items.single() as MenuItem.Action).checked }
 
-		assertEquals(true, (commandMenuItem(choice, "Save", registry, keymap, argument = "bravo", checkList = true) as MenuItem.Action).checked)
-		assertEquals(false, (commandMenuItem(choice, "Save", registry, keymap, argument = "alpha", checkList = true) as MenuItem.Action).checked, "the state is that argument's")
+		assertEquals(true, tickFor("bravo"))
+		assertEquals(false, tickFor("alpha"), "the state is that argument's")
 
-		val menu = commandMenuBuilderOf(listOf(CommandMenuRow.Family(CommandFamily.ParameterControl, argument = "bravo")), registry)
 		current = "alpha"
 
-		assertEquals(false, ((menu().single() as MenuItem.Submenu).items.single() as MenuItem.Action).checked, "the tick is asked as the menu opens")
+		assertEquals(false, tickFor("bravo"), "the tick is asked as the menu opens")
 
 		// The style is the family's to opt into: a member that reports a state gets no tick slot in any other menu.
 		val plainFamily = commandMenuOf(listOf(CommandMenuRow.Family(CommandFamily.MergeTarget)), registry)
 
 		assertNull(((plainFamily.single() as MenuItem.Submenu).items.single() as MenuItem.Action).checked, "a family that is no check list ticks nothing")
-		assertNull((commandMenuItem(lit, "New", registry, keymap) as MenuItem.Action).checked, "and neither does a row built outside one")
+		assertNull((commandMenuItem(choice, "Save", registry, keymap, argument = "alpha") as MenuItem.Action).checked, "a row built outside the family's menu has no tick slot, a check list's member included")
+		assertNull((commandMenuItem(lit, "New", registry, keymap) as MenuItem.Action).checked)
 		assertNull((commandMenuItem(plain, "Open…", registry, keymap) as MenuItem.Action).checked)
 	}
 

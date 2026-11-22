@@ -4,6 +4,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterChange
 import org.umamo.edit.ParameterSelection
 import org.umamo.runtime.eval.wrapOrClamp
+import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.PuppetModel
@@ -98,18 +99,25 @@ fun PuppetModel.withParameterLink(horizontal: ParameterId, vertical: ParameterId
 	return copy(parameterLinks = remaining)
 }
 
+/** Whether the parameter has a range to move through.  A flat one drives nothing, so an editor gives it no control. */
+val Parameter.isAnimatable: Boolean get() = max > min
+
 /**
- * The links the Parameters panel shows as one pad: those whose two members both have a range to move through.  A
- * link with a flat member still occupies both, but its members keep rows of their own, so whatever asks which row
- * a parameter is on asks here.
+ * The ids of this model's animatable parameters.
  *
+ * @return Set<ParameterId> The ids.
+ */
+fun PuppetModel.animatableParameterIds(): Set<ParameterId> = parameters.filter { parameter -> parameter.isAnimatable }.mapTo(HashSet()) { parameter -> parameter.id }
+
+/**
+ * The links whose two members are both animatable: the ones that can be driven as one two-axis control.  A link
+ * with a flat member stays in the model, and still occupies both its members, but is not one of these.
+ *
+ * @param Set<ParameterId> animatable The model's animatable ids, for a caller that already holds them.
  * @return List<ParameterLink> The links, in the model's order.
  */
-fun PuppetModel.padLinks(): List<ParameterLink> {
-	val movable = parameters.filter { parameter -> parameter.max > parameter.min }.mapTo(HashSet()) { parameter -> parameter.id }
-
-	return parameterLinks.filter { link -> link.horizontal in movable && link.vertical in movable }
-}
+fun PuppetModel.animatableLinks(animatable: Set<ParameterId> = animatableParameterIds()): List<ParameterLink> =
+	parameterLinks.filter { link -> link.horizontal in animatable && link.vertical in animatable }
 
 /**
  * Sets parameter [id]'s range and default, and brings its live pose value back into the new range, as one
