@@ -175,14 +175,24 @@ internal fun selectCommands(
 		// Select All / Invert dispatch by mode so one binding (A / Ctrl+I) serves both: elements in Edit and Pose
 		// mode, whole selectable entities in Object mode.  Each session method no-ops in the wrong mode.  The two are
 		// the Select menu's first block, ahead of the by-kind submenus.
-		Command("select.all", title = Res.string.cmd_select_all, availability = availability.hasDocument, group = CommandSection.SelectEverything) {
+		Command(
+			"select.all",
+			title = Res.string.cmd_select_all,
+			availability = availability.hasDocument,
+			group = CommandSection.SelectEverything,
+		) {
 			if (editorSession?.mode?.value?.editsElements == true) {
 				editorSession.selectAllMeshElements()
 			} else {
 				editorSession?.selectAllObjects()
 			}
 		},
-		Command("select.invert", title = Res.string.cmd_select_invert, availability = availability.hasDocument, group = CommandSection.SelectEverything) {
+		Command(
+			"select.invert",
+			title = Res.string.cmd_select_invert,
+			availability = availability.hasDocument,
+			group = CommandSection.SelectEverything,
+		) {
 			if (editorSession?.mode?.value?.editsElements == true) {
 				editorSession.invertMeshSelection()
 			} else {
@@ -234,23 +244,46 @@ internal fun selectCommands(
 		) {
 			routing.selectToolArea(editorSession)?.let { areaId -> editorSession?.beginCircleSelect(areaId) }
 		},
-		Command("mesh.circleSelect.grow", title = Res.string.cmd_mesh_circle_grow, availability = availability.circleToolLive) {
+		Command(
+			"mesh.circleSelect.grow",
+			title = Res.string.cmd_mesh_circle_grow,
+			availability = availability.circleToolLive,
+		) {
 			editorSession?.growCircleRadius()
 		},
-		Command("mesh.circleSelect.shrink", title = Res.string.cmd_mesh_circle_shrink, availability = availability.circleToolLive) {
+		Command(
+			"mesh.circleSelect.shrink",
+			title = Res.string.cmd_mesh_circle_shrink,
+			availability = availability.circleToolLive,
+		) {
 			editorSession?.shrinkCircleRadius()
 		},
 		// Select Linked (Blender's L / Ctrl+L) and the Alt+Q edited-mesh switch: the pointer position and
 		// the projected geometry live in the overlays, so these fire session request flows they collect.
 		// The executing area resolves HERE, at dispatch, into the request payload (the hovered surface -
 		// viewport or UV editor alike), so the collectors gate deterministically on their own area id.
-		Command("mesh.selectLinkedAtCursor", title = Res.string.cmd_mesh_select_linked_cursor, availability = availability.inElementMode, spaces = SpaceScope.WorkSurfaces) {
+		Command(
+			"mesh.selectLinkedAtCursor",
+			title = Res.string.cmd_mesh_select_linked_cursor,
+			availability = availability.inElementMode,
+			spaces = SpaceScope.WorkSurfaces,
+		) {
 			editorSession?.requestSelectLinked(fromSelection = false, areaId = routing.hoveredAreaIdAnyKind())
 		},
-		Command("mesh.selectLinked", title = Res.string.cmd_mesh_select_linked, availability = availability.inElementMode, spaces = SpaceScope.WorkSurfaces) {
+		Command(
+			"mesh.selectLinked",
+			title = Res.string.cmd_mesh_select_linked,
+			availability = availability.inElementMode,
+			spaces = SpaceScope.WorkSurfaces,
+		) {
 			editorSession?.requestSelectLinked(fromSelection = true, areaId = routing.hoveredAreaIdAnyKind())
 		},
-		Command("edit.switchObjectUnderCursor", title = Res.string.cmd_switch_object_under_cursor, availability = availability.inElementMode, spaces = SpaceScope.Viewport2D) {
+		Command(
+			"edit.switchObjectUnderCursor",
+			title = Res.string.cmd_switch_object_under_cursor,
+			availability = availability.inElementMode,
+			spaces = SpaceScope.Viewport2D,
+		) {
 			editorSession?.requestSwitchObjectUnderCursor(routing.viewportArea())
 		},
 	)

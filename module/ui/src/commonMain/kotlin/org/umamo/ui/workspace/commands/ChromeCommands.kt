@@ -40,16 +40,25 @@ internal fun chromeCommands(
 ): List<Command> =
 	commandTable(
 		CommandTable.Chrome,
-		Command("palette.toggle", title = null) { overlays.paletteVisible = !overlays.paletteVisible },
+		Command(
+			"palette.toggle",
+			title = null,
+		) { overlays.paletteVisible = !overlays.paletteVisible },
 		// Cancels whichever kind of area drag is in flight - the two are separate mechanisms (a corner
 		// drag splits/joins, a divider drag re-ratios) and only ever one is live, so both are addressed
 		// here rather than splitting the one Escape-bound command in two.
-		Command("area.dragCancel", title = null) {
+		Command(
+			"area.dragCancel",
+			title = null,
+		) {
 			dragController.cancelDrag()
 			splitterDragCancel.cancel?.invoke()
 		},
 		// The panel row-drag cancel dispatched from the shell's Escape precedence (mirroring area.dragCancel).
-		Command("row.dragCancel", title = null) { rowDragCancel.cancel?.invoke() },
+		Command(
+			"row.dragCancel",
+			title = null,
+		) { rowDragCancel.cancel?.invoke() },
 		// The preferences window opens through the registry like everything else, so the Edit menu, the
 		// Ctrl/Cmd+, binding, and the command palette all reach it through the one dispatch point.  Titled,
 		// so it surfaces in the palette ("Settings") for free.
@@ -71,7 +80,11 @@ internal fun chromeCommands(
 		) {
 			overlays.creditsVisible = !overlays.creditsVisible
 		},
-		Command("help.about", title = Res.string.menu_about, group = CommandSection.HelpAbout) {
+		Command(
+			"help.about",
+			title = Res.string.menu_about,
+			group = CommandSection.HelpAbout,
+		) {
 			overlays.aboutVisible = !overlays.aboutVisible
 		},
 		// Quick Setup opens by itself on a first run; this reopens it (the Help menu and the palette).

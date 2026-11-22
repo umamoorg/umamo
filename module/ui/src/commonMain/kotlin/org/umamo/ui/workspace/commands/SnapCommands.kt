@@ -108,7 +108,11 @@ internal fun snapCommands(
 			editorSession?.setPivotMode(TransformPivotMode.Cursor)
 			editorSession?.closePieMenu()
 		},
-		Command("snap.pie", title = Res.string.cmd_snap_pie, availability = availability.hasDocument) {
+		Command(
+			"snap.pie",
+			title = Res.string.cmd_snap_pie,
+			availability = availability.hasDocument,
+		) {
 			// Blender's hovered-area routing (the key acts where the pointer is): over the UV editor this opens
 			// the UV snap pie - its entries snap texture coordinates in Edit mode and placed art tiles in Object
 			// mode, and nothing in Pose mode, where the UV editor is view-only, so no pie opens there; everywhere

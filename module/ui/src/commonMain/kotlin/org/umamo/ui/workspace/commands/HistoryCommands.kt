@@ -30,13 +30,29 @@ internal fun historyCommands(
 ): List<Command> =
 	commandTable(
 		CommandTable.History,
-		Command("edit.undo", title = Res.string.cmd_undo, availability = availability.canUndo, group = CommandSection.EditHistory, groupLabel = Res.string.menu_undo) {
+		Command(
+			"edit.undo",
+			title = Res.string.cmd_undo,
+			availability = availability.canUndo,
+			group = CommandSection.EditHistory,
+			groupLabel = Res.string.menu_undo,
+		) {
 			editorSession?.undo()
 		},
-		Command("edit.redo", title = Res.string.cmd_redo, availability = availability.canRedo, group = CommandSection.EditHistory, groupLabel = Res.string.menu_redo) {
+		Command(
+			"edit.redo",
+			title = Res.string.cmd_redo,
+			availability = availability.canRedo,
+			group = CommandSection.EditHistory,
+			groupLabel = Res.string.menu_redo,
+		) {
 			editorSession?.redo()
 		},
-		Command("edit.adjustLastOperation", title = Res.string.cmd_adjust_last_operation, availability = availability.hasAdjustableOperation) {
+		Command(
+			"edit.adjustLastOperation",
+			title = Res.string.cmd_adjust_last_operation,
+			availability = availability.hasAdjustableOperation,
+		) {
 			operationStrip.expanded = !operationStrip.expanded
 		},
 	)

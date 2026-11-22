@@ -44,10 +44,18 @@ internal fun viewportChromeCommands(
 
 	return commandTable(
 		CommandTable.ViewportChrome,
-		Command("view.toggleToolbar", title = Res.string.cmd_view_toggle_toolbar, spaces = SpaceScope.Viewport2D) {
+		Command(
+			"view.toggleToolbar",
+			title = Res.string.cmd_view_toggle_toolbar,
+			spaces = SpaceScope.Viewport2D,
+		) {
 			hoveredToolbar()?.toggle(defaults().showToolbar)
 		},
-		Command("view.toggleSidebar", title = Res.string.cmd_view_toggle_sidebar, spaces = SpaceScope.WorkSurfaces) {
+		Command(
+			"view.toggleSidebar",
+			title = Res.string.cmd_view_toggle_sidebar,
+			spaces = SpaceScope.WorkSurfaces,
+		) {
 			hoveredSidebar()?.visibility?.toggle(defaults().showSidebar)
 		},
 	)

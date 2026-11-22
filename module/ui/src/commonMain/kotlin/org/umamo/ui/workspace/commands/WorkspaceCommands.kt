@@ -48,15 +48,34 @@ internal fun workspaceCommands(
 
 	return commandTable(
 		CommandTable.Workspace,
-		Command("workspace.new", title = Res.string.workspace_new, group = CommandSection.WorkspaceManage) { workspaces.create(names().newBaseName) },
-		Command("workspace.reset", title = Res.string.cmd_workspace_reset, group = CommandSection.WorkspaceManage, groupLabel = Res.string.menu_workspace_reset) {
+		Command(
+			"workspace.new",
+			title = Res.string.workspace_new,
+			group = CommandSection.WorkspaceManage,
+		) { workspaces.create(names().newBaseName) },
+		Command(
+			"workspace.reset",
+			title = Res.string.cmd_workspace_reset,
+			group = CommandSection.WorkspaceManage,
+			groupLabel = Res.string.menu_workspace_reset,
+		) {
 			overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_reset_workspace, confirmLabel = Res.string.dialog_reset) { workspaces.resetActive() }
 		},
 		// Opens the tab's in-place editor; the name is set when the editor commits.
-		Command("workspace.rename", title = Res.string.cmd_workspace_rename, group = CommandSection.WorkspaceTab, groupLabel = Res.string.workspace_rename) { argument ->
+		Command(
+			"workspace.rename",
+			title = Res.string.cmd_workspace_rename,
+			group = CommandSection.WorkspaceTab,
+			groupLabel = Res.string.workspace_rename,
+		) { argument ->
 			targetOf(argument)?.let { target -> workspaces.beginRename(target.id) }
 		},
-		Command("workspace.duplicate", title = Res.string.cmd_workspace_duplicate, group = CommandSection.WorkspaceTab, groupLabel = Res.string.workspace_duplicate) { argument ->
+		Command(
+			"workspace.duplicate",
+			title = Res.string.cmd_workspace_duplicate,
+			group = CommandSection.WorkspaceTab,
+			groupLabel = Res.string.workspace_duplicate,
+		) { argument ->
 			targetOf(argument)?.let { target -> workspaces.duplicate(target.id, names().copyNameOf(target)) }
 		},
 		// The strip never goes empty, so the last workspace cannot be deleted.
@@ -69,12 +88,18 @@ internal fun workspaceCommands(
 		) { argument ->
 			targetOf(argument)?.let { target -> workspaces.delete(target.id) }
 		},
-		Command("workspace.applyLayout", title = null) { argument ->
+		Command(
+			"workspace.applyLayout",
+			title = null,
+		) { argument ->
 			(argument as? InterfaceLayout)?.let { imported ->
 				overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_import_replace, confirmLabel = Res.string.dialog_replace) { workspaces.applyImported(imported) }
 			}
 		},
-		Command("workspace.appendWorkspace", title = null) { argument ->
+		Command(
+			"workspace.appendWorkspace",
+			title = null,
+		) { argument ->
 			(argument as? Workspace)?.let { imported -> workspaces.appendImported(imported, names().newBaseName) }
 		},
 	)
@@ -105,7 +130,19 @@ internal fun workspaceFileCommands(
 ): List<Command> =
 	commandTable(
 		CommandTable.Workspace,
-		Command("workspace.import", title = Res.string.menu_workspace_import, group = CommandSection.WorkspaceFiles) { onImport() },
-		Command("workspace.exportThis", title = Res.string.menu_workspace_export_this, group = CommandSection.WorkspaceFiles) { onExportThis() },
-		Command("workspace.exportAll", title = Res.string.menu_workspace_export_all, group = CommandSection.WorkspaceFiles) { onExportAll() },
+		Command(
+			"workspace.import",
+			title = Res.string.menu_workspace_import,
+			group = CommandSection.WorkspaceFiles,
+		) { onImport() },
+		Command(
+			"workspace.exportThis",
+			title = Res.string.menu_workspace_export_this,
+			group = CommandSection.WorkspaceFiles,
+		) { onExportThis() },
+		Command(
+			"workspace.exportAll",
+			title = Res.string.menu_workspace_export_all,
+			group = CommandSection.WorkspaceFiles,
+		) { onExportAll() },
 	)
