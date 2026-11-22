@@ -12,6 +12,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -19,6 +20,7 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import okio.Path.Companion.toPath
 import okio.fakefilesystem.FakeFileSystem
+import org.jetbrains.compose.resources.stringResource
 import org.umamo.settings.Settings
 import org.umamo.storage.OkioAppStorage
 import org.umamo.ui.LocalSettings
@@ -35,6 +37,8 @@ import org.umamo.ui.kit.textentry.LocalKeyCapture
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.cmd_mesh_grab
 import org.umamo.ui.resources.cmd_preferences
+import org.umamo.ui.resources.settings_keybindings_press_shortcut
+import org.umamo.ui.resources.settings_keybindings_unbound
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.workspace.ConfirmRequest
 import org.umamo.ui.workspace.ShellOverlayState
@@ -57,6 +61,12 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 class KeybindingReassignKeysTest {
 	private val defaultJson = """{"input":{"keybinding":{"preset":"default","overrides":{}}}}"""
+
+	/** What an unbound command's chip reads, as the running locale renders it. */
+	private var unboundLabel = ""
+
+	/** What an armed chip reads, as the running locale renders it. */
+	private var pressShortcutLabel = ""
 
 	/**
 	 * Mounts the editor under a root that routes keys through the modal ladder, with Preferences marked open.
@@ -83,6 +93,8 @@ class KeybindingReassignKeysTest {
 		// One controller shared by the ladder and the editor, as the shell wires it.
 		val keyCapture = KeyCaptureController()
 		test.setContent {
+			unboundLabel = stringResource(Res.string.settings_keybindings_unbound)
+			pressShortcutLabel = stringResource(Res.string.settings_keybindings_press_shortcut)
 			UmamoTheme {
 				CompositionLocalProvider(LocalSettings provides settings, LocalCommands provides registry, LocalKeymap provides keymap, LocalKeyCapture provides keyCapture) {
 					Box(
@@ -115,6 +127,7 @@ class KeybindingReassignKeysTest {
 				}
 			}
 		}
+		test.waitForIdle()
 
 		return settings
 	}
@@ -128,7 +141,7 @@ class KeybindingReassignKeysTest {
 	 * @param List              strokes  The strokes seen so far, for the failure message.
 	 */
 	private fun raiseTheReassignPrompt(test: ComposeUiTest, overlays: ShellOverlayState, strokes: List<String>) {
-		test.onNodeWithText("Unbound").performClick()
+		test.onNodeWithText(unboundLabel).performClick()
 		test.waitForIdle()
 		test.onNodeWithTag("root").performKeyInput {
 			keyDown(Key.CtrlLeft)
@@ -142,8 +155,8 @@ class KeybindingReassignKeysTest {
 
 	/**
 	 * Enter on the reassign prompt reassigns the chord and leaves Preferences open.  The prompt only hears Enter
-	 * at all because the chip keeps its focus node once the capture ends: with focus on nothing, no key reaches
-	 * the shell.
+	 * at all because the page's key sink keeps the keyboard once the capture ends: with focus on nothing, no key
+	 * reaches the shell.
 	 */
 	@Test
 	fun enterOnTheReassignPromptReassignsAndLeavesPreferencesOpen() {
@@ -198,9 +211,9 @@ class KeybindingReassignKeysTest {
 			val strokes = mutableListOf<String>()
 			mount(this, overlays, strokes)
 
-			onNodeWithText("Unbound").performClick()
+			onNodeWithText(unboundLabel).performClick()
 			waitForIdle()
-			onNodeWithText("Press a shortcut…").assertExists()
+			onNodeWithText(pressShortcutLabel).assertExists()
 			onNodeWithTag("root").performKeyInput {
 				keyDown(Key.Escape)
 				keyUp(Key.Escape)
@@ -208,8 +221,8 @@ class KeybindingReassignKeysTest {
 			waitForIdle()
 
 			assertTrue(overlays.settingsVisible, "Escape cancels the capture, not Preferences; strokes: $strokes")
-			onNodeWithText("Unbound").assertExists()
-			onNodeWithText("Press a shortcut…").assertDoesNotExist()
+			onNodeWithText(unboundLabel).assertExists()
+			onNodeWithText(pressShortcutLabel).assertDoesNotExist()
 
 			// With the capture over, Escape is the overlay's again.
 			onNodeWithTag("root").performKeyInput {
@@ -218,6 +231,38 @@ class KeybindingReassignKeysTest {
 			}
 			waitForIdle()
 			assertFalse(overlays.settingsVisible, "a second Escape closes Preferences; strokes: $strokes")
+		}
+	}
+
+	/**
+	 * A click into the search field while a chip waits for a key ends the capture: the field has the keyboard, so
+	 * a capture left armed would hear nothing while the ladder went on standing aside for it, and Escape would do
+	 * nothing at all.
+	 */
+	@Test
+	fun aClickIntoTheSearchFieldDisarmsAChip() {
+		runComposeUiTest {
+			val overlays = ShellOverlayState().apply { settingsVisible = true }
+			val strokes = mutableListOf<String>()
+			mount(this, overlays, strokes)
+
+			onNodeWithText(unboundLabel).performClick()
+			waitForIdle()
+			onNodeWithText(pressShortcutLabel).assertExists()
+
+			onNode(hasSetTextAction()).performClick()
+			waitForIdle()
+
+			onNodeWithText(pressShortcutLabel).assertDoesNotExist()
+			onNodeWithText(unboundLabel).assertExists()
+
+			// With the capture over, Escape is the overlay's again.
+			onNodeWithTag("root").performKeyInput {
+				keyDown(Key.Escape)
+				keyUp(Key.Escape)
+			}
+			waitForIdle()
+			assertFalse(overlays.settingsVisible, "Escape closes Preferences; strokes: $strokes")
 		}
 	}
 }

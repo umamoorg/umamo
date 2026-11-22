@@ -10,6 +10,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -26,7 +27,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
@@ -104,7 +107,7 @@ private sealed interface KeybindingCapture {
 	 */
 	data class Row(val commandId: String) : KeybindingCapture
 
-	/** The search's record button, capturing the chord to look up. */
+	/** The search's recording, capturing the chord to look up. */
 	data object Search : KeybindingCapture
 }
 
@@ -158,90 +161,121 @@ internal fun KeybindingsEditor(folds: PreferencesFolds) {
 	var capture by remember { mutableStateOf<KeybindingCapture?>(null) }
 	var search by remember { mutableStateOf<KeybindingSearch>(KeybindingSearch.Text("")) }
 	var pendingConflict by remember { mutableStateOf<KeybindingConflict?>(null) }
+	val captureFocus = remember { FocusRequester() }
+	// Arming takes the keyboard in the same call.  Left to an effect, a press in the frame between would be
+	// captured as the chord while its typed character still went to a focused search field.
+	val arm: (KeybindingCapture) -> Unit = { armed ->
+		capture = armed
+		captureFocus.requestFocus()
+	}
+	val captureSink =
+		rememberChordCaptureSink(
+			focusRequester = captureFocus,
+			isCapturing = { capture != null },
+			onCaptured = { captured ->
+				when (val armed = capture) {
+					is KeybindingCapture.Row -> {
+						val existingCommandId = keymap.commandFor(captured)
 
-	SettingsCardPage(
-		pinned = {
-			KeymapPresetSettingRow(onSelect = { capture = null })
-			ResetOverridesRow(
-				onReset = {
-					resetKeymapOverrides(settings)
-					capture = null
-				},
-			)
-			KeybindingSearchField(
-				search = search,
-				recording = capture == KeybindingCapture.Search,
-				onSearchChange = { changed -> search = changed },
-				onStartRecording = { capture = KeybindingCapture.Search },
-				onCancelRecording = { capture = null },
-				onRecorded = { chord ->
-					capture = null
-					search = KeybindingSearch.Chord(chord)
-				},
-			)
-		},
-	) {
-		val unboundLabel = stringResource(Res.string.settings_keybindings_unbound)
-		val chordSearch = search as? KeybindingSearch.Chord
-		// What dispatch resolves the recorded press to, so the page answers "what does this press run" exactly as
-		// the shell would, the macOS Control fallback included.
-		val firingCommandId = chordSearch?.let { recorded -> keymap.commandForPress(recorded.chord) }
-		val searching = search.isActive()
-		val byCategory = bindableCommands(commands.all()).groupBy { command -> command.shownKeymapCategory }
-		var shownCards = 0
+						if (existingCommandId != null && existingCommandId != armed.commandId) {
+							pendingConflict = KeybindingConflict(armed.commandId, captured, existingCommandId)
+						} else {
+							rebindCommand(settings, armed.commandId, captured)
+						}
+					}
 
-		for (category in KeymapCategory.entries) {
-			val rows =
-				byCategory[category].orEmpty().mapNotNull { command ->
-					val titleResource = command.title ?: return@mapNotNull null
-					val chordLabel = keymap.chordFor(command.id)?.let { chord -> formatAccelerator(chord) } ?: unboundLabel
+					KeybindingCapture.Search -> {
+						search = KeybindingSearch.Chord(captured)
+					}
 
-					KeybindingSearchRow(command.id, stringResource(titleResource), chordLabel)
+					null -> {}
 				}
-			val title = stringResource(category.heading)
-			val visibility = keybindingCardVisibility(title, rows, search, firingCommandId)
 
-			if (!visibility.shown) {
-				continue
-			}
+				capture = null
+			},
+			onCancelCapture = { capture = null },
+		)
 
-			shownCards++
-			val foldId = keybindingFoldId(category)
-			key(category.id) {
-				// A search forces its matching cards open; otherwise the rigger's persisted fold wins.
-				SectionCard(title = title, expanded = searching || folds.isExpanded(foldId), onToggle = { folds.toggle(foldId) }) {
-					for (rowIndex in visibility.visibleRowIndices) {
-						val row = rows[rowIndex]
-						key(row.commandId) {
-							KeybindingRow(
-								title = row.title,
-								chord = keymap.chordFor(row.commandId),
-								capturing = capture == KeybindingCapture.Row(row.commandId),
-								onStartCapture = { capture = KeybindingCapture.Row(row.commandId) },
-								onCancelCapture = { capture = null },
-								onClear = {
-									unbindCommand(settings, row.commandId)
-									capture = null
-								},
-								onCaptured = { captured ->
-									capture = null
-									val existingCommandId = keymap.commandFor(captured)
+	Box(modifier = Modifier.fillMaxSize().then(captureSink)) {
+		SettingsCardPage(
+			pinned = {
+				KeymapPresetSettingRow(onSelect = { capture = null })
+				ResetOverridesRow(
+					onReset = {
+						resetKeymapOverrides(settings)
+						capture = null
+					},
+				)
+				KeybindingSearchField(
+					search = search,
+					recording = capture == KeybindingCapture.Search,
+					onSearchChange = { changed ->
+						search = changed
+						capture = null
+					},
+					onStartRecording = { arm(KeybindingCapture.Search) },
+				)
+			},
+		) {
+			val unboundLabel = stringResource(Res.string.settings_keybindings_unbound)
+			val chordSearch = search as? KeybindingSearch.Chord
+			// What dispatch resolves the recorded press to, so the page answers "what does this press run" exactly as
+			// the shell would, the macOS Control fallback included.
+			val firingCommandId = chordSearch?.let { recorded -> keymap.commandForPress(recorded.chord) }
+			val searching = search.isActive()
+			val byCategory = bindableCommands(commands.all()).groupBy { command -> command.shownKeymapCategory }
+			var shownCards = 0
 
-									if (existingCommandId != null && existingCommandId != row.commandId) {
-										pendingConflict = KeybindingConflict(row.commandId, captured, existingCommandId)
-									} else {
-										rebindCommand(settings, row.commandId, captured)
-									}
-								},
-							)
+			for (category in KeymapCategory.entries) {
+				val rows =
+					byCategory[category].orEmpty().mapNotNull { command ->
+						val titleResource = command.title ?: return@mapNotNull null
+						val chordLabel = keymap.chordFor(command.id)?.let { chord -> formatAccelerator(chord) } ?: unboundLabel
+
+						KeybindingSearchRow(command.id, stringResource(titleResource), chordLabel)
+					}
+				val title = stringResource(category.heading)
+				val visibility = keybindingCardVisibility(title, rows, search, firingCommandId)
+
+				if (!visibility.shown) {
+					continue
+				}
+
+				shownCards++
+				val foldId = keybindingFoldId(category)
+				key(category.id) {
+					// A search forces its matching cards open; otherwise the rigger's persisted fold wins.
+					SectionCard(
+						title = title,
+						expanded = searching || folds.isExpanded(foldId),
+						onToggle = {
+							folds.toggle(foldId)
+							// A fold can hide the armed row, which would then take the next press unseen.
+							capture = null
+						},
+					) {
+						for (rowIndex in visibility.visibleRowIndices) {
+							val row = rows[rowIndex]
+							key(row.commandId) {
+								KeybindingRow(
+									title = row.title,
+									chord = keymap.chordFor(row.commandId),
+									capturing = capture == KeybindingCapture.Row(row.commandId),
+									onStartCapture = { arm(KeybindingCapture.Row(row.commandId)) },
+									onClear = {
+										unbindCommand(settings, row.commandId)
+										capture = null
+									},
+								)
+							}
 						}
 					}
 				}
 			}
-		}
 
-		if (searching && shownCards == 0) {
-			NoMatchesLine(chordSearch = chordSearch, firingCommandId = firingCommandId)
+			if (searching && shownCards == 0) {
+				NoMatchesLine(chordSearch = chordSearch, firingCommandId = firingCommandId)
+			}
 		}
 	}
 
@@ -283,16 +317,15 @@ private fun ResetOverridesRow(onReset: () -> Unit) {
 }
 
 /**
- * The page's search: a text field matched against names and shown shortcuts, with a record button that looks a
- * pressed chord up instead.  While the button records, the field empties to its "press a shortcut" hint; the search
- * underneath is untouched until a chord lands, so a cancelled recording leaves the list as it was.
+ * The page's search: a text field matched against names and shown shortcuts, with a keyboard button that looks a
+ * pressed chord up instead.  While it records, an armed chip face covers the whole field, so the field cannot be
+ * mistaken for the place to type the shortcut; the search underneath is untouched until a chord lands, so a
+ * cancelled recording leaves the list as it was.
  *
  * @param KeybindingSearch search The current search.
- * @param Boolean recording Whether the record button is capturing.
+ * @param Boolean recording Whether the page is recording a chord to look up.
  * @param Function onSearchChange Receives the typed text as a text search.
- * @param Function onStartRecording Arms the record button.
- * @param Function onCancelRecording Disarms it without a chord.
- * @param Function onRecorded Receives the pressed chord, which ends the recording.
+ * @param Function onStartRecording Arms the recording.
  */
 @Composable
 private fun KeybindingSearchField(
@@ -300,63 +333,34 @@ private fun KeybindingSearchField(
 	recording: Boolean,
 	onSearchChange: (KeybindingSearch) -> Unit,
 	onStartRecording: () -> Unit,
-	onCancelRecording: () -> Unit,
-	onRecorded: (KeyChord) -> Unit,
 ) {
 	val shownText =
-		if (recording) {
-			""
-		} else {
-			when (search) {
-				is KeybindingSearch.Text -> search.query
-				is KeybindingSearch.Chord -> formatAccelerator(search.chord)
-			}
+		when (search) {
+			is KeybindingSearch.Text -> search.query
+			is KeybindingSearch.Chord -> formatAccelerator(search.chord)
 		}
-	SearchField(
-		value = shownText,
-		// Editing the field always makes a text search, a recorded chord's label included.
-		onValueChange = { typed -> onSearchChange(KeybindingSearch.Text(typed)) },
-		modifier = Modifier.fillMaxWidth(),
-		width = Dp.Unspecified,
-		placeholder = stringResource(if (recording) Res.string.settings_keybindings_press_shortcut else Res.string.settings_keybindings_search_hint),
-		trailingAction = {
-			RecordChordButton(
-				recording = recording,
-				onStart = onStartRecording,
-				onCancel = onCancelRecording,
-				onRecorded = onRecorded,
-			)
-		},
-	)
-}
-
-/**
- * The keyboard button inside the search field: click it, press a chord, and the page narrows to the command that
- * chord runs.  Clicking it again, or a bare Escape, cancels.
- *
- * @param Boolean recording Whether it is capturing.
- * @param Function onStart Arms it.
- * @param Function onCancel Disarms it without a chord.
- * @param Function onRecorded Receives the pressed chord.
- */
-@Composable
-private fun RecordChordButton(recording: Boolean, onStart: () -> Unit, onCancel: () -> Unit, onRecorded: (KeyChord) -> Unit) {
-	val capture = rememberChordCaptureModifier(capturing = recording, onCaptured = onRecorded, onCancelCapture = onCancel)
-	Box(modifier = capture, contentAlignment = Alignment.Center) {
-		IconButton(
-			icon = LocalUmamoIcons.keyboard,
-			onClick = {
-				if (recording) {
-					onCancel()
-				} else {
-					onStart()
-				}
+	Box(modifier = Modifier.fillMaxWidth()) {
+		SearchField(
+			value = shownText,
+			// Editing the field always makes a text search, a recorded chord's label included.
+			onValueChange = { typed -> onSearchChange(KeybindingSearch.Text(typed)) },
+			modifier = Modifier.fillMaxWidth(),
+			width = Dp.Unspecified,
+			placeholder = stringResource(Res.string.settings_keybindings_search_hint),
+			trailingAction = {
+				IconButton(
+					icon = LocalUmamoIcons.keyboard,
+					onClick = onStartRecording,
+					contentDescription = stringResource(Res.string.settings_keybindings_search_record),
+					size = DpSize(16.dp, 16.dp),
+					glyphSize = 16.dp,
+				)
 			},
-			contentDescription = stringResource(Res.string.settings_keybindings_search_record),
-			size = DpSize(16.dp, 16.dp),
-			glyphSize = 16.dp,
-			active = recording,
 		)
+
+		if (recording) {
+			ChordChipFace(label = stringResource(Res.string.settings_keybindings_press_shortcut), armed = true, modifier = Modifier.matchParentSize())
+		}
 	}
 }
 
@@ -385,9 +389,7 @@ private fun NoMatchesLine(chordSearch: KeybindingSearch.Chord?, firingCommandId:
  * @param KeyChord? chord          The currently bound chord, or null when unbound.
  * @param Boolean   capturing      Whether this row is capturing a new chord.
  * @param Function  onStartCapture Begins capture for this row.
- * @param Function  onCancelCapture Ends capture without binding.
  * @param Function  onClear        Unbinds the command.
- * @param Function  onCaptured     Receives a captured chord to bind.
  */
 @Composable
 private fun KeybindingRow(
@@ -395,20 +397,11 @@ private fun KeybindingRow(
 	chord: KeyChord?,
 	capturing: Boolean,
 	onStartCapture: () -> Unit,
-	onCancelCapture: () -> Unit,
 	onClear: () -> Unit,
-	onCaptured: (KeyChord) -> Unit,
 ) {
 	PropertyFieldRow(label = title) {
 		Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-			ChordChip(
-				chord = chord,
-				capturing = capturing,
-				onStartCapture = onStartCapture,
-				onCancelCapture = onCancelCapture,
-				onCaptured = onCaptured,
-				modifier = Modifier.weight(1f),
-			)
+			ChordChip(chord = chord, capturing = capturing, onStartCapture = onStartCapture, modifier = Modifier.weight(1f))
 			Spacer(modifier = Modifier.width(4.dp))
 			ClearButton(enabled = chord != null && !capturing, onClick = onClear)
 		}
@@ -416,29 +409,31 @@ private fun KeybindingRow(
 }
 
 /**
- * The capture half of a control that takes the next key press as a chord: the chip and the search's record button
- * share it.  While [capturing] it requests focus and becomes the key sink that turns the next key combination into a
- * chord (a bare Escape cancels).
+ * The page's one key sink: whichever control is armed, a chip or the search's recording, the next key combination
+ * lands here as its chord (a bare Escape cancels).
  *
- * Two things keep that true inside the shell.  The capture is announced on [LocalKeyCapture], because the shell's
- * root handler previews every key before the control sees it and would otherwise take Escape to close Preferences.
- * And the control keeps ONE focus node whether it is capturing or not: a focus node that left the composition when
- * the capture ended would leave focus on nothing, and with nothing focused no key reaches the shell at all - the
- * reassign prompt a taken chord raises would answer to neither Enter nor Escape.
+ * It is the page's only focus node for captures, mounted for as long as the page is.  A control that held the
+ * keyboard itself would take focus along when its row left the list, and with focus on nothing no key reaches the
+ * shell at all: the reassign prompt a taken chord raises would answer to neither Enter nor Escape.
  *
- * @param Boolean capturing Whether the control is capturing.
+ * The capture is announced on [LocalKeyCapture], because the shell's root handler previews every key before the sink
+ * sees it and would otherwise take Escape to close Preferences.  A capture ends when the sink loses the keyboard, so
+ * a click into the search field leaves no capture listening behind it.
+ *
+ * @param FocusRequester focusRequester The sink's focus, requested by whatever arms a capture.
+ * @param Function isCapturing Whether a capture is armed, asked as each key arrives.
  * @param Function onCaptured Receives a captured chord.
- * @param Function onCancelCapture Ends capture without a chord.
- * @return Modifier The focus node and key sink, for the control to place ahead of its own click handling.
+ * @param Function onCancelCapture Ends the capture without a chord.
+ * @return Modifier The focus node and key sink, for the page's outermost node.
  */
 @Composable
-private fun rememberChordCaptureModifier(capturing: Boolean, onCaptured: (KeyChord) -> Unit, onCancelCapture: () -> Unit): Modifier {
-	val focusRequester = remember { FocusRequester() }
-	LaunchedEffect(capturing) {
-		if (capturing) {
-			focusRequester.requestFocus()
-		}
-	}
+private fun rememberChordCaptureSink(
+	focusRequester: FocusRequester,
+	isCapturing: () -> Boolean,
+	onCaptured: (KeyChord) -> Unit,
+	onCancelCapture: () -> Unit,
+): Modifier {
+	val capturing = isCapturing()
 	val keyCapture = LocalKeyCapture.current
 	DisposableEffect(capturing, keyCapture) {
 		if (capturing) {
@@ -452,22 +447,31 @@ private fun rememberChordCaptureModifier(capturing: Boolean, onCaptured: (KeyCho
 		}
 	}
 
+	var heldFocus by remember { mutableStateOf(false) }
+
 	return Modifier
+		// Before the focus target it observes, so isFocused is the sink itself and a descendant taking focus (the
+		// search field) reads as the sink losing it.  Only a loss cancels: taking the keyboard from that
+		// descendant reports the sink unfocused once on the way to focused, with the capture already armed.
+		.onFocusChanged { focusState ->
+			if (heldFocus && !focusState.isFocused) {
+				onCancelCapture()
+			}
+
+			heldFocus = focusState.isFocused
+		}
 		.focusRequester(focusRequester)
-		.onPreviewKeyEvent { event -> capturing && handleCaptureKey(event, onCaptured, onCancelCapture) }
-		// The one focus node, present in both states so it outlives the capture.
+		.onPreviewKeyEvent { event -> isCapturing() && handleCaptureKey(event, onCaptured, onCancelCapture) }
 		.focusable()
 }
 
 /**
- * The clickable chord chip: shows the current accelerator (or "unbound"), and while capturing takes the next key
- * combination as the command's new chord ([rememberChordCaptureModifier]).
+ * The clickable chord chip: shows the current accelerator (or "unbound"), and while capturing reads as armed until
+ * the page's key sink ([rememberChordCaptureSink]) takes the next key combination as the command's new chord.
  *
  * @param KeyChord? chord          The currently bound chord, or null.
  * @param Boolean   capturing      Whether this chip is capturing.
  * @param Function  onStartCapture Begins capture (chip click).
- * @param Function  onCancelCapture Ends capture without binding.
- * @param Function  onCaptured     Receives a captured chord.
  * @param Modifier  modifier       Layout modifier for the chip.
  */
 @Composable
@@ -475,35 +479,48 @@ private fun ChordChip(
 	chord: KeyChord?,
 	capturing: Boolean,
 	onStartCapture: () -> Unit,
-	onCancelCapture: () -> Unit,
-	onCaptured: (KeyChord) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
-	val colors = LocalUmamoColors.current
-	val typography = LocalUmamoTypography.current
-	val shapes = LocalUmamoShapes.current
-	val capture = rememberChordCaptureModifier(capturing = capturing, onCaptured = onCaptured, onCancelCapture = onCancelCapture)
 	val label =
 		when {
 			capturing -> stringResource(Res.string.settings_keybindings_press_shortcut)
 			chord != null -> formatAccelerator(chord)
 			else -> stringResource(Res.string.settings_keybindings_unbound)
 		}
-	val chipModifier =
+	ChordChipFace(label = label, armed = capturing, modifier = modifier, onClick = if (capturing) null else onStartCapture)
+}
+
+/**
+ * The face a chord chip and the search's recording cover share: a bordered label that turns to the accent while
+ * armed.  It takes every press that lands on it, clickable or not, so nothing beneath an armed face is reached.
+ *
+ * @param String    label    The text the face shows.
+ * @param Boolean   armed    Whether it is waiting for a key press.
+ * @param Modifier  modifier Layout modifier for the face.
+ * @param Function? onClick  What a click does, or null for a face that only swallows the press.
+ */
+@Composable
+private fun ChordChipFace(label: String, armed: Boolean, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+	val colors = LocalUmamoColors.current
+	val typography = LocalUmamoTypography.current
+	val shapes = LocalUmamoShapes.current
+	val faceModifier =
 		modifier
 			.clip(shapes.small)
-			// Capturing is an armed accent state, not a selection - accent is deliberate here even though
-			// the two tokens share a value in the dark scheme.
-			.background(if (capturing) colors.accent else colors.controlBackground)
-			.border(BorderStroke(1.dp, if (capturing) colors.accent else colors.controlBorder), shapes.small)
-			.then(capture)
-			.clickable(enabled = !capturing, onClick = onStartCapture)
+			// Armed is an accent state, not a selection - accent is deliberate here even though the two tokens
+			// share a value in the dark scheme.
+			.background(if (armed) colors.accent else colors.controlBackground)
+			.border(BorderStroke(1.dp, if (armed) colors.accent else colors.controlBorder), shapes.small)
+			// The page's key sink holds the keyboard; a face that took focus on its click would end the capture
+			// it had just armed.
+			.focusProperties { canFocus = false }
+			.clickable(enabled = onClick != null, onClick = onClick ?: {})
 	// The same text style and vertical inset as the field dropdowns, so a chip row stands as tall as the preset row.
-	Box(modifier = chipModifier.padding(horizontal = 8.dp, vertical = 4.dp), contentAlignment = Alignment.Center) {
+	Box(modifier = faceModifier.padding(horizontal = 8.dp, vertical = 4.dp), contentAlignment = Alignment.Center) {
 		Text(
 			text = label,
 			style = typography.labelMedium,
-			color = if (capturing) colors.accentText else colors.text,
+			color = if (armed) colors.accentText else colors.text,
 			maxLines = 1,
 			overflow = TextOverflow.Ellipsis,
 		)

@@ -43,6 +43,7 @@ import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.cmd_mesh_grab
 import org.umamo.ui.resources.cmd_preferences
 import org.umamo.ui.resources.settings_keybindings_category_edit
+import org.umamo.ui.resources.settings_keybindings_press_shortcut
 import org.umamo.ui.resources.settings_keybindings_search_record
 import org.umamo.ui.resources.settings_keybindings_unbound
 import org.umamo.ui.theme.UmamoTheme
@@ -76,8 +77,16 @@ class KeybindingsSearchUiTest {
 	 * @property String editHeading The heading of the unbound command's card.
 	 * @property String unbound What an unbound command's chip reads.
 	 * @property String record The record button's label.
+	 * @property String pressShortcut What an armed chip, and the cover over a recording search, reads.
 	 */
-	private class PageLabels(val grab: String, val settings: String, val editHeading: String, val unbound: String, val record: String)
+	private class PageLabels(
+		val grab: String,
+		val settings: String,
+		val editHeading: String,
+		val unbound: String,
+		val record: String,
+		val pressShortcut: String,
+	)
 
 	/**
 	 * Mounts the page under a root that routes keys through the modal ladder, with Preferences marked open.
@@ -117,6 +126,7 @@ class KeybindingsSearchUiTest {
 					editHeading = stringResource(Res.string.settings_keybindings_category_edit),
 					unbound = stringResource(Res.string.settings_keybindings_unbound),
 					record = stringResource(Res.string.settings_keybindings_search_record),
+					pressShortcut = stringResource(Res.string.settings_keybindings_press_shortcut),
 				)
 			UmamoTheme {
 				CompositionLocalProvider(LocalSettings provides settings, LocalCommands provides registry, LocalKeymap provides keymap, LocalKeyCapture provides keyCapture) {
@@ -226,6 +236,58 @@ class KeybindingsSearchUiTest {
 
 			assertFalse(keyCapture.active, "a recorded chord ends the capture")
 			assertTrue(overlays.settingsVisible)
+			onNodeWithText(labels.grab, useUnmergedTree = true).assertExists()
+			onNodeWithText(labels.settings, useUnmergedTree = true).assertDoesNotExist()
+		}
+	}
+
+	/**
+	 * While it records, the search field is covered whole by the armed face, and a click on that cover reaches
+	 * nothing: the recording stays armed and the next press is still the chord looked up.  A click that got through
+	 * to the field would take the keyboard there and strand the recording.
+	 */
+	@Test
+	fun aClickOnTheRecordingCoverKeepsRecording() {
+		runComposeUiTest {
+			val overlays = ShellOverlayState().apply { settingsVisible = true }
+			val keyCapture = KeyCaptureController()
+			val labels = mount(this, overlays, keyCapture)
+
+			onNodeWithText(labels.pressShortcut, useUnmergedTree = true).assertDoesNotExist()
+			onNodeWithContentDescription(labels.record, useUnmergedTree = true).performClick()
+			waitForIdle()
+			onNodeWithText(labels.pressShortcut, useUnmergedTree = true).assertExists()
+
+			onNodeWithText(labels.pressShortcut, useUnmergedTree = true).performClick()
+			waitForIdle()
+			assertTrue(keyCapture.active, "a click on the cover leaves the recording armed")
+
+			pressControlS(this)
+
+			assertFalse(keyCapture.active)
+			onNodeWithText(labels.pressShortcut, useUnmergedTree = true).assertDoesNotExist()
+			onNodeWithText(labels.grab, useUnmergedTree = true).assertExists()
+			onNodeWithText(labels.settings, useUnmergedTree = true).assertDoesNotExist()
+		}
+	}
+
+	/** A recording armed while the search field holds the keyboard takes it from the field and still captures. */
+	@Test
+	fun aRecordingArmedFromTheFocusedFieldStillCaptures() {
+		runComposeUiTest {
+			val overlays = ShellOverlayState().apply { settingsVisible = true }
+			val keyCapture = KeyCaptureController()
+			val labels = mount(this, overlays, keyCapture)
+
+			onNode(hasSetTextAction()).performClick()
+			waitForIdle()
+			onNodeWithContentDescription(labels.record, useUnmergedTree = true).performClick()
+			waitForIdle()
+			assertTrue(keyCapture.active, "taking the keyboard from the field does not cancel the recording it was taken for")
+
+			pressControlS(this)
+
+			assertFalse(keyCapture.active)
 			onNodeWithText(labels.grab, useUnmergedTree = true).assertExists()
 			onNodeWithText(labels.settings, useUnmergedTree = true).assertDoesNotExist()
 		}

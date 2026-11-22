@@ -306,6 +306,10 @@ class CommandGroupTableTest {
 		assertTrue("file.save" in listed)
 		assertFalse("file.openPath" in listed, "untitled")
 		assertFalse("parameter.toggleRepeat" in listed, "titled, and only ever run with a parameter")
+
+		for (rowOnly in listOf("sources.relink", "sources.replaceArtwork", "sources.deleteArt")) {
+			assertFalse(rowOnly in listed, "$rowOnly is titled, and only ever run with the row or drop it acts on")
+		}
 	}
 
 	/**
@@ -325,7 +329,7 @@ class CommandGroupTableTest {
 
 		assertEquals(KeymapCategory.Select, categoryById["select.clear"], "registered by the mode table")
 		assertEquals(KeymapCategory.Transform, categoryById["transform.pivot.cursor"], "registered by the snap table")
-		assertEquals(KeymapCategory.Artwork, categoryById["sources.relink"], "registered by the file table")
+		assertEquals(KeymapCategory.Artwork, categoryById["file.importArtwork"], "registered by the file table")
 		assertEquals(KeymapCategory.Edit, categoryById["edit.preferences"], "registered by the chrome table")
 		assertEquals(KeymapCategory.Workspace, categoryById["workspace.next"], "registered by the chrome table")
 		assertEquals(KeymapCategory.Help, categoryById["help.about"])
