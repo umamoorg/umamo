@@ -1,5 +1,6 @@
 package org.umamo.ui.action
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -11,33 +12,44 @@ import org.umamo.ui.kit.menu.MenuItem
  */
 
 /**
+ * What [compose] hands back, composed once over [commands] and [keymap] the way a surface holds a menu's builder.
+ * The composition is gone by the time this returns, so a builder taken from it reads its rows' grayed state on each
+ * call with nothing recomposed in between.
+ *
+ * @param CommandRegistry commands The registry the composition reads and dispatches through.
+ * @param Keymap keymap The keymap the accelerators are read from.
+ * @param Function compose The composable call whose result is wanted.
+ * @return T What it returned.
+ */
+@OptIn(ExperimentalTestApi::class)
+private fun <T : Any> composedOnce(commands: CommandRegistry, keymap: Keymap, compose: @Composable () -> T): T {
+	var composed: T? = null
+	runComposeUiTest {
+		setContent {
+			CompositionLocalProvider(LocalCommands provides commands, LocalKeymap provides keymap) {
+				composed = compose()
+			}
+		}
+		waitForIdle()
+	}
+
+	return checkNotNull(composed) { "the menu was never composed" }
+}
+
+/**
  * The builder of [family]'s menu over [commands], as the shell's bar holds it: composed once, then called each time
- * the menu opens.  The composition is gone by the time this returns, so calling the builder twice reads the rows'
- * grayed state twice with nothing recomposed in between.
+ * the menu opens.
  *
  * @param CommandFamily family The family the menu stands for.
  * @param CommandRegistry commands The registry the menu is listed from and dispatches through.
  * @param Keymap keymap The keymap the accelerators are read from; unbound unless a case binds one.
  * @return Function The builder.
  */
-@OptIn(ExperimentalTestApi::class)
 internal fun familyMenuBuilderOf(
 	family: CommandFamily,
 	commands: CommandRegistry,
 	keymap: Keymap = Keymap(emptyMap()),
-): () -> List<MenuItem> {
-	var builder: (() -> List<MenuItem>)? = null
-	runComposeUiTest {
-		setContent {
-			CompositionLocalProvider(LocalCommands provides commands, LocalKeymap provides keymap) {
-				builder = rememberFamilyMenu(family)
-			}
-		}
-		waitForIdle()
-	}
-
-	return checkNotNull(builder) { "the menu was never composed" }
-}
+): () -> List<MenuItem> = composedOnce(commands, keymap) { rememberFamilyMenu(family) }
 
 /**
  * [family]'s menu over [commands] as it is when opened now.
@@ -62,24 +74,11 @@ internal fun familyMenuOf(
  * @param Keymap keymap The keymap the accelerators are read from; unbound unless a case binds one.
  * @return Function The builder.
  */
-@OptIn(ExperimentalTestApi::class)
 internal fun commandMenuBuilderOf(
 	rows: List<CommandMenuRow>,
 	commands: CommandRegistry,
 	keymap: Keymap = Keymap(emptyMap()),
-): () -> List<MenuItem> {
-	var builder: (() -> List<MenuItem>)? = null
-	runComposeUiTest {
-		setContent {
-			CompositionLocalProvider(LocalCommands provides commands, LocalKeymap provides keymap) {
-				builder = rememberCommandMenu(rows)
-			}
-		}
-		waitForIdle()
-	}
-
-	return checkNotNull(builder) { "the menu was never composed" }
-}
+): () -> List<MenuItem> = composedOnce(commands, keymap) { rememberCommandMenu(rows) }
 
 /**
  * The builder of an arranged menu a list's items each open on themselves, composed once over [commands], then called
@@ -90,24 +89,11 @@ internal fun commandMenuBuilderOf(
  * @param Keymap keymap The keymap the accelerators are read from; unbound unless a case binds one.
  * @return Function The builder.
  */
-@OptIn(ExperimentalTestApi::class)
 internal fun commandMenuForBuilderOf(
 	rows: List<CommandMenuRow>,
 	commands: CommandRegistry,
 	keymap: Keymap = Keymap(emptyMap()),
-): (Any) -> List<MenuItem> {
-	var builder: ((Any) -> List<MenuItem>)? = null
-	runComposeUiTest {
-		setContent {
-			CompositionLocalProvider(LocalCommands provides commands, LocalKeymap provides keymap) {
-				builder = rememberCommandMenuFor(rows)
-			}
-		}
-		waitForIdle()
-	}
-
-	return checkNotNull(builder) { "the menu was never composed" }
-}
+): (Any?) -> List<MenuItem> = composedOnce(commands, keymap) { rememberCommandMenuFor(rows) }
 
 /**
  * An arranged menu over [commands] as it is when opened now.

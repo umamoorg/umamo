@@ -24,7 +24,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -45,6 +47,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.ui.kit.Divider
 import org.umamo.ui.kit.LocalPopupDismissOwned
@@ -399,16 +402,18 @@ private fun MenuSubmenuRow(
 			onRequestOpen()
 		}
 	}
-	// Close after a grace once neither the row nor the flyout is hovered.  A hover on either restarts the effect,
-	// cancelling the pending close, so a diagonal move from the row across the gap onto the flyout keeps it open.
-	LaunchedEffect(rowHovered, flyoutHovered) {
-		if (!rowHovered && !flyoutHovered) {
-			delay(SUBMENU_CLOSE_GRACE_MS.milliseconds)
+	// Close after a grace once neither the row nor the flyout is hovered, and call that close off the moment either
+	// is hovered again, so a diagonal move from the row across the gap onto the flyout keeps it open.
+	val currentOnRequestClose by rememberUpdatedState(onRequestClose)
+	LaunchedEffect(Unit) {
+		snapshotFlow { rowHovered || flyoutHovered }.collectLatest { hovered ->
+			if (!hovered) {
+				delay(SUBMENU_CLOSE_GRACE_MS.milliseconds)
 
-			// Read again as the grace ends: a hover is written a frame before the recomposition that restarts this
-			// effect, and a grace that ends inside that frame must not close the flyout under the pointer.
-			if (!rowHovered && !flyoutHovered) {
-				onRequestClose()
+				// Read once more as the grace ends, for a hover already written and not yet handed to this collector.
+				if (!rowHovered && !flyoutHovered) {
+					currentOnRequestClose()
+				}
 			}
 		}
 	}

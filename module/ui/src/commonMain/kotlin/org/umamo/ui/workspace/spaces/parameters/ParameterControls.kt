@@ -227,22 +227,16 @@ internal fun ParameterSlider(
 		link = link,
 	)
 	val sliderKeyMarks = remember(keyMarks) { sliderKeyMarksOf(keyMarks) }
-	val accentColor = controlAccentOf(parameter.repeat, LocalUmamoColors.current)
 
 	when (control) {
 		ParameterControl.Dial -> {
-			// The dial reports laps past the seam, and the parameter's own rule brings them back, so the pose stays in range.
 			// Centered by its modifier, not in a box, so a drag frame runs no extra lambda.
-			Dial(
+			ParameterDial(
+				parameter = parameter,
 				value = value,
-				onValueChange = { raw -> onPreview(parameter.wrapOrClamp(raw)) },
-				onValueChangeFinished = onCommitGesture,
-				valueRange = parameter.min..parameter.max,
 				keyMarks = sliderKeyMarks,
-				thumbShape = thumbShapeOf(parameter),
-				// A dial may be picked for a parameter that does not repeat, and that one stops at its seam.
-				wraps = parameter.repeat,
-				accentColor = accentColor,
+				onPreview = onPreview,
+				onCommitGesture = onCommitGesture,
 				modifier =
 					Modifier
 						.padding(vertical = PARAMETER_DIAL_SPACING)
@@ -262,7 +256,7 @@ internal fun ParameterSlider(
 				thumbShape = thumbShapeOf(parameter),
 				// A repeating value comes in at the other end once dragged past one, and the slider keeps it in range.
 				wraps = parameter.repeat,
-				accentColor = accentColor,
+				accentColor = controlAccentOf(parameter.repeat, LocalUmamoColors.current),
 				modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
 			)
 		}
@@ -459,11 +453,45 @@ internal fun ParameterPad2D(
 }
 
 /**
+ * A parameter's dial, wherever one stands for it: in place of a row's slider, or as one axis of a pair.  Whatever the
+ * dial takes from the parameter is read here, so the two cannot come to drive it differently.
+ *
+ * The dial reports laps past its seam and the parameter's own rule resolves them, so the pose stays in range: a
+ * repeating parameter wraps, and one that does not stops at the seam until the pointer comes back across it.
+ *
+ * @param Parameter parameter The parameter the dial drives.
+ * @param Float value The parameter's current value.
+ * @param List<SliderKeyMark> keyMarks The marks to draw at the parameter's keys.
+ * @param Function onPreview Called per drag frame with the new value, already brought into range (transient).
+ * @param Function onCommitGesture Called on release to commit the gesture as one step.
+ * @param Modifier modifier The layout modifier, which sizes and places the dial.
+ */
+@Composable
+private fun ParameterDial(
+	parameter: Parameter,
+	value: Float,
+	keyMarks: List<SliderKeyMark>,
+	onPreview: (Float) -> Unit,
+	onCommitGesture: () -> Unit,
+	modifier: Modifier,
+) {
+	Dial(
+		value = value,
+		onValueChange = { raw -> onPreview(parameter.wrapOrClamp(raw)) },
+		onValueChangeFinished = onCommitGesture,
+		valueRange = parameter.min..parameter.max,
+		keyMarks = keyMarks,
+		thumbShape = thumbShapeOf(parameter),
+		// A dial may be picked for a parameter that does not repeat, and that one stops at its seam.
+		wraps = parameter.repeat,
+		accentColor = controlAccentOf(parameter.repeat, LocalUmamoColors.current),
+		modifier = modifier,
+	)
+}
+
+/**
  * One axis's dial in a pair that shows dials in place of its pad, captioned with the axis's name so the two read
  * apart.  The name is user data, never localized.
- *
- * The dial reports laps past its seam and the axis's own rule resolves them: a repeating axis wraps, and one that
- * does not stops at the seam until the pointer comes back across it.
  *
  * @param Parameter parameter The axis the dial drives.
  * @param Float value The axis's current value.
@@ -483,15 +511,12 @@ private fun ParameterPairDial(
 ) {
 	val dialKeyMarks = remember(keyMarks) { sliderKeyMarksOf(keyMarks) }
 	Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-		Dial(
+		ParameterDial(
+			parameter = parameter,
 			value = value,
-			onValueChange = { raw -> onPreview(parameter.id, parameter.wrapOrClamp(raw)) },
-			onValueChangeFinished = { onCommitGesture(setOf(parameter.id)) },
-			valueRange = parameter.min..parameter.max,
 			keyMarks = dialKeyMarks,
-			thumbShape = thumbShapeOf(parameter),
-			wraps = parameter.repeat,
-			accentColor = controlAccentOf(parameter.repeat, LocalUmamoColors.current),
+			onPreview = { newValue -> onPreview(parameter.id, newValue) },
+			onCommitGesture = { onCommitGesture(setOf(parameter.id)) },
 			modifier = Modifier.size(PARAMETER_DIAL_DIAMETER),
 		)
 		Text(

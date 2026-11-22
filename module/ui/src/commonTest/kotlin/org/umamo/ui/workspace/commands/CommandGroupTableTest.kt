@@ -15,9 +15,7 @@ import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandTable
-import org.umamo.ui.action.commandMenuItem
-import org.umamo.ui.action.defaultKeymap
-import org.umamo.ui.kit.menu.MenuItem
+import org.umamo.ui.action.bindableCommands
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.menu_select_kind_drawables
 import org.umamo.ui.resources.menu_select_kind_parts
@@ -30,7 +28,6 @@ import org.umamo.ui.workspace.AreaOverlayHub
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -296,24 +293,18 @@ class CommandGroupTableTest {
 	}
 
 	/**
-	 * The editor-mode family is no check list, so the row a menu builds for a mode wears that mode's glyph and no
-	 * tick, the current mode's included.
+	 * The keybindings list offers every titled command a chord can run: an untitled one has nothing to be listed
+	 * under, and one that needs an argument could never fire from a chord, which runs it with none.
 	 */
 	@Test
-	fun aModesMenuRowWearsItsGlyphAndNoTick() {
-		val session = commandFixtureSession(EditorMode.Edit)
-		val registry = CommandRegistry().also { registry -> everyCommandTable(session).forEach { command -> registry.register(command) } }
-		val keymap = defaultKeymap()
-		val modes = registry.inGroup(CommandFamily.EditorMode)
+	fun theKeybindingsListHoldsTheTitledCommandsAChordCanRun() {
+		val commands = everyCommandTable()
+		val listed = bindableCommands(commands).map { command -> command.id }
 
-		assertTrue(modes.any { mode -> mode.isOn() }, "one mode is current")
-
-		for (mode in modes) {
-			val row = commandMenuItem(mode, mode.id, registry, keymap) as MenuItem.Action
-
-			assertNull(row.checked, "${mode.id} carries a tick slot")
-			assertNotNull(row.icon, "${mode.id} lost its glyph")
-		}
+		assertEquals(commands.filter { command -> command.title != null && !command.needsArgument }.map { command -> command.id }, listed)
+		assertTrue("file.save" in listed)
+		assertFalse("file.openPath" in listed, "untitled")
+		assertFalse("parameter.toggleRepeat" in listed, "titled, and only ever run with a parameter")
 	}
 
 	/** A button or a chip shows a member by its glyph, so a member of these families with none drawn would have no face. */

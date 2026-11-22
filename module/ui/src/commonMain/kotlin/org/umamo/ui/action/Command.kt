@@ -123,7 +123,10 @@ data class CommandChoice(val label: String, val argument: Any?)
  *   dispatch guard); defaults to always.
  * @property CommandArgumentAvailability? availableFor Whether it applies run with a given argument, on top of
  *   [availability], or null for a command whose argument never changes that.  Asked with null for a chord, the
- *   palette, and the status bar, so a command that only makes sense with an argument answers false there.
+ *   palette, and the status bar.
+ * @property Boolean needsArgument Whether the command can only run with an argument, which a row supplies: a
+ *   parameter's menu hands over its parameter.  A chord, the palette, and the status bar run a command with none, so
+ *   such a command never applies there, and the keybindings list leaves it out however it is titled.
  * @property SpaceScope spaces The editor spaces the command belongs to (palette filter + status bar
  *   suggestion, never a dispatch guard); defaults to everywhere.  Read off what the handler's routing
  *   actually does, never narrower: a handler that reaches back to a surface the pointer has left (the lone
@@ -155,6 +158,7 @@ data class Command(
 	val title: StringResource?,
 	val availability: CommandAvailability = CommandAvailability.Always,
 	val availableFor: CommandArgumentAvailability? = null,
+	val needsArgument: Boolean = false,
 	val spaces: SpaceScope = SpaceScope.Everywhere,
 	val hint: CommandHint? = null,
 	val table: CommandTable? = null,
@@ -177,16 +181,13 @@ data class Command(
 	val rowLabel: StringResource? get() = groupLabel ?: title
 
 	/**
-	 * Whether the command applies when run with [argument]: its [availability], and its [availableFor] over that
-	 * argument.
+	 * Whether the command applies when run with [argument]: its [availability], its [availableFor] over that
+	 * argument, and an argument at all where it [needsArgument].
 	 *
 	 * @param Any? argument What it would run with, or null for none.
 	 * @return Boolean True when it may be shown enabled and invoked so.
 	 */
-	fun isAvailable(argument: Any? = null): Boolean = availability.isAvailable() && availableFor?.isAvailableFor(argument) != false
-
-	/** Whether the command reports a state at all, with or without an argument: a button for it says whether it is lit. */
-	val reportsState: Boolean get() = state != null || stateFor != null
+	fun isAvailable(argument: Any? = null): Boolean = (argument != null || !needsArgument) && availability.isAvailable() && availableFor?.isAvailableFor(argument) != false
 
 	/**
 	 * Reports whether the command is the one in effect, run with [argument].

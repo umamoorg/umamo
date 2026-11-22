@@ -176,7 +176,8 @@ interface SessionToolSettings {
 	 * The control each parameter, or each linked pair by its horizontal member, was set to show in the Parameters
 	 * panel, over the application's preference (see [ParameterControl]).  A parameter that is absent follows it.  An
 	 * entry outlives its parameter's deletion, so an undo finds it, and a lower member's own entry waits while it is
-	 * linked.  Never snapshotted, so a pick is no undo step and never marks the document dirty.
+	 * linked.  Never snapshotted, so a pick is no undo step and never marks the document dirty; an id that holds an
+	 * entry is therefore never minted for a new parameter, which would take the entry up.
 	 */
 	val parameterControls: StateFlow<Map<ParameterId, ParameterControl>>
 

@@ -37,23 +37,24 @@ import org.umamo.runtime.model.withDerivedRenderRoot
 
 /**
  * A fresh CParameterSource-style idstr ("Param", then "Param2", "Param3", ...) that collides with no
- * existing parameter id.  Deterministic from the model alone so the same edit replays identically under
- * undo / redo - no clock, no random.
+ * existing parameter id and with none in [claimed].  Deterministic from the model and that set alone - no
+ * clock, no random - and an undo or a redo restores the id it minted rather than minting again.
  *
  * // CMO3: CParameterSource id idstr - editor-minted sequential parameter identifiers.
  *
- * @return ParameterId A parameter id not already present in this model.
+ * @param Set<ParameterId> claimed Ids no parameter holds now that are still spoken for, which the mint passes over.
+ * @return ParameterId A parameter id present neither in this model nor in [claimed].
  */
-fun PuppetModel.freshParameterId(): ParameterId {
-	val existing = parameters.map { parameter -> parameter.id }.toSet()
+fun PuppetModel.freshParameterId(claimed: Set<ParameterId> = emptySet()): ParameterId {
+	val taken = parameters.mapTo(HashSet(claimed)) { parameter -> parameter.id }
 
-	if (ParameterId("Param") !in existing) {
+	if (ParameterId("Param") !in taken) {
 		return ParameterId("Param")
 	}
 
 	var suffix = 2
 
-	while (ParameterId("Param$suffix") in existing) {
+	while (ParameterId("Param$suffix") in taken) {
 		suffix++
 	}
 
@@ -402,10 +403,9 @@ private fun removeParameterLeaf(nodes: List<ParameterNode>, id: ParameterId): Li
  * @return ParameterId The id of the created parameter.
  */
 fun EditorSession.createParameter(name: String, kind: ParameterKind = ParameterKind.NORMAL): ParameterId {
-	val id = model.value.freshParameterId()
-	// A minted id may be one a deleted parameter held, whose control pick waits for an undo of that delete.  The
-	// pick was that parameter's, so the new one starts by following the preference.
-	setParameterControl(id, null)
+	// An id that holds a control pick is spoken for: the pick is no part of the history, so it waits under its id
+	// for an undo of the delete that removed its parameter, and a new parameter on that id would take it up.
+	val id = model.value.freshParameterId(claimed = parameterControls.value.keys)
 	mutate(ParameterChange.Create(id)) { model -> model.withParameterCreated(id, name, kind) }
 
 	return id

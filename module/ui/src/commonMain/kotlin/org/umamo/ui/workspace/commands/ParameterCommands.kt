@@ -3,7 +3,8 @@ package org.umamo.ui.workspace.commands
 import org.jetbrains.compose.resources.StringResource
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterControl
-import org.umamo.edit.parameter.padLinks
+import org.umamo.edit.parameter.animatableLinks
+import org.umamo.edit.parameter.animatableParameterIds
 import org.umamo.edit.parameter.setParameterRepeat
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -14,11 +15,11 @@ import org.umamo.ui.resources.*
 
 /**
  * The commands a parameter's context menu lists: Toggle Repeat, and the control the row shows.  Each runs with the
- * parameter the menu was opened on as its argument, so it grays by that parameter and is never offered where nothing
- * aims it (the palette, a chord).  Toggle Repeat is a document edit rather than a pose write, so it runs in Edit mode
- * as a range edit does; a control is the session's alone, so picking one is no undo step and no change to the
- * document.  A pair's control commands run with its horizontal member, the one its row keys on.  The control
- * commands are rows alone: with no title, the keybindings list leaves them out as the palette does.
+ * parameter the menu was opened on as its argument and says so (needsArgument), so it grays by that parameter and is
+ * never offered where nothing aims it: the palette, a chord, the keybindings list.  Toggle Repeat is a document edit
+ * rather than a pose write, so it runs in Edit mode as a range edit does; a control is the session's alone, so
+ * picking one is no undo step and no change to the document.  A pair's control commands run with its horizontal
+ * member, the one its row keys on.
  *
  * @param EditorSession? editorSession The open document's session, or null (every command then no-ops).
  * @param SessionAvailability availability The shared document-scoped availability tiers.
@@ -38,21 +39,28 @@ internal fun parameterCommands(editorSession: EditorSession?, availability: Sess
 	}
 
 	/**
-	 * The parameter a single row's control runs with: one the document holds that no pad folds in, whose row is its
-	 * own.  A member of a link the panel shows no pad for is one of these.
+	 * The parameter a single row's control runs with: an animatable one that no animatable link has as a member, which
+	 * is a parameter the panel gives a row of its own.  A member of a link with a flat partner is one of these, and a
+	 * flat parameter, which has no row, is not.
 	 *
 	 * @param Any? argument The row's argument.
 	 * @return ParameterId? The parameter, or null.
 	 */
 	fun ownRowOf(argument: Any?): ParameterId? {
-		val parameterId = parameterOf(argument)?.id ?: return null
-		val pads = editorSession?.model?.value?.padLinks().orEmpty()
+		val parameterId = argument as? ParameterId ?: return null
+		val model = editorSession?.model?.value ?: return null
+		val animatable = model.animatableParameterIds()
 
-		return parameterId.takeIf { pads.none { link -> link.horizontal == parameterId || link.vertical == parameterId } }
+		if (parameterId !in animatable) {
+			return null
+		}
+
+		return parameterId.takeIf { model.animatableLinks(animatable).none { link -> link.horizontal == parameterId || link.vertical == parameterId } }
 	}
 
 	/**
-	 * The member a pair's control runs with: the horizontal of a link the panel shows as a pad, which the pad keys on.
+	 * The member a pair's control runs with: the horizontal of an animatable link, which the panel shows as a pad
+	 * keyed on that member.
 	 *
 	 * @param Any? argument The row's argument.
 	 * @return ParameterId? The pair's horizontal member, or null.
@@ -60,15 +68,14 @@ internal fun parameterCommands(editorSession: EditorSession?, availability: Sess
 	fun pairOf(argument: Any?): ParameterId? {
 		val parameterId = argument as? ParameterId ?: return null
 
-		return parameterId.takeIf { editorSession?.model?.value?.padLinks().orEmpty().any { link -> link.horizontal == parameterId } }
+		return parameterId.takeIf { editorSession?.model?.value?.animatableLinks().orEmpty().any { link -> link.horizontal == parameterId } }
 	}
 
 	/**
 	 * One member of a control family: it sets [control] on the parameter or pair it runs with, and is the one in
 	 * effect while that is the control it shows.
 	 *
-	 * Untitled, like the other argument-only commands: a row supplies the parameter, and neither the palette nor a
-	 * chord has one to offer.
+	 * Untitled: nothing shows one under a title, only its family's menu under the row label.
 	 *
 	 * @param String id The command's id.
 	 * @param StringResource label The label of the command's row in its family.
@@ -83,6 +90,7 @@ internal fun parameterCommands(editorSession: EditorSession?, availability: Sess
 			title = null,
 			availability = availability.hasDocument,
 			availableFor = { argument -> targetOf(argument) != null },
+			needsArgument = true,
 			group = family,
 			groupLabel = label,
 			stateFor = { argument -> targetOf(argument)?.let { target -> editorSession?.parameterControls?.value?.get(target) == control } == true },
@@ -97,6 +105,7 @@ internal fun parameterCommands(editorSession: EditorSession?, availability: Sess
 			title = Res.string.cmd_parameter_toggle_repeat,
 			availability = availability.hasDocument,
 			availableFor = { argument -> parameterOf(argument) != null },
+			needsArgument = true,
 		) { argument ->
 			parameterOf(argument)?.let { parameter -> editorSession?.setParameterRepeat(parameter.id, !parameter.repeat) }
 		},

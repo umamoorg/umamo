@@ -142,18 +142,20 @@ class ParameterEditsTest {
 		assertSame(linked, linked.withParameterLink(angleZ, angleX, linked = true), "a horizontal member cannot join a second link")
 	}
 
-	/** padLinks lists a link only while both its members have a range to move through; the link itself stays in the model. */
+	/** A link is animatable only while both its members have a range to move through; a flat member's link stays in the model. */
 	@Test
-	fun padLinksAreTheLinksWhoseMembersBothMove() {
+	fun animatableLinksAreTheLinksWhoseMembersBothMove() {
 		val linked = linkModel().withParameterLink(angleX, angleY, linked = true)
-		assertEquals(listOf(ParameterLink(angleX, angleY)), linked.padLinks())
+		assertEquals(listOf(ParameterLink(angleX, angleY)), linked.animatableLinks())
 
 		val flatLower = linked.withParameterRange(angleY, min = 0f, default = 0f, max = 0f)
 		assertEquals(listOf(ParameterLink(angleX, angleY)), flatLower.parameterLinks, "the link itself stays")
-		assertTrue(flatLower.padLinks().isEmpty(), "a flat lower member leaves no pad")
+		assertTrue(flatLower.animatableLinks().isEmpty(), "a flat lower member leaves the link out")
+		assertFalse(angleY in flatLower.animatableParameterIds(), "and is itself not animatable")
+		assertTrue(angleX in flatLower.animatableParameterIds(), "while its partner still is")
 
 		val flatUpper = linked.withParameterRange(angleX, min = 1f, default = 1f, max = 1f)
-		assertTrue(flatUpper.padLinks().isEmpty(), "and so does a flat upper member")
+		assertTrue(flatUpper.animatableLinks().isEmpty(), "and so does a flat upper member")
 	}
 
 	/**
