@@ -10,9 +10,9 @@ import kotlin.test.assertTrue
 class KeybindingSearchTest {
 	private val rows =
 		listOf(
-			KeybindingSearchRow("snap.pie", "Snap Pie", "Shift+S"),
-			KeybindingSearchRow("snap.cursorToGrid", "Cursor to Grid", "Unbound"),
-			KeybindingSearchRow("snap.selectionToCursor", "Selection to Cursor", "Ctrl+Alt+C"),
+			KeybindingSearchRow("snap.pie", "Snap Pie", listOf("Shift+S")),
+			KeybindingSearchRow("snap.cursorToGrid", "Cursor to Grid", listOf("Unbound")),
+			KeybindingSearchRow("snap.selectionToCursor", "Selection to Cursor", listOf("Ctrl+Alt+C", "F7")),
 		)
 
 	/**
@@ -36,6 +36,13 @@ class KeybindingSearchTest {
 		assertEquals(listOf(2), textMatch("alt+c"), "the chip's text, ignoring case")
 		assertEquals(listOf(1), textMatch("unbound"), "an unbound chip reads Unbound")
 		assertEquals(listOf(1, 2), textMatch("cursor"), "every row it matches")
+	}
+
+	/** Any of a command's chords finds it, and a command with several is still one row. */
+	@Test
+	fun aQueryMatchesAnyOfARowsShortcuts() {
+		assertEquals(listOf(2), textMatch("f7"), "its second chord")
+		assertEquals(listOf(2), textMatch("ctrl+alt+c"), "its first chord")
 	}
 
 	@Test
