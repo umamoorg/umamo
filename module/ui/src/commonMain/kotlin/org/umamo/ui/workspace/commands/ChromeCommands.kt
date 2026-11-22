@@ -64,18 +64,64 @@ internal fun chromeCommands(
 		},
 		// The Help dialogs open through the registry too, so the Help menu and the palette (both titled,
 		// so they surface there for free) reach them through the one dispatch point.
-		Command("help.credits", title = Res.string.menu_credits, group = CommandSection.HelpAbout) { overlays.creditsVisible = !overlays.creditsVisible },
-		Command("help.about", title = Res.string.menu_about, group = CommandSection.HelpAbout) { overlays.aboutVisible = !overlays.aboutVisible },
+		Command(
+			"help.credits",
+			title = Res.string.menu_credits,
+			group = CommandSection.HelpAbout,
+		) {
+			overlays.creditsVisible = !overlays.creditsVisible
+		},
+		Command("help.about", title = Res.string.menu_about, group = CommandSection.HelpAbout) {
+			overlays.aboutVisible = !overlays.aboutVisible
+		},
 		// Quick Setup opens by itself on a first run; this reopens it (the Help menu and the palette).
-		Command("help.quickSetup", title = Res.string.menu_quick_setup, group = CommandSection.HelpSetup) { overlays.quickSetupVisible = !overlays.quickSetupVisible },
+		Command(
+			"help.quickSetup",
+			title = Res.string.menu_quick_setup,
+			group = CommandSection.HelpSetup,
+		) {
+			overlays.quickSetupVisible = !overlays.quickSetupVisible
+		},
 		// The project links are commands as well, so the Help menu's rows dispatch like every other row and
 		// the palette finds the documentation by name.  The URLs come from ProjectInfo, the same source the
 		// About dialog shows.
-		Command("help.sourceCode", title = Res.string.menu_source_code, group = CommandSection.HelpLinks) { openLink(ProjectInfo.SOURCE_CODE_URL) },
-		Command("help.webSite", title = Res.string.menu_web_site, group = CommandSection.HelpLinks) { openLink(ProjectInfo.WEB_SITE_URL) },
-		Command("help.documentation", title = Res.string.menu_documentation, group = CommandSection.HelpLinks) { openLink(ProjectInfo.DOCUMENTATION_URL) },
+		Command(
+			"help.sourceCode",
+			title = Res.string.menu_source_code,
+			group = CommandSection.HelpLinks,
+		) {
+			openLink(ProjectInfo.SOURCE_CODE_URL)
+		},
+		Command(
+			"help.webSite",
+			title = Res.string.menu_web_site,
+			group = CommandSection.HelpLinks,
+		) {
+			openLink(ProjectInfo.WEB_SITE_URL)
+		},
+		Command(
+			"help.documentation",
+			title = Res.string.menu_documentation,
+			group = CommandSection.HelpLinks,
+		) {
+			openLink(ProjectInfo.DOCUMENTATION_URL)
+		},
 		// Workspace navigation: titled so they surface in the palette, and the Workspace menu's first block, which a
 		// tab's own menu lists too.
-		Command("workspace.prev", title = Res.string.cmd_workspace_prev, group = CommandSection.WorkspaceSwitch, keymapCategory = KeymapCategory.Workspace) { workspaces.switchBy(-1) },
-		Command("workspace.next", title = Res.string.cmd_workspace_next, group = CommandSection.WorkspaceSwitch, keymapCategory = KeymapCategory.Workspace) { workspaces.switchBy(1) },
+		Command(
+			"workspace.prev",
+			title = Res.string.cmd_workspace_prev,
+			group = CommandSection.WorkspaceSwitch,
+			keymapCategory = KeymapCategory.Workspace,
+		) {
+			workspaces.switchBy(-1)
+		},
+		Command(
+			"workspace.next",
+			title = Res.string.cmd_workspace_next,
+			group = CommandSection.WorkspaceSwitch,
+			keymapCategory = KeymapCategory.Workspace,
+		) {
+			workspaces.switchBy(1)
+		},
 	)
