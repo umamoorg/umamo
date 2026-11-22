@@ -19,6 +19,9 @@
 		},
 		"parameters": {
 			"repeatControl": "dial"
+		},
+		"preferences": {
+			"collapsedSections": []
 		}
 	},
 	"viewport": {

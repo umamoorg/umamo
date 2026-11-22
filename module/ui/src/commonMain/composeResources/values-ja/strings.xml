@@ -1218,21 +1218,39 @@
 	<string name="settings_category_keybindings">キーバインド</string>
 	<string name="settings_category_pen">ペン</string>
 	<string name="settings_category_import">インポート</string>
+	<!-- 設定ページが行をまとめる折りたたみカード。「表示」はインターフェースとビューポートの両ページで使う。 -->
+	<string name="settings_section_display">表示</string>
+	<string name="settings_section_editing">編集</string>
+	<string name="settings_section_updates">アップデート</string>
+	<string name="settings_section_navigation">ナビゲーション</string>
+	<string name="settings_section_grids">グリッド</string>
+	<string name="settings_section_quality">品質</string>
+	<string name="settings_section_new_models">新規モデル</string>
+	<string name="settings_section_meshes">メッシュ</string>
+	<string name="settings_section_artwork_files">アートワークファイル</string>
+	<string name="settings_section_sources">ソース</string>
 	<!-- 言語名は自言語表記でそのまま表示するため、文字列リソースにはしない。 -->
 	<string name="settings_interface_theme">テーマ</string>
+	<string name="settings_interface_theme_description">インターフェースの配色。「システム」は OS のライト／ダークモードに従います。</string>
 	<string name="settings_theme_dark">ダーク</string>
 	<string name="settings_theme_light">ライト</string>
 	<string name="settings_theme_system">システム</string>
 	<string name="settings_interface_language">言語</string>
+	<string name="settings_interface_language_description">メニュー、パネル、メッセージの言語。ドキュメント内の名前は翻訳されません。</string>
 	<!-- 取り消し履歴の上限（interface.historyLimit）。履歴パネルが保持するステップ数。 -->
 	<string name="settings_interface_history_steps">履歴のステップ数</string>
+	<string name="settings_interface_history_steps_description">取り消しのために履歴パネルが保持するステップ数。減らしても、現在の状態とやり直せる分は消えません。</string>
 	<string name="settings_interface_repeat_control">リピートパラメータの操作</string>
+	<string name="settings_interface_repeat_control_description">パラメータパネルがリピートするパラメータに表示する操作。「スライダーとパッド」では、リピートするメンバーを含むペアにパッドが付きます。</string>
 	<string name="settings_repeat_control_dial">ダイヤル</string>
 	<string name="settings_repeat_control_slider">スライダーとパッド</string>
-	<string name="settings_check_for_updates">起動時にアップデートを確認する</string>
+	<string name="settings_check_for_updates_heading">アップデートの確認</string>
+	<string name="settings_check_for_updates_at_startup">起動時</string>
+	<string name="settings_check_for_updates_at_startup_description">Umamo を起動するたびに新しいバージョンを確認します。</string>
 	<!-- キーバインド設定：プリセット選択とコマンドごとの再割り当て編集。 -->
 	<string name="settings_keybindings_preset">プリセット</string>
 	<string name="settings_keybindings_preset_quick">キーバインドのプリセット</string>
+	<string name="settings_keybindings_preset_description">すべてのショートカットの基になるキーマップ。自分で再割り当てしたショートカットは、どのプリセットを選んでも上書きとして残ります。</string>
 	<string name="settings_keymap_preset_default">デフォルト</string>
 	<string name="settings_keymap_preset_cubism">Cubism</string>
 	<string name="settings_keymap_preset_blender">Blender</string>
@@ -1246,49 +1264,80 @@
 	<!-- プレースホルダ（ペンバックエンド実装で本実装に差し替え）。 -->
 	<string name="settings_pen_coming_soon">ペンの設定は近日対応予定です。</string>
 	<string name="settings_import_parameter_template">パラメータテンプレート</string>
+	<string name="settings_import_parameter_template_description">アートワークをインポートしたとき、新規モデルが最初に持つパラメータ。</string>
 	<string name="settings_import_alignment">追加アートワークの基準位置</string>
-	<string name="settings_import_watch_mode">アートワークファイルの監視</string>
+	<string name="settings_import_alignment_description">後から追加したアートワークファイルをキャンバス上のどこに置くか。インポート時の「基準位置」はこの選択から始まります。</string>
+	<string name="settings_import_watch_mode">監視中のアートワークファイル</string>
+	<string name="settings_import_watch_mode_description">ドキュメントのアートワークファイルがディスク上で変更されたときの動作。</string>
 	<string name="settings_import_watch_mode_auto">自動で再読み込み</string>
 	<string name="settings_import_watch_mode_notify">通知のみ</string>
 	<string name="settings_import_watch_mode_off">オフ</string>
-	<string name="settings_import_delete_art_ignores_layer">「ソース」でアートを削除したとき、そのレイヤーも無視としてマークする</string>
-	<string name="settings_import_layer_positions_from_world_axes">「ソース」のレイヤー位置を、アートワークの左上ではなくワールド軸から測って表示する</string>
+	<string name="settings_import_deleting_art">アートの削除</string>
+	<string name="settings_import_also_ignore_layer">レイヤーも無視としてマーク</string>
+	<string name="settings_import_also_ignore_layer_description">「ソース」でアートを削除したとき、そのレイヤーも無視としてマークし、再読み込みでアートが戻らないようにします。</string>
+	<string name="settings_import_layer_positions">レイヤー位置</string>
+	<string name="settings_import_from_world_axes">ワールド軸から測る</string>
+	<string name="settings_import_from_world_axes_description">「ソース」のレイヤー位置を、アートワークの左上ではなくワールド軸から測って表示します。</string>
 	<string name="settings_import_parameter_template_humanoid">人型</string>
 	<string name="settings_import_parameter_template_none">なし</string>
 	<string name="settings_import_birth_mesh">初期メッシュ</string>
+	<string name="settings_import_birth_mesh_description">新しいドローアブルが最初に持つメッシュ。アートから生成したものか、単純な四角形です。</string>
 	<string name="settings_import_birth_mesh_automatic">アートから生成</string>
 	<string name="settings_import_birth_mesh_quad">四角形</string>
 	<string name="settings_import_mesh_preset">メッシュ生成のプリセット</string>
-	<!-- ビューポート設定：ホイール 1 ノッチあたりのズーム率（%）。 -->
-	<string name="settings_viewport_zoom_step">ズーム刻み (%)</string>
-	<string name="settings_viewport_zoom_step_coarse">粗いズーム刻み (%)</string>
+	<string name="settings_import_mesh_preset_description">生成するメッシュの細かさ。インポート時と、セッションで最初に行う「アートからメッシュを生成」に使います。</string>
+	<!-- ビューポート設定：ホイール 1 ノッチあたりのズーム率（% はフィールド側に表示）。 -->
+	<string name="settings_viewport_zoom_step">ズーム刻み</string>
+	<string name="settings_viewport_zoom_step_description">マウスホイール 1 ノッチでズームする量（%）。</string>
+	<string name="settings_viewport_zoom_step_coarse">粗いズーム刻み</string>
+	<string name="settings_viewport_zoom_step_coarse_description">Shift を押しながら 1 ノッチでズームする量（%）。</string>
 	<string name="settings_viewport_grid_scale">グリッド間隔</string>
+	<string name="settings_viewport_grid_scale_description">ビューポートの主グリッド線の間隔（ワールド単位）。オーバーレイで独自のグリッドを設定したエリアはその設定を保ちます。</string>
 	<string name="settings_viewport_grid_subdivisions">グリッド分割数</string>
+	<string name="settings_viewport_grid_subdivisions_description">ビューポートのグリッドで、主グリッドの 1 マスを分割する補助線の数。</string>
 	<string name="settings_viewport_uv_grid_scale">UV グリッド間隔</string>
+	<string name="settings_viewport_uv_grid_scale_description">UV エディターの主グリッド線の間隔（テクセル）。オーバーレイで独自のグリッドを設定したエリアはその設定を保ちます。</string>
 	<string name="settings_viewport_uv_grid_subdivisions">UV グリッド分割数</string>
-	<!-- ビューポート設定：描画パフォーマンスの切り替え（viewport.rendering.*）、続いてツールバー・サイドバーの既定の表示（viewport.showToolbar / showSidebar）。 -->
-	<string name="settings_viewport_supersample">スーパーサンプリング（2 倍精細レンダリング）</string>
-	<string name="settings_viewport_supersample_while_resizing">パネルのリサイズ中もスーパーサンプリングを維持</string>
-	<string name="settings_viewport_show_toolbar">ツールバーを既定で表示</string>
-	<string name="settings_viewport_show_sidebar">サイドバーを既定で表示</string>
-	<!-- カラー設定：ビューポートの選択ハイライト、続いて編集モードのギズモ配色（viewport.meshEdit.*）。 -->
+	<string name="settings_viewport_uv_grid_subdivisions_description">UV エディターのグリッドで、主グリッドの 1 マスを分割する補助線の数。</string>
+	<!-- ビューポート設定：描画の切り替え（viewport.rendering.*）を見出し 1 つにまとめ、続いてツールバー・サイドバーの既定の表示（viewport.showToolbar / showSidebar）。 -->
+	<string name="settings_viewport_supersample_heading">スーパーサンプリング</string>
+	<string name="settings_viewport_supersample_quality">2 倍精細レンダリング</string>
+	<string name="settings_viewport_supersample_quality_description">ビューポートを 2 倍の解像度で描画し、エッジを滑らかにします。そのぶん速度は少し落ちます。</string>
+	<string name="settings_viewport_supersample_keep_while_resizing">リサイズ中も継続</string>
+	<string name="settings_viewport_supersample_keep_while_resizing_description">パネルのリサイズ中もスーパーサンプリングを続けます。オフにすると、リサイズ中のフレームは通常の品質で描画されます。</string>
+	<string name="settings_viewport_show_by_default">既定で表示</string>
+	<string name="settings_viewport_default_toolbar">ツールバー</string>
+	<string name="settings_viewport_default_toolbar_description">各ビューポートで、非表示にするまでツールバーを表示します。</string>
+	<string name="settings_viewport_default_sidebar">サイドバー</string>
+	<string name="settings_viewport_default_sidebar_description">各ビューポートで、非表示にするまでサイドバーを表示します。</string>
+	<!-- カラー設定：ビューポートの選択ハイライト、続いて編集モードのギズモ配色（viewport.meshEdit.*）、最後にワープ格子（viewport.deformer.*）。 -->
 	<string name="settings_colors_viewport">ビューポート</string>
 	<string name="settings_colors_selection_highlight">選択ハイライト</string>
+	<string name="settings_colors_selection_highlight_description">ビューポートで選択中のドローアブルに重ねる色。</string>
 	<string name="settings_colors_active_selection_highlight">アクティブ選択のハイライト</string>
+	<string name="settings_colors_active_selection_highlight_description">ビューポートでアクティブなドローアブルに重ねる色。</string>
 	<string name="settings_colors_warning">警告</string>
+	<string name="settings_colors_warning_description">隣のタイルと重なる、またはページからはみ出したタイルの輪郭。</string>
 	<string name="settings_colors_pinned_placement">ピン留めした配置</string>
+	<string name="settings_colors_pinned_placement_description">UV エディターで、ピン留めしたタイルのアイランドの辺。</string>
 	<string name="settings_colors_mesh_edit">メッシュ編集</string>
 	<string name="settings_colors_group_vertex">頂点</string>
 	<string name="settings_colors_group_edge">辺</string>
 	<string name="settings_colors_group_face">面</string>
 	<string name="settings_colors_deformers">デフォーマ</string>
-	<string name="settings_colors_group_lattice">格子</string>
+	<!-- 役割の行。頂点・辺・面のサブパネルとデフォーマのカードで共通なので、説明はどのグループにも当てはまる書き方にする。 -->
 	<string name="settings_colors_role_idle">通常</string>
+	<string name="settings_colors_role_idle_description">選択されていないときの色。</string>
 	<string name="settings_colors_role_selected">選択中</string>
+	<string name="settings_colors_role_selected_description">選択中の色。</string>
 	<string name="settings_colors_role_active">アクティブ</string>
+	<string name="settings_colors_role_active_description">アクティブなもの（最後に選択したもの）の色。</string>
 	<string name="settings_colors_role_offkey">キー外</string>
+	<string name="settings_colors_role_offkey_description">ポーズがキーの間にあり、メッシュを編集できないときの色。</string>
 	<string name="settings_colors_role_unkeyed">キー未設定</string>
+	<string name="settings_colors_role_unkeyed_description">ポーズモードで形を変え、まだキーを設定していない格子。</string>
 	<string name="settings_colors_role_hovered">ホバー中</string>
+	<string name="settings_colors_role_hovered_description">ポインターの下にある格子。クリックで選択されるもの。</string>
 	<!-- リレーション選択（スポイト）：クリックで取得する対象を示すカーソル脇のバッジ。 -->
 	<string name="pick_hover_drawable">ドローアブル: %1$s</string>
 	<string name="pick_hover_part">パーツ: %1$s</string>

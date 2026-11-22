@@ -1308,24 +1308,42 @@
 	<string name="settings_category_keybindings">Keybindings</string>
 	<string name="settings_category_pen">Pen</string>
 	<string name="settings_category_import">Import</string>
+	<!-- The collapsible cards the settings pages group their rows into.  Display heads a card on both the Interface and Viewport pages. -->
+	<string name="settings_section_display">Display</string>
+	<string name="settings_section_editing">Editing</string>
+	<string name="settings_section_updates">Updates</string>
+	<string name="settings_section_navigation">Navigation</string>
+	<string name="settings_section_grids">Grids</string>
+	<string name="settings_section_quality">Quality</string>
+	<string name="settings_section_new_models">New Models</string>
+	<string name="settings_section_meshes">Meshes</string>
+	<string name="settings_section_artwork_files">Artwork Files</string>
+	<string name="settings_section_sources">Sources</string>
 	<!-- Interface section. Language names are endonyms shown verbatim, so they are NOT string
 	resources. -->
 	<string name="settings_interface_theme">Theme</string>
+	<string name="settings_interface_theme_description">The color scheme of the interface.  System follows the operating system's light or dark mode.</string>
 	<string name="settings_theme_dark">Dark</string>
 	<string name="settings_theme_light">Light</string>
 	<string name="settings_theme_system">System</string>
 	<string name="settings_interface_language">Language</string>
+	<string name="settings_interface_language_description">The language of the menus, panels, and messages.  The names in your document are never translated.</string>
 	<!-- The undo-history cap (interface.historyLimit): how many steps the History panel retains. -->
 	<string name="settings_interface_history_steps">History Steps</string>
+	<string name="settings_interface_history_steps_description">How many steps the History panel keeps for undo.  Lowering it never drops the current state or what is left to redo.</string>
 	<!-- interface.parameters.repeatControl: the control a repeating parameter shows.  The slider choice gives a pair its pad. -->
 	<string name="settings_interface_repeat_control">Repeating Parameter Control</string>
+	<string name="settings_interface_repeat_control_description">The control the Parameters panel shows for a parameter that repeats.  With Slider and Pad, a pair with a repeating member gets its pad.</string>
 	<string name="settings_repeat_control_dial">Dial</string>
 	<string name="settings_repeat_control_slider">Slider and Pad</string>
-	<!-- app.checkForUpdates, in Preferences and Quick Setup. -->
-	<string name="settings_check_for_updates">Check for updates when Umamo starts</string>
+	<!-- app.checkForUpdates, in Preferences and Quick Setup: the row's heading, then its checkbox. -->
+	<string name="settings_check_for_updates_heading">Check for Updates</string>
+	<string name="settings_check_for_updates_at_startup">At Startup</string>
+	<string name="settings_check_for_updates_at_startup_description">Checks for a newer version of Umamo each time it starts.</string>
 	<!-- Keybindings section: preset selection + the per-command rebinding editor. -->
 	<string name="settings_keybindings_preset">Preset</string>
 	<string name="settings_keybindings_preset_quick">Keybindings Preset</string>
+	<string name="settings_keybindings_preset_description">The keymap every shortcut starts from.  Shortcuts you rebind yourself are kept on top of whichever preset is chosen.</string>
 	<string name="settings_keymap_preset_default">Default</string>
 	<string name="settings_keymap_preset_cubism">Cubism</string>
 	<string name="settings_keymap_preset_blender">Blender</string>
@@ -1339,49 +1357,81 @@
 	<!-- Placeholder section (the real editor lands with the pen backend). -->
 	<string name="settings_pen_coming_soon">Pen configuration is coming soon.</string>
 	<string name="settings_import_parameter_template">Parameter Template</string>
+	<string name="settings_import_parameter_template_description">The parameters a new model starts with when its artwork is imported.</string>
 	<string name="settings_import_alignment">Align Added Artwork</string>
-	<string name="settings_import_watch_mode">Watch Artwork Files</string>
+	<string name="settings_import_alignment_description">Where a later artwork file is placed on the canvas.  The import's own Align setting starts from this choice.</string>
+	<string name="settings_import_watch_mode">Watched Artwork Files</string>
+	<string name="settings_import_watch_mode_description">What a document does when one of its artwork files changes on disk.</string>
 	<string name="settings_import_watch_mode_auto">Reload Automatically</string>
 	<string name="settings_import_watch_mode_notify">Notify Only</string>
 	<string name="settings_import_watch_mode_off">Off</string>
-	<string name="settings_import_delete_art_ignores_layer">When deleting art in the sources, also mark the layer as ignored.</string>
-	<string name="settings_import_layer_positions_from_world_axes">In the Sources area, measure layer positions from the world axes instead of the artwork's top-left corner.</string>
+	<!-- Two Sources toggles, each a heading and its checkbox. -->
+	<string name="settings_import_deleting_art">Deleting Art</string>
+	<string name="settings_import_also_ignore_layer">Also Mark Layer as Ignored</string>
+	<string name="settings_import_also_ignore_layer_description">When art is deleted in the Sources area, also marks its layer as ignored, so a reload does not bring the art back.</string>
+	<string name="settings_import_layer_positions">Layer Positions</string>
+	<string name="settings_import_from_world_axes">Measure From World Axes</string>
+	<string name="settings_import_from_world_axes_description">In the Sources area, measures layer positions from the world axes instead of the artwork's top-left corner.</string>
 	<string name="settings_import_parameter_template_humanoid">Humanoid</string>
 	<string name="settings_import_parameter_template_none">None</string>
 	<string name="settings_import_birth_mesh">Initial Mesh</string>
+	<string name="settings_import_birth_mesh_description">The mesh each new drawable starts with: one generated from its art, or a plain quad.</string>
 	<string name="settings_import_birth_mesh_automatic">Generated from Art</string>
 	<string name="settings_import_birth_mesh_quad">Quad</string>
 	<string name="settings_import_mesh_preset">Mesh Generation Preset</string>
-	<!-- Viewport section: wheel-zoom increments, in percent per notch. -->
-	<string name="settings_viewport_zoom_step">Zoom Step (%)</string>
-	<string name="settings_viewport_zoom_step_coarse">Coarse Zoom Step (%)</string>
+	<string name="settings_import_mesh_preset_description">How fine generated meshes are, for an import and for the first Generate Mesh from Art of a session.</string>
+	<!-- Viewport section: wheel-zoom increments, in percent per notch (the field shows the % itself). -->
+	<string name="settings_viewport_zoom_step">Zoom Step</string>
+	<string name="settings_viewport_zoom_step_description">How far one notch of the mouse wheel zooms, in percent.</string>
+	<string name="settings_viewport_zoom_step_coarse">Coarse Zoom Step</string>
+	<string name="settings_viewport_zoom_step_coarse_description">How far one notch zooms while Shift is held, in percent.</string>
 	<string name="settings_viewport_grid_scale">Grid Scale</string>
+	<string name="settings_viewport_grid_scale_description">The spacing of the viewport's major grid lines, in world units.  An area given its own grid in its overlays keeps it.</string>
 	<string name="settings_viewport_grid_subdivisions">Grid Subdivisions</string>
+	<string name="settings_viewport_grid_subdivisions_description">How many minor lines divide each major cell of the viewport's grid.</string>
 	<string name="settings_viewport_uv_grid_scale">UV Grid Scale</string>
+	<string name="settings_viewport_uv_grid_scale_description">The spacing of the UV editor's major grid lines, in texels.  An area given its own grid in its overlays keeps it.</string>
 	<string name="settings_viewport_uv_grid_subdivisions">UV Grid Subdivisions</string>
-	<!-- Viewport section: rendering performance toggles (viewport.rendering.*), then the chrome's defaults (viewport.showToolbar / showSidebar). -->
-	<string name="settings_viewport_supersample">Supersampling (2x Render Quality)</string>
-	<string name="settings_viewport_supersample_while_resizing">Keep supersampling while resizing panels</string>
-	<string name="settings_viewport_show_toolbar">Show Toolbar by Default</string>
-	<string name="settings_viewport_show_sidebar">Show Sidebar by Default</string>
-	<!-- Colors section: the viewport selection highlight, then the Edit-mode gizmo palette (viewport.meshEdit.*), grouped element × state. -->
+	<string name="settings_viewport_uv_grid_subdivisions_description">How many minor lines divide each major cell of the UV editor's grid.</string>
+	<!-- Viewport section: the rendering toggles (viewport.rendering.*) under one heading, then the chrome's defaults (viewport.showToolbar / showSidebar) under another. -->
+	<string name="settings_viewport_supersample_heading">Supersampling</string>
+	<string name="settings_viewport_supersample_quality">2x Render Quality</string>
+	<string name="settings_viewport_supersample_quality_description">Renders the viewport at twice its resolution for smoother edges, at some cost in speed.</string>
+	<string name="settings_viewport_supersample_keep_while_resizing">Continue While Resizing</string>
+	<string name="settings_viewport_supersample_keep_while_resizing_description">Keeps supersampling while a panel is being resized.  Off, frames drawn during the resize render at normal quality.</string>
+	<string name="settings_viewport_show_by_default">Show by Default</string>
+	<string name="settings_viewport_default_toolbar">Toolbar</string>
+	<string name="settings_viewport_default_toolbar_description">Shows the toolbar in each viewport until it is hidden there.</string>
+	<string name="settings_viewport_default_sidebar">Sidebar</string>
+	<string name="settings_viewport_default_sidebar_description">Shows the sidebar in each viewport until it is hidden there.</string>
+	<!-- Colors section: the viewport selection highlight, then the Edit-mode gizmo palette (viewport.meshEdit.*), grouped element × state, then the warp lattice (viewport.deformer.*). -->
 	<string name="settings_colors_viewport">Viewport</string>
 	<string name="settings_colors_selection_highlight">Selection Highlight</string>
+	<string name="settings_colors_selection_highlight_description">The tint mixed over selected drawables in the viewport.</string>
 	<string name="settings_colors_active_selection_highlight">Active Selection Highlight</string>
+	<string name="settings_colors_active_selection_highlight_description">The tint mixed over the active drawable in the viewport.</string>
 	<string name="settings_colors_warning">Warning</string>
+	<string name="settings_colors_warning_description">The outline of a tile that overlaps a neighbor or spills off its page.</string>
 	<string name="settings_colors_pinned_placement">Pinned Placement</string>
+	<string name="settings_colors_pinned_placement_description">The edges of a pinned tile's islands in the UV editor.</string>
 	<string name="settings_colors_mesh_edit">Mesh Editing</string>
 	<string name="settings_colors_group_vertex">Vertex</string>
 	<string name="settings_colors_group_edge">Edge</string>
 	<string name="settings_colors_group_face">Face</string>
 	<string name="settings_colors_deformers">Deformers</string>
-	<string name="settings_colors_group_lattice">Lattice</string>
+	<!-- The role rows, shared by the Vertex, Edge, and Face sub-panels and the Deformers card; each description fits every group it appears in. -->
 	<string name="settings_colors_role_idle">Idle</string>
+	<string name="settings_colors_role_idle_description">Shown while not selected.</string>
 	<string name="settings_colors_role_selected">Selected</string>
+	<string name="settings_colors_role_selected_description">Shown while selected.</string>
 	<string name="settings_colors_role_active">Active</string>
+	<string name="settings_colors_role_active_description">Shown for the active one, the last one selected.</string>
 	<string name="settings_colors_role_offkey">Off-key</string>
+	<string name="settings_colors_role_offkey_description">Shown while the pose sits between keys, where the mesh cannot be edited.</string>
 	<string name="settings_colors_role_unkeyed">Unkeyed</string>
+	<string name="settings_colors_role_unkeyed_description">A lattice shaped in Pose mode that has not been keyed yet.</string>
 	<string name="settings_colors_role_hovered">Hovered</string>
+	<string name="settings_colors_role_hovered_description">The lattice under the pointer, the one a click would take.</string>
 	<!-- Relation pick (a Properties eyedropper): the near-cursor badge naming what a click would bind. -->
 	<string name="pick_hover_drawable">Drawable: %1$s</string>
 	<string name="pick_hover_part">Part: %1$s</string>
