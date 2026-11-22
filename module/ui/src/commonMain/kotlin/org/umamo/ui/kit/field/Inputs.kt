@@ -104,6 +104,9 @@ fun Checkbox(
 	}
 }
 
+/** The inset between a [TextField]'s border and its text or trailing control, left and right. */
+internal val TEXT_FIELD_HORIZONTAL_PADDING = 6.dp
+
 /**
  * A compact bordered single-line text field wrapping Foundation's [BasicTextField].  Like [NumberField], it
  * lends a cancel hook to [LocalInlineEditController] while focused so the editor shell's root key handler
@@ -168,7 +171,7 @@ fun TextField(
 					.clip(shapes.small)
 					.background(colors.controlBackground)
 					.border(1.dp, colors.controlBorder, shapes.small)
-					.padding(horizontal = 6.dp, vertical = 4.dp)
+					.padding(horizontal = TEXT_FIELD_HORIZONTAL_PADDING, vertical = 4.dp)
 					.onFocusChanged { focusState ->
 						// hasFocus (not isFocused): BasicTextField focuses an internal child, so this node only
 						// ever sees its subtree's focus.

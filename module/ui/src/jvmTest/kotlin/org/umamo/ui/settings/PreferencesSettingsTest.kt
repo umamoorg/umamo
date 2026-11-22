@@ -7,6 +7,7 @@ import okio.Path.Companion.toPath
 import okio.fakefilesystem.FakeFileSystem
 import org.umamo.settings.Settings
 import org.umamo.storage.OkioAppStorage
+import org.umamo.ui.action.KeymapCategory
 import org.umamo.ui.defaultSettingsJson
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -83,12 +84,28 @@ class PreferencesSettingsTest {
 		assertEquals(setOf("viewport.grids"), collapsedSectionIdsOf(settings), "a number among the ids")
 	}
 
-	/** Every card and sub-panel persists under an id of its own, so folding one never folds another. */
+	/**
+	 * Every card and sub-panel persists under an id of its own, the keybindings page's category cards included, so
+	 * folding one never folds another.
+	 */
 	@Test
 	fun everySectionHasItsOwnId() {
-		val ids = PreferencesSection.entries.map { section -> section.id }
+		val ids = PreferencesSection.entries.map { section -> section.id } + KeymapCategory.entries.map { category -> keybindingFoldId(category) }
 
 		assertEquals(ids.size, ids.toSet().size, ids.toString())
+	}
+
+	/** A keybinding category card folds under its own id, apart from the cards on the other pages. */
+	@Test
+	fun aKeybindingCardFoldsUnderItsOwnId() {
+		val settings = bundledSettings()
+		val folds = PreferencesFolds(settings)
+
+		folds.toggle(keybindingFoldId(KeymapCategory.Snap))
+
+		assertFalse(folds.isExpanded(keybindingFoldId(KeymapCategory.Snap)))
+		assertTrue(folds.isExpanded(keybindingFoldId(KeymapCategory.Select)))
+		assertEquals(setOf("keybindings.snap"), collapsedSectionIdsOf(settings))
 	}
 
 	/**

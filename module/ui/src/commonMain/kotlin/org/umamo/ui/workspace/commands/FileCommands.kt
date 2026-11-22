@@ -9,6 +9,7 @@ import org.umamo.ui.action.CommandChoice
 import org.umamo.ui.action.CommandChoices
 import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandTable
+import org.umamo.ui.action.KeymapCategory
 import org.umamo.ui.document.fileDisplayName
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -241,6 +242,7 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 		Command(
 			"file.importArtwork",
 			title = Res.string.cmd_import_artwork,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork()?.canAddArtwork?.invoke() == true },
 			group = CommandSection.ImportArtwork,
 			groupLabel = Res.string.menu_import_artwork,
@@ -249,12 +251,14 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 		Command(
 			"document.reloadArtwork",
 			title = Res.string.cmd_document_reload_artwork,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork()?.canReload?.invoke() == true },
 			icon = LocalUmamoIcons.refresh,
 		) { argument -> artwork()?.reloadArtwork?.invoke(routing.operationStripArea(), argument as? ReloadScope) },
 		Command(
 			"sources.relink",
 			title = Res.string.cmd_sources_relink,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
 		) { argument ->
 			val request = argument as? RelinkRequest ?: return@Command
@@ -263,12 +267,14 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 		Command(
 			"sources.matchAutomatically",
 			title = Res.string.cmd_sources_match_automatically,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
 			icon = LocalUmamoIcons.wand,
 		) { artwork()?.matchArtwork?.invoke(routing.operationStripArea()) },
 		Command(
 			"sources.replaceArtwork",
 			title = Res.string.cmd_sources_replace_artwork,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
 		) { argument ->
 			val request = argument as? ReplaceRequest ?: return@Command
@@ -277,6 +283,7 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 		Command(
 			"sources.deleteArt",
 			title = Res.string.cmd_sources_delete_art,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
 		) { argument ->
 			val request = argument as? DeleteArtRequest ?: return@Command

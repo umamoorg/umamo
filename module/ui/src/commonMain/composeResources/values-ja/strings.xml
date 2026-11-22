@@ -1261,6 +1261,30 @@
 	<!-- %1$s はショートカット、%2$s は既に割り当てられているコマンド。 -->
 	<string name="settings_keybindings_conflict">%1$s は既に「%2$s」に割り当てられています。再割り当てしますか？</string>
 	<string name="settings_keybindings_reassign">再割り当て</string>
+	<string name="settings_keybindings_reset_description">変更したキーバインドをすべて、選択中のプリセットの既定値に戻します。</string>
+	<string name="settings_keybindings_search_hint">名前またはショートカットで検索…</string>
+	<string name="settings_keybindings_search_record">ショートカットを押して検索…</string>
+	<string name="settings_keybindings_no_matches">一致するコマンドがありません</string>
+	<string name="settings_keybindings_chord_unbound">%1$s には何も割り当てられていません。</string>
+	<string name="settings_keybindings_chord_unlisted">%1$s は、ここに表示されていない組み込みコマンドを実行します。</string>
+	<string name="settings_keybindings_category_file">ファイル</string>
+	<string name="settings_keybindings_category_artwork">アートワーク</string>
+	<string name="settings_keybindings_category_edit">編集</string>
+	<string name="settings_keybindings_category_modes">モード</string>
+	<string name="settings_keybindings_category_select">選択</string>
+	<string name="settings_keybindings_category_transform">トランスフォーム</string>
+	<string name="settings_keybindings_category_snap">スナップ</string>
+	<string name="settings_keybindings_category_mesh">メッシュ</string>
+	<string name="settings_keybindings_category_deformers">デフォーマ</string>
+	<string name="settings_keybindings_category_keyforms">キーフォーム</string>
+	<string name="settings_keybindings_category_relations">リレーション</string>
+	<string name="settings_keybindings_category_object">オブジェクト</string>
+	<string name="settings_keybindings_category_uv">UV</string>
+	<string name="settings_keybindings_category_view">ビュー</string>
+	<string name="settings_keybindings_category_overlays">オーバーレイ</string>
+	<string name="settings_keybindings_category_workspace">ワークスペース</string>
+	<string name="settings_keybindings_category_help">ヘルプ</string>
+	<string name="settings_keybindings_category_other">その他</string>
 	<!-- プレースホルダ（ペンバックエンド実装で本実装に差し替え）。 -->
 	<string name="settings_pen_coming_soon">ペンの設定は近日対応予定です。</string>
 	<string name="settings_import_parameter_template">パラメータテンプレート</string>

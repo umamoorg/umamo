@@ -53,12 +53,15 @@ import org.umamo.ui.theme.LocalUmamoTypography
 /** Fixed width of the left category rail; wide enough for the longest localized category label. */
 private val CATEGORY_RAIL_WIDTH = 168.dp
 
-/** The inset around a page that is not built from cards (Keybindings, Pen). */
+/** The inset around a page that is not built from cards (Pen). */
 private val PLAIN_PAGE_PADDING = 20.dp
 
 /** The inset around a page of cards, and the gap between two cards, as the Properties panel spaces them. */
 private val CARD_PAGE_PADDING = 12.dp
 private val CARD_SPACING = 6.dp
+
+/** The gap between the rows pinned above a card page's scroll, the same as between the rows inside a card. */
+private val PINNED_ROW_SPACING = 4.dp
 
 /**
  * The preferences categories shown in the left rail, in display order.  Each carries its localized rail
@@ -137,7 +140,7 @@ fun SettingsWindow(onDismiss: () -> Unit) {
 							SettingsCategory.Colors -> SettingsCardPage { ColorsSection(folds) }
 							SettingsCategory.Viewport -> SettingsCardPage { ViewportSection(folds) }
 							SettingsCategory.Import -> SettingsCardPage { ImportSection(folds) }
-							SettingsCategory.Keybindings -> Box(modifier = Modifier.padding(PLAIN_PAGE_PADDING)) { KeybindingsSection() }
+							SettingsCategory.Keybindings -> KeybindingsSection(folds)
 							SettingsCategory.Pen -> Box(modifier = Modifier.padding(PLAIN_PAGE_PADDING)) { PenSection() }
 						}
 					}
@@ -191,20 +194,34 @@ private fun CategoryRail(selected: SettingsCategory, onSelect: (SettingsCategory
 }
 
 /**
- * A scrolling page of setting cards, spaced and inset as the Properties panel's.
+ * A scrolling page of setting cards, spaced and inset as the Properties panel's, under an optional pinned block that
+ * stays put while the cards scroll.
  *
+ * @param Function? pinned Rows held above the scroll (a page's search and its page-wide controls), or null for none.
  * @param Function content The page's cards, top to bottom.
  */
 @Composable
-private fun SettingsCardPage(content: @Composable ColumnScope.() -> Unit) {
-	val scrollState = rememberScrollState()
-	Box(modifier = Modifier.fillMaxSize()) {
-		Column(
-			modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(CARD_PAGE_PADDING),
-			verticalArrangement = Arrangement.spacedBy(CARD_SPACING),
-			content = content,
-		)
-		VerticalScrollbarOverlay(scrollState)
+internal fun SettingsCardPage(pinned: (@Composable ColumnScope.() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+	val colors = LocalUmamoColors.current
+	Column(modifier = Modifier.fillMaxSize()) {
+		if (pinned != null) {
+			Column(
+				modifier = Modifier.fillMaxWidth().padding(CARD_PAGE_PADDING),
+				verticalArrangement = Arrangement.spacedBy(PINNED_ROW_SPACING),
+				content = pinned,
+			)
+			Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.divider))
+		}
+
+		val scrollState = rememberScrollState()
+		Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+			Column(
+				modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(CARD_PAGE_PADDING),
+				verticalArrangement = Arrangement.spacedBy(CARD_SPACING),
+				content = content,
+			)
+			VerticalScrollbarOverlay(scrollState)
+		}
 	}
 }
 

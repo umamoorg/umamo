@@ -702,10 +702,12 @@ private fun GridSettingStack(
 /**
  * The Keybindings page: preset selection plus the per-command rebinding editor (see [KeybindingsEditor]),
  * all auto-saving to settings input.keybinding and re-resolving the live keymap.
+ *
+ * @param PreferencesFolds folds The window's fold state, which the category cards persist into.
  */
 @Composable
-internal fun KeybindingsSection() {
-	KeybindingsEditor()
+internal fun KeybindingsSection(folds: PreferencesFolds) {
+	KeybindingsEditor(folds)
 }
 
 /**

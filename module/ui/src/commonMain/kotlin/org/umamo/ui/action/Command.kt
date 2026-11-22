@@ -142,6 +142,9 @@ data class CommandChoice(val label: String, val argument: Any?)
  *   members from whichever tables hold them.
  * @property StringResource? groupLabel The label of the command's row under its family's heading, where the heading
  *   already says what the family does ("Parts" under "Select All of Type"), or null to show the [title] there too.
+ * @property KeymapCategory? keymapCategory The category the keybindings page lists the command under, where it is not
+ *   its table's, or null to follow the table ([CommandTable.keymapCategory]).  Like [group], a listing only: dispatch
+ *   never reads it.
  * @property UmamoIcon? icon The command's glyph wherever a pie slot, a menu row, or a chip stands for it, or null
  *   for a command with none drawn.
  * @property CommandState? state Whether the command is the one in effect, which a control listing its family lights
@@ -164,6 +167,7 @@ data class Command(
 	val table: CommandTable? = null,
 	val group: CommandListing? = null,
 	val groupLabel: StringResource? = null,
+	val keymapCategory: KeymapCategory? = null,
 	val icon: UmamoIcon? = null,
 	val state: CommandState? = null,
 	val stateFor: CommandArgumentState? = null,
@@ -179,6 +183,12 @@ data class Command(
 
 	/** The label of the command's row in a listing of its group: its [groupLabel], else its [title]. */
 	val rowLabel: StringResource? get() = groupLabel ?: title
+
+	/**
+	 * The category the keybindings page lists the command under: its own [keymapCategory], else its table's, else
+	 * [KeymapCategory.Other] for a command built outside every table.
+	 */
+	val shownKeymapCategory: KeymapCategory get() = keymapCategory ?: table?.keymapCategory ?: KeymapCategory.Other
 
 	/**
 	 * Whether the command applies when run with [argument]: its [availability], its [availableFor] over that

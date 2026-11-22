@@ -99,7 +99,7 @@ class KeybindingReassignKeysTest {
 								},
 					) {
 						if (overlays.settingsVisible) {
-							KeybindingsEditor()
+							KeybindingsEditor(rememberPreferencesFolds())
 						}
 
 						overlays.pendingConfirm?.let {

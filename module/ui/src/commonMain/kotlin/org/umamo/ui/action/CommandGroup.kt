@@ -59,34 +59,37 @@ internal fun CommandListing.sectionIn(family: CommandFamily): CommandSection? {
 /**
  * Everything one command table registers: one entry per table file in the command tables package, named after it.
  * A table function builds its list through commandTable, which is what places its commands here.
+ *
+ * @property KeymapCategory keymapCategory The category the keybindings page lists the table's commands under, unless
+ *   a command names its own.
  */
-enum class CommandTable : CommandGroup {
-	Atlas,
-	Chrome,
-	Display,
-	Document,
-	File,
-	History,
-	Keyform,
-	Lattice,
-	Log,
-	MeshGeneration,
-	Mode,
-	Object,
-	Overlay,
-	Parameter,
-	Proportional,
-	Relation,
-	Select,
-	Sidebar,
-	Snap,
-	Topology,
-	Transform,
-	Update,
-	Uv,
-	View,
-	ViewportChrome,
-	Workspace,
+enum class CommandTable(val keymapCategory: KeymapCategory) : CommandGroup {
+	Atlas(KeymapCategory.Artwork),
+	Chrome(KeymapCategory.Help),
+	Display(KeymapCategory.Artwork),
+	Document(KeymapCategory.File),
+	File(KeymapCategory.File),
+	History(KeymapCategory.Edit),
+	Keyform(KeymapCategory.Keyforms),
+	Lattice(KeymapCategory.Deformers),
+	Log(KeymapCategory.Help),
+	MeshGeneration(KeymapCategory.Mesh),
+	Mode(KeymapCategory.Modes),
+	Object(KeymapCategory.Object),
+	Overlay(KeymapCategory.Overlays),
+	Parameter(KeymapCategory.Keyforms),
+	Proportional(KeymapCategory.Transform),
+	Relation(KeymapCategory.Relations),
+	Select(KeymapCategory.Select),
+	Sidebar(KeymapCategory.View),
+	Snap(KeymapCategory.Snap),
+	Topology(KeymapCategory.Mesh),
+	Transform(KeymapCategory.Transform),
+	Update(KeymapCategory.Help),
+	Uv(KeymapCategory.Uv),
+	View(KeymapCategory.View),
+	ViewportChrome(KeymapCategory.View),
+	Workspace(KeymapCategory.Workspace),
 	;
 
 	override val parent: CommandGroup? get() = null

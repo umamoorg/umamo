@@ -3,6 +3,7 @@ package org.umamo.ui.workspace.commands
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandTable
+import org.umamo.ui.action.KeymapCategory
 import org.umamo.ui.help.ProjectInfo
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.ShellOverlayState
@@ -52,7 +53,13 @@ internal fun chromeCommands(
 		// The preferences window opens through the registry like everything else, so the Edit menu, the
 		// Ctrl/Cmd+, binding, and the command palette all reach it through the one dispatch point.  Titled,
 		// so it surfaces in the palette ("Settings") for free.
-		Command("edit.preferences", title = Res.string.cmd_preferences, group = CommandSection.EditSettings, groupLabel = Res.string.menu_preferences) {
+		Command(
+			"edit.preferences",
+			title = Res.string.cmd_preferences,
+			group = CommandSection.EditSettings,
+			groupLabel = Res.string.menu_preferences,
+			keymapCategory = KeymapCategory.Edit,
+		) {
 			overlays.settingsVisible = !overlays.settingsVisible
 		},
 		// The Help dialogs open through the registry too, so the Help menu and the palette (both titled,
@@ -69,6 +76,6 @@ internal fun chromeCommands(
 		Command("help.documentation", title = Res.string.menu_documentation, group = CommandSection.HelpLinks) { openLink(ProjectInfo.DOCUMENTATION_URL) },
 		// Workspace navigation: titled so they surface in the palette, and the Workspace menu's first block, which a
 		// tab's own menu lists too.
-		Command("workspace.prev", title = Res.string.cmd_workspace_prev, group = CommandSection.WorkspaceSwitch) { workspaces.switchBy(-1) },
-		Command("workspace.next", title = Res.string.cmd_workspace_next, group = CommandSection.WorkspaceSwitch) { workspaces.switchBy(1) },
+		Command("workspace.prev", title = Res.string.cmd_workspace_prev, group = CommandSection.WorkspaceSwitch, keymapCategory = KeymapCategory.Workspace) { workspaces.switchBy(-1) },
+		Command("workspace.next", title = Res.string.cmd_workspace_next, group = CommandSection.WorkspaceSwitch, keymapCategory = KeymapCategory.Workspace) { workspaces.switchBy(1) },
 	)

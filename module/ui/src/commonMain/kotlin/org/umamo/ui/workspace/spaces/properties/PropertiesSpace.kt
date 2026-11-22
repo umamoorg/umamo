@@ -26,6 +26,7 @@ import org.umamo.edit.Selection
 import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.container.SectionCard
+import org.umamo.ui.kit.container.sectionVisibility
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalSelection
@@ -38,7 +39,6 @@ import org.umamo.ui.properties.PropertyRow
 import org.umamo.ui.properties.PropertySection
 import org.umamo.ui.properties.PropertyTab
 import org.umamo.ui.properties.PropertyTabId
-import org.umamo.ui.properties.sectionVisibility
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes

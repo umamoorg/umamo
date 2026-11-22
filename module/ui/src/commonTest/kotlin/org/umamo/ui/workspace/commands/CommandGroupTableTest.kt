@@ -15,6 +15,7 @@ import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandTable
+import org.umamo.ui.action.KeymapCategory
 import org.umamo.ui.action.bindableCommands
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.menu_select_kind_drawables
@@ -305,6 +306,30 @@ class CommandGroupTableTest {
 		assertTrue("file.save" in listed)
 		assertFalse("file.openPath" in listed, "untitled")
 		assertFalse("parameter.toggleRepeat" in listed, "titled, and only ever run with a parameter")
+	}
+
+	/**
+	 * Every command the keybindings page lists sits under a named category, and every named category lists something:
+	 * Other holds only commands built outside every table.  A command whose category is not its table's names its own.
+	 */
+	@Test
+	fun theKeybindingsListFilesEveryCommandUnderANamedCategory() {
+		val listed = bindableCommands(everyCommandTable())
+		val categoryById = listed.associate { command -> command.id to command.shownKeymapCategory }
+
+		assertEquals(emptyList(), listed.filter { command -> command.shownKeymapCategory == KeymapCategory.Other }.map { command -> command.id })
+
+		for (category in KeymapCategory.entries - KeymapCategory.Other) {
+			assertTrue(category in categoryById.values, "no listed command sits under $category")
+		}
+
+		assertEquals(KeymapCategory.Select, categoryById["select.clear"], "registered by the mode table")
+		assertEquals(KeymapCategory.Transform, categoryById["transform.pivot.cursor"], "registered by the snap table")
+		assertEquals(KeymapCategory.Artwork, categoryById["sources.relink"], "registered by the file table")
+		assertEquals(KeymapCategory.Edit, categoryById["edit.preferences"], "registered by the chrome table")
+		assertEquals(KeymapCategory.Workspace, categoryById["workspace.next"], "registered by the chrome table")
+		assertEquals(KeymapCategory.Help, categoryById["help.about"])
+		assertEquals(KeymapCategory.File, categoryById["file.save"])
 	}
 
 	/** A button or a chip shows a member by its glyph, so a member of these families with none drawn would have no face. */

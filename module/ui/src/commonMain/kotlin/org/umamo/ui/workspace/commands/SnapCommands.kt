@@ -11,6 +11,7 @@ import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandState
 import org.umamo.ui.action.CommandTable
+import org.umamo.ui.action.KeymapCategory
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.viewport.GridConfig
@@ -51,12 +52,18 @@ internal fun snapCommands(
 ): List<Command> =
 	commandTable(
 		CommandTable.Snap,
-		Command("transform.pivotPie", title = Res.string.cmd_transform_pivot_pie, availability = availability.hasDocument) {
+		Command(
+			"transform.pivotPie",
+			title = Res.string.cmd_transform_pivot_pie,
+			availability = availability.hasDocument,
+			keymapCategory = KeymapCategory.Transform,
+		) {
 			editorSession?.openPieMenu(PieMenuKind.PivotMode)
 		},
 		Command(
 			"transform.pivot.median",
 			title = Res.string.cmd_transform_pivot_median,
+			keymapCategory = KeymapCategory.Transform,
 			availability = availability.hasDocument,
 			group = CommandFamily.PivotMode,
 			icon = LocalUmamoIcons.pivotMedian,
@@ -68,6 +75,7 @@ internal fun snapCommands(
 		Command(
 			"transform.pivot.individual",
 			title = Res.string.cmd_transform_pivot_individual,
+			keymapCategory = KeymapCategory.Transform,
 			availability = availability.hasDocument,
 			group = CommandFamily.PivotMode,
 			icon = LocalUmamoIcons.pivotIndividual,
@@ -79,6 +87,7 @@ internal fun snapCommands(
 		Command(
 			"transform.pivot.active",
 			title = Res.string.cmd_transform_pivot_active,
+			keymapCategory = KeymapCategory.Transform,
 			availability = availability.hasDocument,
 			group = CommandFamily.PivotMode,
 			icon = LocalUmamoIcons.pivotActive,
@@ -90,6 +99,7 @@ internal fun snapCommands(
 		Command(
 			"transform.pivot.cursor",
 			title = Res.string.cmd_transform_pivot_cursor,
+			keymapCategory = KeymapCategory.Transform,
 			availability = availability.hasDocument,
 			group = CommandFamily.PivotMode,
 			icon = LocalUmamoIcons.pivotCursor,

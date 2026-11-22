@@ -75,6 +75,7 @@ data class UmamoIcons(
 	val armature: UmamoIcon,
 	val rotationDeformer: UmamoIcon,
 	val search: UmamoIcon,
+	val keyboard: UmamoIcon,
 	val close: UmamoIcon,
 	val plus: UmamoIcon,
 	val eyedropper: UmamoIcon,
@@ -225,6 +226,8 @@ val LocalUmamoIcons =
 		rotationDeformer = simpleIcon("M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0 M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"),
 		// Tabler "search" (viewBox 0 0 24 24, stroked).
 		search = simpleIcon("M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0 M21 21l-6 -6"),
+		// Tabler "keyboard" (viewBox 0 0 24 24, stroked).
+		keyboard = simpleIcon("M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8 M6 10l0 .01 M10 10l0 .01 M14 10l0 .01 M18 10l0 .01 M6 14l0 .01 M18 14l0 .01 M10 14l4 .01"),
 		// Tabler "x" (viewBox 0 0 24 24, stroked).
 		close = simpleIcon("M18 6l-12 12 M6 6l12 12"),
 		// Tabler "plus" (viewBox 0 0 24 24, stroked).
