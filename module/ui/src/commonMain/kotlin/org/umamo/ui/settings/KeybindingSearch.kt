@@ -37,10 +37,10 @@ internal fun KeybindingSearch.isActive(): Boolean =
  *
  * @property String commandId The command's id.
  * @property String title The command's localized name.
- * @property String chordLabel The text the row's shortcut chip shows, "Unbound" included, so a search for what the
- *   chip says finds the row.
+ * @property List chordLabels The text each of the command's shortcut chips shows, or "Unbound" alone for a command
+ *   with none, so a search for what any of its chips says finds the row.
  */
-internal class KeybindingSearchRow(val commandId: String, val title: String, val chordLabel: String)
+internal class KeybindingSearchRow(val commandId: String, val title: String, val chordLabels: List<String>)
 
 /**
  * Which rows of one category card a search leaves standing.  Text follows the section search rule (a category
@@ -56,7 +56,7 @@ internal class KeybindingSearchRow(val commandId: String, val title: String, val
 internal fun keybindingCardVisibility(title: String, rows: List<KeybindingSearchRow>, search: KeybindingSearch, firingCommandId: String?): SectionVisibility =
 	when (search) {
 		is KeybindingSearch.Text -> {
-			sectionVisibility(title, rows.map { row -> listOf(row.title, row.chordLabel) }, search.query)
+			sectionVisibility(title, rows.map { row -> listOf(row.title) + row.chordLabels }, search.query)
 		}
 
 		is KeybindingSearch.Chord -> {

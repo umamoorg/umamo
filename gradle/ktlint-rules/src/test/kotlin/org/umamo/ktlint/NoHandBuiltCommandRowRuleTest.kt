@@ -44,6 +44,18 @@ class NoHandBuiltCommandRowRuleTest {
 	}
 
 	@Test
+	fun reportsEveryChordOfACommandLookedUpInAWidget() {
+		val code =
+			"""
+			package org.umamo.ui.workspace.spaces.uv
+
+			internal fun mirrorChords(keymap: Keymap): List<String> = keymap.chordsFor("uv.mirrorU").map { chord -> formatAccelerator(chord) }
+			""".trimIndent()
+
+		assertEquals(listOf("3:66"), reported(code))
+	}
+
+	@Test
 	fun reportsEveryWayTheLookupIsWritten() {
 		val code =
 			"""
@@ -74,6 +86,8 @@ class NoHandBuiltCommandRowRuleTest {
 			package org.umamo.ui.settings
 
 			internal fun boundChord(keymap: Keymap, commandId: String): KeyChord? = keymap.chordFor(commandId)
+
+			internal fun boundChords(keymap: Keymap, commandId: String): List<KeyChord> = keymap.chordsFor(commandId)
 			""".trimIndent()
 		val hints =
 			"""

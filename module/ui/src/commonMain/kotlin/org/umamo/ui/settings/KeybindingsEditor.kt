@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.settings.Settings
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.action.KEYMAP_PRESET_IDS
 import org.umamo.ui.action.KEYMAP_PRESET_KEY
@@ -53,13 +54,14 @@ import org.umamo.ui.action.KeyChord
 import org.umamo.ui.action.KeymapCategory
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
+import org.umamo.ui.action.addCommandBind
 import org.umamo.ui.action.bindableCommands
 import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.action.keyChordOf
 import org.umamo.ui.action.keyName
-import org.umamo.ui.action.rebindCommand
+import org.umamo.ui.action.removeCommandBind
+import org.umamo.ui.action.replaceCommandBind
 import org.umamo.ui.action.resetKeymapOverrides
-import org.umamo.ui.action.unbindCommand
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.kit.button.Button
@@ -95,8 +97,15 @@ import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.workspace.ConfirmRequest
 
-/** A captured chord that collides with another command, held until its reassign prompt is raised in the shell. */
-private data class KeybindingConflict(val commandId: String, val chord: KeyChord, val existingCommandId: String)
+/**
+ * A captured chord that collides with another command, held until its reassign prompt is raised in the shell.
+ *
+ * @property String commandId The command the chord is for.
+ * @property KeyChord? replacing The command's chord it takes the place of, or null when it is one more.
+ * @property KeyChord chord The captured chord.
+ * @property String existingCommandId The command that holds the chord now.
+ */
+private data class KeybindingConflict(val commandId: String, val replacing: KeyChord?, val chord: KeyChord, val existingCommandId: String)
 
 /** What on the page is waiting for a key press.  One at a time: arming one disarms the other. */
 private sealed interface KeybindingCapture {
@@ -175,12 +184,14 @@ internal fun KeybindingsEditor(folds: PreferencesFolds) {
 			onCaptured = { captured ->
 				when (val armed = capture) {
 					is KeybindingCapture.Row -> {
+						// The chip shows the command's first chord, so that is the one a capture replaces.
+						val replacing = keymap.chordFor(armed.commandId)
 						val existingCommandId = keymap.commandFor(captured)
 
 						if (existingCommandId != null && existingCommandId != armed.commandId) {
-							pendingConflict = KeybindingConflict(armed.commandId, captured, existingCommandId)
+							pendingConflict = KeybindingConflict(armed.commandId, replacing, captured, existingCommandId)
 						} else {
-							rebindCommand(settings, armed.commandId, captured)
+							bindCapturedChord(settings, armed.commandId, replacing, captured)
 						}
 					}
 
@@ -230,9 +241,9 @@ internal fun KeybindingsEditor(folds: PreferencesFolds) {
 				val rows =
 					byCategory[category].orEmpty().mapNotNull { command ->
 						val titleResource = command.title ?: return@mapNotNull null
-						val chordLabel = keymap.chordFor(command.id)?.let { chord -> formatAccelerator(chord) } ?: unboundLabel
+						val chordLabels = keymap.chordsFor(command.id).map { chord -> formatAccelerator(chord) }.ifEmpty { listOf(unboundLabel) }
 
-						KeybindingSearchRow(command.id, stringResource(titleResource), chordLabel)
+						KeybindingSearchRow(command.id, stringResource(titleResource), chordLabels)
 					}
 				val title = stringResource(category.heading)
 				val visibility = keybindingCardVisibility(title, rows, search, firingCommandId)
@@ -257,13 +268,14 @@ internal fun KeybindingsEditor(folds: PreferencesFolds) {
 						for (rowIndex in visibility.visibleRowIndices) {
 							val row = rows[rowIndex]
 							key(row.commandId) {
+								val chord = keymap.chordFor(row.commandId)
 								KeybindingRow(
 									title = row.title,
-									chord = keymap.chordFor(row.commandId),
+									chord = chord,
 									capturing = capture == KeybindingCapture.Row(row.commandId),
 									onStartCapture = { arm(KeybindingCapture.Row(row.commandId)) },
 									onClear = {
-										unbindCommand(settings, row.commandId)
+										chord?.let { shown -> removeCommandBind(settings, row.commandId, shown) }
 										capture = null
 									},
 								)
@@ -295,7 +307,7 @@ internal fun KeybindingsEditor(folds: PreferencesFolds) {
 					message = Res.string.settings_keybindings_conflict,
 					arguments = listOf(chordLabel, existingTitle),
 					confirmLabel = Res.string.settings_keybindings_reassign,
-				) { rebindCommand(settings, conflict.commandId, conflict.chord) },
+				) { bindCapturedChord(settings, conflict.commandId, conflict.replacing, conflict.chord) },
 			)
 			pendingConflict = null
 		}
@@ -303,7 +315,7 @@ internal fun KeybindingsEditor(folds: PreferencesFolds) {
 }
 
 /**
- * The row under the preset that clears every per-command override, so each command falls back to the preset's chord.
+ * The row under the preset that clears every per-command override, so each command falls back to the preset's chords.
  *
  * @param Function onReset Clears the overrides.
  */
@@ -313,6 +325,23 @@ private fun ResetOverridesRow(onReset: () -> Unit) {
 		Tooltip(text = stringResource(Res.string.settings_keybindings_reset_description), modifier = Modifier.fillMaxWidth()) {
 			Button(label = stringResource(Res.string.settings_keybindings_reset), onClick = onReset, modifier = Modifier.fillMaxWidth(), primary = false)
 		}
+	}
+}
+
+/**
+ * Binds a captured chord to its command: in the place of [replacing], or after the command's other chords when there
+ * is nothing to replace.  Whatever held the chord loses it, so a conflict is confirmed before this runs.
+ *
+ * @param Settings settings The settings store to write to.
+ * @param String commandId The command the chord is for.
+ * @param KeyChord? replacing The command's chord to replace, or null to add one.
+ * @param KeyChord chord The captured chord.
+ */
+private fun bindCapturedChord(settings: Settings, commandId: String, replacing: KeyChord?, chord: KeyChord) {
+	if (replacing == null) {
+		addCommandBind(settings, commandId, chord)
+	} else {
+		replaceCommandBind(settings, commandId, replacing, chord)
 	}
 }
 
@@ -386,10 +415,10 @@ private fun NoMatchesLine(chordSearch: KeybindingSearch.Chord?, firingCommandId:
  * One command row: the command name in the label column, its chord chip and a clear button in the control column.
  *
  * @param String    title          The command's localized display name.
- * @param KeyChord? chord          The currently bound chord, or null when unbound.
+ * @param KeyChord? chord          The command's first chord, or null when unbound.
  * @param Boolean   capturing      Whether this row is capturing a new chord.
  * @param Function  onStartCapture Begins capture for this row.
- * @param Function  onClear        Unbinds the command.
+ * @param Function  onClear        Removes the shown chord.
  */
 @Composable
 private fun KeybindingRow(
@@ -570,7 +599,7 @@ private fun handleCaptureKey(event: KeyEvent, onCaptured: (KeyChord) -> Unit, on
  * clear (the command is already unbound, or the row is mid-capture).
  *
  * @param Boolean  enabled Whether clearing is possible.
- * @param Function onClick Unbinds the command.
+ * @param Function onClick Removes the shown chord.
  */
 @Composable
 private fun ClearButton(enabled: Boolean, onClick: () -> Unit) {
