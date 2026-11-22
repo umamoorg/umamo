@@ -63,6 +63,8 @@ import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.button.Button
+import org.umamo.ui.kit.field.FIELD_ROW_SPACING
+import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.kit.field.SelectField
 import org.umamo.ui.kit.textentry.LocalKeyCapture
 import org.umamo.ui.rememberStringSetting
@@ -70,6 +72,7 @@ import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.settings_keybindings_clear
 import org.umamo.ui.resources.settings_keybindings_conflict
 import org.umamo.ui.resources.settings_keybindings_preset
+import org.umamo.ui.resources.settings_keybindings_preset_description
 import org.umamo.ui.resources.settings_keybindings_preset_quick
 import org.umamo.ui.resources.settings_keybindings_press_shortcut
 import org.umamo.ui.resources.settings_keybindings_reassign
@@ -106,7 +109,10 @@ internal fun KeymapPresetSettingRow(onSelect: () -> Unit = {}, quick: Boolean = 
 			"cubism" to stringResource(Res.string.settings_keymap_preset_cubism),
 			"blender" to stringResource(Res.string.settings_keymap_preset_blender),
 		)
-	SettingRow(label = stringResource(if (quick) Res.string.settings_keybindings_preset_quick else Res.string.settings_keybindings_preset)) {
+	PropertyFieldRow(
+		label = stringResource(if (quick) Res.string.settings_keybindings_preset_quick else Res.string.settings_keybindings_preset),
+		description = stringResource(Res.string.settings_keybindings_preset_description),
+	) {
 		SelectField(
 			selected = preset,
 			options = KEYMAP_PRESET_IDS,
@@ -115,6 +121,7 @@ internal fun KeymapPresetSettingRow(onSelect: () -> Unit = {}, quick: Boolean = 
 				preset = presetId
 				onSelect()
 			},
+			modifier = Modifier.fillMaxWidth(),
 		)
 	}
 }
@@ -136,7 +143,7 @@ internal fun KeybindingsEditor() {
 	Box(modifier = Modifier.fillMaxSize()) {
 		Column(modifier = Modifier.fillMaxSize()) {
 			KeymapPresetSettingRow(onSelect = { capturingCommandId = null })
-			Spacer(modifier = Modifier.height(SETTING_ROW_SPACING))
+			Spacer(modifier = Modifier.height(FIELD_ROW_SPACING))
 			Row(modifier = Modifier.fillMaxWidth()) {
 				Button(
 					label = stringResource(Res.string.settings_keybindings_reset),
@@ -147,7 +154,7 @@ internal fun KeybindingsEditor() {
 					primary = false,
 				)
 			}
-			Spacer(modifier = Modifier.height(SETTING_ROW_SPACING))
+			Spacer(modifier = Modifier.height(FIELD_ROW_SPACING))
 			Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
 				val scrollState = rememberScrollState()
 				// The scrollbar is overlaid on this column's trailing edge, so the rows reserve its width

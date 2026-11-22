@@ -20,6 +20,10 @@
   EXT: a sentence about one specific file type names its extension (UMA, PSD, CMO3, MOC3) instead
   of saying ファイル.
 
+  Area: エリア, after the space's title in brackets: 「ソース」エリア, 「パラメータ」エリア,
+  「2D ビューポート」エリア.  The title is the one the area's header shows.  Never パネル for one
+  of these.  A bare ビューポート stays the generic word.
+
   Left as they are: "source artwork" (the display mode that draws a mesh from its layer instead of
   the atlas) is ソースアートワーク, アート is shorthand for what a drawable shows, and format-level
   names stay verbatim for interop (model3.json, ParamAngleX, and the like).
@@ -229,7 +233,7 @@
 	<string name="export_reason_atlas_page_not_recomposed">このアートワークはアトラスページ上で移動しましたが、ページ画像には移動前の位置のまま残っています。再パックすると描き直されます。</string>
 	<string name="export_reason_atlas_tile_metadata">このアートワークのピクセル、名前、またはサイズが変更されました。アトラス配置では表現できないため、アートワークを再取り込みしてください。</string>
 	<string name="export_reason_atlas_tile_rebinding">このドローアブルは別のアートワークに結び付けられました。再パックではなくアートワークの再取り込みが必要です。</string>
-	<string name="export_reason_source_layer_binding_not_in_export">このアートは %1$s のレイヤー %2$s に紐付いていますが、人形にそのアートワークが登録されていないため、紐付けをエクスポートできませんでした。紐付けをエクスポートするには、ソースパネルで再リンクしてください。</string>
+	<string name="export_reason_source_layer_binding_not_in_export">このアートは %1$s のレイヤー %2$s に紐付いていますが、人形にそのアートワークが登録されていないため、紐付けをエクスポートできませんでした。紐付けをエクスポートするには、「ソース」エリアで再リンクしてください。</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 のキャンバスサイズは整数ピクセルのため、小数の値は書き出されませんでした。</string>
 	<!-- エクスポートの上書き警告（document.confirm コマンド。%1$d は上書きされる既存ファイル数、
 	     %2$s は省略表示のファイル一覧）。 -->
@@ -262,7 +266,7 @@
 	<string name="export_options_background_color">色</string>
 	<string name="export_options_image_size">%1$d × %2$d px</string>
 	<string name="export_options_image_nothing_visible">キャプチャできるものが何も表示されていません。</string>
-	<string name="export_options_image_no_viewport">キャプチャするビューポートがありません。2D ビューポートを指してからエクスポートしてください。</string>
+	<string name="export_options_image_no_viewport">キャプチャするビューポートがありません。「2D ビューポート」エリアを指してからエクスポートしてください。</string>
 	<string name="export_options_image_no_canvas">この人形にはキャンバスがありません。</string>
 	<string name="export_options_image_too_large">%1$d × %2$d px は上限の %3$d px を超えています。</string>
 	<!-- ファイルを開けなかったときの通知（document.openFailed コマンド。%1$s はファイル名）。 -->
@@ -733,7 +737,7 @@
 	<string name="notice_uv_no_editable_geometry">ここでは編集できません。編集中のメッシュは表示中のページやレイヤーにありません。</string>
 	<string name="notice_uv_placement_layer_addressed">人形の UV はアトラスではなくソースアートワークを参照しているため、移動できる配置がありません。</string>
 	<string name="notice_uv_placement_no_placed_art">選択範囲にアトラスページへパック済みのアートがないか、ソースアートワークがありません。</string>
-	<string name="notice_uv_placement_page_view_only">配置を移動するには UV エディターでアトラスページを表示してください。</string>
+	<string name="notice_uv_placement_page_view_only">配置を移動するには 「UV エディター」エリアでアトラスページを表示してください。</string>
 	<string name="notice_uv_placement_not_on_page">選択範囲にこのページへパック済みのアートがありません。</string>
 	<string name="notice_uv_placement_not_derivable">ソースアートワークからアトラスを再構成できないため、配置を移動できません。</string>
 	<string name="notice_uv_placement_overlap">配置が他のタイルと重なっています。アトラスを再パックすると解消できます。</string>
@@ -798,7 +802,7 @@
 	<string name="overlay_row_cursor_description">スナップやピボット操作に使う2Dカーソル。</string>
 	<string name="overlay_row_info_description">現在の選択やズーム倍率などの一般情報。</string>
 	<string name="overlay_row_wireframe_description">編集対象として選択されていないドローアブルのメッシュワイヤーフレームを表示します。</string>
-	<string name="overlay_grid_scale_description">主グリッド線の間隔（ワールド単位、UV エディターではテクセル）。</string>
+	<string name="overlay_grid_scale_description">主グリッド線の間隔（ワールド単位、「UV エディター」エリアではテクセル）。</string>
 	<string name="overlay_grid_subdivisions_description">主グリッドの各マスを分ける補助線の数。</string>
 	<string name="overlay_section_objects_description">選択中・アクティブなドローアブルの視覚的な補助。</string>
 	<string name="overlay_row_selection_tint_description">選択中・アクティブなドローアブルに色を重ねて、アート上で目立たせます。</string>
@@ -958,7 +962,7 @@
 	<string name="properties_mask_add">マスクを追加…</string>
 	<string name="properties_mask_remove">マスクを削除</string>
 	<string name="properties_relation_clear">リレーションをクリア</string>
-	<string name="properties_relation_pick">ビューポートまたはアウトライナから取得</string>
+	<string name="properties_relation_pick">「2D ビューポート」か「アウトライナー」エリアから取得</string>
 	<string name="unit_pixels">px</string>
 	<string name="unit_degrees">°</string>
 	<string name="unit_percent">%</string>
@@ -1068,8 +1072,8 @@
 	<string name="properties_field_scale_description">現在のポーズでのデフォーマのスケール（キーフォームとブレンドシェイプによる値）。現在は読み取り専用です。</string>
 	<string name="properties_part_ref_description">この項目が属するパーツ。クリアすると、どのパーツにも属さなくなります。</string>
 	<string name="properties_parent_deformer_description">この項目が付いているデフォーマ。そのデフォーマが動いたり、曲がったり、回転したりすると、この項目も追従します。</string>
-	<string name="properties_field_pinned_description">アトラスページ上のこのアートの位置を固定します。UV エディターで手動で動かすことはできず、「ピン留めしたタイルを維持」がオフでない限り、再パックでもその場に残ります。</string>
-	<string name="properties_field_draw_order_description">このメッシュの重なり順（0〜1000）。値が大きいほど手前に描画され、同じ値ならアウトライナーで上にあるほうが手前になります。「グループ化」か「分離」のパーツの中では、そのパーツの中身の間だけで重なり順が決まります。</string>
+	<string name="properties_field_pinned_description">アトラスページ上のこのアートの位置を固定します。「UV エディター」エリアで手動で動かすことはできず、「ピン留めしたタイルを維持」がオフでない限り、再パックでもその場に残ります。</string>
+	<string name="properties_field_draw_order_description">このメッシュの重なり順（0〜1000）。値が大きいほど手前に描画され、同じ値なら「アウトライナー」エリアで上にあるほうが手前になります。「グループ化」か「分離」のパーツの中では、そのパーツの中身の間だけで重なり順が決まります。</string>
 	<string name="properties_field_opacity_description">メッシュの不透明度。0 で透明、1 で完全に不透明です。</string>
 	<string name="properties_field_blend_mode_description">メッシュの色を背後の描画とどう混ぜるか。ペイントソフトのレイヤーの合成モードと同じ考え方です。「レガシー」のモードは「アルファ」の設定を無視します。</string>
 	<string name="properties_field_alpha_mode_description">メッシュの透明度を背後とどう合成するか。「オーバー」は通常の重ね方、「アトップ」は背後にあるアートの上にだけ描画し、「アウト」は描画せずに背後を消します。「コンジョイント」と「ディスジョイント」は半透明の縁の重なり方を変えます。</string>
@@ -1113,7 +1117,7 @@
 	<string name="import_options_offset_z_description">基準位置で置いた位置から、追加したアートを上へずらす量（ピクセル）。負の値は下です。</string>
 	<string name="import_options_alpha_threshold_description">ドローアブルの初期メッシュを作るとき、アートとみなすピクセルの不透明度（1〜255）。</string>
 	<string name="import_options_margin_description">レイヤーの初期の四角形が、見えているアートの外側へ各辺でどれだけはみ出すか（ピクセル）。アートから生成したメッシュはプリセットの余白を使います。</string>
-	<string name="match_options_threshold_description">見失ったレイヤーを自動で再リンクするのに必要な照合の確かさ（パーセント）。これに満たない候補は、ソースパネルで確認できるように残されます。</string>
+	<string name="match_options_threshold_description">見失ったレイヤーを自動で再リンクするのに必要な照合の確かさ（パーセント）。これに満たない候補は、「ソース」エリアで確認できるように残されます。</string>
 	<string name="transform_options_move_x_description">選択が右に移動した距離（ピクセル）。負の値は左です。</string>
 	<string name="transform_options_move_y_description">選択がテクスチャ上で下に移動した距離（ピクセル）。負の値は上です。</string>
 	<string name="transform_options_move_z_description">選択が上に移動した距離（ピクセル）。負の値は下です。</string>
@@ -1218,21 +1222,39 @@
 	<string name="settings_category_keybindings">キーバインド</string>
 	<string name="settings_category_pen">ペン</string>
 	<string name="settings_category_import">インポート</string>
+	<!-- 設定ページが行をまとめる折りたたみカード。「表示」はインターフェースとビューポートの両ページで使う。 -->
+	<string name="settings_section_display">表示</string>
+	<string name="settings_section_editing">編集</string>
+	<string name="settings_section_updates">アップデート</string>
+	<string name="settings_section_navigation">ナビゲーション</string>
+	<string name="settings_section_grids">グリッド</string>
+	<string name="settings_section_quality">品質</string>
+	<string name="settings_section_new_models">新規モデル</string>
+	<string name="settings_section_meshes">メッシュ</string>
+	<string name="settings_section_artwork_files">アートワークファイル</string>
+	<string name="settings_section_sources">ソース</string>
 	<!-- 言語名は自言語表記でそのまま表示するため、文字列リソースにはしない。 -->
 	<string name="settings_interface_theme">テーマ</string>
+	<string name="settings_interface_theme_description">インターフェースの配色。「システム」は OS のライト／ダークモードに従います。</string>
 	<string name="settings_theme_dark">ダーク</string>
 	<string name="settings_theme_light">ライト</string>
 	<string name="settings_theme_system">システム</string>
 	<string name="settings_interface_language">言語</string>
+	<string name="settings_interface_language_description">メニュー、パネル、メッセージの言語。</string>
 	<!-- 取り消し履歴の上限（interface.historyLimit）。履歴パネルが保持するステップ数。 -->
 	<string name="settings_interface_history_steps">履歴のステップ数</string>
+	<string name="settings_interface_history_steps_description">取り消しのために「履歴」エリアが保持するステップ数。ステップ数を増やすほど、アプリケーションのメモリ使用量が増えます。</string>
 	<string name="settings_interface_repeat_control">リピートパラメータの操作</string>
+	<string name="settings_interface_repeat_control_description">「パラメータ」エリアがリピートパラメータに表示する操作の種類。既定では円形のダイヤルを表示します。「スライダーとパッド」にすると、常にスライダーまたは 2D パッドを表示します。</string>
 	<string name="settings_repeat_control_dial">ダイヤル</string>
 	<string name="settings_repeat_control_slider">スライダーとパッド</string>
-	<string name="settings_check_for_updates">起動時にアップデートを確認する</string>
+	<string name="settings_check_for_updates_heading">アップデートの確認</string>
+	<string name="settings_check_for_updates_at_startup">起動時</string>
+	<string name="settings_check_for_updates_at_startup_description">起動時にアップデートを確認するかどうか。</string>
 	<!-- キーバインド設定：プリセット選択とコマンドごとの再割り当て編集。 -->
 	<string name="settings_keybindings_preset">プリセット</string>
 	<string name="settings_keybindings_preset_quick">キーバインドのプリセット</string>
+	<string name="settings_keybindings_preset_description">好みに合ったショートカットのセットを選びます。</string>
 	<string name="settings_keymap_preset_default">デフォルト</string>
 	<string name="settings_keymap_preset_cubism">Cubism</string>
 	<string name="settings_keymap_preset_blender">Blender</string>
@@ -1246,48 +1268,78 @@
 	<!-- プレースホルダ（ペンバックエンド実装で本実装に差し替え）。 -->
 	<string name="settings_pen_coming_soon">ペンの設定は近日対応予定です。</string>
 	<string name="settings_import_parameter_template">パラメータテンプレート</string>
+	<string name="settings_import_parameter_template_description">インポートしたアートワークから新しい人形を作るときに、最初に使う既定のパラメータテンプレート。</string>
 	<string name="settings_import_alignment">追加アートワークの基準位置</string>
-	<string name="settings_import_watch_mode">アートワークファイルの監視</string>
+	<string name="settings_import_alignment_description">人形にアートワークを追加するとき、この基準位置を X/Z の 0,0 として使います。</string>
+	<string name="settings_import_watch_mode">監視中のアートワークファイル</string>
+	<string name="settings_import_watch_mode_description">監視中のアートワークファイルがディスク上で変更されたときの動作。</string>
 	<string name="settings_import_watch_mode_auto">自動で再読み込み</string>
 	<string name="settings_import_watch_mode_notify">通知のみ</string>
 	<string name="settings_import_watch_mode_off">オフ</string>
-	<string name="settings_import_delete_art_ignores_layer">「ソース」でアートを削除したとき、そのレイヤーも無視としてマークする</string>
-	<string name="settings_import_layer_positions_from_world_axes">「ソース」のレイヤー位置を、アートワークの左上ではなくワールド軸から測って表示する</string>
+	<string name="settings_import_deleting_art">アートの削除</string>
+	<string name="settings_import_also_ignore_layer">レイヤーも無視としてマーク</string>
+	<string name="settings_import_also_ignore_layer_description">「ソース」エリアからアートワークを削除するとき、そのレイヤーも無視としてマークします。これにより、アートワークを再読み込みしてもレイヤーが戻らなくなります。</string>
+	<string name="settings_import_layer_positions">レイヤー位置</string>
+	<string name="settings_import_from_world_axes">ワールド軸から測る</string>
+	<string name="settings_import_from_world_axes_description">「ソース」エリアで、レイヤー位置をアートワークの左上隅ではなくワールド軸から測ります。</string>
 	<string name="settings_import_parameter_template_humanoid">人型</string>
 	<string name="settings_import_parameter_template_none">なし</string>
 	<string name="settings_import_birth_mesh">初期メッシュ</string>
-	<string name="settings_import_birth_mesh_automatic">アートから生成</string>
+	<string name="settings_import_birth_mesh_description">アートワークのインポート時に生成するドローアブルのメッシュの種類。「四角形」は各レイヤーに三角形 2 枚の四角形を、「アートからメッシュを生成」は複雑なメッシュを生成します。</string>
+	<string name="settings_import_birth_mesh_automatic">アートからメッシュを生成</string>
 	<string name="settings_import_birth_mesh_quad">四角形</string>
 	<string name="settings_import_mesh_preset">メッシュ生成のプリセット</string>
-	<!-- ビューポート設定：ホイール 1 ノッチあたりのズーム率（%）。 -->
-	<string name="settings_viewport_zoom_step">ズーム刻み (%)</string>
-	<string name="settings_viewport_zoom_step_coarse">粗いズーム刻み (%)</string>
+	<string name="settings_import_mesh_preset_description">「初期メッシュ」が「アートからメッシュを生成」のときに、生成に使うプリセット。</string>
+	<!-- ビューポート設定：ホイール 1 ノッチあたりのズーム率（% はフィールド側に表示）。 -->
+	<string name="settings_viewport_zoom_step">ズーム刻み</string>
+	<string name="settings_viewport_zoom_step_description">マウスホイール 1 ノッチでズームする量（%）。</string>
+	<string name="settings_viewport_zoom_step_coarse">粗いズーム刻み</string>
+	<string name="settings_viewport_zoom_step_coarse_description">Shift を押しながら 1 ノッチでズームする量（%）。</string>
 	<string name="settings_viewport_grid_scale">グリッド間隔</string>
+	<string name="settings_viewport_grid_scale_description">ビューポートの主グリッド線の既定の間隔（ワールド単位）。</string>
 	<string name="settings_viewport_grid_subdivisions">グリッド分割数</string>
+	<string name="settings_viewport_grid_subdivisions_description">ビューポートのグリッドで、主グリッドの 1 マスを分割する補助線の数。</string>
 	<string name="settings_viewport_uv_grid_scale">UV グリッド間隔</string>
+	<string name="settings_viewport_uv_grid_scale_description">「UV エディター」エリアの主グリッド線の既定の間隔（テクセル）。</string>
 	<string name="settings_viewport_uv_grid_subdivisions">UV グリッド分割数</string>
-	<!-- ビューポート設定：描画パフォーマンスの切り替え（viewport.rendering.*）、続いてツールバー・サイドバーの既定の表示（viewport.showToolbar / showSidebar）。 -->
-	<string name="settings_viewport_supersample">スーパーサンプリング（2 倍精細レンダリング）</string>
-	<string name="settings_viewport_supersample_while_resizing">パネルのリサイズ中もスーパーサンプリングを維持</string>
-	<string name="settings_viewport_show_toolbar">ツールバーを既定で表示</string>
-	<string name="settings_viewport_show_sidebar">サイドバーを既定で表示</string>
-	<!-- カラー設定：ビューポートの選択ハイライト、続いて編集モードのギズモ配色（viewport.meshEdit.*）。 -->
+	<string name="settings_viewport_uv_grid_subdivisions_description">「UV エディター」エリアのグリッドで、主グリッドの 1 マスを分割する補助線の数。</string>
+	<!-- ビューポート設定：描画の切り替え（viewport.rendering.*）を見出し 1 つにまとめ、続いてツールバー・サイドバーの既定の表示（viewport.showToolbar / showSidebar）。 -->
+	<string name="settings_viewport_supersample_heading">スーパーサンプリング</string>
+	<string name="settings_viewport_supersample_quality">2 倍精細レンダリング</string>
+	<string name="settings_viewport_supersample_quality_description">ビューポートの人形を 2 倍の品質で描画します。そのぶん動作は重くなります。性能の低いコンピューターではオフにしてください。</string>
+	<string name="settings_viewport_supersample_keep_while_resizing">リサイズ中も継続</string>
+	<string name="settings_viewport_supersample_keep_while_resizing_description">インターフェースやビューポートのリサイズ中もスーパーサンプリングを続けます。性能の低いコンピューターではオフにしてください。</string>
+	<string name="settings_viewport_show_by_default">既定で表示</string>
+	<string name="settings_viewport_default_toolbar">ツールバー</string>
+	<string name="settings_viewport_default_toolbar_description">すべてのビューポートで、非表示にするまでツールバーを既定で表示します。</string>
+	<string name="settings_viewport_default_sidebar">サイドバー</string>
+	<string name="settings_viewport_default_sidebar_description">すべてのビューポートで、非表示にするまでサイドバーを既定で表示します。</string>
+	<!-- カラー設定：ビューポートの選択ハイライト、続いて編集モードのギズモ配色（viewport.meshEdit.*）、最後にワープ格子（viewport.deformer.*）。 -->
 	<string name="settings_colors_viewport">ビューポート</string>
 	<string name="settings_colors_selection_highlight">選択ハイライト</string>
+	<string name="settings_colors_selection_highlight_description">ビューポートで選択中のドローアブルに重ねる色。</string>
 	<string name="settings_colors_active_selection_highlight">アクティブ選択のハイライト</string>
+	<string name="settings_colors_active_selection_highlight_description">ビューポートでアクティブなドローアブルに重ねる色。</string>
 	<string name="settings_colors_warning">警告</string>
+	<string name="settings_colors_warning_description">隣のタイルと重なる、またはアトラスページからはみ出したタイルの輪郭。</string>
 	<string name="settings_colors_pinned_placement">ピン留めした配置</string>
+	<string name="settings_colors_pinned_placement_description">「UV エディター」エリアで、アトラスページ上のピン留めしたタイルのメッシュの辺の色。</string>
 	<string name="settings_colors_mesh_edit">メッシュ編集</string>
 	<string name="settings_colors_group_vertex">頂点</string>
 	<string name="settings_colors_group_edge">辺</string>
 	<string name="settings_colors_group_face">面</string>
 	<string name="settings_colors_deformers">デフォーマ</string>
-	<string name="settings_colors_group_lattice">格子</string>
+	<!-- 役割の行。頂点・辺・面のサブパネルとデフォーマのカードで共通なので、説明はどのグループにも当てはまる書き方にする。 -->
 	<string name="settings_colors_role_idle">通常</string>
+	<string name="settings_colors_role_idle_description">選択されていないときの色。</string>
 	<string name="settings_colors_role_selected">選択中</string>
+	<string name="settings_colors_role_selected_description">選択されているときの色。</string>
 	<string name="settings_colors_role_active">アクティブ</string>
+	<string name="settings_colors_role_active_description">アクティブな選択の色（最後に選択したもの）。</string>
 	<string name="settings_colors_role_unkeyed">キー未設定</string>
+	<string name="settings_colors_role_unkeyed_description">ポーズを付けたが、まだキーを設定していない格子の色。</string>
 	<string name="settings_colors_role_hovered">ホバー中</string>
+	<string name="settings_colors_role_hovered_description">ホバー中の格子の色。</string>
 	<!-- リレーション選択（スポイト）：クリックで取得する対象を示すカーソル脇のバッジ。 -->
 	<string name="pick_hover_drawable">ドローアブル: %1$s</string>
 	<string name="pick_hover_part">パーツ: %1$s</string>

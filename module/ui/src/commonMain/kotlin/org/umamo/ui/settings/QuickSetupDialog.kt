@@ -36,6 +36,7 @@ import org.umamo.ui.help.ProjectInfo
 import org.umamo.ui.kit.Surface
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.button.Button
+import org.umamo.ui.kit.field.FIELD_ROW_SPACING
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.app_icon
 import org.umamo.ui.resources.app_name
@@ -97,7 +98,7 @@ fun QuickSetupDialog(onDismiss: () -> Unit) {
 				Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.divider))
 				Column(
 					modifier = Modifier.fillMaxWidth().padding(start = 20.dp, top = 16.dp, end = 20.dp),
-					verticalArrangement = Arrangement.spacedBy(SETTING_ROW_SPACING),
+					verticalArrangement = Arrangement.spacedBy(FIELD_ROW_SPACING),
 				) {
 					Text(text = stringResource(Res.string.quick_setup_title), style = typography.labelMedium, color = colors.textMuted)
 					LanguageSettingRow()

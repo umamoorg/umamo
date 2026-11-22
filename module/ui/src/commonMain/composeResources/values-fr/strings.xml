@@ -884,17 +884,14 @@
 	<string name="settings_import_watch_mode_auto">Recharger Automatiquement</string>
 	<string name="settings_import_watch_mode_notify">Seulement Notifier</string>
 	<string name="settings_import_watch_mode_off">Off</string>
-	<string name="settings_import_delete_art_ignores_layer">Quand un art est supprimé des sources, aussi marqué le calque comme ignoré.</string>
 	<string name="settings_import_parameter_template_humanoid">Humanoide</string>
 	<string name="settings_import_parameter_template_none">Aucun</string>
 	<!-- Viewport section: wheel-zoom increments, in percent per notch. -->
-	<string name="settings_viewport_zoom_step">Taille du Zoom (%)</string>
-	<string name="settings_viewport_zoom_step_coarse">Taille du Zoom fort (%)</string>
+	<string name="settings_viewport_zoom_step">Taille du Zoom</string>
+	<string name="settings_viewport_zoom_step_coarse">Taille du Zoom fort</string>
 	<string name="settings_viewport_grid_scale">Taille de la Grille</string>
 	<string name="settings_viewport_grid_subdivisions">Subdivisions de la Grile</string>
 	<!-- Viewport section: rendering performance toggles (viewport.rendering.*). -->
-	<string name="settings_viewport_supersample">Supersampling (Qualité de Rendu x2)</string>
-	<string name="settings_viewport_supersample_while_resizing">Garder le Supersampling pendant la redimension des panneaux</string>
 	<!-- Colors section: the viewport selection highlight, then the Edit-mode gizmo palette (viewport.meshEdit.*), grouped element × state. -->
 	<string name="settings_colors_viewport">Viewport</string>
 	<string name="settings_colors_selection_highlight">Couleur de Sélection</string>

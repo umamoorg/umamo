@@ -20,6 +20,11 @@
   EXT: a sentence about one specific file type names its extension (UMA, PSD, CMO3, MOC3) instead of
   saying "the file".
 
+  Area: a part of the window, named by the space it shows: the Sources area, the Parameters area,
+  the 2D Viewport area.  Write the space's title as its header shows it, then "area".  Never call
+  one a panel or a space, and never write a lowercase "the outliner" or "the UV editor".  A
+  lowercase "viewport" stays the generic word ("every viewport", "no viewport to capture").
+
   Left as they are: "source artwork" (the display mode that draws a mesh from its layer instead of
   the atlas), "art" as shorthand for what a drawable shows, and format-level names that stay
   verbatim for interop (model3.json, ParamAngleX, and the like).
@@ -258,7 +263,7 @@
 	<string name="export_reason_atlas_page_not_recomposed">This artwork was moved on its atlas page, but the page image still shows it at its old spot; repack to redraw it.</string>
 	<string name="export_reason_atlas_tile_metadata">This artwork's pixels, name, or size changed, which an atlas placement cannot carry; re-import the artwork instead.</string>
 	<string name="export_reason_atlas_tile_rebinding">This drawable was bound to different artwork, which needs the artwork re-imported rather than repacked.</string>
-	<string name="export_reason_source_layer_binding_not_in_export">This art is bound to layer %2$s of %1$s, but the puppet does not list that artwork, so the binding could not be exported.  Relink it in the Sources space to export the binding.</string>
+	<string name="export_reason_source_layer_binding_not_in_export">This art is bound to layer %2$s of %1$s, but the puppet does not list that artwork, so the binding could not be exported.  Relink it in the Sources area to export the binding.</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 stores whole canvas pixels, so the fractional canvas size was not written.</string>
 	<!-- Export overwrite warning (the document.confirm command; %1$d is how many existing files the
 	     export would replace, %2$s the abbreviated file list). -->
@@ -293,7 +298,7 @@
 	<string name="export_options_background_color">Color</string>
 	<string name="export_options_image_size">%1$d × %2$d px</string>
 	<string name="export_options_image_nothing_visible">Nothing is visible to capture.</string>
-	<string name="export_options_image_no_viewport">No viewport to capture.  Point at a 2D viewport before exporting.</string>
+	<string name="export_options_image_no_viewport">No viewport to capture.  Point at a 2D Viewport area before exporting.</string>
 	<string name="export_options_image_no_canvas">The puppet has no canvas.</string>
 	<string name="export_options_image_too_large">%1$d × %2$d px is past the %3$d px limit.</string>
 	<!-- File-open failure alert (the document.openFailed command; %1$s is the file name). -->
@@ -795,7 +800,7 @@
 	<string name="notice_uv_no_editable_geometry">Nothing to edit here.  None of the meshes you are editing are on the page or layer being shown.</string>
 	<string name="notice_uv_placement_layer_addressed">The puppet's UVs address the source artwork and not the atlas so there is no placement to move.</string>
 	<string name="notice_uv_placement_no_placed_art">Nothing selected is packed on an atlas page or there is no source artwork.</string>
-	<string name="notice_uv_placement_page_view_only">Show an atlas page in the UV editor to move placements.</string>
+	<string name="notice_uv_placement_page_view_only">Show an atlas page in the UV Editor area to move placements.</string>
 	<string name="notice_uv_placement_not_on_page">Nothing selected is packed on this page.</string>
 	<string name="notice_uv_placement_not_derivable">The atlas cannot be recomposed from its source artwork, so placements cannot move.</string>
 	<string name="notice_uv_placement_overlap">Placement overlaps another tile.  Repack the atlas to clear the collision.</string>
@@ -867,7 +872,7 @@
 	<string name="overlay_row_cursor_description">The 2D cursor used for snap and pivot operations.</string>
 	<string name="overlay_row_info_description">The general information such as the current selection and zoom level.</string>
 	<string name="overlay_row_wireframe_description">Shows the mesh wireframe of drawables that are not being edited.</string>
-	<string name="overlay_grid_scale_description">The spacing of the major grid lines, in world units; in the UV editor, in texels.</string>
+	<string name="overlay_grid_scale_description">The spacing of the major grid lines, in world units; in the UV Editor area, in texels.</string>
 	<string name="overlay_grid_subdivisions_description">How many minor lines divide each major grid cell.</string>
 	<string name="overlay_section_objects_description">The visual helpers for selected and active drawables.</string>
 	<string name="overlay_row_selection_tint_description">Tints selected and active drawables so they stand out.</string>
@@ -1037,7 +1042,7 @@
 	<string name="properties_mask_add">Add Mask…</string>
 	<string name="properties_mask_remove">Remove Mask</string>
 	<string name="properties_relation_clear">Clear relation</string>
-	<string name="properties_relation_pick">Pick from the viewport or outliner.</string>
+	<string name="properties_relation_pick">Pick from a 2D Viewport or Outliner area.</string>
 	<string name="unit_pixels">px</string>
 	<string name="unit_degrees">°</string>
 	<string name="unit_percent">%</string>
@@ -1153,8 +1158,8 @@
 	<string name="properties_field_scale_description">The deformer's scale at the current pose, from its keyforms and blend shapes.  Read-only for now.</string>
 	<string name="properties_part_ref_description">The part this item belongs to.  Clearing it moves the item out of every part.</string>
 	<string name="properties_parent_deformer_description">The deformer this item is attached to.  The item follows it as it moves, bends, or turns.</string>
-	<string name="properties_field_pinned_description">Holds this art in place on its atlas page.  Moving it by hand in the UV editor is refused, and a repack leaves it where it is unless Keep Pinned Tiles is off.</string>
-	<string name="properties_field_draw_order_description">Where this mesh stacks, from 0 to 1000: higher draws in front, and a tie goes to the one higher in the outliner.  Inside a Grouped or Isolated part, it stacks only among that part's contents.</string>
+	<string name="properties_field_pinned_description">Holds this art in place on its atlas page.  Moving it by hand in the UV Editor area is refused, and a repack leaves it where it is unless Keep Pinned Tiles is off.</string>
+	<string name="properties_field_draw_order_description">Where this mesh stacks, from 0 to 1000: higher draws in front, and a tie goes to the one higher in the Outliner area.  Inside a Grouped or Isolated part, it stacks only among that part's contents.</string>
 	<string name="properties_field_opacity_description">How opaque the mesh is, from 0 (invisible) to 1 (fully opaque).</string>
 	<string name="properties_field_blend_mode_description">How the mesh's colors mix with what is drawn behind it, like a paint app's layer blend modes.  The Legacy modes ignore the Alpha setting.</string>
 	<string name="properties_field_alpha_mode_description">How the mesh's transparency combines with what is behind it.  Over stacks normally, Atop draws only over art already there, and Out erases what is behind it instead of drawing.  Conjoint and Disjoint change how soft edges overlap.</string>
@@ -1198,7 +1203,7 @@
 	<string name="import_options_offset_z_description">Moves the added art up from where Align puts it, in pixels.  Negative moves it down.</string>
 	<string name="import_options_alpha_threshold_description">How opaque a pixel must be, from 1 to 255, to count as art when a drawable's initial mesh is made.</string>
 	<string name="import_options_margin_description">How far a layer's initial quad reaches past its visible art on every side, in pixels.  A mesh generated from art keeps its preset's margins.</string>
-	<string name="match_options_threshold_description">How sure a match must be, as a percentage, before a lost layer is relinked to it automatically.  Weaker matches are left for review in the Sources panel.</string>
+	<string name="match_options_threshold_description">How sure a match must be, as a percentage, before a lost layer is relinked to it automatically.  Weaker matches are left for review in the Sources area.</string>
 	<string name="transform_options_move_x_description">How far the selection moved right, in pixels.  Negative moves it left.</string>
 	<string name="transform_options_move_y_description">How far the selection moved down the texture, in pixels.  Negative moves it up.</string>
 	<string name="transform_options_move_z_description">How far the selection moved up, in pixels.  Negative moves it down.</string>
@@ -1308,24 +1313,42 @@
 	<string name="settings_category_keybindings">Keybindings</string>
 	<string name="settings_category_pen">Pen</string>
 	<string name="settings_category_import">Import</string>
+	<!-- The collapsible cards the settings pages group their rows into.  Display heads a card on both the Interface and Viewport pages. -->
+	<string name="settings_section_display">Display</string>
+	<string name="settings_section_editing">Editing</string>
+	<string name="settings_section_updates">Updates</string>
+	<string name="settings_section_navigation">Navigation</string>
+	<string name="settings_section_grids">Grids</string>
+	<string name="settings_section_quality">Quality</string>
+	<string name="settings_section_new_models">New Models</string>
+	<string name="settings_section_meshes">Meshes</string>
+	<string name="settings_section_artwork_files">Artwork Files</string>
+	<string name="settings_section_sources">Sources</string>
 	<!-- Interface section. Language names are endonyms shown verbatim, so they are NOT string
 	resources. -->
 	<string name="settings_interface_theme">Theme</string>
+	<string name="settings_interface_theme_description">The color scheme of the interface.  System follows the operating system's light or dark mode.</string>
 	<string name="settings_theme_dark">Dark</string>
 	<string name="settings_theme_light">Light</string>
 	<string name="settings_theme_system">System</string>
 	<string name="settings_interface_language">Language</string>
+	<string name="settings_interface_language_description">The language of the menus, panels, and messages.</string>
 	<!-- The undo-history cap (interface.historyLimit): how many steps the History panel retains. -->
 	<string name="settings_interface_history_steps">History Steps</string>
+	<string name="settings_interface_history_steps_description">How many steps the History area keeps for undo.  Increasing the amount of steps increases the amount of memory used by the application.</string>
 	<!-- interface.parameters.repeatControl: the control a repeating parameter shows.  The slider choice gives a pair its pad. -->
 	<string name="settings_interface_repeat_control">Repeating Parameter Control</string>
+	<string name="settings_interface_repeat_control_description">The control type the Parameters area shows for repeating parameters.  By default repeating parameters will show a circular dial.  Setting this to Slider and Pad will always show a slider or 2D pad for repeating parameters.</string>
 	<string name="settings_repeat_control_dial">Dial</string>
 	<string name="settings_repeat_control_slider">Slider and Pad</string>
-	<!-- app.checkForUpdates, in Preferences and Quick Setup. -->
-	<string name="settings_check_for_updates">Check for updates when Umamo starts</string>
+	<!-- app.checkForUpdates, in Preferences and Quick Setup: the row's heading, then its checkbox. -->
+	<string name="settings_check_for_updates_heading">Check for Updates</string>
+	<string name="settings_check_for_updates_at_startup">At Startup</string>
+	<string name="settings_check_for_updates_at_startup_description">Whether the application should check for updates on startup.</string>
 	<!-- Keybindings section: preset selection + the per-command rebinding editor. -->
 	<string name="settings_keybindings_preset">Preset</string>
 	<string name="settings_keybindings_preset_quick">Keybindings Preset</string>
+	<string name="settings_keybindings_preset_description">Choose from a set of shortcuts that suit your preferences.</string>
 	<string name="settings_keymap_preset_default">Default</string>
 	<string name="settings_keymap_preset_cubism">Cubism</string>
 	<string name="settings_keymap_preset_blender">Blender</string>
@@ -1339,48 +1362,79 @@
 	<!-- Placeholder section (the real editor lands with the pen backend). -->
 	<string name="settings_pen_coming_soon">Pen configuration is coming soon.</string>
 	<string name="settings_import_parameter_template">Parameter Template</string>
+	<string name="settings_import_parameter_template_description">The default parameter template that new puppets created from imported artwork will start with.</string>
 	<string name="settings_import_alignment">Align Added Artwork</string>
-	<string name="settings_import_watch_mode">Watch Artwork Files</string>
+	<string name="settings_import_alignment_description">When adding artwork to a puppet use this alignment position as the 0,0 X/Z position.</string>
+	<string name="settings_import_watch_mode">Watched Artwork Files</string>
+	<string name="settings_import_watch_mode_description">The action to take when a watched artwork file changes on disk.</string>
 	<string name="settings_import_watch_mode_auto">Reload Automatically</string>
 	<string name="settings_import_watch_mode_notify">Notify Only</string>
 	<string name="settings_import_watch_mode_off">Off</string>
-	<string name="settings_import_delete_art_ignores_layer">When deleting art in the sources, also mark the layer as ignored.</string>
-	<string name="settings_import_layer_positions_from_world_axes">In the Sources area, measure layer positions from the world axes instead of the artwork's top-left corner.</string>
+	<!-- Two Sources toggles, each a heading and its checkbox. -->
+	<string name="settings_import_deleting_art">Deleting Art</string>
+	<string name="settings_import_also_ignore_layer">Also Mark Layer as Ignored</string>
+	<string name="settings_import_also_ignore_layer_description">When deleting artwork from the Sources area, also mark the artwork layer as ignored.  This will prevent the layer from returning when reloading the artwork.</string>
+	<string name="settings_import_layer_positions">Layer Positions</string>
+	<string name="settings_import_from_world_axes">Measure From World Axes</string>
+	<string name="settings_import_from_world_axes_description">In the Sources area, measure layer positions from the world axes instead of the artwork's top left corner.</string>
 	<string name="settings_import_parameter_template_humanoid">Humanoid</string>
 	<string name="settings_import_parameter_template_none">None</string>
 	<string name="settings_import_birth_mesh">Initial Mesh</string>
-	<string name="settings_import_birth_mesh_automatic">Generated from Art</string>
+	<string name="settings_import_birth_mesh_description">What kind of drawable mesh to generate when importing artwork.  Quad generates a square two triangle fan over every layer while Generate Mesh from Art will create a complex mesh.</string>
+	<string name="settings_import_birth_mesh_automatic">Generate Mesh from Art</string>
 	<string name="settings_import_birth_mesh_quad">Quad</string>
 	<string name="settings_import_mesh_preset">Mesh Generation Preset</string>
-	<!-- Viewport section: wheel-zoom increments, in percent per notch. -->
-	<string name="settings_viewport_zoom_step">Zoom Step (%)</string>
-	<string name="settings_viewport_zoom_step_coarse">Coarse Zoom Step (%)</string>
+	<string name="settings_import_mesh_preset_description">When Initial Mesh is set to Generate Mesh from Art this is the preset that will be used for the generation.</string>
+	<!-- Viewport section: wheel-zoom increments, in percent per notch (the field shows the % itself). -->
+	<string name="settings_viewport_zoom_step">Zoom Step</string>
+	<string name="settings_viewport_zoom_step_description">How far one notch of the mouse wheel zooms, in percent.</string>
+	<string name="settings_viewport_zoom_step_coarse">Coarse Zoom Step</string>
+	<string name="settings_viewport_zoom_step_coarse_description">How far one notch zooms while Shift is held, in percent.</string>
 	<string name="settings_viewport_grid_scale">Grid Scale</string>
+	<string name="settings_viewport_grid_scale_description">The default spacing of the viewport's major grid lines, in world units.</string>
 	<string name="settings_viewport_grid_subdivisions">Grid Subdivisions</string>
+	<string name="settings_viewport_grid_subdivisions_description">How many minor lines divide each major cell of the viewport's grid.</string>
 	<string name="settings_viewport_uv_grid_scale">UV Grid Scale</string>
+	<string name="settings_viewport_uv_grid_scale_description">The default spacing of the UV Editor area's major grid lines, in texels.</string>
 	<string name="settings_viewport_uv_grid_subdivisions">UV Grid Subdivisions</string>
-	<!-- Viewport section: rendering performance toggles (viewport.rendering.*), then the chrome's defaults (viewport.showToolbar / showSidebar). -->
-	<string name="settings_viewport_supersample">Supersampling (2x Render Quality)</string>
-	<string name="settings_viewport_supersample_while_resizing">Keep supersampling while resizing panels</string>
-	<string name="settings_viewport_show_toolbar">Show Toolbar by Default</string>
-	<string name="settings_viewport_show_sidebar">Show Sidebar by Default</string>
-	<!-- Colors section: the viewport selection highlight, then the Edit-mode gizmo palette (viewport.meshEdit.*), grouped element × state. -->
+	<string name="settings_viewport_uv_grid_subdivisions_description">How many minor lines divide each major cell of the UV Editor area's grid.</string>
+	<!-- Viewport section: the rendering toggles (viewport.rendering.*) under one heading, then the chrome's defaults (viewport.showToolbar / showSidebar) under another. -->
+	<string name="settings_viewport_supersample_heading">Supersampling</string>
+	<string name="settings_viewport_supersample_quality">2x Render Quality</string>
+	<string name="settings_viewport_supersample_quality_description">Render puppets in the viewports at 2x quality at a cost to performance.  Turn this off for lower performing computers.</string>
+	<string name="settings_viewport_supersample_keep_while_resizing">Continue While Resizing</string>
+	<string name="settings_viewport_supersample_keep_while_resizing_description">Continue supersampling while resizing the interface or viewports.  Turn this off for lower performing computers.</string>
+	<string name="settings_viewport_show_by_default">Show by Default</string>
+	<string name="settings_viewport_default_toolbar">Toolbar</string>
+	<string name="settings_viewport_default_toolbar_description">Shows the Toolbar in every viewport by default until it is intentionally hidden.</string>
+	<string name="settings_viewport_default_sidebar">Sidebar</string>
+	<string name="settings_viewport_default_sidebar_description">Shows the Sidebar in every viewport by default until it is intentionally hidden.</string>
+	<!-- Colors section: the viewport selection highlight, then the Edit-mode gizmo palette (viewport.meshEdit.*), grouped element × state, then the warp lattice (viewport.deformer.*). -->
 	<string name="settings_colors_viewport">Viewport</string>
 	<string name="settings_colors_selection_highlight">Selection Highlight</string>
+	<string name="settings_colors_selection_highlight_description">The tint mixed over selected drawables in the viewport.</string>
 	<string name="settings_colors_active_selection_highlight">Active Selection Highlight</string>
+	<string name="settings_colors_active_selection_highlight_description">The tint mixed over the active drawable in the viewport.</string>
 	<string name="settings_colors_warning">Warning</string>
+	<string name="settings_colors_warning_description">The outline of a tile that overlaps a neighbor or spills off the atlas page.</string>
 	<string name="settings_colors_pinned_placement">Pinned Placement</string>
+	<string name="settings_colors_pinned_placement_description">The mesh edge color of a pinned tile on an atlas page in the UV Editor area.</string>
 	<string name="settings_colors_mesh_edit">Mesh Editing</string>
 	<string name="settings_colors_group_vertex">Vertex</string>
 	<string name="settings_colors_group_edge">Edge</string>
 	<string name="settings_colors_group_face">Face</string>
 	<string name="settings_colors_deformers">Deformers</string>
-	<string name="settings_colors_group_lattice">Lattice</string>
+	<!-- The role rows, shared by the Vertex, Edge, and Face sub-panels and the Deformers card; each description fits every group it appears in. -->
 	<string name="settings_colors_role_idle">Idle</string>
+	<string name="settings_colors_role_idle_description">Color shown while not selected.</string>
 	<string name="settings_colors_role_selected">Selected</string>
+	<string name="settings_colors_role_selected_description">Color shown while selected.</string>
 	<string name="settings_colors_role_active">Active</string>
+	<string name="settings_colors_role_active_description">Color shown for the active selection.  (Last Selected)</string>
 	<string name="settings_colors_role_unkeyed">Unkeyed</string>
+	<string name="settings_colors_role_unkeyed_description">Color shown on a lattice that has been posed, but is unkeyed.</string>
 	<string name="settings_colors_role_hovered">Hovered</string>
+	<string name="settings_colors_role_hovered_description">Color shown on a lattice that is hovered over.</string>
 	<!-- Relation pick (a Properties eyedropper): the near-cursor badge naming what a click would bind. -->
 	<string name="pick_hover_drawable">Drawable: %1$s</string>
 	<string name="pick_hover_part">Part: %1$s</string>
