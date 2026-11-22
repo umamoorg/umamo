@@ -65,8 +65,8 @@ import kotlin.test.assertTrue
  * taking the press for Preferences.
  *
  * Two commands sit on two cards: the grab command under Transform, bound to Ctrl+S and then F4, and the settings
- * command under Edit, unbound.  Every lookup goes by the string the page renders, read in composition, so a reworded string never
- * breaks one.
+ * command under Edit, unbound.  Every lookup goes by the string the page renders, read in composition, so a reworded
+ * string never breaks one.
  */
 @OptIn(ExperimentalTestApi::class)
 class KeybindingsSearchUiTest {

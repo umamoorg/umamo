@@ -179,6 +179,26 @@ fun removeCommandBind(settings: Settings, commandId: String, chord: KeyChord) {
 }
 
 /**
+ * Moves [chord] one place earlier in [commandId]'s chords and persists it, so a rigger chooses which chord comes
+ * first: the one menus, the palette, and the status bar show.  A chord already first, or one the command does not
+ * hold, changes nothing.
+ *
+ * @param Settings settings The settings store to write to.
+ * @param String commandId The command whose chords are reordered.
+ * @param KeyChord chord The chord to move.
+ */
+fun moveCommandBindUp(settings: Settings, commandId: String, chord: KeyChord) {
+	editCommandBinds(settings, commandId) { chords ->
+		val chordIndex = chords.indexOf(chord)
+
+		when {
+			chordIndex <= 0 -> chords
+			else -> chords.toMutableList().apply { add(chordIndex - 1, removeAt(chordIndex)) }
+		}
+	}
+}
+
+/**
  * Applies [edit] to [commandId]'s chords and persists the result.  A chord the new list gains is taken from the
  * command that held it in the same write, so the file never names one chord for two commands.
  *

@@ -56,6 +56,7 @@ import org.umamo.ui.action.chordToSpec
 import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.action.keyChordOf
 import org.umamo.ui.action.keyName
+import org.umamo.ui.action.moveCommandBindUp
 import org.umamo.ui.action.removeCommandBind
 import org.umamo.ui.action.replaceCommandBind
 import org.umamo.ui.action.resetKeymapOverrides
@@ -74,6 +75,7 @@ import org.umamo.ui.resources.settings_keybindings_add
 import org.umamo.ui.resources.settings_keybindings_chord_unbound
 import org.umamo.ui.resources.settings_keybindings_chord_unlisted
 import org.umamo.ui.resources.settings_keybindings_conflict
+import org.umamo.ui.resources.settings_keybindings_move_up
 import org.umamo.ui.resources.settings_keybindings_no_matches
 import org.umamo.ui.resources.settings_keybindings_preset
 import org.umamo.ui.resources.settings_keybindings_preset_description
@@ -93,6 +95,7 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.theme.UmamoIcon
 import org.umamo.ui.workspace.ConfirmRequest
 
 /**
@@ -275,6 +278,10 @@ internal fun KeybindingsEditor(folds: PreferencesFolds) {
 										removeCommandBind(settings, row.commandId, chord)
 										capture = null
 									},
+									onMoveUp = { chord ->
+										moveCommandBindUp(settings, row.commandId, chord)
+										capture = null
+									},
 									onCancelCapture = { capture = null },
 								)
 							}
@@ -413,16 +420,15 @@ private fun NoMatchesLine(chordSearch: KeybindingSearch.Chord?, firingCommandId:
 private val BIND_BUTTON_SIZE = 20.dp
 
 /**
- * A command's rows: one per chord, the first under the command's name and the rest beneath it unlabeled, each with a
- * remove button, and the add button on the first.  A command with no chord shows one "Unbound" chip, which is the
- * add itself.  While an add is armed, one more armed chip stands under the last chord until a press fills it; its
- * remove button, or Escape, cancels it.
+ * A command's rows on the keybindings page: one per chord, under the command's name, with the buttons that remove,
+ * add, and reorder its chords, so the rigger also chooses which comes first, the one menus show.
  *
  * @param String title The command's localized display name.
  * @param List chords The command's chords, in order.
  * @param KeybindingCapture.Bind? armed The capture armed on one of these rows, or null when none is.
  * @param Function onArm Arms a capture: the chord it replaces, or null to add one.
  * @param Function onRemove Removes one of the chords.
+ * @param Function onMoveUp Moves one of the chords a place earlier.
  * @param Function onCancelCapture Ends the armed capture without a chord.
  */
 @Composable
@@ -432,9 +438,12 @@ private fun KeybindingBindRows(
 	armed: KeybindingCapture.Bind?,
 	onArm: (KeyChord?) -> Unit,
 	onRemove: (KeyChord) -> Unit,
+	onMoveUp: (KeyChord) -> Unit,
 	onCancelCapture: () -> Unit,
 ) {
 	val adding = armed != null && armed.replacing == null
+	val addLabel = stringResource(Res.string.settings_keybindings_add)
+	val moveUpLabel = stringResource(Res.string.settings_keybindings_move_up)
 
 	if (chords.isEmpty()) {
 		KeybindingBindRow(
@@ -444,7 +453,8 @@ private fun KeybindingBindRows(
 			onStartCapture = { onArm(null) },
 			removeEnabled = false,
 			onRemove = {},
-			trailing = { AddBindButton(enabled = false, onClick = {}) },
+			// Dimmed: the "Unbound" chip takes the first chord itself.
+			trailing = { BindRowButton(icon = LocalUmamoIcons.plus, label = addLabel, enabled = false, onClick = {}) },
 		)
 	} else {
 		chords.forEachIndexed { chordIndex, chord ->
@@ -458,15 +468,18 @@ private fun KeybindingBindRows(
 					onRemove = { onRemove(chord) },
 					trailing = {
 						if (chordIndex == 0) {
-							AddBindButton(enabled = !adding, onClick = { onArm(null) })
+							// Dimmed while an add is already armed.
+							BindRowButton(icon = LocalUmamoIcons.plus, label = addLabel, enabled = !adding, onClick = { onArm(null) })
 						} else {
-							Spacer(modifier = Modifier.size(BIND_BUTTON_SIZE))
+							BindRowButton(icon = LocalUmamoIcons.chevronUp, label = moveUpLabel, onClick = { onMoveUp(chord) })
 						}
 					},
 				)
 			}
 		}
 
+		// An armed add stands as one more armed chip under the last chord until a press fills it; its remove button,
+		// like Escape, cancels it.
 		if (adding) {
 			key(PENDING_BIND_KEY) {
 				KeybindingBindRow(
@@ -487,8 +500,8 @@ private fun KeybindingBindRows(
 private const val PENDING_BIND_KEY = ""
 
 /**
- * One chord's row in a command's list: its label column, then the chord chip, the remove button, and the trailing
- * slot, which is the add button on a command's first row and an empty slot of the same width on the others.
+ * One chord's row in a command's list: the label column, the chord chip, its remove button, and a trailing slot of
+ * the same width that the caller fills.
  *
  * @param String    label          The command's name on its first row, blank on the rest.
  * @param KeyChord? chord          The chord the row shows, or null for an empty slot.
@@ -512,14 +525,7 @@ private fun KeybindingBindRow(
 		Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 			ChordChip(chord = chord, capturing = capturing, onStartCapture = onStartCapture, modifier = Modifier.weight(1f))
 			Spacer(modifier = Modifier.width(4.dp))
-			IconButton(
-				icon = LocalUmamoIcons.close,
-				onClick = onRemove,
-				contentDescription = stringResource(Res.string.settings_keybindings_remove),
-				size = DpSize(BIND_BUTTON_SIZE, BIND_BUTTON_SIZE),
-				glyphSize = BIND_GLYPH_SIZE,
-				enabled = removeEnabled,
-			)
+			BindRowButton(icon = LocalUmamoIcons.close, label = stringResource(Res.string.settings_keybindings_remove), enabled = removeEnabled, onClick = onRemove)
 			trailing()
 		}
 	}
@@ -529,18 +535,20 @@ private fun KeybindingBindRow(
 private val BIND_GLYPH_SIZE = 14.dp
 
 /**
- * The button on a command's first row that arms one more chord for it.
+ * One of the buttons beside a chord chip (remove, add, Move Up), all one size so every chip in a card ends on the
+ * same line.
  *
- * @param Boolean  enabled Whether it applies: not while an add is already armed, nor beside an "Unbound" chip, which
- *   takes the first chord itself.
- * @param Function onClick Arms the add.
+ * @param UmamoIcon icon    The button's glyph.
+ * @param String    label   What it does, its tooltip and accessible name.
+ * @param Boolean   enabled Whether it applies.
+ * @param Function  onClick What a click does.
  */
 @Composable
-private fun AddBindButton(enabled: Boolean, onClick: () -> Unit) {
+private fun BindRowButton(icon: UmamoIcon, label: String, enabled: Boolean = true, onClick: () -> Unit) {
 	IconButton(
-		icon = LocalUmamoIcons.plus,
+		icon = icon,
 		onClick = onClick,
-		contentDescription = stringResource(Res.string.settings_keybindings_add),
+		contentDescription = label,
 		size = DpSize(BIND_BUTTON_SIZE, BIND_BUTTON_SIZE),
 		glyphSize = BIND_GLYPH_SIZE,
 		enabled = enabled,

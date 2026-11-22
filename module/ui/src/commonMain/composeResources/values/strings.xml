@@ -1358,6 +1358,7 @@
 	<string name="settings_keybindings_unbound">Unbound</string>
 	<string name="settings_keybindings_remove">Remove Shortcut</string>
 	<string name="settings_keybindings_add">Add Shortcut</string>
+	<string name="settings_keybindings_move_up">Move Up</string>
 	<!-- %1$s is the shortcut, %2$s is the command it is already bound to. -->
 	<string name="settings_keybindings_conflict">%1$s is already bound to “%2$s”.  Reassign it?</string>
 	<string name="settings_keybindings_reassign">Reassign</string>
