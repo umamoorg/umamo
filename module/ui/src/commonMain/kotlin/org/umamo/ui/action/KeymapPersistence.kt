@@ -167,8 +167,7 @@ fun replaceCommandBind(settings: Settings, commandId: String, previous: KeyChord
 }
 
 /**
- * Removes [chord] from [commandId]'s chords and persists it; the rest keep their order.  Removing the last one leaves
- * the command unbound.
+ * Removes [chord] from [commandId]'s chords.
  *
  * @param Settings settings The settings store to write to.
  * @param String commandId The command losing the chord.
@@ -179,9 +178,7 @@ fun removeCommandBind(settings: Settings, commandId: String, chord: KeyChord) {
 }
 
 /**
- * Moves [chord] one place earlier in [commandId]'s chords and persists it, so a rigger chooses which chord comes
- * first: the one menus, the palette, and the status bar show.  A chord already first, or one the command does not
- * hold, changes nothing.
+ * Moves [chord] one place earlier in [commandId]'s chords.
  *
  * @param Settings settings The settings store to write to.
  * @param String commandId The command whose chords are reordered.
