@@ -534,7 +534,7 @@ private fun NumberFieldDisplay(
 			Text(text = text, style = typography.bodySmall, color = textColor)
 
 			if (unitSuffix != null) {
-				Spacer(modifier = Modifier.width(2.dp))
+				Spacer(modifier = Modifier.width(1.dp))
 				Text(text = unitSuffix, style = typography.bodySmall, color = textColor)
 			}
 		}
