@@ -11,6 +11,7 @@ import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.parameter.renameParameter
 import org.umamo.edit.structure.rename
+import org.umamo.edit.structure.toggleVisibility
 import org.umamo.ui.workspace.spaces.keyformsheet.shiftClickAt
 import org.umamo.ui.workspace.spaces.parameters.ComposableRunCounter
 import org.umamo.ui.workspace.spaces.parameters.PanelIds
@@ -235,6 +236,26 @@ class OutlinerRecompositionTest {
 			assertTrue(outlinerShows(SHORTER_NAME), "the edit must really have reached the outliner")
 			assertEquals(2, counter.runsOf("OutlinerRowView"), "the renamed row and the root over it")
 			assertEquals(2, counter.runsOf("OutlinerRowBody"))
+		}
+
+	/**
+	 * A deformer's eye flipped runs its row and the two rows over it, the Armature and the root, which hold it, and
+	 * neither the deformer nested in it nor any row beside it.
+	 */
+	@Test
+	fun aDeformersEyeRunsItsRowAndTheRowsOverIt() =
+		counting { counter ->
+			val harness = mountOutliner()
+			clickAt(slotPoint(harness.text.expand, harness.text.outlinerArmature))
+			clickAt(slotPoint(harness.text.expand, OutlinerNames.ROOT_WARP))
+			assertTrue(outlinerShows(OutlinerNames.NECK), "the nested deformer's row must really be shown")
+			counter.reset()
+
+			runOnIdle { harness.session.toggleVisibility(SelectionTarget.Deformer(OutlinerIds.rootWarp)) }
+			waitForIdle()
+
+			assertEquals(3, counter.runsOf("OutlinerRowView"), "the toggled row, the Armature, and the root")
+			assertEquals(3, counter.runsOf("OutlinerRowBody"))
 		}
 
 	/**

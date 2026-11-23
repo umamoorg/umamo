@@ -352,7 +352,6 @@ private fun OutlinerRowBody(
 			else -> colors.text
 		}
 	val hasChildren = node.children.isNotEmpty()
-	val showEye = node.target is SelectionTarget.Part || node.target is SelectionTarget.Drawable
 	Row(
 		modifier =
 			Modifier.width(rowWidth)
@@ -435,10 +434,10 @@ private fun OutlinerRowBody(
 			}
 		}
 
-		// Selectability applies to any real entity (deformers included), so its column covers every real
-		// row; the eye only parts / drawables.  The filter dropdown's restriction toggles gate each column
-		// wholesale - a hidden column composes nothing, so its slot vanishes and a click there selects the
-		// row like any other blank space (outlinerContentWidth mirrors this same math).
+		// Selectability and visibility apply to any real entity (deformers included), so both columns cover
+		// every real row.  The filter dropdown's restriction toggles gate each column wholesale - a hidden
+		// column composes nothing, so its slot vanishes and a click there selects the row like any other blank
+		// space (outlinerContentWidth mirrors this same math).
 		if (showSelectableColumn && node.target != null) {
 			SelectableIndicator(
 				selectable = node.selectable,
@@ -448,7 +447,7 @@ private fun OutlinerRowBody(
 			)
 		}
 
-		if (showVisibilityColumn && showEye) {
+		if (showVisibilityColumn && node.target != null) {
 			VisibilityIndicator(
 				hidden = node.dimmed,
 				label = labels.visibility,

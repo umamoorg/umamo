@@ -6,8 +6,7 @@ import kotlin.test.assertTrue
 
 /** The allow-list excuses a known loss only on its own gates, and fails a gate whose entry went stale. */
 class KnownExportLossTest {
-	private val hiddenDeformerShownVisible =
-		MocDivergence(MocObjectKind.WARP, "WarpA", DivergenceAspect.Attribute(MocAttribute.VISIBLE, false, true))
+	private val partBlendShapeDropped = MocDivergence(MocObjectKind.BLEND_SHAPE, "PART:PartA:ParamA", DivergenceAspect.Missing)
 
 	private val glueRenamed =
 		MocDivergence(MocObjectKind.GLUE, "MeshA+MeshB", DivergenceAspect.Attribute(MocAttribute.ID, "Glue__MeshA__MeshB", "Glue_0_1_"))
@@ -21,8 +20,7 @@ class KnownExportLossTest {
 	private fun oneOfEach(gate: FidelityGate): List<MocDivergence> {
 		val samples =
 			listOf(
-				hiddenDeformerShownVisible,
-				MocDivergence(MocObjectKind.BLEND_SHAPE, "PART:PartA:ParamA", DivergenceAspect.Missing),
+				partBlendShapeDropped,
 				MocDivergence(MocObjectKind.CANVAS, "canvas", DivergenceAspect.Attribute(MocAttribute.PIXELS_PER_UNIT, 5000f, 9000f)),
 				glueRenamed,
 				MocDivergence(MocObjectKind.BLEND_SHAPE, "ART_MESH:MeshA:ParamA", DivergenceAspect.ChannelGained(MocChannel.MULTIPLY_COLOR_DELTA, true)),
@@ -62,16 +60,10 @@ class KnownExportLossTest {
 	@Test
 	fun aKnownLossOnAnotherGateFails() {
 		val ledger = FidelityLedger(FidelityGate.MOC3_ROUND_TRIP)
-		ledger.record("rig", oneOfEach(FidelityGate.MOC3_ROUND_TRIP) + hiddenDeformerShownVisible)
+		ledger.record("rig", oneOfEach(FidelityGate.MOC3_ROUND_TRIP) + partBlendShapeDropped)
 		val problems = ledger.problems()
 		assertEquals(1, problems.size, "problems: $problems")
-		assertTrue(problems.single().contains(KnownExportLoss.DEFORMER_VISIBILITY.name), problems.single())
-	}
-
-	@Test
-	fun aDeformerHiddenByTheExportIsNotTheKnownLoss() {
-		val hiddenByTheExport = MocDivergence(MocObjectKind.ROTATION, "RotationA", DivergenceAspect.Attribute(MocAttribute.VISIBLE, true, false))
-		assertTrue(!KnownExportLoss.DEFORMER_VISIBILITY.matches(hiddenByTheExport))
+		assertTrue(problems.single().contains(KnownExportLoss.PART_BLEND_SHAPES.name), problems.single())
 	}
 
 	@Test

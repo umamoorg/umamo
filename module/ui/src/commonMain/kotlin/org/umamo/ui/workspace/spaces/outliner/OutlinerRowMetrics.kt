@@ -93,13 +93,11 @@ internal fun outlinerContentWidth(
 			val style = if (row.node.target is SelectionTarget.Drawable) drawableStyle else bodyStyle
 			val labelPx = measurer.measure(row.node.label, style).size.width.toFloat()
 			val hasTarget = row.node.target != null
-			val showEye = row.node.target is SelectionTarget.Part || row.node.target is SelectionTarget.Drawable
-			// Must mirror the row body's trailing slots exactly: a selectable slot for every real row when
-			// that column is on, an eye slot for parts / drawables when that column is on, and the trailing
-			// spacer every real row keeps regardless.
+			// Must mirror the row body's trailing slots exactly: a selectable slot and an eye slot for every
+			// real row when each column is on, and the trailing spacer every real row keeps regardless.
 			val trailingSlotsPx =
 				(if (showSelectableColumn && hasTarget) restrictionSlotPx else 0f) +
-					(if (showVisibilityColumn && showEye) restrictionSlotPx else 0f) +
+					(if (showVisibilityColumn && hasTarget) restrictionSlotPx else 0f) +
 					(if (hasTarget) trailingSpacerPx else 0f)
 			val rowPx = basePx + perDepthPx * row.depth + fixedPx + labelPx + trailingSlotsPx + trailingPx
 

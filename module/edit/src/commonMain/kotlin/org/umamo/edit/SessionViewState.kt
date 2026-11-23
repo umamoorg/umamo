@@ -11,6 +11,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.firstEditableDrawableInPanelOrder
 import org.umamo.runtime.model.meshOf
+import org.umamo.runtime.model.visibleDeformerIds
 
 /**
  * How a document was being worked on, as opposed to what it is: the session state a saved document carries so a
@@ -222,9 +223,11 @@ internal fun poseSeedOf(model: PuppetModel, selection: Selection, rememberedOwne
 		return EditSeed(warps, activeWarp ?: warps.first(), activeSelected = activeWarp != null)
 	}
 
+	// A fallback the rigger did not choose never lands on a warp whose lattice the viewport hides.
+	val shownDeformers = model.visibleDeformerIds()
 	val fallbackOwner =
 		(rememberedOwner as? ElementOwner.Deformer)?.takeIf { owner -> model.warpDrawnAt(owner.id, valueOf) }
-			?: model.deformers.firstOrNull { deformer -> deformer.isVisible && model.warpDrawnAt(deformer.id, valueOf) }?.let { warp -> ElementOwner.Deformer(warp.id) }
+			?: model.deformers.firstOrNull { deformer -> deformer.id in shownDeformers && model.warpDrawnAt(deformer.id, valueOf) }?.let { warp -> ElementOwner.Deformer(warp.id) }
 
 	return fallbackOwner?.let { owner -> EditSeed.fallbackOn(owner) }
 }
