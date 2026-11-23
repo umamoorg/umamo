@@ -76,6 +76,10 @@ internal fun auxiliarySections(context: MocLoweringContext): Map<Int, ByteArray>
 		// Per-group render count (83) and child draw-order extent (84/85), which the runtime reads.  A kind-0 child's draw order is its
 		// mesh's; a kind-1 child's is its sub-group part's; the render count recurses into sub-groups and
 		// counts an extra slot for a sub-group part that owns an offscreen.  Draw order = floor(0.001+value).
+		//
+		// MOC3 §5.6: the extent spans every keyform of every child, so it covers each draw order the
+		// keyform grid can blend to.  The runtime shares render orders between drawables, or fails its
+		// update outright, once a posed child leaves the stored extent (DrawOrderExtentOracleTest).
 		val ownerParts = doc.offscreens.map { it.ownerPartIndex }.toHashSet()
 		val renderCountMemo = HashMap<Int, Int>()
 
@@ -97,20 +101,20 @@ internal fun auxiliarySections(context: MocLoweringContext): Map<Int, ByteArray>
 			}
 
 		/**
-		 * The integer draw order of one render-order [child] (its mesh's, or its sub-group part's).
+		 * The integer draw orders one render-order [child] holds across its keyforms (its mesh's, or its sub-group part's).
 		 *
 		 * @param RenderOrderChild child A render-order child.
-		 * @return Int The floored draw order (`floor(0.001 + value)`).
+		 * @return List<Int> The floored draw order (`floor(0.001 + value)`) of each keyform.
 		 */
-		fun childDrawOrder(child: RenderOrderChild): Int {
-			val drawOrderValue =
+		fun childDrawOrders(child: RenderOrderChild): List<Int> {
+			val drawOrderValues =
 				if (child.kind == 0) {
-					doc.artMeshes[child.index].keyforms.first().drawOrder
+					doc.artMeshes[child.index].keyforms.map { keyform -> keyform.drawOrder }
 				} else {
-					doc.parts[child.index].drawOrderKeyforms.first()
+					doc.parts[child.index].drawOrderKeyforms.toList()
 				}
 
-			return (0.001f + drawOrderValue).toInt()
+			return drawOrderValues.map { drawOrderValue -> (0.001f + drawOrderValue).toInt() }
 		}
 
 		val renderCounts = ArrayList<Int>()
@@ -119,7 +123,7 @@ internal fun auxiliarySections(context: MocLoweringContext): Map<Int, ByteArray>
 
 		for (groupIndex in groups.indices) {
 			renderCounts.add(renderCount(groupIndex))
-			val childOrders = groups[groupIndex].children.map(::childDrawOrder)
+			val childOrders = groups[groupIndex].children.flatMap(::childDrawOrders)
 			// MOC3 §5.6: an EMPTY group stores the max/min fold identities (-INT_MAX / INT_MAX),
 			// not a 500 default - probed on the ModelWithOffscreen family's childless groups.
 			maxDraw.add(childOrders.maxOrNull() ?: -Int.MAX_VALUE)
