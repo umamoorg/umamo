@@ -39,7 +39,8 @@ sealed interface Deformer {
 	val isSelectable: Boolean
 
 	/**
-	 * The editor's eye toggle - a hidden deformer and everything under it does not render.
+	 * The editor's eye toggle: a hidden deformer draws no overlay in the viewport, whatever the overlay settings say.
+	 * The art it deforms still draws, and the deformers nested in it keep their own toggles (see visibleDeformerIds).
 	 *
 	 * MOC3 §5.6 s13; CMO3 ACParameterControllableSource.isVisible.  A bake normally DELETES what the
 	 * editor hides, so almost every imported deformer is visible; Azxiana is the one corpus model that

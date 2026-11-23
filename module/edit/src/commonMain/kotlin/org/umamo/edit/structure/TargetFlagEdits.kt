@@ -8,6 +8,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.visibleDeformerIds
 
 /*
  * The per-target flag transforms over the immutable PuppetModel - visibility, name, and selectable for a
@@ -58,6 +59,31 @@ fun PuppetModel.withDrawableVisibility(id: DrawableId, visible: Boolean): Puppet
 	updated[index] = updated[index].copy(isVisible = visible)
 
 	return copy(drawables = updated)
+}
+
+/**
+ * Returns a copy of [this] with the deformer [id]'s eye set to [visible], handling both deformer kinds and sharing
+ * every other entity.  A no-op id (no such deformer, or the flag already matches) returns the same instance.
+ *
+ * @param DeformerId id The deformer to retoggle.
+ * @param Boolean visible The new visibility.
+ * @return PuppetModel The model with that deformer's visibility updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDeformerVisibility(id: DeformerId, visible: Boolean): PuppetModel {
+	val index = deformers.indexOfFirst { deformer -> deformer.id == id }
+
+	if (index < 0 || deformers[index].isVisible == visible) {
+		return this
+	}
+
+	val updated = deformers.toMutableList()
+	updated[index] =
+		when (val deformer = updated[index]) {
+			is Deformer.Warp -> deformer.copy(isVisible = visible)
+			is Deformer.Rotation -> deformer.copy(isVisible = visible)
+		}
+
+	return copy(deformers = updated)
 }
 
 /**
@@ -196,23 +222,21 @@ fun PuppetModel.withDeformerSelectable(id: DeformerId, selectable: Boolean): Pup
 }
 
 /**
- * The current Parts-panel visibility of [target] in [this].  A deformer has no visibility flag, so it
- * reports true (it is never "hidden"); a missing part/drawable also reports true.
+ * The current state of [target]'s own eye in [this].  A missing entity reports true.
  *
  * @param SelectionTarget target The entity to query.
- * @return Boolean The entity's visibility (true when it has none).
+ * @return Boolean The entity's own visibility.
  */
 fun PuppetModel.visibilityOf(target: SelectionTarget): Boolean =
 	when (target) {
 		is SelectionTarget.Part -> parts.firstOrNull { it.id == target.id }?.isVisible ?: true
 		is SelectionTarget.Drawable -> drawables.firstOrNull { it.id == target.id }?.isVisible ?: true
-		is SelectionTarget.Deformer -> true
+		is SelectionTarget.Deformer -> deformers.firstOrNull { it.id == target.id }?.isVisible ?: true
 	}
 
 /**
- * Returns a copy of [this] with every part and drawable in [targets] set to [visible], structurally
- * sharing untouched entities; deformer targets are skipped (they have no visibility flag).  Folding all
- * targets into one model makes the whole multi-selection toggle a single undo step.
+ * Returns a copy of [this] with every entity in [targets] set to [visible], structurally sharing untouched
+ * entities.  Folding all targets into one model makes the whole multi-selection toggle a single undo step.
  *
  * @param Set targets The selected targets to retoggle.
  * @param Boolean visible The new visibility.
@@ -226,7 +250,7 @@ fun PuppetModel.withSelectionVisibility(targets: Set<SelectionTarget>, visible: 
 			when (target) {
 				is SelectionTarget.Part -> next.withPartVisibility(target.id, visible)
 				is SelectionTarget.Drawable -> next.withDrawableVisibility(target.id, visible)
-				is SelectionTarget.Deformer -> next
+				is SelectionTarget.Deformer -> next.withDeformerVisibility(target.id, visible)
 			}
 	}
 
@@ -234,25 +258,29 @@ fun PuppetModel.withSelectionVisibility(targets: Set<SelectionTarget>, visible: 
 }
 
 /**
- * Every part and drawable whose own eye is off: what Unhide All turns back on.  Parts come first, each kind in
- * model order.
+ * Every part, drawable, and deformer whose own eye is off: what Unhide All turns back on.  Parts come first, then
+ * drawables, then deformers, each kind in model order.
  *
- * @return List<SelectionTarget> The hidden parts and drawables.
+ * @return List<SelectionTarget> The hidden objects.
  */
 fun PuppetModel.hiddenTargets(): List<SelectionTarget> =
 	parts.filter { part -> !part.isVisible }.map { part -> SelectionTarget.Part(part.id) } +
-		drawables.filter { drawable -> !drawable.isVisible }.map { drawable -> SelectionTarget.Drawable(drawable.id) }
+		drawables.filter { drawable -> !drawable.isVisible }.map { drawable -> SelectionTarget.Drawable(drawable.id) } +
+		deformers.filter { deformer -> !deformer.isVisible }.map { deformer -> SelectionTarget.Deformer(deformer.id) }
 
 /**
- * The branches Hide Unselected turns off: every part or drawable that is neither selected nor above something
- * selected, taken at its topmost node so a hidden part's contents keep their own eyes.
+ * The objects Hide Unselected turns off: every part or drawable that is neither selected nor above something
+ * selected, taken at its topmost node so a hidden part's contents keep their own eyes, then every unselected
+ * deformer still shown once those are hidden.
  *
  * A selected part's contents stay as they are.  A selected deformer keeps its part shown, since a deformer under
- * a hidden part is hidden with it.  A branch whose eye is already off is left out, and the walk never turns an
- * eye on, so a selected object that is hidden stays hidden.
+ * a hidden part is hidden with it, and a deformer that hiding its part already hides keeps its own eye.  An object
+ * whose eye is already off is left out, and the walk never turns an eye on, so a selected object that is hidden
+ * stays hidden.
  *
  * @param Set<SelectionTarget> selected The selection to keep shown.
- * @return List<SelectionTarget> The branch roots to hide, in tree order; empty when no selected target resolves.
+ * @return List<SelectionTarget> The parts and drawables to hide in tree order, then the deformers in model order;
+ *   empty when no selected target resolves.
  */
 fun PuppetModel.unselectedBranches(selected: Set<SelectionTarget>): List<SelectionTarget> {
 	val resolved = selected.filter { target -> hasTarget(target) }
@@ -341,6 +369,15 @@ fun PuppetModel.unselectedBranches(selected: Set<SelectionTarget>): List<Selecti
 		}
 	}
 	collectBranches(rootChildren)
+	// A deformer has no tree of its own to take a branch of: each one still shown once the part branches are hidden
+	// is hidden by its own eye.
+	val stillShown = withSelectionVisibility(branches, false).visibleDeformerIds()
+
+	for (deformer in deformers) {
+		if (deformer.id in stillShown && deformer.id !in selectedDeformerIds) {
+			branches += SelectionTarget.Deformer(deformer.id)
+		}
+	}
 
 	return branches.toList()
 }
@@ -360,9 +397,7 @@ fun PuppetModel.selectableOf(target: SelectionTarget): Boolean =
 
 /**
  * Returns a copy of [this] with every entity in [targets] set to [selectable], structurally sharing
- * untouched entities.  Unlike the visibility counterpart (withSelectionVisibility) this covers deformers
- * too — they carry the flag.  Folding all targets into one model makes a whole subtree toggle a single
- * undo step.
+ * untouched entities.  Folding all targets into one model makes a whole subtree toggle a single undo step.
  *
  * @param Set targets The targets to retoggle.
  * @param Boolean selectable The new selectable state.

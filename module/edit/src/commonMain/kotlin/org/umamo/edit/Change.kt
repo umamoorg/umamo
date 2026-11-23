@@ -939,9 +939,21 @@ sealed interface VisibilityChange : Change {
 	}
 
 	/**
-	 * Hides everything outside the selection, each unselected branch at its topmost part or drawable.
+	 * Toggles a deformer's own eye, which hides its overlay and nothing nested in it.
 	 *
-	 * @property List<SelectionTarget> hidden The parts and drawables whose own eye turned off.
+	 * @property DeformerId id The deformer whose visibility changed.
+	 * @property Boolean visible The new visibility.
+	 */
+	data class Deformer(val id: DeformerId, val visible: Boolean) : VisibilityChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.visibility.deformer"
+	}
+
+	/**
+	 * Hides everything outside the selection, each unselected branch at its topmost part or drawable, and each
+	 * unselected deformer still shown after that.
+	 *
+	 * @property List<SelectionTarget> hidden The parts, drawables, and deformers whose own eye turned off.
 	 */
 	data class HideUnselected(val hidden: List<SelectionTarget>) : VisibilityChange {
 		override val undoability: Undoability = Undoability.Undoable
@@ -949,9 +961,9 @@ sealed interface VisibilityChange : Change {
 	}
 
 	/**
-	 * Turns on the eye of every part and drawable that had it off.
+	 * Turns on the eye of every part, drawable, and deformer that had it off.
 	 *
-	 * @property List<SelectionTarget> shown The parts and drawables whose own eye turned on.
+	 * @property List<SelectionTarget> shown The parts, drawables, and deformers whose own eye turned on.
 	 */
 	data class UnhideAll(val shown: List<SelectionTarget>) : VisibilityChange {
 		override val undoability: Undoability = Undoability.Undoable

@@ -32,6 +32,7 @@ internal fun changeLabel(labelKey: String?): String =
 		"change.drawable.move" -> stringResource(Res.string.history_drawable_move)
 		"change.visibility.part" -> stringResource(Res.string.history_visibility_part)
 		"change.visibility.drawable" -> stringResource(Res.string.history_visibility_drawable)
+		"change.visibility.deformer" -> stringResource(Res.string.history_visibility_deformer)
 		"change.visibility.hideUnselected" -> stringResource(Res.string.history_visibility_hide_unselected)
 		"change.visibility.unhideAll" -> stringResource(Res.string.history_visibility_unhide_all)
 		"change.relation.copyToSelected" -> stringResource(Res.string.history_relation_copy_to_selected)

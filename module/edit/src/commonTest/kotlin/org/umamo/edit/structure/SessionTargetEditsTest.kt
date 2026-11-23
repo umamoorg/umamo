@@ -57,7 +57,7 @@ class SessionTargetEditsTest {
 	}
 
 	/**
-	 * toggleVisibility flips one target's eyeball as one step; a deformer target is a no-op.
+	 * toggleVisibility flips one target's eye as one step, a deformer's included.
 	 */
 	@Test
 	fun toggleVisibilityTargetFlipsOneEntity() {
@@ -67,16 +67,20 @@ class SessionTargetEditsTest {
 		assertFalse(session.model.value.drawables.first { it.id == DrawableId("d") }.isVisible)
 
 		session.toggleVisibility(SelectionTarget.Deformer(DeformerId("w")))
-		// No visibility flag on a deformer, so the second toggle recorded nothing.
-		assertTrue(session.canUndo.value)
+		assertFalse(session.deformerVisible("w"))
+		assertFalse(session.model.value.visibilityOf(SelectionTarget.Deformer(DeformerId("w"))))
+		assertEquals("change.visibility.deformer", session.lastLabel())
+
+		session.undo()
+		assertTrue(session.deformerVisible("w"))
 		session.undo()
 		assertTrue(session.model.value.drawables.first { it.id == DrawableId("d") }.isVisible)
 		assertFalse(session.canUndo.value)
 	}
 
 	/**
-	 * toggleSelectable flips a part/drawable/deformer selectability as one step (deformers have the flag
-	 * too, unlike visibility); undo restores it, and the model exposes the flag through selectableOf.
+	 * toggleSelectable flips a part/drawable/deformer selectability as one step; undo restores it, and the
+	 * model exposes the flag through selectableOf.
 	 */
 	@Test
 	fun toggleSelectableFlipsAnyTargetKind() {
@@ -225,11 +229,11 @@ class SessionTargetEditsTest {
 	}
 
 	/**
-	 * The visibility subtree toggle hides the part subtree's parts and drawables as one step, and a
-	 * deformer target records nothing at all (deformers have no visibility flag).
+	 * The visibility subtree toggle hides the part subtree's parts and drawables as one step, leaving the
+	 * deformers alone; on a deformer it hides the deformer and its nested deformers as one step.
 	 */
 	@Test
-	fun toggleVisibilitySubtreeHidesPartSubtreeAndSkipsDeformers() {
+	fun toggleVisibilitySubtreeHidesTheOutlinerSubtree() {
 		val session = EditorSession(deleteModel())
 
 		session.toggleVisibilitySubtree(SelectionTarget.Part(PartId("A")))
@@ -241,15 +245,21 @@ class SessionTargetEditsTest {
 		assertFalse(after.drawables.first { it.id == DrawableId("d2") }.isVisible)
 		assertTrue(after.parts.first { it.id == PartId("T") }.isVisible)
 		assertTrue(after.drawables.first { it.id == DrawableId("d3") }.isVisible)
+		assertTrue(after.deformers.all { it.isVisible }, "deformers are not part-subtree children")
 
 		session.undo()
 		assertTrue(session.model.value.parts.first { it.id == PartId("A") }.isVisible)
 		assertTrue(session.model.value.drawables.first { it.id == DrawableId("d2") }.isVisible)
 		assertFalse(session.canUndo.value, "the whole cascade was one step")
 
-		// A deformer target is a no-op: no visibility flag, so no history step is recorded.
 		session.toggleVisibilitySubtree(SelectionTarget.Deformer(DeformerId("w")))
-		assertFalse(session.canUndo.value)
+		assertFalse(session.deformerVisible("w") || session.deformerVisible("w2"))
+		assertTrue(session.drawableVisible("d1") && session.drawableVisible("d2"), "bound drawables are not tree children")
+		assertEquals("change.visibility.deformer", session.lastLabel())
+
+		session.undo()
+		assertTrue(session.deformerVisible("w") && session.deformerVisible("w2"))
+		assertFalse(session.canUndo.value, "the deformer subtree was one step")
 	}
 
 	/**
@@ -279,13 +289,17 @@ class SessionTargetEditsTest {
 	/**
 	 * Hide Unselected with one drawable selected hides each unselected branch at its topmost node, as one
 	 * step: the sibling part B and the other root part T each get one flag, their contents keep theirs, and
-	 * the selection's ancestors R and A stay shown.
+	 * the selection's ancestors R and A stay shown.  The partless deformers w and w2 are hidden too, each by
+	 * its own eye.
 	 */
 	@Test
 	fun hideUnselectedHidesTheTopmostUnselectedBranches() {
 		val model = deleteModel()
 		val selected = SelectionTarget.Drawable(DrawableId("d1"))
-		assertEquals(listOf(SelectionTarget.Part(PartId("B")), SelectionTarget.Part(PartId("T"))), model.unselectedBranches(setOf(selected)))
+		assertEquals(
+			listOf(SelectionTarget.Part(PartId("B")), SelectionTarget.Part(PartId("T")), SelectionTarget.Deformer(DeformerId("w")), SelectionTarget.Deformer(DeformerId("w2"))),
+			model.unselectedBranches(setOf(selected)),
+		)
 
 		val session = EditorSession(model)
 		session.setSelection(Selection(setOf(selected), selected))
@@ -295,9 +309,11 @@ class SessionTargetEditsTest {
 		assertFalse(session.partVisible("B") || session.partVisible("T"))
 		assertTrue(session.partVisible("R") && session.partVisible("A") && session.drawableVisible("d1"))
 		assertTrue(session.drawableVisible("d2") && session.drawableVisible("d3"), "contents keep their own eyes")
+		assertFalse(session.deformerVisible("w") || session.deformerVisible("w2"))
 
 		session.undo()
 		assertTrue(session.partVisible("B") && session.partVisible("T"), "one undo step restores both branches")
+		assertTrue(session.deformerVisible("w") && session.deformerVisible("w2"))
 	}
 
 	/**
@@ -307,12 +323,13 @@ class SessionTargetEditsTest {
 	fun hideUnselectedLeavesASelectedPartsContentsAlone() {
 		val model = deleteModel().withDrawableVisibility(DrawableId("d2"), false)
 
-		assertEquals(listOf(SelectionTarget.Part(PartId("T"))), model.unselectedBranches(setOf(SelectionTarget.Part(PartId("A")))))
+		assertEquals(listOf(SelectionTarget.Part(PartId("T")), SelectionTarget.Deformer(DeformerId("w")), SelectionTarget.Deformer(DeformerId("w2"))), model.unselectedBranches(setOf(SelectionTarget.Part(PartId("A")))))
 	}
 
 	/**
 	 * A selected deformer keeps its part and the parts above it shown, so its lattice stays drawn, while the
-	 * part's unselected art is hidden.
+	 * part's unselected art is hidden, and so is the deformer nested in it: a deformer hides nothing under it,
+	 * so w2 takes its own eye.
 	 */
 	@Test
 	fun hideUnselectedKeepsASelectedDeformersPartShown() {
@@ -326,7 +343,7 @@ class SessionTargetEditsTest {
 			)
 
 		assertEquals(
-			listOf(SelectionTarget.Part(PartId("B")), SelectionTarget.Drawable(DrawableId("d1")), SelectionTarget.Part(PartId("T"))),
+			listOf(SelectionTarget.Part(PartId("B")), SelectionTarget.Drawable(DrawableId("d1")), SelectionTarget.Part(PartId("T")), SelectionTarget.Deformer(DeformerId("w2"))),
 			model.unselectedBranches(setOf(SelectionTarget.Deformer(DeformerId("w")))),
 		)
 	}
@@ -338,7 +355,41 @@ class SessionTargetEditsTest {
 	fun hideUnselectedSkipsAnAlreadyHiddenBranch() {
 		val model = deleteModel().withPartVisibility(PartId("T"), false)
 
-		assertEquals(listOf(SelectionTarget.Part(PartId("B"))), model.unselectedBranches(setOf(SelectionTarget.Drawable(DrawableId("d1")))))
+		assertEquals(listOf(SelectionTarget.Part(PartId("B")), SelectionTarget.Deformer(DeformerId("w")), SelectionTarget.Deformer(DeformerId("w2"))), model.unselectedBranches(setOf(SelectionTarget.Drawable(DrawableId("d1")))))
+	}
+
+	/**
+	 * A deformer whose part Hide Unselected hides keeps its own eye, as a hidden part's contents do; only a
+	 * deformer still shown after the part branches are hidden is listed.
+	 */
+	@Test
+	fun hideUnselectedLeavesADeformerItsHiddenPartAlreadyHides() {
+		val base = deleteModel()
+		val model =
+			base.copy(
+				deformers =
+					base.deformers.map { deformer ->
+						if (deformer.id == DeformerId("w2") && deformer is Deformer.Warp) deformer.copy(partId = PartId("T")) else deformer
+					},
+			)
+
+		assertEquals(
+			listOf(SelectionTarget.Part(PartId("B")), SelectionTarget.Part(PartId("T")), SelectionTarget.Deformer(DeformerId("w"))),
+			model.unselectedBranches(setOf(SelectionTarget.Drawable(DrawableId("d1")))),
+		)
+	}
+
+	/**
+	 * A deformer whose own eye is already off is not listed again.
+	 */
+	@Test
+	fun hideUnselectedSkipsAnAlreadyHiddenDeformer() {
+		val model = deleteModel().withDeformerVisibility(DeformerId("w"), false)
+
+		assertEquals(
+			listOf(SelectionTarget.Part(PartId("B")), SelectionTarget.Part(PartId("T")), SelectionTarget.Deformer(DeformerId("w2"))),
+			model.unselectedBranches(setOf(SelectionTarget.Drawable(DrawableId("d1")))),
+		)
 	}
 
 	/**
@@ -362,8 +413,8 @@ class SessionTargetEditsTest {
 	}
 
 	/**
-	 * Unhide All turns on every part's and drawable's eye as one step and leaves the selection alone; with
-	 * nothing hidden it records nothing.
+	 * Unhide All turns on every part's, drawable's, and deformer's eye as one step and leaves the selection
+	 * alone; with nothing hidden it records nothing.
 	 */
 	@Test
 	fun unhideAllShowsEverythingAsOneStep() {
@@ -372,8 +423,9 @@ class SessionTargetEditsTest {
 				.withPartVisibility(PartId("B"), false)
 				.withDrawableVisibility(DrawableId("d2"), false)
 				.withDrawableVisibility(DrawableId("d3"), false)
+				.withDeformerVisibility(DeformerId("w2"), false)
 		assertEquals(
-			listOf(SelectionTarget.Part(PartId("B")), SelectionTarget.Drawable(DrawableId("d2")), SelectionTarget.Drawable(DrawableId("d3"))),
+			listOf(SelectionTarget.Part(PartId("B")), SelectionTarget.Drawable(DrawableId("d2")), SelectionTarget.Drawable(DrawableId("d3")), SelectionTarget.Deformer(DeformerId("w2"))),
 			hidden.hiddenTargets(),
 		)
 
@@ -383,7 +435,7 @@ class SessionTargetEditsTest {
 		session.unhideAll()
 
 		assertEquals("change.visibility.unhideAll", session.lastLabel())
-		assertTrue(session.partVisible("B") && session.drawableVisible("d2") && session.drawableVisible("d3"))
+		assertTrue(session.partVisible("B") && session.drawableVisible("d2") && session.drawableVisible("d3") && session.deformerVisible("w2"))
 		assertEquals(Selection(setOf(selected), selected), session.selection.value)
 
 		val stepsAfter = session.historyView.value.steps.size
@@ -391,7 +443,7 @@ class SessionTargetEditsTest {
 		assertEquals(stepsAfter, session.historyView.value.steps.size, "nothing hidden records nothing")
 
 		session.undo()
-		assertFalse(session.partVisible("B") || session.drawableVisible("d2") || session.drawableVisible("d3"))
+		assertFalse(session.partVisible("B") || session.drawableVisible("d2") || session.drawableVisible("d3") || session.deformerVisible("w2"))
 	}
 
 	/** Whether part [rawId]'s own eye is on. */
@@ -400,6 +452,10 @@ class SessionTargetEditsTest {
 	/** Whether drawable [rawId]'s own eye is on. */
 	private fun EditorSession.drawableVisible(rawId: String): Boolean =
 		model.value.drawables.first { drawable -> drawable.id == DrawableId(rawId) }.isVisible
+
+	/** Whether deformer [rawId]'s own eye is on. */
+	private fun EditorSession.deformerVisible(rawId: String): Boolean =
+		model.value.deformers.first { deformer -> deformer.id == DeformerId(rawId) }.isVisible
 
 	/** The label key of the step the history cursor sits on. */
 	private fun EditorSession.lastLabel(): String? = historyView.value.let { view -> view.steps[view.cursor].labelKey }
