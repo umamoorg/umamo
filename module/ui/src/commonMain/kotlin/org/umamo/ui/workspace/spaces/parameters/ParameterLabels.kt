@@ -26,6 +26,8 @@ import org.umamo.ui.resources.*
  * @param String defaultGroupName       The name a created group starts with.
  * @param String defaultParameterName   The name a created parameter starts with.
  * @param String repeat                 The range editor's checkbox that makes an axis wrap past its limits.
+ * @param String note                   The caption of the range editor's note field.
+ * @param String notePlaceholder        The hint the note field shows while it is empty.
  */
 @Immutable
 internal data class ParameterLabels(
@@ -43,6 +45,8 @@ internal data class ParameterLabels(
 	val defaultGroupName: String,
 	val defaultParameterName: String,
 	val repeat: String,
+	val note: String,
+	val notePlaceholder: String,
 )
 
 /**
@@ -67,4 +71,6 @@ internal fun parameterLabels(): ParameterLabels =
 		defaultGroupName = stringResource(Res.string.parameter_group_default_name),
 		defaultParameterName = stringResource(Res.string.parameter_default_name),
 		repeat = stringResource(Res.string.parameter_range_repeat),
+		note = stringResource(Res.string.parameter_range_note),
+		notePlaceholder = stringResource(Res.string.parameter_range_note_placeholder),
 	)
