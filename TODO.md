@@ -14,11 +14,11 @@
 ## 0.6.0 Goals - Late December, Early January
 0.) Merge in the existing language translations.(Some were merged.)
 1.) Finish 3D Depth Rotation and Merge
-2.) Fix Platform Bugs - Linux and MacOS
+2.) Fix Platform Bugs - Linux and MacOS (Partially done.)
 3.) Proper Bone and Skeleton System
 4.) Rotation Deformer Gizmos and Editing
 5.) Github Issues and Pull Requests
-6.) Lint - Prefer multiline argument rule.
+~~6.) Lint - Prefer multiline argument rule.~~
 
 ## 0.7.0 Goals - January
 5.) Glue Gizmos and Editing - Part of all of this may end up happening with "Proper Bone and Skeleton System" in 0.6.0.

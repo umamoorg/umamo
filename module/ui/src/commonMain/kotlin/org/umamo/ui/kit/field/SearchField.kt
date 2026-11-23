@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.ui.kit.button.IconButton
+import org.umamo.ui.kit.textentry.TextEntryControl
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
 
@@ -104,7 +105,9 @@ fun SearchField(
 			},
 		)
 		Box(modifier = Modifier.padding(end = TEXT_FIELD_HORIZONTAL_PADDING).size(SEARCH_FIELD_ICON_SIZE), contentAlignment = Alignment.Center) {
-			trailingAction()
+			TextEntryControl {
+				trailingAction()
+			}
 		}
 	}
 }

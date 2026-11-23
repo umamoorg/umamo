@@ -55,19 +55,24 @@ internal val ShellCursorClaim.overridesDescendants: Boolean
  * click, which ends text entry - so the order is here to be stated rather than to be relied on.  Both
  * outrank busy, since they are what the rigger is in the middle of, and busy is only background work.
  *
- * @param Boolean relationPickArmed Whether a relation pick is waiting for its target.
- * @param Boolean textEntryActive   Whether a text editor has parked its cancel hook.
- * @param Boolean busy              Whether a tracked operation has run past the grace.
+ * Text entry gives way while the pointer rests on a control drawn in a text editor (a search field's clear
+ * button): the control is a click target, and an I-beam over it would say otherwise.
+ *
+ * @param Boolean relationPickArmed      Whether a relation pick is waiting for its target.
+ * @param Boolean textEntryActive        Whether a text editor has parked its cancel hook.
+ * @param Boolean pointerOnEditorControl Whether the pointer rests on a control inside or over a text editor.
+ * @param Boolean busy                   Whether a tracked operation has run past the grace.
  * @return ShellCursorClaim The claim the root applies to the whole window.
  */
 internal fun shellCursorClaim(
 	relationPickArmed: Boolean,
 	textEntryActive: Boolean,
+	pointerOnEditorControl: Boolean,
 	busy: Boolean,
 ): ShellCursorClaim =
 	when {
 		relationPickArmed -> ShellCursorClaim.Hidden
-		textEntryActive -> ShellCursorClaim.TextEdit
+		textEntryActive && !pointerOnEditorControl -> ShellCursorClaim.TextEdit
 		busy -> ShellCursorClaim.Busy
 		else -> ShellCursorClaim.None
 	}

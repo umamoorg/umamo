@@ -7,9 +7,10 @@ import androidx.compose.runtime.staticCompositionLocalOf
 
 /*
  * The seams a text editor takes the keyboard through: the controller an inline editor announces itself
- * on (this file), the modifier that marks an editor's surface (TextEntrySurface.kt), the raw-key capture
- * seam (KeyCaptureController.kt), and the shared in-place rename field (InlineRenameField.kt).  Nothing
- * here imports another kit package, so any widget may use it.
+ * on (this file), the modifier that marks an editor's surface (TextEntrySurface.kt), the holder of a control
+ * drawn in an editor (TextEntryControl.kt), the raw-key capture seam (KeyCaptureController.kt), and the
+ * shared in-place rename field (InlineRenameField.kt).  Nothing here imports another kit package, so any
+ * widget may use it.
  */
 
 /**
@@ -24,10 +25,18 @@ import androidx.compose.runtime.staticCompositionLocalOf
  * anywhere else ends text entry, and only the editor's own node can say that the press was meant for it.
  *
  * @property Function cancel Cancels the open inline editor, or null when none is open.
+ * @property Boolean pointerOnEditorControl Whether the pointer rests on a control inside or over a text editor.
  * @property Boolean pressLandedOnTextEditor Whether the press being dispatched hit a text editor.
  */
 class InlineEditController {
 	var cancel: (() -> Unit)? by mutableStateOf(null)
+
+	/**
+	 * Whether the pointer rests on a control drawn inside or over a text editor, a search field's clear button,
+	 * say.  The host's text pointer covers the whole window while text entry is live, and gives way to the plain
+	 * pointer over such a control, which is a click target rather than text.  Written by [TextEntryControl].
+	 */
+	var pointerOnEditorControl: Boolean by mutableStateOf(false)
 
 	/**
 	 * Whether the press currently being dispatched landed on a live text editor's own node.  The host
