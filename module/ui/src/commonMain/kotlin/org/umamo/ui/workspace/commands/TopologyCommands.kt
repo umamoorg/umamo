@@ -38,7 +38,11 @@ internal fun topologyCommands(
 ): List<Command> =
 	commandTable(
 		CommandTable.Topology,
-		Command("mesh.duplicate", title = Res.string.cmd_mesh_duplicate, availability = availability.hasDocument) {
+		Command(
+			"mesh.duplicate",
+			title = Res.string.cmd_mesh_duplicate,
+			availability = availability.hasDocument,
+		) {
 			val live = editorSession
 
 			if (live != null) {
@@ -59,21 +63,40 @@ internal fun topologyCommands(
 				}
 			}
 		},
-		Command("mesh.merge", title = Res.string.cmd_mesh_merge, availability = availability.inEditMode) {
+		Command(
+			"mesh.merge",
+			title = Res.string.cmd_mesh_merge,
+			availability = availability.inEditMode,
+		) {
 			editorSession?.openPieMenu(PieMenuKind.MergeTarget)
 		},
 		// The merge is a model edit that needs no area to run; the area it takes is where its operation
 		// settings strip shows (the hovered work surface, else the last one touched), since the merge pie
 		// or the palette may have been opened over a panel.
-		Command("mesh.merge.atCenter", title = Res.string.cmd_mesh_merge_at_center, availability = availability.inEditMode, group = CommandFamily.MergeTarget) {
+		Command(
+			"mesh.merge.atCenter",
+			title = Res.string.cmd_mesh_merge_at_center,
+			availability = availability.inEditMode,
+			group = CommandFamily.MergeTarget,
+		) {
 			editorSession?.mergeSelectedVertices(MergeTarget.AtCenter, routing.operationStripArea())
 			editorSession?.closePieMenu()
 		},
-		Command("mesh.merge.atFirst", title = Res.string.cmd_mesh_merge_at_first, availability = availability.inEditMode, group = CommandFamily.MergeTarget) {
+		Command(
+			"mesh.merge.atFirst",
+			title = Res.string.cmd_mesh_merge_at_first,
+			availability = availability.inEditMode,
+			group = CommandFamily.MergeTarget,
+		) {
 			editorSession?.mergeSelectedVertices(MergeTarget.AtFirst, routing.operationStripArea())
 			editorSession?.closePieMenu()
 		},
-		Command("mesh.merge.atLast", title = Res.string.cmd_mesh_merge_at_last, availability = availability.inEditMode, group = CommandFamily.MergeTarget) {
+		Command(
+			"mesh.merge.atLast",
+			title = Res.string.cmd_mesh_merge_at_last,
+			availability = availability.inEditMode,
+			group = CommandFamily.MergeTarget,
+		) {
 			editorSession?.mergeSelectedVertices(MergeTarget.AtLast, routing.operationStripArea())
 			editorSession?.closePieMenu()
 		},
@@ -86,7 +109,11 @@ internal fun topologyCommands(
 				},
 			spaces = SpaceScope.Viewport2D,
 		) { editorSession?.requestRip(routing.viewportArea()) },
-		Command("mesh.connect", title = Res.string.cmd_mesh_connect, availability = availability.inEditMode) {
+		Command(
+			"mesh.connect",
+			title = Res.string.cmd_mesh_connect,
+			availability = availability.inEditMode,
+		) {
 			editorSession?.connectSelectedVertices()
 		},
 		Command(

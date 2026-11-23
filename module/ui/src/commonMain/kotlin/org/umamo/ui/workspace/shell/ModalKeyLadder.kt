@@ -13,7 +13,7 @@ import org.umamo.ui.workspace.commands.pieMenuEntriesFor
 /*
  * The shell's modal key ladder: the ordered Escape/Enter (and modal-only key) precedence that runs in
  * the root's onPreviewKeyEvent BEFORE the keymap.  Modal chrome and in-flight gestures must pre-empt
- * bound commands (Escape closes the topmost overlay, not area.dragCancel), and modal operators
+ * bound commands (Escape closes the topmost overlay before any drag beneath it), and modal operators
  * swallow keys the keymap would otherwise claim - so this is the documented exception to "all input
  * dispatches through the action registry": the ladder decides WHO owns the key, and everything it
  * does not consume falls through to the keymap dispatch at the bottom.  Order is the contract; add
@@ -143,7 +143,7 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 			}
 
 			// The overlays that hold their own focus - preferences, the two Help dialogs, the palette -
-			// are one family: Escape closes the topmost (instead of falling through to area.dragCancel)
+			// are one family: Escape closes the topmost (instead of falling through to the drag cancels)
 			// and every other key yields to that overlay's own content, exactly as an open inline editor
 			// does.  Preferences yields to its dropdown popups, which are focusable and so claim their own
 			// Escape before a key ever reaches here; the Help dialogs to the credits scroll and the about
@@ -295,34 +295,37 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 				true
 			}
 
+			// An in-flight area CORNER drag (a split or a join) owns Escape the same way, through the same command,
+			// ahead of the viewport arms below: a corner drag is not a viewport gesture, and Escape cancels it
+			// rather than a selection.
+			isEscapeDown && dragController.isDragging -> {
+				commandRegistry.invoke("area.dragCancel")
+				true
+			}
+
 			// An in-flight select drag owns Escape in any mode (every box and circle stroke publishes the
 			// flag): abandon the rubber-band WITHOUT falling through to the Object-mode clear-selection
 			// branch below, so cancelling a drag never also wipes the selection.
-			isEscapeDown && editorSession?.viewportGestureActive?.value == true && !dragController.isDragging -> {
+			isEscapeDown && editorSession?.viewportGestureActive?.value == true -> {
 				editorSession.requestMeshGestureCancel()
 				true
 			}
 
 			// In Edit and Pose mode, Escape abandons an in-flight non-armed box drag (armed tools and the
-			// zoom region are handled above); the overlay clears its rubber-band on the signal.  Gated
-			// off an in-flight area CORNER drag so that still yields to area.dragCancel - a divider
-			// (splitter) drag is a separate mechanism this gate does not see, and cannot cancel.
+			// zoom region are handled above); the overlay clears its rubber-band on the signal.
 			// Blender-parity: with nothing in flight this is a harmless no-op that consumes Escape and
 			// never clears selection.
-			isEscapeDown && editorSession?.mode?.value?.editsElements == true && !dragController.isDragging -> {
+			isEscapeDown && editorSession?.mode?.value?.editsElements == true -> {
 				editorSession.requestMeshGestureCancel()
 				true
 			}
 
-			// With no modal open and no in-flight corner drag, Escape clears a non-empty OBJECT
-			// selection.  Gated to Object mode (a null session counts as Object): in Edit and Pose mode the
-			// object selection holds the item being edited, so clearing it here would strand the
-			// session on an item nothing points at.  Blender's Edit mode leaves the selection
-			// untouched on Escape, so those modes fall through to area.dragCancel (a no-op with no drag).
-			// While a drag is active it yields to area.dragCancel (handled via handleShellKey below).
+			// With no modal open and no drag in flight, Escape clears a non-empty OBJECT selection.  Gated
+			// to Object mode (a null session counts as Object): in Edit and Pose mode the object selection
+			// holds the item being edited, so clearing it here would strand the session on an item nothing
+			// points at, and Blender's Edit mode leaves the selection untouched on Escape.
 			isEscapeDown &&
 				editorSession?.mode?.value?.editsElements != true &&
-				!dragController.isDragging &&
 				selection?.selection?.isEmpty == false -> {
 				selection.set(SelectionOps.clear())
 				true

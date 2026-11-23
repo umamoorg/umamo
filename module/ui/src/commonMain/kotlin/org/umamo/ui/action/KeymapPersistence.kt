@@ -3,82 +3,102 @@ package org.umamo.ui.action
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.produceState
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
 import org.umamo.settings.Settings
 
 /** The settings key holding the selected built-in preset id (see [KEYMAP_PRESET_IDS]). */
 const val KEYMAP_PRESET_KEY: String = "input.keybinding.preset"
 
 /**
- * The settings key holding the user's per-chord overrides: a JSON object of chord-spec → command-id that
- * layers over the selected preset.  An empty-string value is an explicit "unbind" marker (it masks a chord
- * the preset binds); a deleted entry falls back to the preset.  This mirrors the settings engine's own
- * defaults-then-overrides shape, one level down at the keymap.
+ * The settings key holding the user's per-command overrides: a JSON object of command id → that command's chord
+ * specs in order, each list replacing the selected preset's whole list for its command.  An empty list unbinds the
+ * command, and a command with no entry follows the preset.
  */
 const val KEYMAP_OVERRIDES_KEY: String = "input.keybinding.overrides"
 
 /**
- * Reads the user's chord overrides as a plain chord-spec → command-id map (an empty value means the chord
- * is explicitly unbound).  Never throws: a malformed or absent overrides object yields an empty map, so a
- * corrupt settings value falls back to the bare preset rather than breaking input.
+ * Reads the user's overrides as each command's chords, in order.  Never throws: an entry that is not a list is
+ * skipped, and so is a spec that does not parse, so a corrupt or hand-mangled value falls back to the preset rather
+ * than breaking input.  A chord listed twice for one command counts once.
  *
  * @param Settings settings The settings store to read from.
- * @return Map The override map (chord spec → command id; "" = unbound).
+ * @return Map Each overridden command's chords, in order (empty = unbound).
  */
-internal fun readKeymapOverrides(settings: Settings): Map<String, String> {
+internal fun readKeymapOverrides(settings: Settings): Map<String, List<KeyChord>> {
 	val element = settings.get(KEYMAP_OVERRIDES_KEY) as? JsonObject ?: return emptyMap()
-	val overrides = LinkedHashMap<String, String>()
+	val overrides = LinkedHashMap<String, List<KeyChord>>()
 
-	for ((spec, value) in element) {
-		val commandId = runCatching { value.jsonPrimitive.contentOrNull }.getOrNull() ?: ""
-		overrides[spec] = commandId
+	for ((commandId, value) in element) {
+		val specs = value as? JsonArray ?: continue
+
+		overrides[commandId] =
+			specs
+				.mapNotNull { spec -> (spec as? JsonPrimitive)?.takeIf { primitive -> primitive.isString }?.let { primitive -> parseKeyChord(primitive.content) } }
+				.distinct()
 	}
 
 	return overrides
 }
 
 /**
- * Writes the chord overrides back to settings as a JSON object (chord-spec → command-id), replacing the
- * stored value wholesale.
+ * Writes the overrides back to settings as each command's list of chord specs, replacing the stored value
+ * wholesale.
  *
  * @param Settings settings The settings store to write to.
- * @param Map overrides The override map to persist.
+ * @param Map overrides Each overridden command's chords, in order.
  */
-internal fun writeKeymapOverrides(settings: Settings, overrides: Map<String, String>) {
-	settings.set(KEYMAP_OVERRIDES_KEY, JsonObject(overrides.mapValues { entry -> JsonPrimitive(entry.value) }))
+internal fun writeKeymapOverrides(settings: Settings, overrides: Map<String, List<KeyChord>>) {
+	settings.set(
+		KEYMAP_OVERRIDES_KEY,
+		JsonObject(overrides.mapValues { (_, chords) -> JsonArray(chords.map { chord -> JsonPrimitive(chordToSpec(chord)) }) }),
+	)
 }
 
 /**
- * Resolves the active [Keymap] from settings: the selected preset's bindings ([keymapPresetSpecs]) with the
- * user's overrides layered on top (an empty-string override unbinds the chord).
+ * The keymap a preset and the overrides on it resolve to.  Each command keeps one list, its override's when it has
+ * one and the preset's otherwise.  Where two lists name one chord, an override outranks the preset and a later
+ * override an earlier one, so the chord runs one command only; the editor never writes such a pair, so only a
+ * hand-edited file reaches the second rule.
  *
- * @param Settings settings The settings store to resolve from.
+ * @param Map presetBinds The preset's chords by command ([keymapPresetBinds]).
+ * @param Map overrides The user's chords by command ([readKeymapOverrides]).
  * @return Keymap The resolved keymap.
  */
-fun loadKeymap(settings: Settings): Keymap {
-	val presetId = settings.getString(KEYMAP_PRESET_KEY) ?: "default"
+internal fun resolveKeymap(presetBinds: Map<String, List<KeyChord>>, overrides: Map<String, List<KeyChord>>): Keymap {
 	val resolved = LinkedHashMap<KeyChord, String>()
+	// The preset's lists for the commands no override replaces, then every override, in file order.
+	val lists = presetBinds.filterKeys { commandId -> commandId !in overrides } + overrides
 
-	for ((spec, commandId) in keymapPresetSpecs(presetId)) {
-		val chord = parseKeyChord(spec) ?: continue
-		resolved[chord] = commandId
-	}
-
-	for ((spec, commandId) in readKeymapOverrides(settings)) {
-		val chord = parseKeyChord(spec) ?: continue
-
-		if (commandId.isEmpty()) {
-			resolved.remove(chord) // explicit unbind: mask a chord the preset binds
-		} else {
+	for ((commandId, chords) in lists) {
+		for (chord in chords) {
+			// Removed and put back, never overwritten in place, so a chord taken from an earlier list moves to
+			// its new owner's place and every command's chords read back in its own list's order.
+			resolved.remove(chord)
 			resolved[chord] = commandId
 		}
 	}
 
 	return Keymap(resolved)
 }
+
+/**
+ * The selected preset's id, the default when none is stored.
+ *
+ * @param Settings settings The settings store to read from.
+ * @return String The preset id.
+ */
+private fun selectedPresetId(settings: Settings): String = settings.getString(KEYMAP_PRESET_KEY) ?: "default"
+
+/**
+ * Resolves the active [Keymap] from settings: the selected preset's chords ([keymapPresetBinds]) with each
+ * overridden command's list put in place of its preset one ([resolveKeymap]).
+ *
+ * @param Settings settings The settings store to resolve from.
+ * @return Keymap The resolved keymap.
+ */
+fun loadKeymap(settings: Settings): Keymap = resolveKeymap(keymapPresetBinds(selectedPresetId(settings)), readKeymapOverrides(settings))
 
 /** The prefix every keymap setting sits under; a change to any key below it re-resolves the live keymap. */
 private const val KEYMAP_SETTINGS_PREFIX: String = "input.keybinding"
@@ -113,70 +133,118 @@ fun setKeymapPreset(settings: Settings, presetId: String) {
 }
 
 /**
- * Whether [chord] is bound by the currently selected preset's base bindings (before overrides).  Used when
- * releasing a chord: a preset binding must be masked with an unbind marker, while a pure override is simply
- * dropped.
+ * Gives [commandId] one more chord, after the ones it has, and persists it.  The chord is taken from whatever command
+ * held it, so the caller confirms a conflict with the user first.  A chord the command already holds changes nothing.
  *
- * @param Settings settings The settings store (for the selected preset).
- * @param KeyChord chord The chord to test.
- * @return Boolean true if the preset base binds this chord.
+ * @param Settings settings The settings store to write to.
+ * @param String commandId The command gaining the chord.
+ * @param KeyChord chord The chord to add.
  */
-private fun isPresetChord(settings: Settings, chord: KeyChord): Boolean {
-	val presetId = settings.getString(KEYMAP_PRESET_KEY) ?: "default"
-
-	return keymapPresetSpecs(presetId).keys.any { spec -> parseKeyChord(spec) == chord }
+fun addCommandBind(settings: Settings, commandId: String, chord: KeyChord) {
+	editCommandBinds(settings, commandId) { chords -> if (chord in chords) chords else chords + chord }
 }
 
 /**
- * Releases [chord] in [overrides] (mutated in place): masks it with an unbind marker if the preset binds it,
- * otherwise removes the override entry.  Either way the chord ends up unbound after resolution.
+ * Puts [chord] in the place of [previous], one of [commandId]'s chords, and persists it.  The chord is taken from
+ * whatever command held it, as [addCommandBind] does.  A chord the command already holds changes nothing, and a
+ * [previous] it no longer holds makes this an add.
  *
- * @param Settings settings The settings store (for the preset check).
- * @param MutableMap overrides The override map being edited.
- * @param KeyChord chord The chord to release.
+ * @param Settings settings The settings store to write to.
+ * @param String commandId The command whose chord changes.
+ * @param KeyChord previous The chord being replaced.
+ * @param KeyChord chord The chord to put in its place.
  */
-private fun releaseChord(settings: Settings, overrides: MutableMap<String, String>, chord: KeyChord) {
-	val spec = chordToSpec(chord)
+fun replaceCommandBind(settings: Settings, commandId: String, previous: KeyChord, chord: KeyChord) {
+	editCommandBinds(settings, commandId) { chords ->
+		val previousIndex = chords.indexOf(previous)
 
-	if (isPresetChord(settings, chord)) {
-		overrides[spec] = ""
-	} else {
-		overrides.remove(spec)
+		when {
+			chord in chords -> chords
+			previousIndex < 0 -> chords + chord
+			else -> chords.mapIndexed { chordIndex, held -> if (chordIndex == previousIndex) chord else held }
+		}
 	}
 }
 
 /**
- * Rebinds [commandId] to [newChord], persisting the change.  The command moves rather than gaining a second
- * binding, and [newChord] is taken from whatever held it, so the caller confirms a conflict with the user
- * first.
+ * Removes [chord] from [commandId]'s chords.
  *
  * @param Settings settings The settings store to write to.
- * @param String commandId The command being rebound.
- * @param KeyChord newChord The chord to bind it to.
+ * @param String commandId The command losing the chord.
+ * @param KeyChord chord The chord to remove.
  */
-fun rebindCommand(settings: Settings, commandId: String, newChord: KeyChord) {
-	val overrides = readKeymapOverrides(settings).toMutableMap()
-	val previous = loadKeymap(settings).chordFor(commandId)
-
-	if (previous != null && previous != newChord) {
-		releaseChord(settings, overrides, previous)
-	}
-
-	overrides[chordToSpec(newChord)] = commandId
-	writeKeymapOverrides(settings, overrides)
+fun removeCommandBind(settings: Settings, commandId: String, chord: KeyChord) {
+	editCommandBinds(settings, commandId) { chords -> chords - chord }
 }
 
 /**
- * Unbinds [commandId]'s canonical chord, persisting the change (a no-op if it has no binding).  A preset
- * binding is masked with an unbind marker; a pure override is dropped.
+ * Moves [chord] one place earlier in [commandId]'s chords.
  *
  * @param Settings settings The settings store to write to.
- * @param String commandId The command to unbind.
+ * @param String commandId The command whose chords are reordered.
+ * @param KeyChord chord The chord to move.
  */
-fun unbindCommand(settings: Settings, commandId: String) {
-	val chord = loadKeymap(settings).chordFor(commandId) ?: return
-	val overrides = readKeymapOverrides(settings).toMutableMap()
-	releaseChord(settings, overrides, chord)
+fun moveCommandBindUp(settings: Settings, commandId: String, chord: KeyChord) {
+	editCommandBinds(settings, commandId) { chords ->
+		val chordIndex = chords.indexOf(chord)
+
+		when {
+			chordIndex <= 0 -> chords
+			else -> chords.toMutableList().apply { add(chordIndex - 1, removeAt(chordIndex)) }
+		}
+	}
+}
+
+/**
+ * Applies [edit] to [commandId]'s chords and persists the result.  A chord the new list gains is taken from the
+ * command that held it in the same write, so the file never names one chord for two commands.
+ *
+ * @param Settings settings The settings store to write to.
+ * @param String commandId The command being edited.
+ * @param Function edit Maps the command's current chords to its new ones.
+ */
+private fun editCommandBinds(settings: Settings, commandId: String, edit: (List<KeyChord>) -> List<KeyChord>) {
+	val keymap = loadKeymap(settings)
+	val current = keymap.chordsFor(commandId)
+	val edited = edit(current)
+
+	if (edited == current) {
+		return
+	}
+
+	val lists = LinkedHashMap<String, List<KeyChord>>()
+
+	for (chord in edited) {
+		val holder = keymap.commandFor(chord)
+
+		if (holder != null && holder != commandId) {
+			lists[holder] = (lists[holder] ?: keymap.chordsFor(holder)) - chord
+		}
+	}
+
+	lists[commandId] = edited
+	writeCommandBinds(settings, lists)
+}
+
+/**
+ * Stores each command's new chords as its override.  A command whose chords are back to the selected preset's loses
+ * its override instead, so the file holds only what differs from the preset.
+ *
+ * @param Settings settings The settings store to write to.
+ * @param Map binds The new chords of each command the edit touched.
+ */
+private fun writeCommandBinds(settings: Settings, binds: Map<String, List<KeyChord>>) {
+	val presetBinds = keymapPresetBinds(selectedPresetId(settings))
+	val overrides = LinkedHashMap(readKeymapOverrides(settings))
+
+	for ((commandId, chords) in binds) {
+		if (chords == presetBinds[commandId].orEmpty()) {
+			overrides.remove(commandId)
+		} else {
+			overrides[commandId] = chords
+		}
+	}
+
 	writeKeymapOverrides(settings, overrides)
 }
 

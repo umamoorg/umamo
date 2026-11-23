@@ -190,12 +190,20 @@ fun chordToSpec(chord: KeyChord): String =
 	}.joinToString(separator = "+")
 
 /**
- * A resolved set of key-chord → command-id bindings, plus the lookup the input layer uses.  Built from
- * a preset spec map; a chord bound twice resolves last-write-wins at build time, while one command may
- * keep several chords.  The keymap holds only ids - it never references [Command] objects -
- * so it stays decoupled from registration order and from whether a command currently exists.
+ * A resolved set of key-chord → command-id bindings, plus the lookups the input layer and the keybindings editor
+ * use.  A chord runs one command at most, while one command may keep several chords in order, the first being the
+ * one menus, the palette, and the status bar show.  The keymap holds only ids - it never references [Command]
+ * objects - so it stays decoupled from registration order and from whether a command currently exists.
  */
 class Keymap(private val commandIdByChord: Map<KeyChord, String>) {
+	/** Each command's chords in the map's order, which is the order the command's own list resolved in. */
+	private val chordsByCommandId: Map<String, List<KeyChord>> =
+		LinkedHashMap<String, MutableList<KeyChord>>().also { index ->
+			for ((chord, commandId) in commandIdByChord) {
+				index.getOrPut(commandId) { ArrayList() }.add(chord)
+			}
+		}
+
 	/**
 	 * The command id bound to [chord], or null if the chord is unbound.
 	 *
@@ -214,24 +222,21 @@ class Keymap(private val commandIdByChord: Map<KeyChord, String>) {
 	fun commandForPress(pressed: KeyChord): String? = pressed.dispatchCandidates().firstNotNullOfOrNull { candidate -> commandFor(candidate) }
 
 	/**
-	 * The first chord bound to [commandId], or null if none is - the reverse of [commandFor], used to
-	 * render a menu row's accelerator hint.  When several chords map to one command (palette.toggle has
-	 * both primary+KeyP and Space) the first in insertion order wins, so a menu shows the canonical
-	 * accelerator (primary+KeyP) rather than whichever the map happens to yield first.
+	 * Every chord bound to [commandId], first to last, in the order the rigger or the preset gave them.
+	 *
+	 * @param String commandId The command id.
+	 * @return List<KeyChord> Its chords, empty when it is unbound.
+	 */
+	fun chordsFor(commandId: String): List<KeyChord> = chordsByCommandId[commandId].orEmpty()
+
+	/**
+	 * The first chord bound to [commandId], or null if none is: the accelerator a menu row, the palette, and the
+	 * status bar show.  palette.toggle has both primary+KeyP and Space, and shows primary+KeyP, its first.
 	 *
 	 * @param String commandId The command id to find an accelerator for.
 	 * @return KeyChord? The first bound chord, or null.
 	 */
-	fun chordFor(commandId: String): KeyChord? {
-		// LinkedHashMap iterates in insertion order, so the first match is the canonical binding.
-		for ((chord, boundCommandId) in commandIdByChord) {
-			if (boundCommandId == commandId) {
-				return chord
-			}
-		}
-
-		return null
-	}
+	fun chordFor(commandId: String): KeyChord? = chordsFor(commandId).firstOrNull()
 
 	/**
 	 * The number of bindings - handy for tests.
@@ -276,7 +281,6 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 	presetSpecs(
 		"primary+KeyP" to "palette.toggle",
 		"Space" to "palette.toggle",
-		"Escape" to "area.dragCancel",
 		"Tab" to "mode.toggleEdit",
 		// A literal Control, so macOS gets Ctrl+Tab rather than Cmd+Tab, which the OS takes for switching apps.
 		"ctrl+Tab" to "mode.togglePose",
@@ -354,7 +358,6 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 private val CUBISM_KEYMAP_SPECS: Map<String, String> =
 	presetSpecs(
 		"primary+KeyP" to "palette.toggle",
-		"Escape" to "area.dragCancel",
 		// A literal Control, so macOS gets Ctrl+Tab rather than Cmd+Tab, which the OS takes for switching apps.
 		"ctrl+Tab" to "mode.togglePose",
 		"primary+PageUp" to "workspace.prev",
@@ -397,7 +400,6 @@ private val CUBISM_KEYMAP_SPECS: Map<String, String> =
 private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 	presetSpecs(
 		"F3" to "palette.toggle",
-		"Escape" to "area.dragCancel",
 		"Tab" to "mode.toggleEdit",
 		// A literal Control, so macOS gets Ctrl+Tab rather than Cmd+Tab, which the OS takes for switching apps.
 		"ctrl+Tab" to "mode.togglePose",
@@ -501,6 +503,29 @@ fun keymapPresetSpecs(presetId: String): Map<String, String> =
 		"blender" -> BLENDER_KEYMAP_SPECS
 		else -> DEFAULT_KEYMAP_SPECS
 	}
+
+/**
+ * The built-in preset [presetId]'s chords grouped by command, each command's in table order: the list a per-command
+ * override replaces, and what an override is compared with to tell whether it still differs from the preset.
+ *
+ * @param String presetId The preset id (see [KEYMAP_PRESET_IDS]).
+ * @return Map Each bound command's chords, in table order.
+ */
+internal fun keymapPresetBinds(presetId: String): Map<String, List<KeyChord>> {
+	val binds = LinkedHashMap<String, MutableList<KeyChord>>()
+
+	for ((spec, commandId) in keymapPresetSpecs(presetId)) {
+		val chord = parseKeyChord(spec) ?: continue
+		val chords = binds.getOrPut(commandId) { ArrayList() }
+
+		// Two specs can name one chord where "ctrl" parses as primary; the command keeps it once.
+		if (chord !in chords) {
+			chords += chord
+		}
+	}
+
+	return binds
+}
 
 /**
  * The built-in "default" keymap preset as a resolved [Keymap].  Used directly by tests, and as

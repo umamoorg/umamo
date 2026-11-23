@@ -192,6 +192,29 @@ class KeymapTest {
 		assertEquals(KeyChord(keyName = "KeyP", primaryModifier = true), keymap.chordFor("palette.toggle"))
 	}
 
+	/** Every chord a command holds reads back in order, past another command's chord between them, and the first is chordFor's. */
+	@Test
+	fun chordsForListsEveryChordInOrder() {
+		val keymap = Keymap.fromSpecs(mapOf("primary+shift+KeyZ" to "edit.redo", "primary+KeyZ" to "edit.undo", "primary+KeyY" to "edit.redo"))
+		val redo = listOf(KeyChord(keyName = "KeyZ", primaryModifier = true, shift = true), KeyChord(keyName = "KeyY", primaryModifier = true))
+
+		assertEquals(redo, keymap.chordsFor("edit.redo"))
+		assertEquals(redo.first(), keymap.chordFor("edit.redo"))
+		assertEquals(listOf(KeyChord(keyName = "KeyZ", primaryModifier = true)), keymap.chordsFor("edit.undo"))
+		assertEquals(emptyList(), keymap.chordsFor("edit.preferences"))
+	}
+
+	/** A preset's chords group by command in table order, so a chord further down the table stays the later bind. */
+	@Test
+	fun presetBindsGroupByCommandInTableOrder() {
+		assertEquals(
+			listOf(KeyChord(keyName = "KeyZ", primaryModifier = true, shift = true), KeyChord(keyName = "KeyY", primaryModifier = true)),
+			keymapPresetBinds("cubism")["edit.redo"],
+		)
+		assertEquals(listOf(KeyChord(keyName = "KeyP", primaryModifier = true), KeyChord(keyName = "Space")), keymapPresetBinds("default")["palette.toggle"])
+		assertEquals(null, keymapPresetBinds("default")["mesh.generateQuad"], "an unbound command has no list")
+	}
+
 	/**
 	 * The default keymap opens the palette on both Space (the Blender-style headline default) and the
 	 * primary modifier + P (the familiar accelerator), and resolves primary+P as the canonical chord the

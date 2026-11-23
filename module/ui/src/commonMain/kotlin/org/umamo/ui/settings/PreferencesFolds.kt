@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import org.jetbrains.compose.resources.StringResource
 import org.umamo.settings.Settings
 import org.umamo.ui.LocalSettings
+import org.umamo.ui.action.KeymapCategory
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.settings_colors_deformers
 import org.umamo.ui.resources.settings_colors_group_edge
@@ -58,6 +59,15 @@ internal enum class PreferencesSection(val id: String, val title: StringResource
 }
 
 /**
+ * The fold id of the keybindings page's card for [category].  Its prefix keeps it apart from every
+ * [PreferencesSection.id] in the one stored list.
+ *
+ * @param KeymapCategory category The category whose card is folded or opened.
+ * @return String The id written to [PreferencesSettings.COLLAPSED_SECTIONS_KEY].
+ */
+internal fun keybindingFoldId(category: KeymapCategory): String = "keybindings.${category.id}"
+
+/**
  * Which preferences cards are folded, bound write-through to [PreferencesSettings.COLLAPSED_SECTIONS_KEY]: a toggle
  * persists at once, like every other preferences change, so the folds survive closing the window and the app.
  *
@@ -73,7 +83,15 @@ internal class PreferencesFolds(private val settings: Settings) {
 	 * @param PreferencesSection section The card or sub-panel.
 	 * @return Boolean True unless the rigger folded it.
 	 */
-	fun isExpanded(section: PreferencesSection): Boolean = section.id !in collapsedIds
+	fun isExpanded(section: PreferencesSection): Boolean = isExpanded(section.id)
+
+	/**
+	 * Whether the card stored under [foldId] is open.
+	 *
+	 * @param String foldId The card's fold id: a [PreferencesSection.id], or a [keybindingFoldId].
+	 * @return Boolean True unless the rigger folded it.
+	 */
+	fun isExpanded(foldId: String): Boolean = foldId !in collapsedIds
 
 	/**
 	 * Opens a folded [section] or folds an open one, and persists the result.
@@ -81,7 +99,16 @@ internal class PreferencesFolds(private val settings: Settings) {
 	 * @param PreferencesSection section The card or sub-panel whose header was clicked.
 	 */
 	fun toggle(section: PreferencesSection) {
-		val toggled = toggledSectionIds(collapsedIds, section.id)
+		toggle(section.id)
+	}
+
+	/**
+	 * Opens the folded card stored under [foldId] or folds an open one, and persists the result.
+	 *
+	 * @param String foldId The fold id of the card whose header was clicked.
+	 */
+	fun toggle(foldId: String) {
+		val toggled = toggledSectionIds(collapsedIds, foldId)
 		collapsedIds = toggled
 		settings.set(PreferencesSettings.COLLAPSED_SECTIONS_KEY, JsonArray(toggled.sorted().map { sectionId -> JsonPrimitive(sectionId) }))
 	}

@@ -21,6 +21,15 @@ class AcceleratorTextTest {
 		assertEquals("−", keyGlyph("Minus"))
 		assertEquals("Esc", keyGlyph("Escape"))
 		assertEquals("Space", keyGlyph("Space"))
+		assertEquals(",", keyGlyph("Comma"))
+		assertEquals(".", keyGlyph("Period"))
+		assertEquals(";", keyGlyph("Semicolon"))
+		assertEquals("'", keyGlyph("Quote"))
+		assertEquals("[", keyGlyph("BracketLeft"))
+		assertEquals("]", keyGlyph("BracketRight"))
+		assertEquals("\\", keyGlyph("Backslash"))
+		assertEquals("/", keyGlyph("Slash"))
+		assertEquals("`", keyGlyph("Backquote"))
 	}
 
 	/**
@@ -38,6 +47,7 @@ class AcceleratorTextTest {
 	fun formatsPrimaryModifierWithSuppliedLabel() {
 		assertEquals("Ctrl+O", formatAccelerator(KeyChord(keyName = "KeyO", primaryModifier = true), "Ctrl"))
 		assertEquals("⌘+O", formatAccelerator(KeyChord(keyName = "KeyO", primaryModifier = true), "⌘"))
+		assertEquals("Ctrl+,", formatAccelerator(KeyChord(keyName = "Comma", primaryModifier = true), "Ctrl"))
 	}
 
 	/**

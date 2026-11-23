@@ -73,7 +73,10 @@ internal fun transformCommands(
 		},
 		// Untitled and ungated: the ladder and the overlays dispatch it as a cleanup signal, and exactly
 		// one of the three latches can be live, so clearing all three unconditionally is the whole job.
-		Command("mesh.modalCancel", title = null) {
+		Command(
+			"mesh.modalCancel",
+			title = null,
+		) {
 			editorSession?.clearMeshOperator()
 			editorSession?.clearObjectOperator()
 			editorSession?.clearUvOperator()

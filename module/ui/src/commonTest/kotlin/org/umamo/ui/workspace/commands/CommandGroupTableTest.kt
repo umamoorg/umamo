@@ -15,7 +15,10 @@ import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandTable
+import org.umamo.ui.action.KEYMAP_PRESET_IDS
+import org.umamo.ui.action.KeymapCategory
 import org.umamo.ui.action.bindableCommands
+import org.umamo.ui.action.keymapPresetSpecs
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.menu_select_kind_drawables
 import org.umamo.ui.resources.menu_select_kind_parts
@@ -305,6 +308,53 @@ class CommandGroupTableTest {
 		assertTrue("file.save" in listed)
 		assertFalse("file.openPath" in listed, "untitled")
 		assertFalse("parameter.toggleRepeat" in listed, "titled, and only ever run with a parameter")
+
+		for (rowOnly in listOf("sources.relink", "sources.replaceArtwork", "sources.deleteArt")) {
+			assertFalse(rowOnly in listed, "$rowOnly is titled, and only ever run with the row or drop it acts on")
+		}
+	}
+
+	/**
+	 * Every command a built-in preset binds is on the keybindings page, so a rigger can see and change every chord a
+	 * preset ships.  A command the shell's key ladder runs itself (a drag's cancel) is bound by no preset.
+	 */
+	@Test
+	fun theKeybindingsListHoldsEveryCommandAPresetBinds() {
+		val listed = bindableCommands(everyCommandTable()).map { command -> command.id }.toSet()
+
+		for (presetId in KEYMAP_PRESET_IDS) {
+			val missing = keymapPresetSpecs(presetId).values.toSet() - listed
+
+			assertEquals(emptySet(), missing, "commands the $presetId preset binds that the page leaves out")
+		}
+
+		assertTrue("palette.toggle" in listed)
+		assertFalse("area.dragCancel" in listed, "the ladder runs it on Escape")
+	}
+
+	/**
+	 * Every command the keybindings page lists sits under a named category, and every named category lists something:
+	 * Other holds only commands built outside every table.  A command whose category is not its table's names its own.
+	 */
+	@Test
+	fun theKeybindingsListFilesEveryCommandUnderANamedCategory() {
+		val listed = bindableCommands(everyCommandTable())
+		val categoryById = listed.associate { command -> command.id to command.shownKeymapCategory }
+
+		assertEquals(emptyList(), listed.filter { command -> command.shownKeymapCategory == KeymapCategory.Other }.map { command -> command.id })
+
+		for (category in KeymapCategory.entries - KeymapCategory.Other) {
+			assertTrue(category in categoryById.values, "no listed command sits under $category")
+		}
+
+		assertEquals(KeymapCategory.Select, categoryById["select.clear"], "registered by the mode table")
+		assertEquals(KeymapCategory.Transform, categoryById["transform.pivot.cursor"], "registered by the snap table")
+		assertEquals(KeymapCategory.Artwork, categoryById["file.importArtwork"], "registered by the file table")
+		assertEquals(KeymapCategory.Edit, categoryById["edit.preferences"], "registered by the chrome table")
+		assertEquals(KeymapCategory.Edit, categoryById["palette.toggle"], "registered by the chrome table")
+		assertEquals(KeymapCategory.Workspace, categoryById["workspace.next"], "registered by the chrome table")
+		assertEquals(KeymapCategory.Help, categoryById["help.about"])
+		assertEquals(KeymapCategory.File, categoryById["file.save"])
 	}
 
 	/** A button or a chip shows a member by its glyph, so a member of these families with none drawn would have no face. */
