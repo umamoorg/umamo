@@ -1167,7 +1167,7 @@ class ModalKeyLadderTest {
 	@Test
 	fun anInFlightDividerDragTakesEscapeWithoutClearingTheSelection() {
 		// A divider drag keeps its session inside the dragged SplitContainer and never touches
-		// AreaDragController, so isDragging stays false and the corner-drag gates below do not cover it.
+		// AreaDragController, so isDragging stays false and the corner-drag arm below does not cover it.
 		// Before this arm existed, Escape while resizing a panel fell all the way through and wiped the
 		// object selection.
 		val splitterDragCancel = SplitterDragCancelController()
@@ -1379,28 +1379,25 @@ class ModalKeyLadderTest {
 	}
 
 	@Test
-	fun anAreaDragDefersEscapeToTheDragCancelCommand() {
-		// The three lowest arms all gate off !isDragging so an in-flight area CORNER drag reaches
-		// area.dragCancel through the keymap; without that gate it would clear the selection instead of
-		// cancelling.  Note this covers the corner drag ONLY - a divider (splitter) drag keeps its session
-		// in SplitContainer's own state, never sets isDragging, and so has no Escape cancel at all.
-		val session = session(EditorMode.Object)
-		val selection = nonEmptySelection()
-		val registry = RecordingRegistry("area.dragCancel")
-		val keymap = Keymap(mapOf(KeyChord("Escape") to "area.dragCancel"))
-		val state =
-			ShellModalState(
-				editorSession = session,
-				selection = selection,
-				dragController = draggingController(),
-				commandRegistry = registry.registry,
-				keymap = keymap,
-			)
+	fun anAreaDragTakesEscapeThroughTheDragCancelCommand() {
+		// The ladder owns an in-flight area CORNER drag's Escape itself, ahead of the viewport arms, so no chord
+		// is needed: with an empty keymap Escape still cancels the drag, in Object mode without clearing the
+		// selection and in Edit mode without standing in for a box drag's cancel.
+		for (mode in listOf(EditorMode.Object, EditorMode.Edit)) {
+			val selection = nonEmptySelection()
+			val registry = RecordingRegistry("area.dragCancel")
+			val state =
+				ShellModalState(
+					editorSession = session(mode),
+					selection = selection,
+					dragController = draggingController(),
+					commandRegistry = registry.registry,
+				)
 
-		assertTrue(escape(state))
-
-		assertTrue(registry.invoked, "Escape reached area.dragCancel")
-		assertFalse(selection.selection.isEmpty, "and did not clear the selection on the way")
+			assertTrue(escape(state), "Escape is taken in $mode")
+			assertTrue(registry.invoked, "Escape reached area.dragCancel in $mode")
+			assertFalse(selection.selection.isEmpty, "and did not clear the selection on the way in $mode")
+		}
 	}
 
 	@Test

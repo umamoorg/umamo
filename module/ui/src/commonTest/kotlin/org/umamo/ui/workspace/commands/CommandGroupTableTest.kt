@@ -15,8 +15,10 @@ import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandTable
+import org.umamo.ui.action.KEYMAP_PRESET_IDS
 import org.umamo.ui.action.KeymapCategory
 import org.umamo.ui.action.bindableCommands
+import org.umamo.ui.action.keymapPresetSpecs
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.menu_select_kind_drawables
 import org.umamo.ui.resources.menu_select_kind_parts
@@ -313,6 +315,24 @@ class CommandGroupTableTest {
 	}
 
 	/**
+	 * Every command a built-in preset binds is on the keybindings page, so a rigger can see and change every chord a
+	 * preset ships.  A command the shell's key ladder runs itself (a drag's cancel) is bound by no preset.
+	 */
+	@Test
+	fun theKeybindingsListHoldsEveryCommandAPresetBinds() {
+		val listed = bindableCommands(everyCommandTable()).map { command -> command.id }.toSet()
+
+		for (presetId in KEYMAP_PRESET_IDS) {
+			val missing = keymapPresetSpecs(presetId).values.toSet() - listed
+
+			assertEquals(emptySet(), missing, "commands the $presetId preset binds that the page leaves out")
+		}
+
+		assertTrue("palette.toggle" in listed)
+		assertFalse("area.dragCancel" in listed, "the ladder runs it on Escape")
+	}
+
+	/**
 	 * Every command the keybindings page lists sits under a named category, and every named category lists something:
 	 * Other holds only commands built outside every table.  A command whose category is not its table's names its own.
 	 */
@@ -331,6 +351,7 @@ class CommandGroupTableTest {
 		assertEquals(KeymapCategory.Transform, categoryById["transform.pivot.cursor"], "registered by the snap table")
 		assertEquals(KeymapCategory.Artwork, categoryById["file.importArtwork"], "registered by the file table")
 		assertEquals(KeymapCategory.Edit, categoryById["edit.preferences"], "registered by the chrome table")
+		assertEquals(KeymapCategory.Edit, categoryById["palette.toggle"], "registered by the chrome table")
 		assertEquals(KeymapCategory.Workspace, categoryById["workspace.next"], "registered by the chrome table")
 		assertEquals(KeymapCategory.Help, categoryById["help.about"])
 		assertEquals(KeymapCategory.File, categoryById["file.save"])

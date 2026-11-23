@@ -34,6 +34,7 @@ import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.KeymapCategory
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
+import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.action.parseKeyChord
 import org.umamo.ui.defaultSettingsJson
 import org.umamo.ui.kit.dialog.ConfirmDialog
@@ -63,8 +64,8 @@ import kotlin.test.assertTrue
  * folded card and hides what does not match, and the record button looks a pressed chord up without the ladder
  * taking the press for Preferences.
  *
- * Two commands sit on two cards: the grab command under Transform, bound to Ctrl+S, and the settings command under
- * Edit, unbound.  Every lookup goes by the string the page renders, read in composition, so a reworded string never
+ * Two commands sit on two cards: the grab command under Transform, bound to Ctrl+S and then F4, and the settings
+ * command under Edit, unbound.  Every lookup goes by the string the page renders, read in composition, so a reworded string never
  * breaks one.
  */
 @OptIn(ExperimentalTestApi::class)
@@ -115,7 +116,7 @@ class KeybindingsSearchUiTest {
 				Command("document.confirm", title = null) { argument -> (argument as? ConfirmRequest)?.let { request -> overlays.pendingConfirm = request } },
 			),
 		)
-		val keymap = Keymap(mapOf(parseKeyChord("primary+KeyS")!! to "test.grab"))
+		val keymap = Keymap(mapOf(parseKeyChord("primary+KeyS")!! to "test.grab", parseKeyChord("F4")!! to "test.grab"))
 		val rootFocus = FocusRequester()
 		var labels: PageLabels? = null
 		test.setContent {
@@ -238,6 +239,44 @@ class KeybindingsSearchUiTest {
 			assertTrue(overlays.settingsVisible)
 			onNodeWithText(labels.grab, useUnmergedTree = true).assertExists()
 			onNodeWithText(labels.settings, useUnmergedTree = true).assertDoesNotExist()
+		}
+	}
+
+	/** A typed query for a command's second chord finds the command, every chord of it shown. */
+	@Test
+	fun aQueryMatchesASecondChord() {
+		runComposeUiTest {
+			val overlays = ShellOverlayState().apply { settingsVisible = true }
+			val labels = mount(this, overlays)
+
+			onNode(hasSetTextAction()).performTextInput("f4")
+			waitForIdle()
+
+			onNodeWithText(labels.grab, useUnmergedTree = true).assertExists()
+			onNodeWithText(labels.settings, useUnmergedTree = true).assertDoesNotExist()
+			onNodeWithText(formatAccelerator(parseKeyChord("primary+KeyS")!!), useUnmergedTree = true).assertExists()
+		}
+	}
+
+	/** A recorded press of a command's second chord narrows to that command, every chord of it shown. */
+	@Test
+	fun aRecordedSecondChordNarrowsToItsCommand() {
+		runComposeUiTest {
+			val overlays = ShellOverlayState().apply { settingsVisible = true }
+			val labels = mount(this, overlays)
+
+			onNodeWithContentDescription(labels.record, useUnmergedTree = true).performClick()
+			waitForIdle()
+			onNodeWithTag("root").performKeyInput {
+				keyDown(Key.F4)
+				keyUp(Key.F4)
+			}
+			waitForIdle()
+
+			onNodeWithText(labels.grab, useUnmergedTree = true).assertExists()
+			onNodeWithText(labels.settings, useUnmergedTree = true).assertDoesNotExist()
+			// The field reads F4 now, so the first chord's chip is what shows the row is whole.
+			onNodeWithText(formatAccelerator(parseKeyChord("primary+KeyS")!!), useUnmergedTree = true).assertExists()
 		}
 	}
 

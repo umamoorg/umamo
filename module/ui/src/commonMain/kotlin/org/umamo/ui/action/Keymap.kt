@@ -281,7 +281,6 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 	presetSpecs(
 		"primary+KeyP" to "palette.toggle",
 		"Space" to "palette.toggle",
-		"Escape" to "area.dragCancel",
 		"Tab" to "mode.toggleEdit",
 		// A literal Control, so macOS gets Ctrl+Tab rather than Cmd+Tab, which the OS takes for switching apps.
 		"ctrl+Tab" to "mode.togglePose",
@@ -359,7 +358,6 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 private val CUBISM_KEYMAP_SPECS: Map<String, String> =
 	presetSpecs(
 		"primary+KeyP" to "palette.toggle",
-		"Escape" to "area.dragCancel",
 		// A literal Control, so macOS gets Ctrl+Tab rather than Cmd+Tab, which the OS takes for switching apps.
 		"ctrl+Tab" to "mode.togglePose",
 		"primary+PageUp" to "workspace.prev",
@@ -402,7 +400,6 @@ private val CUBISM_KEYMAP_SPECS: Map<String, String> =
 private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 	presetSpecs(
 		"F3" to "palette.toggle",
-		"Escape" to "area.dragCancel",
 		"Tab" to "mode.toggleEdit",
 		// A literal Control, so macOS gets Ctrl+Tab rather than Cmd+Tab, which the OS takes for switching apps.
 		"ctrl+Tab" to "mode.togglePose",

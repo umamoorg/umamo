@@ -386,6 +386,7 @@
 	<string name="cmd_hide_unselected">選択以外を非表示</string>
 	<string name="cmd_unhide_all">すべて再表示</string>
 
+	<string name="cmd_command_palette">コマンドパレット</string>
 	<string name="search_hint">検索</string>
 	<string name="search_clear">検索をクリア</string>
 
@@ -1261,7 +1262,8 @@
 	<string name="settings_keybindings_reset">プリセットに戻す</string>
 	<string name="settings_keybindings_press_shortcut">ショートカットを押してください…</string>
 	<string name="settings_keybindings_unbound">未割り当て</string>
-	<string name="settings_keybindings_clear">ショートカットを解除</string>
+	<string name="settings_keybindings_remove">ショートカットを削除</string>
+	<string name="settings_keybindings_add">ショートカットを追加</string>
 	<!-- %1$s はショートカット、%2$s は既に割り当てられているコマンド。 -->
 	<string name="settings_keybindings_conflict">%1$s は既に「%2$s」に割り当てられています。再割り当てしますか？</string>
 	<string name="settings_keybindings_reassign">再割り当て</string>

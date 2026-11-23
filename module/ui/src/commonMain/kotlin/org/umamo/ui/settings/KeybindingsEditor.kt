@@ -5,8 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,8 +37,6 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -56,6 +52,7 @@ import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.addCommandBind
 import org.umamo.ui.action.bindableCommands
+import org.umamo.ui.action.chordToSpec
 import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.action.keyChordOf
 import org.umamo.ui.action.keyName
@@ -73,9 +70,9 @@ import org.umamo.ui.kit.field.SelectField
 import org.umamo.ui.kit.textentry.LocalKeyCapture
 import org.umamo.ui.rememberStringSetting
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.settings_keybindings_add
 import org.umamo.ui.resources.settings_keybindings_chord_unbound
 import org.umamo.ui.resources.settings_keybindings_chord_unlisted
-import org.umamo.ui.resources.settings_keybindings_clear
 import org.umamo.ui.resources.settings_keybindings_conflict
 import org.umamo.ui.resources.settings_keybindings_no_matches
 import org.umamo.ui.resources.settings_keybindings_preset
@@ -83,6 +80,7 @@ import org.umamo.ui.resources.settings_keybindings_preset_description
 import org.umamo.ui.resources.settings_keybindings_preset_quick
 import org.umamo.ui.resources.settings_keybindings_press_shortcut
 import org.umamo.ui.resources.settings_keybindings_reassign
+import org.umamo.ui.resources.settings_keybindings_remove
 import org.umamo.ui.resources.settings_keybindings_reset
 import org.umamo.ui.resources.settings_keybindings_reset_description
 import org.umamo.ui.resources.settings_keybindings_search_hint
@@ -110,11 +108,13 @@ private data class KeybindingConflict(val commandId: String, val replacing: KeyC
 /** What on the page is waiting for a key press.  One at a time: arming one disarms the other. */
 private sealed interface KeybindingCapture {
 	/**
-	 * A command's chip, capturing the chord to bind it to.
+	 * One of a command's chord chips, capturing the chord to put in its place, or the command's add, capturing one
+	 * more chord.
 	 *
 	 * @property String commandId The command being rebound.
+	 * @property KeyChord? replacing The chord the capture replaces, or null when it adds one.
 	 */
-	data class Row(val commandId: String) : KeybindingCapture
+	data class Bind(val commandId: String, val replacing: KeyChord?) : KeybindingCapture
 
 	/** The search's recording, capturing the chord to look up. */
 	data object Search : KeybindingCapture
@@ -183,15 +183,13 @@ internal fun KeybindingsEditor(folds: PreferencesFolds) {
 			isCapturing = { capture != null },
 			onCaptured = { captured ->
 				when (val armed = capture) {
-					is KeybindingCapture.Row -> {
-						// The chip shows the command's first chord, so that is the one a capture replaces.
-						val replacing = keymap.chordFor(armed.commandId)
+					is KeybindingCapture.Bind -> {
 						val existingCommandId = keymap.commandFor(captured)
 
 						if (existingCommandId != null && existingCommandId != armed.commandId) {
-							pendingConflict = KeybindingConflict(armed.commandId, replacing, captured, existingCommandId)
+							pendingConflict = KeybindingConflict(armed.commandId, armed.replacing, captured, existingCommandId)
 						} else {
-							bindCapturedChord(settings, armed.commandId, replacing, captured)
+							bindCapturedChord(settings, armed.commandId, armed.replacing, captured)
 						}
 					}
 
@@ -268,16 +266,16 @@ internal fun KeybindingsEditor(folds: PreferencesFolds) {
 						for (rowIndex in visibility.visibleRowIndices) {
 							val row = rows[rowIndex]
 							key(row.commandId) {
-								val chord = keymap.chordFor(row.commandId)
-								KeybindingRow(
+								KeybindingBindRows(
 									title = row.title,
-									chord = chord,
-									capturing = capture == KeybindingCapture.Row(row.commandId),
-									onStartCapture = { arm(KeybindingCapture.Row(row.commandId)) },
-									onClear = {
-										chord?.let { shown -> removeCommandBind(settings, row.commandId, shown) }
+									chords = keymap.chordsFor(row.commandId),
+									armed = (capture as? KeybindingCapture.Bind)?.takeIf { bind -> bind.commandId == row.commandId },
+									onArm = { replacing -> arm(KeybindingCapture.Bind(row.commandId, replacing)) },
+									onRemove = { chord ->
+										removeCommandBind(settings, row.commandId, chord)
 										capture = null
 									},
+									onCancelCapture = { capture = null },
 								)
 							}
 						}
@@ -411,30 +409,142 @@ private fun NoMatchesLine(chordSearch: KeybindingSearch.Chord?, firingCommandId:
 	Text(text = message, style = LocalUmamoTypography.current.bodyMedium, color = LocalUmamoColors.current.textMuted)
 }
 
+/** The box of each button beside a chord chip, and of the empty slot that keeps the chips one width without one. */
+private val BIND_BUTTON_SIZE = 20.dp
+
 /**
- * One command row: the command name in the label column, its chord chip and a clear button in the control column.
+ * A command's rows: one per chord, the first under the command's name and the rest beneath it unlabeled, each with a
+ * remove button, and the add button on the first.  A command with no chord shows one "Unbound" chip, which is the
+ * add itself.  While an add is armed, one more armed chip stands under the last chord until a press fills it; its
+ * remove button, or Escape, cancels it.
  *
- * @param String    title          The command's localized display name.
- * @param KeyChord? chord          The command's first chord, or null when unbound.
- * @param Boolean   capturing      Whether this row is capturing a new chord.
- * @param Function  onStartCapture Begins capture for this row.
- * @param Function  onClear        Removes the shown chord.
+ * @param String title The command's localized display name.
+ * @param List chords The command's chords, in order.
+ * @param KeybindingCapture.Bind? armed The capture armed on one of these rows, or null when none is.
+ * @param Function onArm Arms a capture: the chord it replaces, or null to add one.
+ * @param Function onRemove Removes one of the chords.
+ * @param Function onCancelCapture Ends the armed capture without a chord.
  */
 @Composable
-private fun KeybindingRow(
+private fun KeybindingBindRows(
 	title: String,
+	chords: List<KeyChord>,
+	armed: KeybindingCapture.Bind?,
+	onArm: (KeyChord?) -> Unit,
+	onRemove: (KeyChord) -> Unit,
+	onCancelCapture: () -> Unit,
+) {
+	val adding = armed != null && armed.replacing == null
+
+	if (chords.isEmpty()) {
+		KeybindingBindRow(
+			label = title,
+			chord = null,
+			capturing = adding,
+			onStartCapture = { onArm(null) },
+			removeEnabled = false,
+			onRemove = {},
+			trailing = { AddBindButton(enabled = false, onClick = {}) },
+		)
+	} else {
+		chords.forEachIndexed { chordIndex, chord ->
+			key(chordToSpec(chord)) {
+				KeybindingBindRow(
+					label = if (chordIndex == 0) title else "",
+					chord = chord,
+					capturing = armed?.replacing == chord,
+					onStartCapture = { onArm(chord) },
+					removeEnabled = true,
+					onRemove = { onRemove(chord) },
+					trailing = {
+						if (chordIndex == 0) {
+							AddBindButton(enabled = !adding, onClick = { onArm(null) })
+						} else {
+							Spacer(modifier = Modifier.size(BIND_BUTTON_SIZE))
+						}
+					},
+				)
+			}
+		}
+
+		if (adding) {
+			key(PENDING_BIND_KEY) {
+				KeybindingBindRow(
+					label = "",
+					chord = null,
+					capturing = true,
+					onStartCapture = {},
+					removeEnabled = true,
+					onRemove = onCancelCapture,
+					trailing = { Spacer(modifier = Modifier.size(BIND_BUTTON_SIZE)) },
+				)
+			}
+		}
+	}
+}
+
+/** The key of a command's armed add row, which no chord spec can equal: a spec always names a key. */
+private const val PENDING_BIND_KEY = ""
+
+/**
+ * One chord's row in a command's list: its label column, then the chord chip, the remove button, and the trailing
+ * slot, which is the add button on a command's first row and an empty slot of the same width on the others.
+ *
+ * @param String    label          The command's name on its first row, blank on the rest.
+ * @param KeyChord? chord          The chord the row shows, or null for an empty slot.
+ * @param Boolean   capturing      Whether the row's chip is armed.
+ * @param Function  onStartCapture Arms the row's chip (chip click).
+ * @param Boolean   removeEnabled  Whether the remove button applies.
+ * @param Function  onRemove       Removes the row's chord, or cancels the row's armed add.
+ * @param Function  trailing       The trailing slot's content.
+ */
+@Composable
+private fun KeybindingBindRow(
+	label: String,
 	chord: KeyChord?,
 	capturing: Boolean,
 	onStartCapture: () -> Unit,
-	onClear: () -> Unit,
+	removeEnabled: Boolean,
+	onRemove: () -> Unit,
+	trailing: @Composable () -> Unit,
 ) {
-	PropertyFieldRow(label = title) {
+	PropertyFieldRow(label = label) {
 		Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 			ChordChip(chord = chord, capturing = capturing, onStartCapture = onStartCapture, modifier = Modifier.weight(1f))
 			Spacer(modifier = Modifier.width(4.dp))
-			ClearButton(enabled = chord != null && !capturing, onClick = onClear)
+			IconButton(
+				icon = LocalUmamoIcons.close,
+				onClick = onRemove,
+				contentDescription = stringResource(Res.string.settings_keybindings_remove),
+				size = DpSize(BIND_BUTTON_SIZE, BIND_BUTTON_SIZE),
+				glyphSize = BIND_GLYPH_SIZE,
+				enabled = removeEnabled,
+			)
+			trailing()
 		}
 	}
+}
+
+/** The drawn size of the glyphs on a chord row's buttons, a step under the chip's text height. */
+private val BIND_GLYPH_SIZE = 14.dp
+
+/**
+ * The button on a command's first row that arms one more chord for it.
+ *
+ * @param Boolean  enabled Whether it applies: not while an add is already armed, nor beside an "Unbound" chip, which
+ *   takes the first chord itself.
+ * @param Function onClick Arms the add.
+ */
+@Composable
+private fun AddBindButton(enabled: Boolean, onClick: () -> Unit) {
+	IconButton(
+		icon = LocalUmamoIcons.plus,
+		onClick = onClick,
+		contentDescription = stringResource(Res.string.settings_keybindings_add),
+		size = DpSize(BIND_BUTTON_SIZE, BIND_BUTTON_SIZE),
+		glyphSize = BIND_GLYPH_SIZE,
+		enabled = enabled,
+	)
 }
 
 /**
@@ -495,10 +605,10 @@ private fun rememberChordCaptureSink(
 }
 
 /**
- * The clickable chord chip: shows the current accelerator (or "unbound"), and while capturing reads as armed until
- * the page's key sink ([rememberChordCaptureSink]) takes the next key combination as the command's new chord.
+ * The clickable chord chip: shows its chord (or "unbound"), and while capturing reads as armed until the page's key
+ * sink ([rememberChordCaptureSink]) takes the next key combination as the chord for its place.
  *
- * @param KeyChord? chord          The currently bound chord, or null.
+ * @param KeyChord? chord          The chord the chip shows, or null for an empty slot.
  * @param Boolean   capturing      Whether this chip is capturing.
  * @param Function  onStartCapture Begins capture (chip click).
  * @param Modifier  modifier       Layout modifier for the chip.
@@ -592,43 +702,4 @@ private fun handleCaptureKey(event: KeyEvent, onCaptured: (KeyChord) -> Unit, on
 	)
 
 	return true
-}
-
-/**
- * A small "✕" clear button matching the kit's icon controls; dimmed and inert when there is nothing to
- * clear (the command is already unbound, or the row is mid-capture).
- *
- * @param Boolean  enabled Whether clearing is possible.
- * @param Function onClick Removes the shown chord.
- */
-@Composable
-private fun ClearButton(enabled: Boolean, onClick: () -> Unit) {
-	val colors = LocalUmamoColors.current
-	val typography = LocalUmamoTypography.current
-	val interaction = remember { MutableInteractionSource() }
-	val hovered by interaction.collectIsHoveredAsState()
-	val description = stringResource(Res.string.settings_keybindings_clear)
-	// The label doubles as the hover text, matching the kit's icon controls: the row names the command, not
-	// what the ✕ beside it does.
-	Tooltip(text = description) {
-		Box(
-			modifier =
-				Modifier
-					.size(20.dp)
-					.then(if (enabled) Modifier.clickable(interactionSource = interaction, indication = null, onClick = onClick) else Modifier)
-					.semantics { contentDescription = description },
-			contentAlignment = Alignment.Center,
-		) {
-			Text(
-				text = "✕",
-				style = typography.labelMedium,
-				color =
-					when {
-						!enabled -> colors.textDisabled
-						hovered -> colors.text
-						else -> colors.textMuted
-					},
-			)
-		}
-	}
 }
