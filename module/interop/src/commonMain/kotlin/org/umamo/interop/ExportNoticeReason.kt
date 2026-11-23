@@ -35,11 +35,20 @@ sealed interface ExportNoticeReason {
 	// MOC3 lowering.
 
 	/**
-	 * A channel keyed over a narrower span than its object's grid, written as a constant instead.
+	 * A channel that cannot share its object's grid, written as a constant instead.
 	 *
-	 * @property FormChannel channel The demoted channel.
+	 * @property FormChannel          channel The demoted channel.
+	 * @property ChannelDemotionCause cause   Which side could not refine onto the other's keys.
 	 */
-	data class ChannelDemotedToStatic(val channel: FormChannel) : ExportNoticeReason
+	data class ChannelDemotedToStatic(val channel: FormChannel, val cause: ChannelDemotionCause) : ExportNoticeReason
+
+	/**
+	 * A keyform set that will not bundle into the single grid MOC3 stores per object, so the object was
+	 * written with one static form instead.
+	 *
+	 * @property KeyformBundleRejection rejection Which bundling rule the keyforms broke.
+	 */
+	data class KeyformsDemotedToStatic(val rejection: KeyformBundleRejection) : ExportNoticeReason
 
 	/** A guide-image (sketch) part holds authoring aids, not runtime content. */
 	data object SketchPartIsNotRuntimeContent : ExportNoticeReason

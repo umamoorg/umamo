@@ -165,9 +165,11 @@
 	<!-- エクスポート通知の理由（ExportNoticeReason の各ケースに対応）。形式名は見出しが示すため理由には含めない。
 	     まず両方のエクスポートで共通のもの: -->
 	<string name="export_reason_drawable_has_no_mesh">メッシュのないドローアブルは書き出せません。</string>
-	<!-- MOC3 エクスポート。%1$s はチャンネル名（channel_*）、変換の行の %1$d/%2$d は返された座標数と本来の座標数、
+	<!-- MOC3 エクスポート。%1$s はチャンネル名（channel_*）、キーフォームの行の %1$s は export_bundle_* の文、変換の行の %1$d/%2$d は返された座標数と本来の座標数、
 	     マスクの行の %1$s はマスク元の名前、ID の行の %1$d/%2$s はレコード長（バイト）と実際に書き出した ID。 -->
 	<string name="export_reason_channel_demoted_to_static">%1$s はオブジェクトのグリッドより狭い範囲にしかキーがないため、定数として書き出しました。MOC3 はオブジェクトごとに 1 つのグリッドしか保持できません。</string>
+	<string name="export_reason_channel_demoted_by_geometry">%1$s のキーが形状のキー範囲に収まらないため、定数として書き出しました。MOC3 はオブジェクトごとに 1 つのグリッドしか保持できません。</string>
+	<string name="export_reason_keyforms_demoted_to_static">%1$s オブジェクトはキーフォームなしで書き出しました。MOC3 はオブジェクトごとに 1 つのグリッドしか保持できません。</string>
 	<string name="export_reason_sketch_part_not_runtime_content">下絵（スケッチ）パーツはランタイムの内容ではないため、除外しました。</string>
 	<string name="export_reason_hidden_part_omitted_by_option">非表示のパーツをエクスポートしない設定のため、このパーツの内容を除外しました。</string>
 	<string name="export_reason_hidden_drawable_omitted_by_option">非表示のドローアブルをエクスポートしない設定のため、このドローアブルを除外しました。</string>
@@ -214,7 +216,8 @@
 	<string name="export_reason_keyforms_without_base_mesh">ベースメッシュのないキーフォームは CMO3 にまとめられません。</string>
 	<string name="export_reason_fractional_draw_order">CMO3 の描画順は整数のため、小数の値は書き出されませんでした。</string>
 	<string name="export_reason_static_glue_intensity_without_keyforms">キーフォームのない固定のグルー強度は、CMO3 に保持する場所がありません。</string>
-	<!-- キーフォームを 1 つのグリッドにまとめられない理由。export_reason_keyform_cannot_bundle に埋め込まれる。
+	<!-- キーフォームを 1 つのグリッドにまとめられない理由。export_reason_keyform_cannot_bundle と
+	     export_reason_keyforms_demoted_to_static に埋め込まれる。
 	     %1$s はチャンネル名（channel_*）。 -->
 	<string name="export_bundle_keys_outside_geometry_span">形状のキー範囲外にキーがあるため、1 つのグリッドにまとめられません。</string>
 	<string name="export_bundle_channel_keys_without_geometry">形状を伴わないチャンネルのキーは、1 つのグリッドにまとめられません。</string>

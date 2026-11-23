@@ -27,6 +27,11 @@
 ### 0.8.0 Goals - February
 1.) (Tentative) Brush/Tool Backend Machinery.  See: https://github.com/umamoorg/umamo/pull/376
 2.) Polish UMA.md format document and publish it.
+3.) Automatic File Backup
+4.) Pen Input Work
+
+### 0.9.0 Goals - March
+1.) Android Tablet Work - I expect that this will take up a good portion of time since it needs the build system, render layer, UI adjustments, and pen input work.
 
 ## VERY IMPORTANT
 * Hire translators for localization.
@@ -87,9 +92,6 @@
 	* Mirror along X/Z axis, mirror with 2D cursor as the axis.  Note: This is a small divergence to Blender's style.  In Blender there is an origin for each object that can be moved to different places.  Umamo still has the centroid origin calculated, but no way to move it or even if it was moved, a way to store it.
 	* Extrude(E) - Extrude an edge creates triangle cut quad automatically.
 
-## Progress Bar
-* CMO3 and MOC3 export need to show the progress bar.
-
 ## Texture Authoring/UV Editor
 * Follow Selection Header Control - Split it into options and images.
 	* New custom image selection control.  This will also be an entry point for adding artwork.
@@ -127,12 +129,9 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 * Single/multiple relation pickers.
 	* Improvements
 		* Persist list height.(Stored in UMA format, maybe?)
-		* Deformer pickAt().
-		* Context Menus
 		* Change icon on picker to an eyedropper.
 
 ## Parameters
-* Scrubbing the Number Input on a parameter needs to update the live value.
 * Parameter templates:
 	* Need a way to apply these without having to do a fresh import.
 

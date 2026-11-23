@@ -1,5 +1,6 @@
 package org.umamo.ui.workspace.export
 
+import org.umamo.interop.ChannelDemotionCause
 import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.KeyformBundleRejection
@@ -28,7 +29,9 @@ class ExportNoticeLabelsTest {
 	private val sampleReasons: List<ExportNoticeReason> =
 		listOf(
 			ExportNoticeReason.DrawableHasNoMesh,
-			ExportNoticeReason.ChannelDemotedToStatic(FormChannel.OPACITY),
+			ExportNoticeReason.ChannelDemotedToStatic(FormChannel.OPACITY, ChannelDemotionCause.ChannelCannotRefineOntoUnion),
+			ExportNoticeReason.ChannelDemotedToStatic(FormChannel.OPACITY, ChannelDemotionCause.GeometryCannotRefineOntoChannelKeys),
+			ExportNoticeReason.KeyformsDemotedToStatic(KeyformBundleRejection.KeysOutsideGeometrySpan),
 			ExportNoticeReason.SketchPartIsNotRuntimeContent,
 			ExportNoticeReason.HiddenPartOmittedByExportOption,
 			ExportNoticeReason.HiddenDrawableOmittedByExportOption,
