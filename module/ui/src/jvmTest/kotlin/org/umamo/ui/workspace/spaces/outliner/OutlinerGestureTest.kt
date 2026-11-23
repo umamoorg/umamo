@@ -128,6 +128,36 @@ class OutlinerGestureTest {
 			assertTrue(drawableOf(harness, OutlinerIds.loose).isVisible, "a row outside the subtree is untouched")
 		}
 
+	/** An eye press on a deformer row hides that deformer alone, as one undo step, and selects nothing. */
+	@Test
+	fun anEyePressOnADeformerHidesItAlone() =
+		runComposeUiTest {
+			val harness = mountOutliner()
+			clickAt(slotPoint(harness.text.expand, harness.text.outlinerArmature))
+			val cursorBefore = harness.historyCursor
+
+			clickAt(slotPoint(harness.text.toggleVisibility, OutlinerNames.ROOT_WARP))
+
+			assertFalse(deformerOf(harness, OutlinerIds.rootWarp).isVisible)
+			assertTrue(deformerOf(harness, OutlinerIds.neck).isVisible, "the deformer nested in it keeps its own eye")
+			assertTrue(harness.session.selection.value.isEmpty)
+			assertEquals(cursorBefore + 1, harness.historyCursor)
+		}
+
+	/** With Shift held, a deformer's eye sets it and every deformer nested in it to one value. */
+	@Test
+	fun aShiftEyePressOnADeformerSetsItsNestedDeformers() =
+		runComposeUiTest {
+			val harness = mountOutliner()
+			clickAt(slotPoint(harness.text.expand, harness.text.outlinerArmature))
+
+			shiftClickAt(slotPoint(harness.text.toggleVisibility, OutlinerNames.ROOT_WARP))
+
+			assertFalse(deformerOf(harness, OutlinerIds.rootWarp).isVisible)
+			assertFalse(deformerOf(harness, OutlinerIds.neck).isVisible)
+			assertTrue(drawableOf(harness, OutlinerIds.eye).isVisible, "art is not a deformer's subtree")
+		}
+
 	/** A double click opens the row's inline rename, and Escape abandons it with the name unchanged. */
 	@Test
 	fun aDoubleClickOpensRenameAndEscapeCancels() =
