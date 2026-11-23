@@ -377,11 +377,11 @@ private fun PuppetModel.walkOrgTree(visit: (OrgChild, Boolean) -> Unit) {
 }
 
 /**
- * The deformers that are shown, after cascading the visibility toggles as [visibleDrawableIds] does for art: a
- * deformer is shown only when its own [Deformer.isVisible] is set, every deformer above it in the transform
- * hierarchy is shown, and the part it belongs to is shown with every ancestor part up the tree.  What the
- * viewport draws over a deformer (a warp's lattice) follows it; the deformation itself does not, so the art
- * under a hidden deformer still moves with it.
+ * The deformers that are shown: a deformer is shown when its own [Deformer.isVisible] is set and the part it belongs
+ * to is shown with every ancestor part up the tree (the official editor's rule).  The deformers above it in the
+ * transform hierarchy do not matter, so hiding one leaves the deformers nested in it shown.  What the viewport draws
+ * over a deformer (a warp's lattice) follows it; the deformation itself does not, so the art under a hidden deformer
+ * still draws and moves with it.
  *
  * @return Set<DeformerId> The ids of the shown deformers.
  */
@@ -398,35 +398,21 @@ fun PuppetModel.visibleDeformerIds(): Set<DeformerId> {
 			}
 		}
 	}
-	val shownById = HashMap<DeformerId, Boolean>()
 
 	/**
-	 * Whether [deformer] is shown, memoized: its own toggle, its part's, and its parent deformer's.
+	 * Whether the part a deformer belongs to is shown: a part off the org tree answers its own eye alone.
 	 *
-	 * @param Deformer deformer The deformer.
-	 * @param Int depth How far up the chain the walk is, which bounds a parent cycle.
+	 * @param PartId? partId The deformer's part, or null for none.
 	 * @return Boolean True when shown.
 	 */
-	fun shown(deformer: Deformer, depth: Int): Boolean {
-		shownById[deformer.id]?.let { known -> return known }
+	fun partShown(partId: PartId?): Boolean =
+		when {
+			partId == null -> true
+			partId in reached -> partId in shownParts
+			else -> partById[partId]?.isVisible ?: true
+		}
 
-		val partId = deformer.partId
-		val partShown =
-			when {
-				partId == null -> true
-				partId in reached -> partId in shownParts
-				else -> partById[partId]?.isVisible ?: true
-			}
-		// A depth past the deformer count can only be a parent cycle, which the bake leaves out anyway.
-		val parent = deformer.parent?.let { parentId -> deformerById[parentId] }
-		val parentShown = parent == null || (depth < deformers.size && shown(parent, depth + 1))
-		val result = deformer.isVisible && partShown && parentShown
-		shownById[deformer.id] = result
-
-		return result
-	}
-
-	return deformers.filter { deformer -> shown(deformer, 0) }.mapTo(LinkedHashSet()) { deformer -> deformer.id }
+	return deformers.filter { deformer -> deformer.isVisible && partShown(deformer.partId) }.mapTo(LinkedHashSet()) { deformer -> deformer.id }
 }
 
 /**

@@ -23,6 +23,7 @@ import org.umamo.edit.property.withRuntimeTarget
 import org.umamo.edit.property.withWorldOrigin
 import org.umamo.edit.structure.withDeformerName
 import org.umamo.edit.structure.withDeformerSelectable
+import org.umamo.edit.structure.withDeformerVisibility
 import org.umamo.edit.structure.withDrawableName
 import org.umamo.edit.structure.withDrawableSelectable
 import org.umamo.edit.structure.withDrawableVisibility
@@ -146,7 +147,7 @@ class Cmo3ExportRoundTripTest {
 					.withDrawableSelectable(puppet.drawables.first().id, selectable = false)
 					.let { model ->
 						val deformer = model.deformers.firstOrNull() ?: return@let model
-						model.withDeformerSelectable(deformer.id, selectable = false)
+						model.withDeformerSelectable(deformer.id, selectable = false).withDeformerVisibility(deformer.id, visible = !deformer.isVisible)
 					}
 			}
 		assertLossless(result, "visibility/selectable")
