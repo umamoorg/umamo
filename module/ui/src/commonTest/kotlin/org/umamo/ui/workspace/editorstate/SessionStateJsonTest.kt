@@ -12,6 +12,7 @@ import org.umamo.edit.DEFAULT_PROPORTIONAL_EDIT_STATE
 import org.umamo.edit.DepthSurface
 import org.umamo.edit.EditorMode
 import org.umamo.edit.MeshSelectMode
+import org.umamo.edit.ParameterControl
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalFalloff
@@ -79,6 +80,7 @@ class SessionStateJsonTest {
 				depthSurface = DepthSurface.Cylinder,
 				proportionalEnabled = true,
 				proportionalSettings = ProportionalEditState(ProportionalFalloff.Linear, 64f, connectedOnly = true),
+				parameterControls = mapOf(angleX to ParameterControl.Dial, angleY to ParameterControl.Slider),
 			)
 
 		val reopened = sessionViewStateOf(sessionStateJson(saved, defaultPose, model))
@@ -169,6 +171,43 @@ class SessionStateJsonTest {
 		assertEquals(defaultPose, initialLiveParams(model).values, "a plain open is every default")
 	}
 
+	/** The controls list in the model's parameter order under their wire names, and one whose parameter is gone is not written. */
+	@Test
+	fun theParameterControlsListInModelOrderAndDropAGhost() {
+		val saved = SessionViewState(parameterControls = mapOf(ParameterId("ParamGone") to ParameterControl.Dial, angleY to ParameterControl.Slider, angleX to ParameterControl.Dial))
+
+		val tree = sessionStateJson(saved, defaultPose, model)
+
+		assertEquals(
+			buildJsonArray {
+				add(
+					buildJsonObject {
+						put("parameter", "ParamAngleX")
+						put("control", "dial")
+					},
+				)
+				add(
+					buildJsonObject {
+						put("parameter", "ParamAngleY")
+						put("control", "slider")
+					},
+				)
+			},
+			tree["parameterControls"],
+		)
+		assertEquals(mapOf(angleX to ParameterControl.Dial, angleY to ParameterControl.Slider), sessionViewStateOf(tree)?.parameterControls)
+	}
+
+	/** A saved value outside a repeating axis's range wraps back into it at open, as the evaluator reads it. */
+	@Test
+	fun aSavedPoseWrapsOnARepeatingAxis() {
+		val repeating = model.copy(parameters = model.parameters.map { parameter -> if (parameter.id == angleX) parameter.copy(repeat = true) else parameter })
+
+		val live = initialLiveParams(repeating, mapOf(angleX to 99f))
+
+		assertEquals(-21f, live.values[angleX], "99 is 129 past min on a 60-wide axis, which wraps to 9 past min")
+	}
+
 	/** Every member the wrong shape: nothing throws, and the state is the defaults (UMA §7.1). */
 	@Test
 	fun membersOfTheWrongShapeAreSkipped() {
@@ -201,9 +240,29 @@ class SessionStateJsonTest {
 						put("radius", -4)
 					},
 				)
+				put(
+					"parameterControls",
+					buildJsonArray {
+						add(JsonPrimitive("ParamAngleX"))
+						add(
+							buildJsonObject {
+								put("parameter", 7)
+								put("control", "dial")
+							},
+						)
+						add(
+							buildJsonObject {
+								put("parameter", "ParamAngleX")
+								put("control", "knob")
+							},
+						)
+						add(buildJsonObject { put("parameter", "ParamAngleY") })
+					},
+				)
 			}
 
 		assertEquals(SessionViewState(proportionalSettings = DEFAULT_PROPORTIONAL_EDIT_STATE), sessionViewStateOf(junk))
 		assertEquals(emptyMap(), savedPoseOf(junk))
+		assertEquals(SessionViewState(), sessionViewStateOf(buildJsonObject { put("parameterControls", "all dials") }), "a controls member that is no array reads as none")
 	}
 }

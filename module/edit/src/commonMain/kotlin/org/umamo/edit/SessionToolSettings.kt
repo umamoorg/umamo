@@ -1,11 +1,12 @@
 package org.umamo.edit
 
 import kotlinx.coroutines.flow.StateFlow
+import org.umamo.runtime.model.ParameterId
 
 /**
  * The tool settings a session carries between gestures and a saved document carries between sessions:
- * the 2D and UV cursors, the transform pivot mode, and proportional editing.  Unlike
- * [SessionToolLatches] these survive mode switches and are laid in from [SessionViewState] at open; like
+ * the 2D and UV cursors, the transform pivot mode, proportional editing, and the control each parameter shows.
+ * Unlike [SessionToolLatches] these survive mode switches and are laid in from [SessionViewState] at open; like
  * them they are never snapshotted and never enter the change bus.  [EditorSession] exposes this surface by
  * delegation.
  */
@@ -170,4 +171,21 @@ interface SessionToolSettings {
 	 * @param ProportionalEditState? state The state to set, or null to turn proportional editing off.
 	 */
 	fun setProportionalEdit(state: ProportionalEditState?)
+
+	/**
+	 * The control each parameter, or each linked pair by its horizontal member, was set to show in the Parameters
+	 * panel, over the application's preference (see [ParameterControl]).  A parameter that is absent follows it.  An
+	 * entry outlives its parameter's deletion, so an undo finds it, and a lower member's own entry waits while it is
+	 * linked.  Never snapshotted, so a pick is no undo step and never marks the document dirty; an id that holds an
+	 * entry is therefore never minted for a new parameter, which would take the entry up.
+	 */
+	val parameterControls: StateFlow<Map<ParameterId, ParameterControl>>
+
+	/**
+	 * Sets the control [parameterId] shows, or puts it back on the preference.
+	 *
+	 * @param ParameterId parameterId The parameter, or a pair's horizontal member.
+	 * @param ParameterControl? control The control to show, or null to follow the preference.
+	 */
+	fun setParameterControl(parameterId: ParameterId, control: ParameterControl?)
 }

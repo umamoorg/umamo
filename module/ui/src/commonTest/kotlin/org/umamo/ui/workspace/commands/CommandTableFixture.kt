@@ -24,6 +24,7 @@ import org.umamo.ui.workspace.AreaCameraHub
 import org.umamo.ui.workspace.AreaOverlayHub
 import org.umamo.ui.workspace.AreaToolbarHub
 import org.umamo.ui.workspace.KeyformSheetViews
+import org.umamo.ui.workspace.RelationPickController
 import org.umamo.ui.workspace.ShellOverlayState
 import org.umamo.ui.workspace.ViewportChromeState
 import org.umamo.ui.workspace.area.AreaDragController
@@ -235,6 +236,8 @@ private fun shellCommandTableFunctions(session: EditorSession? = null): List<Lis
 		modeCommands(handles, handles),
 		historyCommands(session, availability, OperationStripState()),
 		objectCommands(session, handles, availability),
+		relationCommands(session, RelationPickController(), routing, availability),
+		parameterCommands(session, availability),
 		transformCommands(session, routing, availability),
 		selectCommands(session, routing, sheets, availability),
 		snapCommands(session, routing, availability, AreaOverlayHub()),

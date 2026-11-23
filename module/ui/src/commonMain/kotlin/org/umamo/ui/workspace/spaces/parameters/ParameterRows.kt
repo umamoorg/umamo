@@ -2,6 +2,8 @@ package org.umamo.ui.workspace.spaces.parameters
 
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.Selection
+import org.umamo.edit.parameter.animatableLinks
+import org.umamo.edit.parameter.animatableParameterIds
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
@@ -74,7 +76,7 @@ internal data class LinkInfo(
  * @return LinkInfo The animatable id set and the link lookups.
  */
 internal fun buildLinkInfo(puppet: PuppetModel): LinkInfo {
-	val animatableIds = puppet.parameters.filter { parameter -> parameter.max > parameter.min }.map { it.id }.toSet()
+	val animatableIds = puppet.animatableParameterIds()
 	val verticalByHorizontal = HashMap<ParameterId, ParameterId>()
 	val verticalMembers = HashSet<ParameterId>()
 	val linkMemberIds = HashSet<ParameterId>()
@@ -82,11 +84,13 @@ internal fun buildLinkInfo(puppet: PuppetModel): LinkInfo {
 	for (link in puppet.parameterLinks) {
 		linkMemberIds.add(link.horizontal)
 		linkMemberIds.add(link.vertical)
+	}
 
-		if (link.horizontal in animatableIds && link.vertical in animatableIds) {
-			verticalByHorizontal[link.horizontal] = link.vertical
-			verticalMembers.add(link.vertical)
-		}
+	// Which parameters and links are animatable is the model's to say, so the commands a row's menu runs ask the
+	// same question.  A pad is what the panel shows an animatable link as.
+	for ((horizontal, vertical) in puppet.animatableLinks(animatableIds)) {
+		verticalByHorizontal[horizontal] = vertical
+		verticalMembers.add(vertical)
 	}
 
 	return LinkInfo(animatableIds, verticalByHorizontal, verticalMembers, linkMemberIds)

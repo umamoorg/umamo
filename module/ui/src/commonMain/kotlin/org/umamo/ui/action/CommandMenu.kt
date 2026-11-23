@@ -38,8 +38,9 @@ sealed interface CommandMenuRow {
 	 *
 	 * @property CommandListing group The family or the section.
 	 * @property Any? argument What every row runs its command with, for a menu opened on one thing among several
-	 *   (a workspace's tab), or null to run each with none.  A row run with an argument shows no accelerator: the
-	 *   chord runs the command with none, which may not be the same thing.
+	 *   (a workspace's tab), or null to name none.  A row run with an argument shows no accelerator: the chord runs
+	 *   the command with none, which may not be the same thing.  It holds against the argument a menu is opened with
+	 *   ([rememberCommandMenuFor]), which aims only the rows that name none.
 	 */
 	data class Members(val group: CommandListing, val argument: Any? = null) : CommandMenuRow
 
@@ -72,8 +73,9 @@ private sealed interface ResolvedRow {
 	 * @property Command command The command the row stands for.
 	 * @property String label The resolved label.
 	 * @property Any? argument What the row runs the command with, or null for none.
+	 * @property Boolean checkList Whether the row sits in a check-list family, and so carries a tick slot.
 	 */
-	data class Of(val command: Command, val label: String, val argument: Any? = null) : ResolvedRow
+	data class Of(val command: Command, val label: String, val argument: Any? = null, val checkList: Boolean = false) : ResolvedRow
 
 	/**
 	 * A family as a submenu.
@@ -120,11 +122,30 @@ internal fun rememberFamilyMenu(family: CommandFamily): () -> List<MenuItem> {
  */
 @Composable
 internal fun rememberCommandMenu(rows: List<CommandMenuRow>): () -> List<MenuItem> {
+	val menu = rememberCommandMenuFor(rows)
+
+	return remember(menu) { { menu(null) } }
+}
+
+/**
+ * An arranged menu, as the builder to call with what the menu is opened on: [rows] resolved once, and every row
+ * that names no argument of its own run with the one handed over.  A list whose items each open the same menu on
+ * themselves resolves it once for all of them this way.
+ *
+ * The composition calling this is subscribed to the registry, as [rememberFamilyMenu]'s is, and the builder is the
+ * same object while the rows resolve the same, so it can be handed down a list without recomposing it.
+ *
+ * @param List<CommandMenuRow> rows The menu's rows.
+ * @return Function The builder: the menu's entries for an argument, or for none, with each row's grayed state as it
+ *   is when called.
+ */
+@Composable
+internal fun rememberCommandMenuFor(rows: List<CommandMenuRow>): (argument: Any?) -> List<MenuItem> {
 	val commands = LocalCommands.current
 	val keymap = LocalKeymap.current
 	val resolved = arrangedRows(rows, commands)
 
-	return remember(resolved, commands, keymap) { { resolved.map { row -> menuItemOf(row, commands, keymap) } } }
+	return remember(resolved, commands, keymap) { { argument -> aimedAt(argument, resolved).map { row -> menuItemOf(row, commands, keymap) } } }
 }
 
 /**
@@ -159,11 +180,7 @@ private fun arrangedRow(row: CommandMenuRow, commands: CommandRegistry): List<Re
 					is CommandSection -> listingRows(group, commands)
 				}
 
-			if (row.argument == null) {
-				members
-			} else {
-				runWith(row.argument, members)
-			}
+			aimedAt(row.argument, members)
 		}
 
 		is CommandMenuRow.Family -> {
@@ -198,20 +215,26 @@ private fun arrangedRow(row: CommandMenuRow, commands: CommandRegistry): List<Re
 	}
 
 /**
- * [rows] with every command row, at any depth, set to run its command with [argument].
+ * [rows] with every command row, at any depth, that names no argument yet set to run its command with [argument].
+ * A row that already names one keeps it: the argument nearest a row is the one it runs with.
  *
- * @param Any argument The argument.
+ * @param Any? argument The argument, or null to leave every row as it is.
  * @param List<ResolvedRow> rows The rows.
- * @return List<ResolvedRow> The rows, each command row carrying the argument.
+ * @return List<ResolvedRow> The rows, each command row carrying an argument where one is named for it.
  */
-private fun runWith(argument: Any, rows: List<ResolvedRow>): List<ResolvedRow> =
-	rows.map { row ->
+private fun aimedAt(argument: Any?, rows: List<ResolvedRow>): List<ResolvedRow> {
+	if (argument == null) {
+		return rows
+	}
+
+	return rows.map { row ->
 		when (row) {
-			is ResolvedRow.Of -> row.copy(argument = argument)
-			is ResolvedRow.Submenu -> row.copy(rows = runWith(argument, row.rows))
+			is ResolvedRow.Of -> if (row.argument == null) row.copy(argument = argument) else row
+			is ResolvedRow.Submenu -> row.copy(rows = aimedAt(argument, row.rows))
 			ResolvedRow.Rule -> row
 		}
 	}
+}
 
 /**
  * [rows] without the rules that separate nothing: one at either end, and all but the first of a run.
@@ -302,9 +325,15 @@ private fun blocksOf(family: CommandFamily): List<List<CommandListing>> {
  */
 @Composable
 private fun listingRows(listing: CommandListing, commands: CommandRegistry): List<ResolvedRow> {
+	// The check-list style is the family's to choose, and a section's rows are its family's.
+	val checkList =
+		when (listing) {
+			is CommandFamily -> listing.checkList
+			is CommandSection -> listing.parent.checkList
+		}
 	val own =
 		commands.membersOf(listing).map { command ->
-			ResolvedRow.Of(command, command.rowLabel?.let { label -> stringResource(label) } ?: command.id)
+			ResolvedRow.Of(command, command.rowLabel?.let { label -> stringResource(label) } ?: command.id, checkList = checkList)
 		}
 	val submenus =
 		CommandFamily.entries.filter { nested -> nested.parent == listing }.mapNotNull { nested ->
@@ -335,7 +364,7 @@ private fun menuItemOf(
 ): MenuItem =
 	when (row) {
 		is ResolvedRow.Of -> {
-			commandMenuItem(row.command, row.label, commands, keymap, row.argument)
+			menuItemFor(row.command, row.label, commands, keymap, row.argument, row.checkList) { dispatch -> dispatch() }
 		}
 
 		is ResolvedRow.Submenu -> {
@@ -357,6 +386,10 @@ private fun menuItemOf(
  * cannot open while the list is empty.  Any other command is one row, with its glyph and whatever chord the keymap
  * binds to it - unless the row runs it with an argument, since the chord runs it with none.
  *
+ * A row built here stands outside any family's menu, so it carries no tick slot whatever state its command reports:
+ * the check-list style is a family's, and reaches a row through that family's menu ([rememberFamilyMenu], or a
+ * family or section named in an arrangement).
+ *
  * @param Command command The command the entry stands for.
  * @param String label The entry's label, already resolved.
  * @param CommandRegistry commands The registry the entry dispatches through.
@@ -374,8 +407,31 @@ internal fun commandMenuItem(
 	keymap: Keymap,
 	argument: Any? = null,
 	around: (dispatch: () -> Unit) -> Unit = { dispatch -> dispatch() },
+): MenuItem = menuItemFor(command, label, commands, keymap, argument, checkList = false, around)
+
+/**
+ * The menu entry for [command], in a check list or out of one.  In a check list the row is a choice row, ticked
+ * while its command is the one in effect for the argument it runs with.
+ *
+ * @param Command command The command the entry stands for.
+ * @param String label The entry's label, already resolved.
+ * @param CommandRegistry commands The registry the entry dispatches through.
+ * @param Keymap keymap The keymap the accelerator is read from.
+ * @param Any? argument What the entry runs the command with, or null for none.
+ * @param Boolean checkList Whether the entry is a row of a check-list family's menu.
+ * @param Function around Runs the dispatch it is handed.
+ * @return MenuItem The entry, grayed when the command does not apply as this is called.
+ */
+private fun menuItemFor(
+	command: Command,
+	label: String,
+	commands: CommandRegistry,
+	keymap: Keymap,
+	argument: Any?,
+	checkList: Boolean,
+	around: (dispatch: () -> Unit) -> Unit,
 ): MenuItem {
-	val available = command.availability.isAvailable()
+	val available = command.isAvailable(argument)
 	val choices = command.choices
 
 	if (choices != null) {
@@ -390,6 +446,7 @@ internal fun commandMenuItem(
 		shortcut = if (argument == null) keymap.chordFor(command.id)?.let { chord -> formatAccelerator(chord) } else null,
 		enabled = available,
 		icon = command.icon,
+		checked = if (checkList) command.isOn(argument) else null,
 	)
 }
 

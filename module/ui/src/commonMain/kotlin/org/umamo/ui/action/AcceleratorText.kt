@@ -71,6 +71,42 @@ internal fun keyGlyph(keyName: String): String =
 			"−"
 		}
 
+		"Comma" -> {
+			","
+		}
+
+		"Period" -> {
+			"."
+		}
+
+		"Semicolon" -> {
+			";"
+		}
+
+		"Quote" -> {
+			"'"
+		}
+
+		"BracketLeft" -> {
+			"["
+		}
+
+		"BracketRight" -> {
+			"]"
+		}
+
+		"Backslash" -> {
+			"\\"
+		}
+
+		"Slash" -> {
+			"/"
+		}
+
+		"Backquote" -> {
+			"`"
+		}
+
 		"PageUp" -> {
 			"Page Up"
 		}

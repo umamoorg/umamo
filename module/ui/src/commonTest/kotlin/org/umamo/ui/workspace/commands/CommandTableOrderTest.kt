@@ -15,6 +15,7 @@ import org.umamo.ui.workspace.AreaOverlayHub
 import org.umamo.ui.workspace.AreaToolbarHub
 import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.KeyformSheetViews
+import org.umamo.ui.workspace.RelationPickController
 import org.umamo.ui.workspace.ShellOverlayState
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.ViewportChromeState
@@ -586,6 +587,22 @@ class CommandTableOrderTest {
 				"keyform.nudgeKeyLeft",
 				"keyform.nudgeKeyRight",
 				"keyform.frameAll",
+			),
+			commands.map { command -> command.id },
+		)
+	}
+
+	/** The relation-menu table. */
+	@Test
+	fun relationTableIsComplete() {
+		val commands = relationCommands(null, RelationPickController(), routing(), SessionAvailability(null))
+		assertEquals(
+			listOf(
+				"relation.select",
+				"relation.clear",
+				"relation.pick",
+				"relation.remove",
+				"relation.copyToSelected",
 			),
 			commands.map { command -> command.id },
 		)

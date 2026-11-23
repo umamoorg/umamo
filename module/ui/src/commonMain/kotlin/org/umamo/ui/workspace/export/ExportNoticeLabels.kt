@@ -3,6 +3,7 @@ package org.umamo.ui.workspace.export
 import androidx.compose.runtime.Composable
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.interop.ChannelDemotionCause
 import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportFormat
 import org.umamo.interop.ExportNotice
@@ -92,9 +93,19 @@ fun exportNoticeReasonPhrase(reason: ExportNoticeReason): ExportNoticePhrase =
 
 		// MOC3 lowering.
 		is ExportNoticeReason.ChannelDemotedToStatic -> {
+			val sentence =
+				when (reason.cause) {
+					ChannelDemotionCause.ChannelCannotRefineOntoUnion -> Res.string.export_reason_channel_demoted_to_static
+					ChannelDemotionCause.GeometryCannotRefineOntoChannelKeys -> Res.string.export_reason_channel_demoted_by_geometry
+				}
+
+			ExportNoticePhrase(sentence, listOf(ExportNoticeArgument.Nested(channelPhrase(reason.channel))))
+		}
+
+		is ExportNoticeReason.KeyformsDemotedToStatic -> {
 			ExportNoticePhrase(
-				Res.string.export_reason_channel_demoted_to_static,
-				listOf(ExportNoticeArgument.Nested(channelPhrase(reason.channel))),
+				Res.string.export_reason_keyforms_demoted_to_static,
+				listOf(ExportNoticeArgument.Nested(keyformBundleRejectionPhrase(reason.rejection))),
 			)
 		}
 

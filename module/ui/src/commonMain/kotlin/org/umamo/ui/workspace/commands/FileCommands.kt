@@ -9,6 +9,7 @@ import org.umamo.ui.action.CommandChoice
 import org.umamo.ui.action.CommandChoices
 import org.umamo.ui.action.CommandSection
 import org.umamo.ui.action.CommandTable
+import org.umamo.ui.action.KeymapCategory
 import org.umamo.ui.document.fileDisplayName
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -70,8 +71,18 @@ internal fun fileCommands(
 ): List<Command> =
 	commandTable(
 		CommandTable.File,
-		Command("file.new", title = Res.string.cmd_file_new, group = CommandSection.FileDocument, groupLabel = Res.string.menu_file_new) { onNew() },
-		Command("file.open", title = Res.string.cmd_file_open, group = CommandSection.FileDocument, groupLabel = Res.string.menu_file_open) { onOpen() },
+		Command(
+			"file.new",
+			title = Res.string.cmd_file_new,
+			group = CommandSection.FileDocument,
+			groupLabel = Res.string.menu_file_new,
+		) { onNew() },
+		Command(
+			"file.open",
+			title = Res.string.cmd_file_open,
+			group = CommandSection.FileDocument,
+			groupLabel = Res.string.menu_file_open,
+		) { onOpen() },
 		// No title, like the other argument-only commands: the palette has nothing to offer without a path.  In
 		// the File menu it is Open Recent, a row per recent file, each handing over its own path.  Anything that
 		// opens a file it was handed belongs on this id, since the way in is what carries the unsaved-changes gate.
@@ -99,11 +110,25 @@ internal fun fileCommands(
 			group = CommandSection.FileDocument,
 			groupLabel = Res.string.menu_file_save_as,
 		) { onSaveAs() },
-		Command("file.importCmo3", title = Res.string.cmd_import_cmo3, group = CommandSection.ImportPuppet, groupLabel = Res.string.menu_import_cmo3) { onImportCmo3() },
+		Command(
+			"file.importCmo3",
+			title = Res.string.cmd_import_cmo3,
+			group = CommandSection.ImportPuppet,
+			groupLabel = Res.string.menu_import_cmo3,
+		) { onImportCmo3() },
 		// MOC3 comes in through its own row rather than one merged "import" filter, keeping the
 		// source-project / baked-runtime distinction visible in the UI.
-		Command("file.importMoc3", title = Res.string.cmd_import_moc3, group = CommandSection.ImportPuppet, groupLabel = Res.string.menu_import_moc3) { onImportMoc3() },
-		Command("file.exit", title = Res.string.menu_exit, group = CommandSection.FileSession) { onExit() },
+		Command(
+			"file.importMoc3",
+			title = Res.string.cmd_import_moc3,
+			group = CommandSection.ImportPuppet,
+			groupLabel = Res.string.menu_import_moc3,
+		) { onImportMoc3() },
+		Command(
+			"file.exit",
+			title = Res.string.menu_exit,
+			group = CommandSection.FileSession,
+		) { onExit() },
 	)
 
 /**
@@ -241,6 +266,7 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 		Command(
 			"file.importArtwork",
 			title = Res.string.cmd_import_artwork,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork()?.canAddArtwork?.invoke() == true },
 			group = CommandSection.ImportArtwork,
 			groupLabel = Res.string.menu_import_artwork,
@@ -249,13 +275,19 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 		Command(
 			"document.reloadArtwork",
 			title = Res.string.cmd_document_reload_artwork,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork()?.canReload?.invoke() == true },
 			icon = LocalUmamoIcons.refresh,
 		) { argument -> artwork()?.reloadArtwork?.invoke(routing.operationStripArea(), argument as? ReloadScope) },
+		// Run only with a request: it pairs particular tiles with a particular layer, which a tile chip, a review row,
+		// or a drop names and a chord cannot.  needsArgument keeps it off the keybindings page and the palette, where
+		// it could only ever do nothing.
 		Command(
 			"sources.relink",
 			title = Res.string.cmd_sources_relink,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
+			needsArgument = true,
 		) { argument ->
 			val request = argument as? RelinkRequest ?: return@Command
 			artwork()?.relinkArtwork?.invoke(request, routing.operationStripArea())
@@ -263,21 +295,31 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 		Command(
 			"sources.matchAutomatically",
 			title = Res.string.cmd_sources_match_automatically,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
 			icon = LocalUmamoIcons.wand,
 		) { artwork()?.matchArtwork?.invoke(routing.operationStripArea()) },
+		// Run only with the file record a Sources row's menu names.  The space keeps no selected or hovered row for a
+		// chord to act on, so needsArgument keeps it off the keybindings page and the palette, where it could only ever
+		// do nothing.
 		Command(
 			"sources.replaceArtwork",
 			title = Res.string.cmd_sources_replace_artwork,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
+			needsArgument = true,
 		) { argument ->
 			val request = argument as? ReplaceRequest ?: return@Command
 			artwork()?.replaceArtwork?.invoke(request, routing.operationStripArea())
 		},
+		// Run only with the tile a Sources row names, for the same reason as Replace Artwork: no selected or hovered
+		// row gives a chord a tile to act on.
 		Command(
 			"sources.deleteArt",
 			title = Res.string.cmd_sources_delete_art,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
+			needsArgument = true,
 		) { argument ->
 			val request = argument as? DeleteArtRequest ?: return@Command
 			artwork()?.deleteArt?.invoke(request)

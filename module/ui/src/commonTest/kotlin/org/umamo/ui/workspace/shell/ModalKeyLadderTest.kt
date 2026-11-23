@@ -32,6 +32,7 @@ import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.KeyChord
 import org.umamo.ui.action.Keymap
+import org.umamo.ui.action.keyName
 import org.umamo.ui.document.DocumentOpenError
 import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.kit.field.ScrubCancelController
@@ -1053,6 +1054,54 @@ class ModalKeyLadderTest {
 	}
 
 	@Test
+	fun anyBindableKeyEndsAnArmedRelationPickWithoutRunningItsCommand() {
+		// A shortcut run under the pick starts beneath its hidden cursor and badge: a grab, a mode switch, an undo.
+		val strokes =
+			listOf(
+				ShellKeyStroke(Key.G, isDown = true),
+				ShellKeyStroke(Key.Tab, isDown = true),
+				ShellKeyStroke(Key.Z, isDown = true, primaryModifier = true),
+				ShellKeyStroke(Key.Enter, isDown = true),
+			)
+
+		strokes.forEach { stroke ->
+			val relationPick = RelationPickController()
+			relationPick.arm(accepts = emptySet()) {}
+			val registry = RecordingRegistry("bound.command")
+			val chord = KeyChord(assertNotNull(keyName(stroke.key), "fixture: ${stroke.key} must be bindable"), primaryModifier = stroke.primaryModifier)
+			val state = ShellModalState(relationPick = relationPick, commandRegistry = registry.registry, keymap = Keymap(mapOf(chord to "bound.command")))
+
+			assertTrue(handleModalKeyLadder(stroke, state), "${stroke.key} is swallowed")
+
+			assertNull(relationPick.request, "${stroke.key} ends the pick")
+			assertFalse(registry.invoked, "${stroke.key} does not also run its binding")
+		}
+	}
+
+	@Test
+	fun aModifierAloneLeavesAnArmedRelationPickArmed() {
+		// Alt+click reaches a stack of targets, so holding Alt must not end the pick it is for.
+		listOf(Key.AltLeft, Key.ShiftLeft, Key.CtrlLeft, Key.MetaLeft).forEach { key ->
+			val relationPick = RelationPickController()
+			relationPick.arm(accepts = emptySet()) {}
+
+			press(key, ShellModalState(relationPick = relationPick), alt = key == Key.AltLeft)
+
+			assertNotNull(relationPick.request, "$key alone keeps the pick armed")
+		}
+	}
+
+	@Test
+	fun aKeyUpLeavesAnArmedRelationPickArmed() {
+		val relationPick = RelationPickController()
+		relationPick.arm(accepts = emptySet()) {}
+
+		press(Key.G, ShellModalState(relationPick = relationPick), isDown = false)
+
+		assertNotNull(relationPick.request, "only a press ends the pick")
+	}
+
+	@Test
 	fun anArmedZoomRegionTakesEscape() {
 		val session = session(EditorMode.Object)
 		session.armZoomRegion(areaId)
@@ -1118,7 +1167,7 @@ class ModalKeyLadderTest {
 	@Test
 	fun anInFlightDividerDragTakesEscapeWithoutClearingTheSelection() {
 		// A divider drag keeps its session inside the dragged SplitContainer and never touches
-		// AreaDragController, so isDragging stays false and the corner-drag gates below do not cover it.
+		// AreaDragController, so isDragging stays false and the corner-drag arm below does not cover it.
 		// Before this arm existed, Escape while resizing a panel fell all the way through and wiped the
 		// object selection.
 		val splitterDragCancel = SplitterDragCancelController()
@@ -1330,28 +1379,25 @@ class ModalKeyLadderTest {
 	}
 
 	@Test
-	fun anAreaDragDefersEscapeToTheDragCancelCommand() {
-		// The three lowest arms all gate off !isDragging so an in-flight area CORNER drag reaches
-		// area.dragCancel through the keymap; without that gate it would clear the selection instead of
-		// cancelling.  Note this covers the corner drag ONLY - a divider (splitter) drag keeps its session
-		// in SplitContainer's own state, never sets isDragging, and so has no Escape cancel at all.
-		val session = session(EditorMode.Object)
-		val selection = nonEmptySelection()
-		val registry = RecordingRegistry("area.dragCancel")
-		val keymap = Keymap(mapOf(KeyChord("Escape") to "area.dragCancel"))
-		val state =
-			ShellModalState(
-				editorSession = session,
-				selection = selection,
-				dragController = draggingController(),
-				commandRegistry = registry.registry,
-				keymap = keymap,
-			)
+	fun anAreaDragTakesEscapeThroughTheDragCancelCommand() {
+		// The ladder owns an in-flight area CORNER drag's Escape itself, ahead of the viewport arms, so no chord
+		// is needed: with an empty keymap Escape still cancels the drag, in Object mode without clearing the
+		// selection and in Edit mode without standing in for a box drag's cancel.
+		for (mode in listOf(EditorMode.Object, EditorMode.Edit)) {
+			val selection = nonEmptySelection()
+			val registry = RecordingRegistry("area.dragCancel")
+			val state =
+				ShellModalState(
+					editorSession = session(mode),
+					selection = selection,
+					dragController = draggingController(),
+					commandRegistry = registry.registry,
+				)
 
-		assertTrue(escape(state))
-
-		assertTrue(registry.invoked, "Escape reached area.dragCancel")
-		assertFalse(selection.selection.isEmpty, "and did not clear the selection on the way")
+			assertTrue(escape(state), "Escape is taken in $mode")
+			assertTrue(registry.invoked, "Escape reached area.dragCancel in $mode")
+			assertFalse(selection.selection.isEmpty, "and did not clear the selection on the way in $mode")
+		}
 	}
 
 	@Test

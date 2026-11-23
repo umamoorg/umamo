@@ -1,6 +1,7 @@
 package org.umamo.edit.parameter
 
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ParameterControl
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
@@ -128,6 +129,46 @@ class ParameterCrudEditsTest {
 		val blend = session.model.value.parameters.first { it.id == blendId }
 		assertEquals(ParameterKind.BLEND_SHAPE, blend.kind, "BLEND_SHAPE is carried through to the model")
 		assertTrue(session.model.value.drawables.all { it.blendShapes.isEmpty() }, "a fresh blend parameter keys nothing yet")
+	}
+
+	/**
+	 * A control pick belongs to the parameter it was made on: it waits out that parameter's deletion, so an undo finds
+	 * it, and an id that still holds one is never minted again, so no new parameter takes the pick up by any path
+	 * through the history.
+	 */
+	@Test
+	fun anIdThatHoldsAControlPickIsNeverMintedAgain() {
+		val session = EditorSession(model(listOf(parameter(angleX))))
+		val first = session.createParameter("First")
+		session.setParameterControl(first, ParameterControl.Dial)
+		session.deleteParameter(first)
+
+		val second = session.createParameter("Second")
+
+		assertEquals(ParameterId("Param2"), second, "the id that holds the deleted parameter's pick is passed over")
+		assertNull(session.parameterControls.value[second], "the new parameter follows the preference")
+
+		session.undo()
+		session.undo()
+		assertTrue(session.model.value.parameters.any { it.id == first }, "the delete is undone")
+		assertEquals(ParameterControl.Dial, session.parameterControls.value[first], "and finds its pick")
+
+		session.redo()
+		session.redo()
+		assertTrue(session.model.value.parameters.any { it.id == second }, "the create is redone")
+		assertNull(session.parameterControls.value[second], "and takes no pick with it")
+	}
+
+	/** An id whose parameter left no pick behind is free to mint again, so ids do not climb for nothing. */
+	@Test
+	fun anIdThatHoldsNoPickIsMintedAgain() {
+		val session = EditorSession(model(listOf(parameter(angleX))))
+		val first = session.createParameter("First")
+		session.setParameterControl(first, ParameterControl.Dial)
+		session.setParameterControl(first, null)
+		session.deleteParameter(first)
+
+		assertEquals(first, session.createParameter("Second"))
 	}
 
 	/** The minted parameter id skips ids already present. */

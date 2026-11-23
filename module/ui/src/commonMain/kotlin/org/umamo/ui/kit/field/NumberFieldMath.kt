@@ -1,6 +1,8 @@
 package org.umamo.ui.kit.field
 
 import kotlin.math.abs
+import kotlin.math.floor
+import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.round
 
@@ -17,8 +19,8 @@ import kotlin.math.round
  */
 const val NUMBER_FIELD_STORAGE_DECIMALS = 6
 
-/** Pixels of horizontal drag per one [step] increment while scrubbing (the pointer-scrub sensitivity). */
-const val NUMBER_FIELD_SCRUB_PIXELS_PER_STEP = 6f
+/** Absorbs the rounding in a decade or mantissa computed through a logarithm, so 0.1 counts as 1 × 10⁻¹ and not 9.99 × 10⁻². */
+private const val STEP_FOR_SPAN_EPSILON = 1e-9
 
 /**
  * The number a decimal field's typed entry means, or null for an entry that is no number - "NaN" and "Infinity"
@@ -95,18 +97,70 @@ fun formatDecimals(value: Float, decimals: Int): String {
 }
 
 /**
- * Maps a horizontal drag onto a new value: [startValue] plus one [step] per
- * [NUMBER_FIELD_SCRUB_PIXELS_PER_STEP] pixels of [deltaPx], clamped to [range].  Rightward drag
- * increases, leftward decreases (screen-x convention).
+ * How far a scrub moves the value per pixel of horizontal drag.  A field given a [travelPx] crosses its whole range over
+ * that travel, so every range takes the same hand motion end to end; a field without one, or whose range is not a
+ * finite span, moves one [step] per [notchPx].
+ *
+ * @param ClosedFloatingPointRange range The field's range.
+ * @param Float step The value increment per scrub notch.
+ * @param Float notchPx The drag, in pixels, of one notch.
+ * @param Float? travelPx The drag, in pixels, that crosses the whole range, or null to scrub by the notch.
+ * @return Float The value change per pixel of drag.
+ */
+fun scrubValuePerPixel(range: ClosedFloatingPointRange<Float>, step: Float, notchPx: Float, travelPx: Float?): Float {
+	val span = range.endInclusive - range.start
+	val finiteSpan = range.start.isFinite() && range.endInclusive.isFinite() && span > 0f
+
+	if (travelPx != null && travelPx > 0f && finiteSpan) {
+		return span / travelPx
+	}
+
+	return step / notchPx
+}
+
+/**
+ * Maps a horizontal drag onto a new value: [startValue] plus [deltaPx] at [valuePerPixel], brought into [range].
+ * Rightward drag increases, leftward decreases (screen-x convention).
  *
  * @param Float startValue The value at the gesture's start.
  * @param Float deltaPx The total horizontal drag distance from the start, in pixels.
- * @param Float step The value increment per scrub notch.
- * @param ClosedFloatingPointRange range The clamp range.
+ * @param Float valuePerPixel The value change per pixel of drag, from [scrubValuePerPixel].
+ * @param ClosedFloatingPointRange range The field's range.
+ * @param Function bringIntoRange How a value past [range] comes back into it; clamps to the nearer end by default.
  * @return Float The scrubbed value.
  */
-fun scrubValue(startValue: Float, deltaPx: Float, step: Float, range: ClosedFloatingPointRange<Float>): Float {
-	val raw = startValue + (deltaPx / NUMBER_FIELD_SCRUB_PIXELS_PER_STEP) * step
+fun scrubValue(
+	startValue: Float,
+	deltaPx: Float,
+	valuePerPixel: Float,
+	range: ClosedFloatingPointRange<Float>,
+	bringIntoRange: (Float) -> Float = { raw -> raw.coerceIn(range.start, range.endInclusive) },
+): Float = bringIntoRange(startValue + deltaPx * valuePerPixel)
 
-	return raw.coerceIn(range.start, range.endInclusive)
+/**
+ * A chevron step sized to a range: a tenth of [span], rounded down to 1, 2, or 5 times a power of ten, so a press moves
+ * a readable amount on any range.  Never less than one place of [decimals], which is the least a commit keeps.
+ *
+ * @param Float span The width of the field's range.
+ * @param Int decimals The fractional places the field keeps.
+ * @return Float The step.
+ */
+fun numberFieldStepForSpan(span: Float, decimals: Int): Float {
+	val smallest = 10.0.pow(-decimals.coerceIn(0, NUMBER_FIELD_STORAGE_DECIMALS))
+	val tenth = span.toDouble() / 10.0
+
+	if (!tenth.isFinite() || tenth <= smallest) {
+		return smallest.toFloat()
+	}
+
+	val decade = 10.0.pow(floor(log10(tenth) + STEP_FOR_SPAN_EPSILON))
+	val mantissa = tenth / decade
+	val leading =
+		when {
+			mantissa >= 5.0 - STEP_FOR_SPAN_EPSILON -> 5.0
+			mantissa >= 2.0 - STEP_FOR_SPAN_EPSILON -> 2.0
+			else -> 1.0
+		}
+
+	return maxOf(leading * decade, smallest).toFloat()
 }

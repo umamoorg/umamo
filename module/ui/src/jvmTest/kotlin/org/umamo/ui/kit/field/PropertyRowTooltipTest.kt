@@ -11,18 +11,21 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.isPopup
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
+import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.UmamoTheme
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * The kit property rows' description under real pointer input: it shows over a field row's label, never
- * over its control, over a checkbox row's box, and a blank one shows nothing.
+ * over its control, over a checkbox row's box (never its heading), and a blank one shows nothing.
  *
  * The control half is the case worth pinning.  A tooltip wrapping the whole row compiles, looks right on a
  * plain row, and stacks a second card over every relation and color field's own button tooltips, because
@@ -66,6 +69,39 @@ class PropertyRowTooltipTest {
 				PropertyCheckboxRow(checked = false, onCheckedChange = {}, label = LABEL, description = DESCRIPTION)
 			}
 			hoverAt(this, CONTROL_HALF)
+			onNodeWithText(DESCRIPTION, useUnmergedTree = true).assertExists()
+		}
+
+	/**
+	 * A checkbox row's heading takes the label half, right-aligned against the control half as a field row's label
+	 * is, and carries no tooltip of its own: the description stays on the box.
+	 */
+	@Test
+	fun aCheckboxRowsHeadingSitsInTheLabelHalf() =
+		runComposeUiTest {
+			mount(this) {
+				PropertyCheckboxRow(checked = false, onCheckedChange = {}, label = LABEL, description = DESCRIPTION, heading = HEADING)
+			}
+			val heading = onNodeWithText(HEADING, useUnmergedTree = true).getUnclippedBoundsInRoot()
+			assertEquals(LABEL_HALF_END, heading.right, "the heading ends where a field row's label does")
+			hoverAt(this, LABEL_HALF)
+			onAllNodes(isPopup()).assertCountEquals(0)
+			hoverAt(this, CONTROL_HALF)
+			onNodeWithText(DESCRIPTION, useUnmergedTree = true).assertExists()
+		}
+
+	/** A field row's icon leads its label without moving it off the half's end or taking the tooltip away. */
+	@Test
+	fun aFieldRowsIconKeepsItsLabelAndTooltip() =
+		runComposeUiTest {
+			mount(this) {
+				PropertyFieldRow(LABEL, description = DESCRIPTION, icon = LocalUmamoIcons.language) {
+					Box(modifier = Modifier.fillMaxWidth().height(20.dp))
+				}
+			}
+			val label = onNodeWithText(LABEL, useUnmergedTree = true).getUnclippedBoundsInRoot()
+			assertEquals(LABEL_HALF_END, label.right, "the label stays right-aligned in its half")
+			hoverAt(this, LABEL_HALF)
 			onNodeWithText(DESCRIPTION, useUnmergedTree = true).assertExists()
 		}
 
@@ -117,6 +153,10 @@ class PropertyRowTooltipTest {
 		const val ROW_TAG = "row"
 		const val LABEL = "Opacity"
 		const val DESCRIPTION = "How opaque the mesh draws."
+		const val HEADING = "Display"
+
+		/** Where a label half's text ends in the 400 dp row: the 200 dp half less its 8 dp gap to the control. */
+		val LABEL_HALF_END = 192.dp
 
 		/** A point in the label half of a field row. */
 		const val LABEL_HALF = 0.25f

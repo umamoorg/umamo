@@ -26,7 +26,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalFocusManager
@@ -36,10 +35,13 @@ import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.menu.TextEditContextMenuArea
 import org.umamo.ui.kit.textentry.LocalInlineEditController
+import org.umamo.ui.kit.textentry.TextEntryControl
 import org.umamo.ui.kit.textentry.textEntrySurface
 import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.theme.drawIcon
 
 /**
  * A compact checkbox row: a small box (accent-filled with a checkmark when on, neutral when off) plus a
@@ -71,7 +73,6 @@ fun Checkbox(
 	// The keyed tint replaces the box's ordinary border, the way HexColorField does it - a checkbox is
 	// small enough that a second mark beside it would be the louder signal, not the quieter one.
 	val boxBorder = keyState.tint(colors) ?: colors.controlBorder
-	val checkColor = colors.accentText
 	val labelColor = if (enabled) colors.text else colors.textDisabled
 	Row(
 		modifier =
@@ -96,17 +97,16 @@ fun Checkbox(
 			drawRoundRect(color = boxBorder, cornerRadius = radius, style = Stroke(1.dp.toPx()))
 
 			if (checked) {
-				val tick = Path()
-				tick.moveTo(size.width * 0.22f, size.height * 0.52f)
-				tick.lineTo(size.width * 0.42f, size.height * 0.72f)
-				tick.lineTo(size.width * 0.78f, size.height * 0.28f)
-				drawPath(tick, color = checkColor, style = Stroke(1.6.dp.toPx()))
+				drawIcon(LocalUmamoIcons.checkmark, colors.accentText)
 			}
 		}
 		Spacer(modifier = Modifier.width(6.dp))
 		Text(text = label, style = LocalUmamoTypography.current.labelMedium, color = labelColor)
 	}
 }
+
+/** The inset between a [TextField]'s border and its text or trailing control, left and right. */
+internal val TEXT_FIELD_HORIZONTAL_PADDING = 6.dp
 
 /**
  * A compact bordered single-line text field wrapping Foundation's [BasicTextField].  Like [NumberField], it
@@ -172,7 +172,7 @@ fun TextField(
 					.clip(shapes.small)
 					.background(colors.controlBackground)
 					.border(1.dp, colors.controlBorder, shapes.small)
-					.padding(horizontal = 6.dp, vertical = 4.dp)
+					.padding(horizontal = TEXT_FIELD_HORIZONTAL_PADDING, vertical = 4.dp)
 					.onFocusChanged { focusState ->
 						// hasFocus (not isFocused): BasicTextField focuses an internal child, so this node only
 						// ever sees its subtree's focus.
@@ -202,7 +202,10 @@ fun TextField(
 
 					if (trailing != null) {
 						Spacer(modifier = Modifier.width(4.dp))
-						trailing()
+						// Show the pointer for trailing icons.
+						TextEntryControl(controller) {
+							trailing()
+						}
 					}
 				}
 			},

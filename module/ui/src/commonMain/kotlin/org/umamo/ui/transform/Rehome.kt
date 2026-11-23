@@ -44,14 +44,53 @@ import org.umamo.storage.UmamoLog
  * @param String?     areaId           The area the strip should show in, or null for nowhere.
  */
 internal fun EditorSession.setDrawableParentKeepingRest(id: DrawableId, parentDeformerId: DeformerId?, areaId: String? = null) {
-	val drawable = model.value.drawables.firstOrNull { candidate -> candidate.id == id }
+	setDrawablesParentKeepingRest(listOf(id), parentDeformerId, DrawableChange.SetParentDeformer(id, parentDeformerId), areaId)
+}
 
-	if (drawable == null || drawable.parentDeformerId == parentDeformerId) {
+/**
+ * Binds every drawable of [ids] to [parentDeformerId] (null unbinds) as one undo step, [change], keeping each where it
+ * rests - keyed motion included - and registers the binding on the operation strip in [areaId] with Keep in Place.
+ * A drawable already bound there is left out; when every one is, nothing is recorded.
+ *
+ * @param List<DrawableId> ids The drawables to rebind.
+ * @param DeformerId? parentDeformerId The deformer that deforms them, or null to unbind.
+ * @param Change change The edit descriptor.
+ * @param String? areaId The area the strip should show in, or null for nowhere.
+ */
+internal fun EditorSession.setDrawablesParentKeepingRest(ids: List<DrawableId>, parentDeformerId: DeformerId?, change: Change, areaId: String? = null) {
+	val current = model.value
+	val moving = ids.filter { id -> current.drawables.firstOrNull { candidate -> candidate.id == id }?.let { drawable -> drawable.parentDeformerId != parentDeformerId } == true }
+
+	if (moving.isEmpty()) {
 		return
 	}
 
-	rehomeAdjustable(DrawableChange.SetParentDeformer(id, parentDeformerId), RehomedChildren(drawables = listOf(id)), areaId) { current ->
-		current.withDrawableParentDeformer(id, parentDeformerId, localPositions = null)
+	rehomeAdjustable(change, RehomedChildren(drawables = moving), areaId) { base ->
+		moving.fold(base) { bound, id -> bound.withDrawableParentDeformer(id, parentDeformerId, localPositions = null) }
+	}
+}
+
+/**
+ * Re-nests every deformer of [ids] under [newParentId] (null for the root), each appended among its new siblings, as
+ * one undo step, [change], keeping each where it rests along with everything under it, and registers on the operation
+ * strip in [areaId] with Keep in Place.  A deformer already under it is left out, and a move into its own subtree is
+ * refused; when nothing moves, nothing is recorded.
+ *
+ * @param List<DeformerId> ids The deformers to move.
+ * @param DeformerId? newParentId Their new parent, or null for the root.
+ * @param Change change The edit descriptor.
+ * @param String? areaId The area the strip should show in, or null for nowhere.
+ */
+internal fun EditorSession.moveDeformersKeepingRest(ids: List<DeformerId>, newParentId: DeformerId?, change: Change, areaId: String? = null) {
+	val current = model.value
+	val moving = ids.filter { id -> current.deformerById[id]?.let { deformer -> deformer.parent != newParentId } == true }
+
+	if (moving.isEmpty()) {
+		return
+	}
+
+	rehomeAdjustable(change, RehomedChildren(deformers = moving), areaId) { base ->
+		moving.fold(base) { moved, id -> moved.withDeformerMoved(id, newParentId, null) }
 	}
 }
 

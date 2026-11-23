@@ -20,7 +20,7 @@ import org.umamo.runtime.model.MeshDeltaForm
  * @param Moc3ExportContext context    The export's derived state.
  * @param Moc3KeyformPool   pool       Interned into: every art mesh claims a binding index here.
  * @param Moc3ExportIds     ids        Claimed from: each drawable's written id.
- * @param Moc3ExportNotices noticeSink Appended to: demotions, unbound atlas pages, and unresolvable masks.
+ * @param Moc3ExportNotices noticeSink Appended to: keyform losses, unbound atlas pages, and unresolvable masks.
  * @return List<ArtMesh> The records, in plan order.
  */
 internal fun lowerArtMeshes(
@@ -40,6 +40,9 @@ internal fun lowerArtMeshes(
 		val keyforms =
 			lowerObjectKeyforms(
 				pool,
+				noticeSink,
+				ExportEntityCategory.Drawable,
+				drawable.id.raw,
 				drawable.geometryGrid,
 				MeshDeltaInterpolator,
 				drawable.channelGrids.onlyChannels(
@@ -49,7 +52,6 @@ internal fun lowerArtMeshes(
 					mapOf(FormChannel.DRAW_ORDER to ChannelValue.Scalar(drawable.drawOrder)),
 				requireGeometry = false,
 			)
-		noticeSink.reportDemotions(ExportEntityCategory.Drawable, drawable.id.raw, keyforms)
 		val bundle = keyforms?.bundle
 		val cellCount = maxOf(bundle?.cells?.size ?: 0, 1)
 		// MOC3 §5.7 s79 ARTMESH_INDEX_DATA: each index is a u16, written as its 16-bit pattern; the

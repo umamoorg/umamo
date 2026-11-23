@@ -1,21 +1,12 @@
 package org.umamo.ui.settings
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.interop.art.ArtworkAnchor
@@ -23,10 +14,11 @@ import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.reimport.WatchMode
 import org.umamo.ui.app.CHECK_FOR_UPDATES_KEY
 import org.umamo.ui.kit.Text
-import org.umamo.ui.kit.VerticalScrollbarOverlay
-import org.umamo.ui.kit.field.Checkbox
+import org.umamo.ui.kit.field.FieldStack
 import org.umamo.ui.kit.field.HexColorField
 import org.umamo.ui.kit.field.NumberField
+import org.umamo.ui.kit.field.PropertyCheckboxRow
+import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.kit.field.SelectField
 import org.umamo.ui.l10n.FALLBACK_LOCALE_TAG
 import org.umamo.ui.l10n.LOCALE_SETTINGS_KEY
@@ -39,55 +31,87 @@ import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.mesh_preset_coarse
 import org.umamo.ui.resources.mesh_preset_fine
 import org.umamo.ui.resources.mesh_preset_standard
-import org.umamo.ui.resources.settings_check_for_updates
+import org.umamo.ui.resources.settings_check_for_updates_at_startup
+import org.umamo.ui.resources.settings_check_for_updates_at_startup_description
+import org.umamo.ui.resources.settings_check_for_updates_heading
 import org.umamo.ui.resources.settings_colors_active_selection_highlight
-import org.umamo.ui.resources.settings_colors_deformers
-import org.umamo.ui.resources.settings_colors_group_edge
-import org.umamo.ui.resources.settings_colors_group_face
-import org.umamo.ui.resources.settings_colors_group_lattice
-import org.umamo.ui.resources.settings_colors_group_vertex
-import org.umamo.ui.resources.settings_colors_mesh_edit
+import org.umamo.ui.resources.settings_colors_active_selection_highlight_description
 import org.umamo.ui.resources.settings_colors_pinned_placement
+import org.umamo.ui.resources.settings_colors_pinned_placement_description
 import org.umamo.ui.resources.settings_colors_role_active
+import org.umamo.ui.resources.settings_colors_role_active_description
 import org.umamo.ui.resources.settings_colors_role_hovered
+import org.umamo.ui.resources.settings_colors_role_hovered_description
 import org.umamo.ui.resources.settings_colors_role_idle
-import org.umamo.ui.resources.settings_colors_role_offkey
+import org.umamo.ui.resources.settings_colors_role_idle_description
 import org.umamo.ui.resources.settings_colors_role_selected
+import org.umamo.ui.resources.settings_colors_role_selected_description
 import org.umamo.ui.resources.settings_colors_role_unkeyed
+import org.umamo.ui.resources.settings_colors_role_unkeyed_description
 import org.umamo.ui.resources.settings_colors_selection_highlight
-import org.umamo.ui.resources.settings_colors_viewport
+import org.umamo.ui.resources.settings_colors_selection_highlight_description
 import org.umamo.ui.resources.settings_colors_warning
+import org.umamo.ui.resources.settings_colors_warning_description
 import org.umamo.ui.resources.settings_import_alignment
+import org.umamo.ui.resources.settings_import_alignment_description
+import org.umamo.ui.resources.settings_import_also_ignore_layer
+import org.umamo.ui.resources.settings_import_also_ignore_layer_description
 import org.umamo.ui.resources.settings_import_birth_mesh
 import org.umamo.ui.resources.settings_import_birth_mesh_automatic
+import org.umamo.ui.resources.settings_import_birth_mesh_description
 import org.umamo.ui.resources.settings_import_birth_mesh_quad
-import org.umamo.ui.resources.settings_import_delete_art_ignores_layer
-import org.umamo.ui.resources.settings_import_layer_positions_from_world_axes
+import org.umamo.ui.resources.settings_import_deleting_art
+import org.umamo.ui.resources.settings_import_from_world_axes
+import org.umamo.ui.resources.settings_import_from_world_axes_description
+import org.umamo.ui.resources.settings_import_layer_positions
 import org.umamo.ui.resources.settings_import_mesh_preset
+import org.umamo.ui.resources.settings_import_mesh_preset_description
 import org.umamo.ui.resources.settings_import_parameter_template
+import org.umamo.ui.resources.settings_import_parameter_template_description
 import org.umamo.ui.resources.settings_import_parameter_template_humanoid
 import org.umamo.ui.resources.settings_import_parameter_template_none
 import org.umamo.ui.resources.settings_import_watch_mode
 import org.umamo.ui.resources.settings_import_watch_mode_auto
+import org.umamo.ui.resources.settings_import_watch_mode_description
 import org.umamo.ui.resources.settings_import_watch_mode_notify
 import org.umamo.ui.resources.settings_import_watch_mode_off
 import org.umamo.ui.resources.settings_interface_history_steps
+import org.umamo.ui.resources.settings_interface_history_steps_description
 import org.umamo.ui.resources.settings_interface_language
+import org.umamo.ui.resources.settings_interface_language_description
+import org.umamo.ui.resources.settings_interface_repeat_control
+import org.umamo.ui.resources.settings_interface_repeat_control_description
 import org.umamo.ui.resources.settings_interface_theme
+import org.umamo.ui.resources.settings_interface_theme_description
 import org.umamo.ui.resources.settings_pen_coming_soon
+import org.umamo.ui.resources.settings_repeat_control_dial
+import org.umamo.ui.resources.settings_repeat_control_slider
 import org.umamo.ui.resources.settings_theme_dark
 import org.umamo.ui.resources.settings_theme_light
 import org.umamo.ui.resources.settings_theme_system
+import org.umamo.ui.resources.settings_viewport_default_sidebar
+import org.umamo.ui.resources.settings_viewport_default_sidebar_description
+import org.umamo.ui.resources.settings_viewport_default_toolbar
+import org.umamo.ui.resources.settings_viewport_default_toolbar_description
 import org.umamo.ui.resources.settings_viewport_grid_scale
+import org.umamo.ui.resources.settings_viewport_grid_scale_description
 import org.umamo.ui.resources.settings_viewport_grid_subdivisions
-import org.umamo.ui.resources.settings_viewport_show_sidebar
-import org.umamo.ui.resources.settings_viewport_show_toolbar
-import org.umamo.ui.resources.settings_viewport_supersample
-import org.umamo.ui.resources.settings_viewport_supersample_while_resizing
+import org.umamo.ui.resources.settings_viewport_grid_subdivisions_description
+import org.umamo.ui.resources.settings_viewport_show_by_default
+import org.umamo.ui.resources.settings_viewport_supersample_heading
+import org.umamo.ui.resources.settings_viewport_supersample_keep_while_resizing
+import org.umamo.ui.resources.settings_viewport_supersample_keep_while_resizing_description
+import org.umamo.ui.resources.settings_viewport_supersample_quality
+import org.umamo.ui.resources.settings_viewport_supersample_quality_description
 import org.umamo.ui.resources.settings_viewport_uv_grid_scale
+import org.umamo.ui.resources.settings_viewport_uv_grid_scale_description
 import org.umamo.ui.resources.settings_viewport_uv_grid_subdivisions
+import org.umamo.ui.resources.settings_viewport_uv_grid_subdivisions_description
 import org.umamo.ui.resources.settings_viewport_zoom_step
 import org.umamo.ui.resources.settings_viewport_zoom_step_coarse
+import org.umamo.ui.resources.settings_viewport_zoom_step_coarse_description
+import org.umamo.ui.resources.settings_viewport_zoom_step_description
+import org.umamo.ui.resources.unit_percent
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoTypography
@@ -100,28 +124,60 @@ private const val THEME_KEY = "interface.theme"
 private const val THEME_DEFAULT = "dark"
 
 /**
- * The Interface section: theme, language, and the undo-history depth.  All three are wired end-to-end -
- * writing the key re-themes / re-localizes the running app and re-caps the open document's undo stack -
- * so each auto-saves with immediate visible effect.
+ * The Interface page: the theme and language, the editing defaults, and the update check.  Each is wired
+ * end-to-end - writing the key re-themes or re-localizes the running app, re-caps the open document's undo stack,
+ * or swaps the Parameters panel's controls - so each auto-saves with immediate visible effect.
+ *
+ * @param PreferencesFolds folds The window's fold state.
  */
 @Composable
-internal fun InterfaceSection() {
+internal fun InterfaceSection(folds: PreferencesFolds) {
 	var historyLimit by rememberIntSetting(HistorySettings.HISTORY_LIMIT_KEY, HistorySettings.HISTORY_LIMIT_DEFAULT)
+	var repeatControlKey by rememberStringSetting(ParametersSettings.REPEAT_CONTROL_KEY, ParametersSettings.REPEAT_CONTROL_DEFAULT.key)
+	val repeatControlLabels =
+		linkedMapOf(
+			RepeatControlSetting.Dial.key to stringResource(Res.string.settings_repeat_control_dial),
+			RepeatControlSetting.Slider.key to stringResource(Res.string.settings_repeat_control_slider),
+		)
 
-	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_ROW_SPACING)) {
+	SettingsCard(folds, PreferencesSection.InterfaceDisplay) {
 		ThemeSettingRow()
 		LanguageSettingRow()
+	}
+	SettingsCard(folds, PreferencesSection.InterfaceEditing) {
 		// Lowering this trims the open document's stack on commit, but never past the live step - the
 		// current state and anything left to redo always survive (see EditorSession.historyLimit).
-		SettingRow(label = stringResource(Res.string.settings_interface_history_steps)) {
+		PropertyFieldRow(
+			label = stringResource(Res.string.settings_interface_history_steps),
+			description = stringResource(Res.string.settings_interface_history_steps_description),
+		) {
 			NumberField(
 				value = historyLimit,
 				onValueChange = { committed -> historyLimit = committed },
 				range = HistorySettings.HISTORY_LIMIT_RANGE,
-				modifier = Modifier.width(80.dp),
+				modifier = Modifier.fillMaxWidth(),
 			)
 		}
-		UpdateCheckSettingRow()
+		// A pair with a repeating member follows the same choice: the slider choice gives it its pad.
+		PropertyFieldRow(
+			label = stringResource(Res.string.settings_interface_repeat_control),
+			description = stringResource(Res.string.settings_interface_repeat_control_description),
+		) {
+			SelectField(
+				selected = RepeatControlSetting.fromKey(repeatControlKey).key,
+				options = repeatControlLabels.keys.toList(),
+				label = { value -> repeatControlLabels[value] ?: value },
+				onSelect = { value -> repeatControlKey = value },
+				modifier = Modifier.fillMaxWidth(),
+			)
+		}
+	}
+
+	// The card's only row is left out where the host cannot check, and a card with no rows is no card at all.
+	if (LocalUpdateChecks.current) {
+		SettingsCard(folds, PreferencesSection.InterfaceUpdates) {
+			UpdateCheckSettingRow()
+		}
 	}
 }
 
@@ -142,10 +198,12 @@ internal fun UpdateCheckSettingRow() {
 	}
 
 	var checkForUpdates by rememberBooleanSetting(CHECK_FOR_UPDATES_KEY, true)
-	Checkbox(
+	PropertyCheckboxRow(
 		checked = checkForUpdates,
 		onCheckedChange = { checked -> checkForUpdates = checked },
-		label = stringResource(Res.string.settings_check_for_updates),
+		label = stringResource(Res.string.settings_check_for_updates_at_startup),
+		description = stringResource(Res.string.settings_check_for_updates_at_startup_description),
+		heading = stringResource(Res.string.settings_check_for_updates_heading),
 	)
 }
 
@@ -165,12 +223,16 @@ internal fun ThemeSettingRow() {
 			"light" to stringResource(Res.string.settings_theme_light),
 			"system" to stringResource(Res.string.settings_theme_system),
 		)
-	SettingRow(label = stringResource(Res.string.settings_interface_theme)) {
+	PropertyFieldRow(
+		label = stringResource(Res.string.settings_interface_theme),
+		description = stringResource(Res.string.settings_interface_theme_description),
+	) {
 		SelectField(
 			selected = theme,
 			options = themeLabels.keys.toList(),
 			label = { value -> themeLabels[value] ?: value },
 			onSelect = { value -> theme = value },
+			modifier = Modifier.fillMaxWidth(),
 		)
 	}
 }
@@ -183,12 +245,17 @@ internal fun ThemeSettingRow() {
 @Composable
 internal fun LanguageSettingRow() {
 	var locale by rememberStringSetting(LOCALE_SETTINGS_KEY, FALLBACK_LOCALE_TAG)
-	SettingRow(label = stringResource(Res.string.settings_interface_language), icon = LocalUmamoIcons.language) {
+	PropertyFieldRow(
+		label = stringResource(Res.string.settings_interface_language),
+		description = stringResource(Res.string.settings_interface_language_description),
+		icon = LocalUmamoIcons.language,
+	) {
 		SelectField(
 			selected = locale,
 			options = UI_LANGUAGE_ENDONYMS.keys.toList(),
 			label = { value -> UI_LANGUAGE_ENDONYMS[value] ?: value },
 			onSelect = { value -> locale = value },
+			modifier = Modifier.fillMaxWidth(),
 		)
 	}
 }
@@ -218,16 +285,15 @@ internal const val IMPORT_BIRTH_MESH_KEY = "import.birthMesh"
 internal const val MESH_GENERATION_PRESET_KEY = "meshGeneration.preset"
 
 /**
- * The Import section: what an artwork import seeds a new model with, the mesh each new drawable starts
- * with and the preset it is generated at, where a later file is anchored on the rig's canvas, what a
- * document does when a watched artwork file changes, whether Delete Art keeps the deleted layer out of
- * the rig, and which frame the Sources layer rows measure positions in.  The enumerated choices are stored
- * as their keys, so a later entry is one more option here and one more enum entry, nothing else.  Every
- * choice is read when its consumer runs, so a change applies to the next use (the anchor is only the
- * default of the import's own Align row).
+ * The Import page: what an artwork import seeds a new model with, the meshes it gives new drawables, how later
+ * artwork files are placed and watched, and the Sources area's toggles.  The enumerated choices are stored as their
+ * keys, so a later entry is one more option here and one more enum entry, nothing else.  Every choice is read when
+ * its consumer runs, so a change applies to the next use.
+ *
+ * @param PreferencesFolds folds The window's fold state.
  */
 @Composable
-internal fun ImportSection() {
+internal fun ImportSection(folds: PreferencesFolds) {
 	var templateKey by rememberStringSetting(IMPORT_PARAMETER_TEMPLATE_KEY, ParameterTemplate.Default.key)
 	val templateLabels =
 		linkedMapOf(
@@ -265,172 +331,215 @@ internal fun ImportSection() {
 			WatchMode.Off.key to stringResource(Res.string.settings_import_watch_mode_off),
 		)
 
-	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_ROW_SPACING)) {
-		SettingRow(label = stringResource(Res.string.settings_import_parameter_template)) {
-			SelectField(
-				selected = ParameterTemplate.fromKey(templateKey).key,
-				options = templateLabels.keys.toList(),
-				label = { value -> templateLabels[value] ?: value },
-				onSelect = { value -> templateKey = value },
-			)
-		}
-		SettingRow(label = stringResource(Res.string.settings_import_birth_mesh)) {
-			SelectField(
-				selected = BirthMeshSetting.fromKey(birthMeshKey).key,
-				options = birthMeshLabels.keys.toList(),
-				label = { value -> birthMeshLabels[value] ?: value },
-				onSelect = { value -> birthMeshKey = value },
-			)
-		}
-		SettingRow(label = stringResource(Res.string.settings_import_mesh_preset)) {
-			SelectField(
-				selected = ArtMeshPreset.fromKey(meshPresetKey).key,
-				options = meshPresetLabels.keys.toList(),
-				label = { value -> meshPresetLabels[value] ?: value },
-				onSelect = { value -> meshPresetKey = value },
-			)
-		}
+	SettingsCard(folds, PreferencesSection.ImportNewModels) {
+		KeyedSelectRow(
+			label = Res.string.settings_import_parameter_template,
+			description = Res.string.settings_import_parameter_template_description,
+			selectedKey = ParameterTemplate.fromKey(templateKey).key,
+			labels = templateLabels,
+			onSelect = { value -> templateKey = value },
+		)
+	}
+	SettingsCard(folds, PreferencesSection.ImportMeshes) {
+		KeyedSelectRow(
+			label = Res.string.settings_import_birth_mesh,
+			description = Res.string.settings_import_birth_mesh_description,
+			selectedKey = BirthMeshSetting.fromKey(birthMeshKey).key,
+			labels = birthMeshLabels,
+			onSelect = { value -> birthMeshKey = value },
+		)
+		KeyedSelectRow(
+			label = Res.string.settings_import_mesh_preset,
+			description = Res.string.settings_import_mesh_preset_description,
+			selectedKey = ArtMeshPreset.fromKey(meshPresetKey).key,
+			labels = meshPresetLabels,
+			onSelect = { value -> meshPresetKey = value },
+		)
+	}
+	SettingsCard(folds, PreferencesSection.ImportArtworkFiles) {
 		// The default of the import's Align row: the art programs' own canvas-resize anchors, Center
 		// being what both of them resize around unless told otherwise.
-		SettingRow(label = stringResource(Res.string.settings_import_alignment)) {
-			SelectField(
-				selected = ArtworkAnchor.fromKey(alignmentKey).key,
-				options = anchorLabels.keys.toList(),
-				label = { value -> anchorLabels[value] ?: value },
-				onSelect = { value -> alignmentKey = value },
-			)
-		}
+		KeyedSelectRow(
+			label = Res.string.settings_import_alignment,
+			description = Res.string.settings_import_alignment_description,
+			selectedKey = ArtworkAnchor.fromKey(alignmentKey).key,
+			labels = anchorLabels,
+			onSelect = { value -> alignmentKey = value },
+		)
 		// Read live by the open document's watcher, so the switch applies at once.
-		SettingRow(label = stringResource(Res.string.settings_import_watch_mode)) {
-			SelectField(
-				selected = WatchMode.fromKey(watchModeKey).key,
-				options = watchModeLabels.keys.toList(),
-				label = { value -> watchModeLabels[value] ?: value },
-				onSelect = { value -> watchModeKey = value },
-			)
-		}
+		KeyedSelectRow(
+			label = Res.string.settings_import_watch_mode,
+			description = Res.string.settings_import_watch_mode_description,
+			selectedKey = WatchMode.fromKey(watchModeKey).key,
+			labels = watchModeLabels,
+			onSelect = { value -> watchModeKey = value },
+		)
+	}
+	SettingsCard(folds, PreferencesSection.ImportSources) {
 		// Off by default: a deleted drawable's layer comes back on the next reload unless the rigger asks
 		// otherwise here, or ignores the row by hand.
-		Checkbox(
+		PropertyCheckboxRow(
 			checked = deleteArtIgnoresLayer,
 			onCheckedChange = { checked -> deleteArtIgnoresLayer = checked },
-			label = stringResource(Res.string.settings_import_delete_art_ignores_layer),
+			label = stringResource(Res.string.settings_import_also_ignore_layer),
+			description = stringResource(Res.string.settings_import_also_ignore_layer_description),
+			heading = stringResource(Res.string.settings_import_deleting_art),
 		)
 		// Off by default: a layer row reads its position in the art file's own frame, the numbers the art
 		// program shows.  On, it reads from the world axes like every other position in the app.
-		Checkbox(
+		PropertyCheckboxRow(
 			checked = layerPositionsFromWorldAxes,
 			onCheckedChange = { checked -> layerPositionsFromWorldAxes = checked },
-			label = stringResource(Res.string.settings_import_layer_positions_from_world_axes),
+			label = stringResource(Res.string.settings_import_from_world_axes),
+			description = stringResource(Res.string.settings_import_from_world_axes_description),
+			heading = stringResource(Res.string.settings_import_layer_positions),
 		)
 	}
 }
 
 /**
- * The Colors section: the viewport selection highlights and overlay colors (the collision warning,
- * the pinned-placement highlight), the Edit-mode gizmo palette (viewport.meshEdit.*), grouped
- * element × state, and the warp lattice by role (viewport.deformer.*).  Every row is a
- * [HexColorField] bound write-through to its settings key, so an edit re-colors the viewport live as
- * it is typed - the same auto-save model as the rest of the window.
+ * One dropdown row over a setting stored as an enum key.
+ *
+ * @param StringResource label The row label.
+ * @param StringResource description What the setting does, the label's tooltip.
+ * @param String selectedKey The stored key, already resolved to a known one.
+ * @param Map labels Every option's key mapped to its localized label, in display order.
+ * @param Function onSelect Called with the picked option's key.
  */
 @Composable
-internal fun ColorsSection() {
-	val typography = LocalUmamoTypography.current
-	val scrollState = rememberScrollState()
-	Box(modifier = Modifier.fillMaxSize()) {
-		Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState), verticalArrangement = Arrangement.spacedBy(SETTING_ROW_SPACING)) {
-			Text(text = stringResource(Res.string.settings_colors_viewport), style = typography.titleSmall)
-			ColorSettingRow(
-				stringResource(Res.string.settings_colors_selection_highlight),
-				ViewportColorSettings.SELECTION_HIGHLIGHT_KEY,
-				ViewportColorSettings.SELECTION_HIGHLIGHT_DEFAULT,
-			)
-			ColorSettingRow(
-				stringResource(Res.string.settings_colors_active_selection_highlight),
-				ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_KEY,
-				ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_DEFAULT,
-			)
-			ColorSettingRow(
-				stringResource(Res.string.settings_colors_warning),
-				ViewportColorSettings.WARNING_COLOR_KEY,
-				ViewportColorSettings.WARNING_COLOR_DEFAULT,
-			)
-			ColorSettingRow(
-				stringResource(Res.string.settings_colors_pinned_placement),
-				ViewportColorSettings.PINNED_PLACEMENT_COLOR_KEY,
-				ViewportColorSettings.PINNED_PLACEMENT_COLOR_DEFAULT,
-			)
+private fun KeyedSelectRow(
+	label: StringResource,
+	description: StringResource,
+	selectedKey: String,
+	labels: Map<String, String>,
+	onSelect: (String) -> Unit,
+) {
+	PropertyFieldRow(label = stringResource(label), description = stringResource(description)) {
+		SelectField(
+			selected = selectedKey,
+			options = labels.keys.toList(),
+			label = { value -> labels[value] ?: value },
+			onSelect = onSelect,
+			modifier = Modifier.fillMaxWidth(),
+		)
+	}
+}
 
-			Text(text = stringResource(Res.string.settings_colors_mesh_edit), style = typography.titleSmall)
+/**
+ * The state a color row names, its label and tooltip.  The roles are shared by the mesh element groups and the
+ * warp lattice, so each description reads true for every group the role appears in.
+ *
+ * @property StringResource label The row label.
+ * @property StringResource description The row's tooltip.
+ */
+private enum class ColorRole(val label: StringResource, val description: StringResource) {
+	Idle(Res.string.settings_colors_role_idle, Res.string.settings_colors_role_idle_description),
+	Selected(Res.string.settings_colors_role_selected, Res.string.settings_colors_role_selected_description),
+	Active(Res.string.settings_colors_role_active, Res.string.settings_colors_role_active_description),
+	Unkeyed(Res.string.settings_colors_role_unkeyed, Res.string.settings_colors_role_unkeyed_description),
+	Hovered(Res.string.settings_colors_role_hovered, Res.string.settings_colors_role_hovered_description),
+}
 
-			ColorGroupHeading(stringResource(Res.string.settings_colors_group_vertex))
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_idle), ViewportColorSettings.VERTEX_IDLE_KEY, ViewportColorSettings.VERTEX_IDLE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), ViewportColorSettings.VERTEX_SELECTED_KEY, ViewportColorSettings.VERTEX_SELECTED_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), ViewportColorSettings.VERTEX_ACTIVE_KEY, ViewportColorSettings.VERTEX_ACTIVE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_offkey), ViewportColorSettings.VERTEX_OFFKEY_KEY, ViewportColorSettings.VERTEX_OFFKEY_DEFAULT)
-
-			ColorGroupHeading(stringResource(Res.string.settings_colors_group_edge))
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_idle), ViewportColorSettings.EDGE_IDLE_KEY, ViewportColorSettings.EDGE_IDLE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), ViewportColorSettings.EDGE_SELECTED_KEY, ViewportColorSettings.EDGE_SELECTED_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), ViewportColorSettings.EDGE_ACTIVE_KEY, ViewportColorSettings.EDGE_ACTIVE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_offkey), ViewportColorSettings.EDGE_OFFKEY_KEY, ViewportColorSettings.EDGE_OFFKEY_DEFAULT)
-
-			ColorGroupHeading(stringResource(Res.string.settings_colors_group_face))
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_idle), ViewportColorSettings.FACE_IDLE_KEY, ViewportColorSettings.FACE_IDLE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), ViewportColorSettings.FACE_SELECTED_KEY, ViewportColorSettings.FACE_SELECTED_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), ViewportColorSettings.FACE_ACTIVE_KEY, ViewportColorSettings.FACE_ACTIVE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_offkey), ViewportColorSettings.FACE_OFFKEY_KEY, ViewportColorSettings.FACE_OFFKEY_DEFAULT)
-
-			Text(text = stringResource(Res.string.settings_colors_deformers), style = typography.titleSmall)
-
-			ColorGroupHeading(stringResource(Res.string.settings_colors_group_lattice))
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_idle), ViewportColorSettings.LATTICE_IDLE_KEY, ViewportColorSettings.LATTICE_IDLE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), ViewportColorSettings.LATTICE_SELECTED_KEY, ViewportColorSettings.LATTICE_SELECTED_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), ViewportColorSettings.LATTICE_ACTIVE_KEY, ViewportColorSettings.LATTICE_ACTIVE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_unkeyed), ViewportColorSettings.LATTICE_PENDING_KEY, ViewportColorSettings.LATTICE_PENDING_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_hovered), ViewportColorSettings.LATTICE_HOVER_KEY, ViewportColorSettings.LATTICE_HOVER_DEFAULT)
+/**
+ * The Colors page: the viewport selection highlights and overlay colors (the collision warning, the pinned-placement
+ * highlight), the Edit-mode gizmo palette (viewport.meshEdit.*) as one sub-panel per element, and the warp lattice by
+ * role (viewport.deformer.*).  Every row is a [HexColorField] bound write-through to its settings key, so an edit
+ * re-colors the viewport live as it is typed.
+ *
+ * @param PreferencesFolds folds The window's fold state.
+ */
+@Composable
+internal fun ColorsSection(folds: PreferencesFolds) {
+	SettingsCard(folds, PreferencesSection.ColorsViewport) {
+		ColorSettingRow(
+			Res.string.settings_colors_selection_highlight,
+			Res.string.settings_colors_selection_highlight_description,
+			ViewportColorSettings.SELECTION_HIGHLIGHT_KEY,
+			ViewportColorSettings.SELECTION_HIGHLIGHT_DEFAULT,
+		)
+		ColorSettingRow(
+			Res.string.settings_colors_active_selection_highlight,
+			Res.string.settings_colors_active_selection_highlight_description,
+			ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_KEY,
+			ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_DEFAULT,
+		)
+		ColorSettingRow(
+			Res.string.settings_colors_warning,
+			Res.string.settings_colors_warning_description,
+			ViewportColorSettings.WARNING_COLOR_KEY,
+			ViewportColorSettings.WARNING_COLOR_DEFAULT,
+		)
+		ColorSettingRow(
+			Res.string.settings_colors_pinned_placement,
+			Res.string.settings_colors_pinned_placement_description,
+			ViewportColorSettings.PINNED_PLACEMENT_COLOR_KEY,
+			ViewportColorSettings.PINNED_PLACEMENT_COLOR_DEFAULT,
+		)
+	}
+	SettingsCard(folds, PreferencesSection.ColorsMeshEditing) {
+		SettingsSubsection(folds, PreferencesSection.ColorsMeshEditingVertex) {
+			ColorRoleRow(ColorRole.Idle, ViewportColorSettings.VERTEX_IDLE_KEY, ViewportColorSettings.VERTEX_IDLE_DEFAULT)
+			ColorRoleRow(ColorRole.Selected, ViewportColorSettings.VERTEX_SELECTED_KEY, ViewportColorSettings.VERTEX_SELECTED_DEFAULT)
+			ColorRoleRow(ColorRole.Active, ViewportColorSettings.VERTEX_ACTIVE_KEY, ViewportColorSettings.VERTEX_ACTIVE_DEFAULT)
 		}
-		VerticalScrollbarOverlay(scrollState)
+		SettingsSubsection(folds, PreferencesSection.ColorsMeshEditingEdge) {
+			ColorRoleRow(ColorRole.Idle, ViewportColorSettings.EDGE_IDLE_KEY, ViewportColorSettings.EDGE_IDLE_DEFAULT)
+			ColorRoleRow(ColorRole.Selected, ViewportColorSettings.EDGE_SELECTED_KEY, ViewportColorSettings.EDGE_SELECTED_DEFAULT)
+			ColorRoleRow(ColorRole.Active, ViewportColorSettings.EDGE_ACTIVE_KEY, ViewportColorSettings.EDGE_ACTIVE_DEFAULT)
+		}
+		SettingsSubsection(folds, PreferencesSection.ColorsMeshEditingFace) {
+			ColorRoleRow(ColorRole.Idle, ViewportColorSettings.FACE_IDLE_KEY, ViewportColorSettings.FACE_IDLE_DEFAULT)
+			ColorRoleRow(ColorRole.Selected, ViewportColorSettings.FACE_SELECTED_KEY, ViewportColorSettings.FACE_SELECTED_DEFAULT)
+			ColorRoleRow(ColorRole.Active, ViewportColorSettings.FACE_ACTIVE_KEY, ViewportColorSettings.FACE_ACTIVE_DEFAULT)
+		}
+	}
+	SettingsCard(folds, PreferencesSection.ColorsDeformers) {
+		ColorRoleRow(ColorRole.Idle, ViewportColorSettings.LATTICE_IDLE_KEY, ViewportColorSettings.LATTICE_IDLE_DEFAULT)
+		ColorRoleRow(ColorRole.Selected, ViewportColorSettings.LATTICE_SELECTED_KEY, ViewportColorSettings.LATTICE_SELECTED_DEFAULT)
+		ColorRoleRow(ColorRole.Active, ViewportColorSettings.LATTICE_ACTIVE_KEY, ViewportColorSettings.LATTICE_ACTIVE_DEFAULT)
+		ColorRoleRow(ColorRole.Unkeyed, ViewportColorSettings.LATTICE_PENDING_KEY, ViewportColorSettings.LATTICE_PENDING_DEFAULT)
+		ColorRoleRow(ColorRole.Hovered, ViewportColorSettings.LATTICE_HOVER_KEY, ViewportColorSettings.LATTICE_HOVER_DEFAULT)
 	}
 }
 
 /**
- * A muted group heading within the Colors section (Vertex / Edge / Face), spaced to read as a subsection.
+ * One color row for a [ColorRole] of an element group.
  *
- * @param String label The already-localized group label.
- */
-@Composable
-private fun ColorGroupHeading(label: String) {
-	Column {
-		Spacer(modifier = Modifier.height(2.dp))
-		Text(text = label, style = LocalUmamoTypography.current.labelMedium, color = LocalUmamoColors.current.textMuted)
-	}
-}
-
-/**
- * One color row: a role label bound to a [HexColorField] editing the given settings key write-through.
- *
- * @param String label The already-localized role label (Idle / Selected / Active / Off-key).
+ * @param ColorRole role The state the row colors.
  * @param String key The dotted settings key the row edits.
  * @param String defaultHex The bundled default used when the key is absent.
  */
 @Composable
-private fun ColorSettingRow(label: String, key: String, defaultHex: String) {
+private fun ColorRoleRow(role: ColorRole, key: String, defaultHex: String) {
+	ColorSettingRow(role.label, role.description, key, defaultHex)
+}
+
+/**
+ * One color row: a label bound to a [HexColorField] editing the given settings key write-through.
+ *
+ * @param StringResource label The row label.
+ * @param StringResource description What the color paints, the label's tooltip.
+ * @param String key The dotted settings key the row edits.
+ * @param String defaultHex The bundled default used when the key is absent.
+ */
+@Composable
+private fun ColorSettingRow(label: StringResource, description: StringResource, key: String, defaultHex: String) {
 	var hexValue by rememberStringSetting(key, defaultHex)
-	SettingRow(label = label) {
-		HexColorField(value = hexValue, onValueChange = { newValue -> hexValue = newValue }, modifier = Modifier.width(150.dp))
+	PropertyFieldRow(label = stringResource(label), description = stringResource(description)) {
+		HexColorField(value = hexValue, onValueChange = { newValue -> hexValue = newValue }, modifier = Modifier.fillMaxWidth())
 	}
 }
 
 /**
- * The Viewport section: wheel-zoom tuning, the application's grids, the rendering performance toggles, and the
- * toolbar and sidebar defaults.  The UV grid pair is the UV editor's own, in texels, so a page's cells land on
- * texel boundaries independent of the world grid; an area given its own grid in its overlays popover keeps it.
- * The viewport binding and each area's render-options publisher read every key live, so a committed edit takes
- * effect immediately.
+ * The Viewport page: wheel-zoom tuning, the application's grids, the rendering quality toggles, and the toolbar and
+ * sidebar defaults.  The UV grid pair is the UV editor's own, in texels, so a page's cells land on texel boundaries
+ * independent of the world grid; an area given its own grid in its overlays popover keeps it.  The viewport binding
+ * and each area's render-options publisher read every key live, so a committed edit takes effect immediately.
+ *
+ * @param PreferencesFolds folds The window's fold state.
  */
 @Composable
-internal fun ViewportSection() {
+internal fun ViewportSection(folds: PreferencesFolds) {
 	var zoomStep by rememberDoubleSetting(ViewportSettings.ZOOM_STEP_KEY, ViewportSettings.ZOOM_STEP_DEFAULT)
 	var zoomStepCoarse by rememberDoubleSetting(ViewportSettings.ZOOM_STEP_COARSE_KEY, ViewportSettings.ZOOM_STEP_COARSE_DEFAULT)
 	var gridScale by rememberDoubleSetting(ViewportSettings.GRID_SCALE_KEY, ViewportSettings.GRID_SCALE_DEFAULT)
@@ -442,94 +551,161 @@ internal fun ViewportSection() {
 		rememberBooleanSetting(ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_KEY, ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_DEFAULT)
 	var showToolbar by rememberBooleanSetting(ViewportSettings.SHOW_TOOLBAR_KEY, ViewportSettings.SHOW_TOOLBAR_DEFAULT)
 	var showSidebar by rememberBooleanSetting(ViewportSettings.SHOW_SIDEBAR_KEY, ViewportSettings.SHOW_SIDEBAR_DEFAULT)
+	val percent = stringResource(Res.string.unit_percent)
 
-	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_ROW_SPACING)) {
-		SettingRow(label = stringResource(Res.string.settings_viewport_zoom_step)) {
+	SettingsCard(folds, PreferencesSection.ViewportNavigation) {
+		PropertyFieldRow(
+			label = stringResource(Res.string.settings_viewport_zoom_step),
+			description = stringResource(Res.string.settings_viewport_zoom_step_description),
+		) {
 			NumberField(
 				value = zoomStep.toFloat(),
 				onValueChange = { committed -> zoomStep = committed.toDouble() },
 				range = ViewportSettings.ZOOM_STEP_RANGE,
-				modifier = Modifier.width(80.dp),
+				unitSuffix = percent,
+				modifier = Modifier.fillMaxWidth(),
 			)
 		}
-		SettingRow(label = stringResource(Res.string.settings_viewport_zoom_step_coarse)) {
+		PropertyFieldRow(
+			label = stringResource(Res.string.settings_viewport_zoom_step_coarse),
+			description = stringResource(Res.string.settings_viewport_zoom_step_coarse_description),
+		) {
 			NumberField(
 				value = zoomStepCoarse.toFloat(),
 				onValueChange = { committed -> zoomStepCoarse = committed.toDouble() },
 				range = ViewportSettings.ZOOM_STEP_RANGE,
-				modifier = Modifier.width(80.dp),
+				unitSuffix = percent,
+				modifier = Modifier.fillMaxWidth(),
 			)
 		}
-		SettingRow(label = stringResource(Res.string.settings_viewport_grid_scale)) {
-			NumberField(
-				value = gridScale.toFloat(),
-				onValueChange = { committed -> gridScale = committed.toDouble() },
-				range = ViewportSettings.GRID_SCALE_RANGE,
-				modifier = Modifier.width(80.dp),
-			)
-		}
-		SettingRow(label = stringResource(Res.string.settings_viewport_grid_subdivisions)) {
-			NumberField(
-				value = gridSubdivisions,
-				onValueChange = { committed -> gridSubdivisions = committed },
-				range = ViewportSettings.GRID_SUBDIVISIONS_RANGE,
-				modifier = Modifier.width(80.dp),
-			)
-		}
-		SettingRow(label = stringResource(Res.string.settings_viewport_uv_grid_scale)) {
-			NumberField(
-				value = uvGridScale.toFloat(),
-				onValueChange = { committed -> uvGridScale = committed.toDouble() },
-				range = ViewportSettings.GRID_SCALE_RANGE,
-				modifier = Modifier.width(80.dp),
-			)
-		}
-		SettingRow(label = stringResource(Res.string.settings_viewport_uv_grid_subdivisions)) {
-			NumberField(
-				value = uvGridSubdivisions,
-				onValueChange = { committed -> uvGridSubdivisions = committed },
-				range = ViewportSettings.GRID_SUBDIVISIONS_RANGE,
-				modifier = Modifier.width(80.dp),
-			)
-		}
-		Checkbox(
+	}
+	SettingsCard(folds, PreferencesSection.ViewportGrids) {
+		GridSettingStack(
+			scaleLabel = Res.string.settings_viewport_grid_scale,
+			scaleDescription = Res.string.settings_viewport_grid_scale_description,
+			scale = gridScale,
+			onScaleChange = { committed -> gridScale = committed },
+			subdivisionsLabel = Res.string.settings_viewport_grid_subdivisions,
+			subdivisionsDescription = Res.string.settings_viewport_grid_subdivisions_description,
+			subdivisions = gridSubdivisions,
+			onSubdivisionsChange = { committed -> gridSubdivisions = committed },
+		)
+		GridSettingStack(
+			scaleLabel = Res.string.settings_viewport_uv_grid_scale,
+			scaleDescription = Res.string.settings_viewport_uv_grid_scale_description,
+			scale = uvGridScale,
+			onScaleChange = { committed -> uvGridScale = committed },
+			subdivisionsLabel = Res.string.settings_viewport_uv_grid_subdivisions,
+			subdivisionsDescription = Res.string.settings_viewport_uv_grid_subdivisions_description,
+			subdivisions = uvGridSubdivisions,
+			onSubdivisionsChange = { committed -> uvGridSubdivisions = committed },
+		)
+	}
+	SettingsCard(folds, PreferencesSection.ViewportQuality) {
+		PropertyCheckboxRow(
 			checked = supersample,
 			onCheckedChange = { checked -> supersample = checked },
-			label = stringResource(Res.string.settings_viewport_supersample),
+			label = stringResource(Res.string.settings_viewport_supersample_quality),
+			description = stringResource(Res.string.settings_viewport_supersample_quality_description),
+			heading = stringResource(Res.string.settings_viewport_supersample_heading),
 		)
 		// Inert with supersampling off: everything already renders at 1x, so there is no supersample
 		// to keep while resizing (the engine computes the same 1x either way).  The stored value is
 		// kept, so re-enabling supersampling restores the previous choice.
-		Checkbox(
+		PropertyCheckboxRow(
 			checked = supersampleWhileResizing,
 			onCheckedChange = { checked -> supersampleWhileResizing = checked },
-			label = stringResource(Res.string.settings_viewport_supersample_while_resizing),
+			label = stringResource(Res.string.settings_viewport_supersample_keep_while_resizing),
+			description = stringResource(Res.string.settings_viewport_supersample_keep_while_resizing_description),
 			enabled = supersample,
 		)
-		Checkbox(
+	}
+	SettingsCard(folds, PreferencesSection.ViewportDisplay) {
+		PropertyCheckboxRow(
 			checked = showToolbar,
 			onCheckedChange = { checked -> showToolbar = checked },
-			label = stringResource(Res.string.settings_viewport_show_toolbar),
+			label = stringResource(Res.string.settings_viewport_default_toolbar),
+			description = stringResource(Res.string.settings_viewport_default_toolbar_description),
+			heading = stringResource(Res.string.settings_viewport_show_by_default),
 		)
-		Checkbox(
+		PropertyCheckboxRow(
 			checked = showSidebar,
 			onCheckedChange = { checked -> showSidebar = checked },
-			label = stringResource(Res.string.settings_viewport_show_sidebar),
+			label = stringResource(Res.string.settings_viewport_default_sidebar),
+			description = stringResource(Res.string.settings_viewport_default_sidebar_description),
 		)
 	}
 }
 
 /**
- * The Keybindings section: preset selection plus the per-command rebinding editor (see [KeybindingsEditor]),
- * all auto-saving to settings input.keybinding and re-resolving the live keymap.
+ * One grid's scale and subdivisions, butted into a two-field stack as a size pair is in the Properties panel.
+ *
+ * @param StringResource scaleLabel The scale row's label.
+ * @param StringResource scaleDescription The scale row's tooltip.
+ * @param Double scale The stored scale.
+ * @param Function onScaleChange Called with a committed scale.
+ * @param StringResource subdivisionsLabel The subdivisions row's label.
+ * @param StringResource subdivisionsDescription The subdivisions row's tooltip.
+ * @param Int subdivisions The stored subdivision count.
+ * @param Function onSubdivisionsChange Called with a committed subdivision count.
  */
 @Composable
-internal fun KeybindingsSection() {
-	KeybindingsEditor()
+private fun GridSettingStack(
+	scaleLabel: StringResource,
+	scaleDescription: StringResource,
+	scale: Double,
+	onScaleChange: (Double) -> Unit,
+	subdivisionsLabel: StringResource,
+	subdivisionsDescription: StringResource,
+	subdivisions: Int,
+	onSubdivisionsChange: (Int) -> Unit,
+) {
+	val scaleText = stringResource(scaleLabel)
+	val scaleTooltip = stringResource(scaleDescription)
+	val subdivisionsText = stringResource(subdivisionsLabel)
+	val subdivisionsTooltip = stringResource(subdivisionsDescription)
+	FieldStack(
+		rows =
+			listOf(
+				{ position ->
+					PropertyFieldRow(label = scaleText, description = scaleTooltip) {
+						NumberField(
+							value = scale.toFloat(),
+							onValueChange = { committed -> onScaleChange(committed.toDouble()) },
+							range = ViewportSettings.GRID_SCALE_RANGE,
+							stackPosition = position,
+							modifier = Modifier.fillMaxWidth(),
+						)
+					}
+				},
+				{ position ->
+					PropertyFieldRow(label = subdivisionsText, description = subdivisionsTooltip) {
+						NumberField(
+							value = subdivisions,
+							onValueChange = onSubdivisionsChange,
+							range = ViewportSettings.GRID_SUBDIVISIONS_RANGE,
+							stackPosition = position,
+							modifier = Modifier.fillMaxWidth(),
+						)
+					}
+				},
+			),
+	)
 }
 
 /**
- * The Pen section: a placeholder until the pen backend (JPen / Wacom) and the radial menu land.
+ * The Keybindings page: preset selection plus the per-command rebinding editor (see [KeybindingsEditor]),
+ * all auto-saving to settings input.keybinding and re-resolving the live keymap.
+ *
+ * @param PreferencesFolds folds The window's fold state, which the category cards persist into.
+ */
+@Composable
+internal fun KeybindingsSection(folds: PreferencesFolds) {
+	KeybindingsEditor(folds)
+}
+
+/**
+ * The Pen page: a placeholder until the pen backend (JPen / Wacom) and the radial menu land.
  */
 @Composable
 internal fun PenSection() {
@@ -537,7 +713,7 @@ internal fun PenSection() {
 }
 
 /**
- * A muted single-line placeholder for a section whose controls are not built yet.
+ * A muted single-line placeholder for a page whose controls are not built yet.
  *
  * @param String message The already-localized placeholder line.
  */

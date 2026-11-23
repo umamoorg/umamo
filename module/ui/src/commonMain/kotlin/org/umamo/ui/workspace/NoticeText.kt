@@ -108,6 +108,7 @@ fun noticeText(messageKey: String, arguments: List<String> = emptyList()): Strin
 		"notice.depthSurface.sphere" -> stringResource(Res.string.notice_depth_surface_sphere)
 		"notice.reparent.placeNotKept" -> stringResource(Res.string.notice_reparent_place_not_kept, arguments.firstOrNull().orEmpty())
 		"notice.reparent.placesNotKept" -> stringResource(Res.string.notice_reparent_places_not_kept, *countArguments(arguments, 1))
+		"notice.relation.copySkipped" -> stringResource(Res.string.notice_relation_copy_skipped, *countArguments(arguments, 1))
 		else -> stringResource(Res.string.notice_unknown)
 	}
 

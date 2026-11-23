@@ -12,6 +12,7 @@ import org.umamo.edit.structure.withSelectionVisibility
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
 import org.umamo.ui.action.CommandTable
+import org.umamo.ui.action.KeymapCategory
 import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.resources.*
 
@@ -64,15 +65,28 @@ internal fun objectCommands(
 			}
 		},
 		// Object mode only, so Shift+H and Alt+H stay free for hiding mesh elements in Edit mode.
-		Command("object.hideUnselected", title = Res.string.cmd_hide_unselected, availability = availability.inObjectMode) {
+		Command(
+			"object.hideUnselected",
+			title = Res.string.cmd_hide_unselected,
+			availability = availability.inObjectMode,
+		) {
 			editorSession?.hideUnselected()
 		},
-		Command("object.unhideAll", title = Res.string.cmd_unhide_all, availability = availability.inObjectMode) {
+		Command(
+			"object.unhideAll",
+			title = Res.string.cmd_unhide_all,
+			availability = availability.inObjectMode,
+		) {
 			editorSession?.unhideAll()
 		},
 		// Select Hierarchy: with a target argument (the outliner context menu passes its row) the row's
 		// subtree replaces the selection; without one (the palette) the current selection expands in place.
-		Command("outliner.selectHierarchy", title = Res.string.cmd_outliner_select_hierarchy, availability = availability.hasDocument) { argument ->
+		Command(
+			"outliner.selectHierarchy",
+			title = Res.string.cmd_outliner_select_hierarchy,
+			availability = availability.hasDocument,
+			keymapCategory = KeymapCategory.Select,
+		) { argument ->
 			if (editorSession != null) {
 				val seed = (argument as? SelectionTarget)?.let { target -> Selection(setOf(target), target) } ?: editorSession.selection.value
 				editorSession.setSelection(SelectionOps.selectHierarchy(seed, editorSession.model.value))

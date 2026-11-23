@@ -30,6 +30,9 @@ import kotlin.test.assertEquals
 /** The section heading every case mounts. */
 private const val TITLE = "Transform"
 
+/** The nested sub-panel's heading. */
+private const val NESTED_TITLE = "Vertex"
+
 /** The test tag on the card. */
 private const val CARD_TAG = "card"
 
@@ -141,5 +144,42 @@ class SectionCardTest {
 			waitForIdle()
 			val card = onNodeWithTag(CARD_TAG).getUnclippedBoundsInRoot()
 			assertEquals(220.dp, card.right - card.left, "a 200 dp row, 12 dp of indent before it and 8 dp after")
+		}
+
+	/**
+	 * A sub-panel nested in an open card folds its own rows through its header, leaving the card's other rows
+	 * where they are, and its open rows share the card's indent so both halves line up with the card's rows.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aNestedSectionFoldsItsOwnRowsAtTheCardIndent() =
+		runComposeUiTest {
+			setContent {
+				UmamoTheme {
+					CompositionLocalProvider(LocalDensity provides Density(1f)) {
+						var nestedExpanded by remember { mutableStateOf(true) }
+						Box(modifier = Modifier.width(300.dp)) {
+							SectionCard(title = TITLE, expanded = true, onToggle = {}) {
+								Box(modifier = Modifier.fillMaxWidth().height(10.dp).testTag(FIRST_ROW_TAG))
+								NestedSection(title = NESTED_TITLE, expanded = nestedExpanded, onToggle = { nestedExpanded = !nestedExpanded }) {
+									Box(modifier = Modifier.fillMaxWidth().height(10.dp).testTag(SECOND_ROW_TAG))
+								}
+							}
+						}
+					}
+				}
+			}
+			waitForIdle()
+			val first = onNodeWithTag(FIRST_ROW_TAG).getUnclippedBoundsInRoot()
+			val nested = onNodeWithTag(SECOND_ROW_TAG).getUnclippedBoundsInRoot()
+			assertEquals(first.left, nested.left, "a nested row starts where the card's own rows do")
+			assertEquals(first.right, nested.right, "and ends where they do")
+			onNodeWithText(NESTED_TITLE).performClick()
+			waitForIdle()
+			onNodeWithTag(SECOND_ROW_TAG).assertDoesNotExist()
+			onNodeWithTag(FIRST_ROW_TAG).assertExists()
+			onNodeWithText(NESTED_TITLE).performClick()
+			waitForIdle()
+			onNodeWithTag(SECOND_ROW_TAG).assertExists()
 		}
 }

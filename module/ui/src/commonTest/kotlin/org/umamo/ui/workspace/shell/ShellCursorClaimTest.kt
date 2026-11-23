@@ -18,7 +18,7 @@ class ShellCursorClaimTest {
 	/** With nothing running the shell claims nothing, so every panel, splitter, and gizmo still decides. */
 	@Test
 	fun withNoModeRunningTheShellClaimsNothing() {
-		val claim = shellCursorClaim(relationPickArmed = false, textEntryActive = false, busy = false)
+		val claim = shellCursorClaim(relationPickArmed = false, textEntryActive = false, pointerOnEditorControl = false, busy = false)
 		assertEquals(ShellCursorClaim.None, claim)
 		assertFalse(claim.overridesDescendants, "an empty claim must leave the descendants' cursors alone")
 	}
@@ -26,19 +26,30 @@ class ShellCursorClaimTest {
 	/** An armed relation pick hides the OS pointer, because the shell draws the eyedropper itself. */
 	@Test
 	fun anArmedRelationPickHidesThePointer() {
-		assertEquals(ShellCursorClaim.Hidden, shellCursorClaim(relationPickArmed = true, textEntryActive = false, busy = false))
+		assertEquals(ShellCursorClaim.Hidden, shellCursorClaim(relationPickArmed = true, textEntryActive = false, pointerOnEditorControl = false, busy = false))
 	}
 
 	/** Live text entry shows the editor's I-beam, which is what makes the mode visible window-wide. */
 	@Test
 	fun liveTextEntryShowsTheTextCursor() {
-		assertEquals(ShellCursorClaim.TextEdit, shellCursorClaim(relationPickArmed = false, textEntryActive = true, busy = false))
+		assertEquals(ShellCursorClaim.TextEdit, shellCursorClaim(relationPickArmed = false, textEntryActive = true, pointerOnEditorControl = false, busy = false))
+	}
+
+	/**
+	 * Text entry gives way over a control drawn in a text editor, a search field's clear button: nothing is claimed
+	 * there, so the control's own plain pointer shows, or the wait pointer when the window is busy.
+	 */
+	@Test
+	fun textEntryGivesWayOverAnEditorsControl() {
+		assertEquals(ShellCursorClaim.None, shellCursorClaim(relationPickArmed = false, textEntryActive = true, pointerOnEditorControl = true, busy = false))
+		assertEquals(ShellCursorClaim.Busy, shellCursorClaim(relationPickArmed = false, textEntryActive = true, pointerOnEditorControl = true, busy = true))
+		assertEquals(ShellCursorClaim.Hidden, shellCursorClaim(relationPickArmed = true, textEntryActive = true, pointerOnEditorControl = true, busy = false))
 	}
 
 	/** A tracked operation past its grace shows the wait pointer. */
 	@Test
 	fun aBusyWindowShowsTheWaitPointer() {
-		assertEquals(ShellCursorClaim.Busy, shellCursorClaim(relationPickArmed = false, textEntryActive = false, busy = true))
+		assertEquals(ShellCursorClaim.Busy, shellCursorClaim(relationPickArmed = false, textEntryActive = false, pointerOnEditorControl = false, busy = true))
 	}
 
 	/**
@@ -47,14 +58,14 @@ class ShellCursorClaimTest {
 	 */
 	@Test
 	fun aPickOutranksTextEntry() {
-		assertEquals(ShellCursorClaim.Hidden, shellCursorClaim(relationPickArmed = true, textEntryActive = true, busy = false))
+		assertEquals(ShellCursorClaim.Hidden, shellCursorClaim(relationPickArmed = true, textEntryActive = true, pointerOnEditorControl = false, busy = false))
 	}
 
 	/** Both modes outrank busy: they are what the rigger is in the middle of, and busy is background work. */
 	@Test
 	fun eachModeOutranksBusy() {
-		assertEquals(ShellCursorClaim.Hidden, shellCursorClaim(relationPickArmed = true, textEntryActive = false, busy = true))
-		assertEquals(ShellCursorClaim.TextEdit, shellCursorClaim(relationPickArmed = false, textEntryActive = true, busy = true))
+		assertEquals(ShellCursorClaim.Hidden, shellCursorClaim(relationPickArmed = true, textEntryActive = false, pointerOnEditorControl = false, busy = true))
+		assertEquals(ShellCursorClaim.TextEdit, shellCursorClaim(relationPickArmed = false, textEntryActive = true, pointerOnEditorControl = false, busy = true))
 	}
 
 	/** Every mode claim overrides its descendants - a mode a splitter edge could break is not a mode. */

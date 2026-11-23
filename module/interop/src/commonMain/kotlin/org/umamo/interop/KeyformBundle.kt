@@ -10,6 +10,7 @@ import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.ParameterId
+import kotlin.math.abs
 
 /*
  * Re-bundles a runtime entity's SPLIT keyform representation - one geometry grid plus independent
@@ -27,7 +28,7 @@ import org.umamo.runtime.model.ParameterId
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §8 Export</a>
  */
 
-/** What to do with a channel whose keyed span does not cover the bundled union axes. */
+/** What to do with a channel that cannot share its owner's bundled grid. */
 enum class OutOfSpanPolicy {
 	/**
 	 * Reject the whole owner: the export cannot represent it and says so.
@@ -47,6 +48,22 @@ enum class OutOfSpanPolicy {
 	DemoteChannel,
 }
 
+/** Why [OutOfSpanPolicy.DemoteChannel] dropped a channel to its static. */
+enum class ChannelDemotionCause {
+	/**
+	 * The channel's own track does not refine onto the union: it is keyed over less of a parameter than
+	 * the union spans, or a union key falls closer to one of its own than a key can be inserted.
+	 */
+	ChannelCannotRefineOntoUnion,
+
+	/**
+	 * The geometry does not refine onto the channel's keys: they fall past the geometry's own span, or
+	 * closer to one of its keys than a key can be inserted.  Geometry is what the grid is for, so the
+	 * channel's keys stay out of the union.
+	 */
+	GeometryCannotRefineOntoChannelKeys,
+}
+
 /** One re-bundled cell: its coordinate, per-parameter key values, geometry, and channel values. */
 class KeyformBundleCell(
 	val coordinate: IntArray,
@@ -60,12 +77,13 @@ class KeyformBundleCell(
  *
  * @property List axes            The union axes, geometry axes first.
  * @property List cells           Every cell, in first-axis-fastest order.
- * @property List demotedChannels Channels dropped to their static under [OutOfSpanPolicy.DemoteChannel].
+ * @property Map  demotedChannels Channels dropped to their static under [OutOfSpanPolicy.DemoteChannel],
+ *                                each with why, in track order.
  */
 class KeyformBundle(
 	val axes: List<KeyformAxis>,
 	val cells: List<KeyformBundleCell>,
-	val demotedChannels: List<FormChannel> = emptyList(),
+	val demotedChannels: Map<FormChannel, ChannelDemotionCause> = emptyMap(),
 )
 
 /** The outcome of a bundling attempt. */
@@ -86,7 +104,8 @@ sealed interface KeyformBundleResult {
  *
  * The bundler owns this vocabulary rather than [ExportNoticeReason] because the rule that was broken
  * is a fact about bundling, not about any one format - the CMO3 lowering wraps it in
- * [ExportNoticeReason.KeyformCannotBundle], and a future format would wrap the same cases its own way.
+ * [ExportNoticeReason.KeyformCannotBundle], the MOC3 lowering in
+ * [ExportNoticeReason.KeyformsDemotedToStatic], and a future format would wrap the same cases its own way.
  * Format-neutral for the same reason: the "one grid per object" clause a reader sees is supplied by
  * the wrapping notice, not baked in here.
  */
@@ -113,12 +132,15 @@ sealed interface KeyformBundleRejection {
  * so a round trip through split-then-bundled keeps the source's own axis order rather than inventing
  * one.  Cells are emitted first-axis-fastest, matching the mixed radix both formats index with.
  *
+ * The geometry always stays keyed.  A channel whose keys the geometry cannot carry is the one that gives
+ * way, by demotion or by rejecting the owner, as [outOfSpanPolicy] says.
+ *
  * @param KeyformGrid?     geometryGrid    The geometry grid, or null for a channel-only owner.
  * @param FormInterpolator geometryBlend   The geometry interpolator (unused when there is no geometry).
  * @param ChannelGrids     channels        The owner's channel tracks.
  * @param Map              statics         Fallback value per relevant channel.
  * @param Boolean          requireGeometry Whether a geometry-less bundle is an error (warp/rotation).
- * @param OutOfSpanPolicy  outOfSpanPolicy What to do with a channel whose span misses the union.
+ * @param OutOfSpanPolicy  outOfSpanPolicy What to do with a channel that cannot share the grid.
  * @return KeyformBundleResult The bundle - possibly with empty axes when fully unkeyed - or a rejection.
  */
 fun <TGeometry> buildKeyformBundle(
@@ -130,23 +152,13 @@ fun <TGeometry> buildKeyformBundle(
 	outOfSpanPolicy: OutOfSpanPolicy,
 ): KeyformBundleResult {
 	// Union keys per parameter, geometry axes first so the bundled axis order follows the
-	// geometry grid (the order the import's fan-out preserved).
+	// geometry grid (the order the import's fan-out preserved).  First also means kept: the union
+	// never gives up a key it holds, so the geometry's keys all survive the channels merged after.
 	val unionKeys = LinkedHashMap<ParameterId, FloatArray>()
-
-	/**
-	 * Merges an axis's keys into the union kept for its parameter.
-	 *
-	 * @param KeyformAxis axis The axis to merge.
-	 */
-	fun mergeAxis(axis: KeyformAxis) {
-		val existing = unionKeys[axis.parameterId]
-		unionKeys[axis.parameterId] =
-			if (existing == null) axis.keys.copyOf() else mergedKeys(existing, axis.keys)
-	}
-	geometryGrid?.axes?.forEach(::mergeAxis)
+	geometryGrid?.axes?.forEach(unionKeys::mergeAxis)
 
 	for (grid in channels.gridsByChannel.values) {
-		grid.axes.forEach(::mergeAxis)
+		grid.axes.forEach(unionKeys::mergeAxis)
 	}
 
 	if (unionKeys.isEmpty()) {
@@ -190,15 +202,37 @@ fun <TGeometry> buildKeyformBundle(
 	// out-of-span key the bundle cannot represent without inventing values.
 	var axes: List<KeyformAxis>
 	var geometryByCoordinate: Map<List<Int>, TGeometry>
+	val demotedChannels = LinkedHashMap<FormChannel, ChannelDemotionCause>()
 
 	if (geometryGrid != null) {
-		val refined = geometryGrid.refinedToUnion(unionKeys, emptyMap(), geometryBlend)
+		var refined = geometryGrid.refinedToUnion(unionKeys, emptyMap(), geometryBlend)
 
-		for (axis in refined.axes) {
-			if (!axis.keys.contentEquals(unionKeys.getValue(axis.parameterId))) {
-				// Geometry is never demotable - it is the thing being exported.
-				return KeyformBundleResult.Unrepresentable(KeyformBundleRejection.KeysOutsideGeometrySpan)
+		// A channel keyed where the geometry cannot be leaves a union the geometry does not refine onto.
+		// Geometry is never demotable - it is the thing being exported - so where the policy lets a
+		// channel give way, the union is rebuilt from the geometry's own axes, taking each channel in
+		// turn only while the geometry still carries the result.
+		if (!refined.carriesUnionKeys(unionKeys) && outOfSpanPolicy == OutOfSpanPolicy.DemoteChannel) {
+			unionKeys.clear()
+			geometryGrid.axes.forEach(unionKeys::mergeAxis)
+			refined = geometryGrid
+
+			for ((channel, track) in channels.gridsByChannel) {
+				val keysWithChannel = LinkedHashMap(unionKeys)
+				track.axes.forEach(keysWithChannel::mergeAxis)
+				val refinedWithChannel = geometryGrid.refinedToUnion(keysWithChannel, emptyMap(), geometryBlend)
+
+				if (refinedWithChannel.carriesUnionKeys(keysWithChannel)) {
+					unionKeys.putAll(keysWithChannel)
+					refined = refinedWithChannel
+				} else {
+					demotedChannels[channel] = ChannelDemotionCause.GeometryCannotRefineOntoChannelKeys
+				}
 			}
+		}
+
+		// The other policy's answer to the same union; the rebuild above leaves one the geometry carries.
+		if (!refined.carriesUnionKeys(unionKeys)) {
+			return KeyformBundleResult.Unrepresentable(KeyformBundleRejection.KeysOutsideGeometrySpan)
 		}
 
 		axes = refined.axes
@@ -230,15 +264,17 @@ fun <TGeometry> buildKeyformBundle(
 	// Refine each channel over its own axes; a final-coordinate lookup then projects onto the
 	// channel's axis subset (the channel is constant along axes it does not key).
 	val channelLookups = HashMap<FormChannel, (IntArray) -> ChannelValue?>()
-	val demotedChannels = ArrayList<FormChannel>()
 	val finalAxisPosition = axes.mapIndexed { position, axis -> axis.parameterId to position }.toMap()
 
 	for ((channel, track) in channels.gridsByChannel) {
-		val refined = track.refinedToUnion(unionKeys, emptyMap(), ChannelValueInterpolator)
-		val outOfSpan =
-			refined.axes.any { axis -> !axis.keys.contentEquals(unionKeys.getValue(axis.parameterId)) }
+		// Left out of the union above, so the grid holds none of this channel's keys to refine it onto.
+		if (channel in demotedChannels) {
+			continue
+		}
 
-		if (outOfSpan) {
+		val refined = track.refinedToUnion(unionKeys, emptyMap(), ChannelValueInterpolator)
+
+		if (!refined.carriesUnionKeys(unionKeys)) {
 			if (outOfSpanPolicy == OutOfSpanPolicy.RejectOwner) {
 				return KeyformBundleResult.Unrepresentable(
 					KeyformBundleRejection.KeysOutsideChannelSpan(channel),
@@ -246,7 +282,7 @@ fun <TGeometry> buildKeyformBundle(
 			}
 
 			// Demoted: no lookup is registered, so every cell falls back to the channel's static below.
-			demotedChannels.add(channel)
+			demotedChannels[channel] = ChannelDemotionCause.ChannelCannotRefineOntoUnion
 
 			continue
 		}
@@ -296,22 +332,46 @@ fun <TGeometry> buildKeyformBundle(
 }
 
 /**
- * The two key arrays merged ascending with evaluator-tolerance duplicates dropped.
+ * Merges an axis's keys into the union kept for its parameter.
  *
- * @param FloatArray first  One axis's keys.
- * @param FloatArray second The other's.
+ * @param KeyformAxis axis The axis to merge.
+ */
+private fun MutableMap<ParameterId, FloatArray>.mergeAxis(axis: KeyformAxis) {
+	val existing = this[axis.parameterId]
+	this[axis.parameterId] = if (existing == null) axis.keys.copyOf() else mergedKeys(existing, axis.keys)
+}
+
+/**
+ * Whether every axis of this grid carries exactly the union's keys for its parameter.
+ *
+ * @param Map unionKeys The union keys per parameter.
+ * @return Boolean True when the grid, as refined, can sit in a bundle on those keys.
+ */
+private fun KeyformGrid<*>.carriesUnionKeys(unionKeys: Map<ParameterId, FloatArray>): Boolean =
+	axes.all { axis -> axis.keys.contentEquals(unionKeys.getValue(axis.parameterId)) }
+
+/**
+ * A union's keys with another axis's merged in, ascending.
+ *
+ * A key the evaluator cannot tell apart from one the union already holds is that key met again on another
+ * grid, and stays one key: the union's own.  The keys the union holds are never merged with each other,
+ * however close, because a grid that stores both keys of a near pair can only refine onto a union that
+ * holds both.
+ *
+ * @param FloatArray union The keys held so far.
+ * @param FloatArray added The other axis's keys.
  * @return FloatArray The merged ascending keys.
  */
-private fun mergedKeys(first: FloatArray, second: FloatArray): FloatArray {
-	val sorted = (first + second).sortedArray()
-	val kept = ArrayList<Float>(sorted.size)
+private fun mergedKeys(union: FloatArray, added: FloatArray): FloatArray {
+	val kept = ArrayList<Float>(union.size + added.size)
+	kept.addAll(union.asList())
 
-	for (candidate in sorted) {
-		// The evaluator's own key-snap tolerance: two keys it cannot tell apart stay one key.
-		if (kept.isEmpty() || candidate - kept.last() >= EPS_KEY) {
+	for (candidate in added) {
+		// The evaluator's own key-snap tolerance.
+		if (kept.none { held -> abs(held - candidate) < EPS_KEY }) {
 			kept.add(candidate)
 		}
 	}
 
-	return kept.toFloatArray()
+	return kept.sorted().toFloatArray()
 }

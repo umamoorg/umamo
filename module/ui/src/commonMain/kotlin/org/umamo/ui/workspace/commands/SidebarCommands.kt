@@ -27,10 +27,18 @@ internal fun sidebarCommands(areaSidebars: AreaSidebarHub, routing: CommandRouti
 
 	return commandTable(
 		CommandTable.Sidebar,
-		Command("view.sidebar.nextTab", title = Res.string.cmd_view_sidebar_next_tab, spaces = SpaceScope.WorkSurfaces) {
+		Command(
+			"view.sidebar.nextTab",
+			title = Res.string.cmd_view_sidebar_next_tab,
+			spaces = SpaceScope.WorkSurfaces,
+		) {
 			hoveredSidebar()?.selectAdjacentTab(1)
 		},
-		Command("view.sidebar.previousTab", title = Res.string.cmd_view_sidebar_previous_tab, spaces = SpaceScope.WorkSurfaces) {
+		Command(
+			"view.sidebar.previousTab",
+			title = Res.string.cmd_view_sidebar_previous_tab,
+			spaces = SpaceScope.WorkSurfaces,
+		) {
 			hoveredSidebar()?.selectAdjacentTab(-1)
 		},
 	)

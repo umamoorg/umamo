@@ -722,7 +722,6 @@
 	<string name="runtime_feature_motion_sync">Synchronisation de mouvements</string>
 	<string name="runtime_feature_extended_blend_modes">Mod de Mélange</string>
 	<string name="runtime_feature_part_composite">Partie Composite (Rendu en dehors de l'écran)</string>
-	<string name="runtime_feature_parameter_repeat">Répéter le Paramètre</string>
 	<string name="runtime_feature_art_path">Chemin de l'Art</string>
 	<string name="properties_texture_source">Source de la Texture: %1$s</string>
 	<string name="properties_texture_own">Posséder un Binding Atlas</string>
@@ -874,7 +873,6 @@
 	<string name="settings_keybindings_reset">Réinitialiser vers un Préréglage</string>
 	<string name="settings_keybindings_press_shortcut">Appuyez sur un raccourci…</string>
 	<string name="settings_keybindings_unbound">Délier</string>
-	<string name="settings_keybindings_clear">Vider le raccourci</string>
 	<!-- %1$s is the shortcut, %2$s is the command it is already bound to. -->
 	<string name="settings_keybindings_conflict">%1$s est déja lié à “%2$s”. Le relier ?</string>
 	<string name="settings_keybindings_reassign">Réassigner</string>
@@ -885,17 +883,14 @@
 	<string name="settings_import_watch_mode_auto">Recharger Automatiquement</string>
 	<string name="settings_import_watch_mode_notify">Seulement Notifier</string>
 	<string name="settings_import_watch_mode_off">Off</string>
-	<string name="settings_import_delete_art_ignores_layer">Quand un art est supprimé des sources, aussi marqué le calque comme ignoré.</string>
 	<string name="settings_import_parameter_template_humanoid">Humanoide</string>
 	<string name="settings_import_parameter_template_none">Aucun</string>
 	<!-- Viewport section: wheel-zoom increments, in percent per notch. -->
-	<string name="settings_viewport_zoom_step">Taille du Zoom (%)</string>
-	<string name="settings_viewport_zoom_step_coarse">Taille du Zoom fort (%)</string>
+	<string name="settings_viewport_zoom_step">Taille du Zoom</string>
+	<string name="settings_viewport_zoom_step_coarse">Taille du Zoom fort</string>
 	<string name="settings_viewport_grid_scale">Taille de la Grille</string>
 	<string name="settings_viewport_grid_subdivisions">Subdivisions de la Grile</string>
 	<!-- Viewport section: rendering performance toggles (viewport.rendering.*). -->
-	<string name="settings_viewport_supersample">Supersampling (Qualité de Rendu x2)</string>
-	<string name="settings_viewport_supersample_while_resizing">Garder le Supersampling pendant la redimension des panneaux</string>
 	<!-- Colors section: the viewport selection highlight, then the Edit-mode gizmo palette (viewport.meshEdit.*), grouped element × state. -->
 	<string name="settings_colors_viewport">Viewport</string>
 	<string name="settings_colors_selection_highlight">Couleur de Sélection</string>
@@ -909,7 +904,6 @@
 	<string name="settings_colors_role_idle">Inactif</string>
 	<string name="settings_colors_role_selected">Sélectionné</string>
 	<string name="settings_colors_role_active">Actif</string>
-	<string name="settings_colors_role_offkey">En dehors de la clé</string>
 	<!-- Relation pick (a Properties eyedropper): the near-cursor badge naming what a click would bind. -->
 	<string name="pick_hover_drawable">Drawable: %1$s</string>
 	<string name="pick_hover_part">Partie: %1$s</string>

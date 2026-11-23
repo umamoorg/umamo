@@ -475,7 +475,6 @@
 	<string name="runtime_feature_motion_sync">모션-싱크</string>
 	<string name="runtime_feature_extended_blend_modes">혼합 모드</string>
 	<string name="runtime_feature_part_composite">파트 컴포지트 (오프스크린 드로잉)</string>
-	<string name="runtime_feature_parameter_repeat">파라미터 반복</string>
 	<string name="runtime_feature_art_path">아트 패스</string>
 	<string name="properties_texture_source">텍스처 소스: %1$s</string>
 	<string name="properties_texture_own">개별 아틀라스 바인딩</string>
@@ -591,16 +590,13 @@
 	<string name="settings_keybindings_reset">프리셋으로 초기화</string>
 	<string name="settings_keybindings_press_shortcut">단축키를 누르세요…</string>
 	<string name="settings_keybindings_unbound">지정되지 않음</string>
-	<string name="settings_keybindings_clear">단축키 지우기</string>
 	<string name="settings_keybindings_conflict">%1$s은(는) 이미 “%2$s”에 지정되어 있습니다. 다시 지정하시겠습니까?</string>
 	<string name="settings_keybindings_reassign">다시 지정</string>
 	<string name="settings_pen_coming_soon">펜 설정은 곧 지원될 예정입니다.</string>
-	<string name="settings_viewport_zoom_step">확대/축소 단계(%)</string>
-	<string name="settings_viewport_zoom_step_coarse">확대/축소 큰 단계(%)</string>
+	<string name="settings_viewport_zoom_step">확대/축소 단계</string>
+	<string name="settings_viewport_zoom_step_coarse">확대/축소 큰 단계</string>
 	<string name="settings_viewport_grid_scale">그리드 크기</string>
 	<string name="settings_viewport_grid_subdivisions">그리드 세분화</string>
-	<string name="settings_viewport_supersample">슈퍼샘플링(2배 렌더링 품질)</string>
-	<string name="settings_viewport_supersample_while_resizing">패널 크기 조정 중에도 슈퍼샘플링 유지</string>
 	<string name="settings_colors_viewport">뷰포트</string>
 	<string name="settings_colors_selection_highlight">선택 강조</string>
 	<string name="settings_colors_active_selection_highlight">활성 선택 강조</string>
@@ -613,7 +609,6 @@
 	<string name="settings_colors_role_idle">대기</string>
 	<string name="settings_colors_role_selected">선택됨</string>
 	<string name="settings_colors_role_active">활성</string>
-	<string name="settings_colors_role_offkey">키 외</string>
 	<string name="pick_hover_drawable">드로어블: %1$s</string>
 	<string name="pick_hover_part">파트: %1$s</string>
 	<string name="pick_hover_deformer">디포머: %1$s</string>

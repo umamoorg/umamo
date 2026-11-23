@@ -31,11 +31,14 @@ import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
 
 /*
- * The kit's containers, which hold content they know nothing about: the section header row and the
- * collapsible section card (this file), the tab strip (Tabs.kt), the vertical tab rail (VerticalTabRail.kt),
- * and the strip that collapses what does not fit into an overflow chip (OverflowRow.kt, over the pure packing
- * in OverflowRowPacking.kt).
+ * The kit's containers, which hold content they know nothing about: the section header row, the
+ * collapsible section card, and the sub-panel nested in one (this file), the tab strip (Tabs.kt), the
+ * vertical tab rail (VerticalTabRail.kt), and the strip that collapses what does not fit into an overflow
+ * chip (OverflowRow.kt, over the pure packing in OverflowRowPacking.kt).
  */
+
+/** The gap between two rows in a [SectionCard] or [NestedSection], so filled controls never touch. */
+private val SECTION_ROW_SPACING = 4.dp
 
 /**
  * A disclosure row: a small chevron (right when collapsed, down when expanded) plus a label, the whole row
@@ -113,7 +116,40 @@ fun SectionCard(
 				modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 8.dp, top = 2.dp, bottom = 8.dp),
 				// Breathing room between separate rows so filled controls do not touch; a FieldStack's own
 				// 1.dp seam is internal, so stacked groups stay tight.
-				verticalArrangement = Arrangement.spacedBy(4.dp),
+				verticalArrangement = Arrangement.spacedBy(SECTION_ROW_SPACING),
+				content = content,
+			)
+		}
+	}
+}
+
+/**
+ * A collapsible sub-panel inside a [SectionCard]'s body: a [SectionHeader] over its own rows.  The card's
+ * body inset is what sets the header in from the card's, so the rows take no indent of their own and their
+ * label and control halves line up with the card's other rows.
+ *
+ * @param String   title    The sub-panel heading.
+ * @param Boolean  expanded Whether the rows are shown.
+ * @param Function onToggle Called when the header is clicked, to open or fold the sub-panel.
+ * @param Modifier modifier Layout modifier.
+ * @param Function content  The sub-panel's rows, top to bottom.
+ */
+@Composable
+fun NestedSection(
+	title: String,
+	expanded: Boolean,
+	onToggle: () -> Unit,
+	modifier: Modifier = Modifier,
+	content: @Composable ColumnScope.() -> Unit,
+) {
+	Column(modifier = modifier.fillMaxWidth()) {
+		SectionHeader(label = title, expanded = expanded, onToggle = onToggle)
+
+		if (expanded) {
+			Column(
+				// A little air under the last row, so the next sub-panel's header reads as a new group.
+				modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp),
+				verticalArrangement = Arrangement.spacedBy(SECTION_ROW_SPACING),
 				content = content,
 			)
 		}

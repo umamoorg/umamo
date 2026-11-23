@@ -18,7 +18,14 @@ import org.umamo.ui.theme.LocalUmamoIcons
  * @return List<Command> The commands to register.
  */
 internal fun logCommands(onExportLog: () -> Unit): List<Command> =
-	commandTable(CommandTable.Log, Command("logs.export", title = Res.string.logs_export, icon = LocalUmamoIcons.floppy) { onExportLog() })
+	commandTable(
+		CommandTable.Log,
+		Command(
+			"logs.export",
+			title = Res.string.logs_export,
+			icon = LocalUmamoIcons.floppy,
+		) { onExportLog() },
+	)
 
 /**
  * Help > Open Log Folder: hands the folder the session logs are written to over to the platform's file manager, where
@@ -32,4 +39,11 @@ internal fun logCommands(onExportLog: () -> Unit): List<Command> =
  * @return List<Command> The commands to register.
  */
 internal fun logFolderCommands(onOpenLogFolder: () -> Unit): List<Command> =
-	commandTable(CommandTable.Log, Command("help.openLogFolder", title = Res.string.menu_open_log_folder, group = CommandSection.HelpLogs) { onOpenLogFolder() })
+	commandTable(
+		CommandTable.Log,
+		Command(
+			"help.openLogFolder",
+			title = Res.string.menu_open_log_folder,
+			group = CommandSection.HelpLogs,
+		) { onOpenLogFolder() },
+	)

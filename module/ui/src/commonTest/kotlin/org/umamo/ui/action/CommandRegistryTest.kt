@@ -80,6 +80,25 @@ class CommandRegistryTest {
 	}
 
 	/**
+	 * A command gated on its argument runs only with one it applies to, and with none (a chord, the palette) when it
+	 * says so; the palette and the status bar never offer one that needs an argument.
+	 */
+	@Test
+	fun anArgumentGatedCommandRunsOnlyWithAnArgumentItAppliesTo() {
+		val registry = CommandRegistry()
+		val received = ArrayList<Any?>()
+		val gated = Command("test.aimed", title = null, availableFor = { argument -> argument == "bound" }, handler = { argument -> received.add(argument) })
+		registry.register(gated)
+
+		assertFalse(registry.invoke("test.aimed", "unbound"))
+		assertFalse(registry.invoke("test.aimed"), "a chord carries no argument")
+		assertTrue(registry.invoke("test.aimed", "bound"))
+		assertEquals(listOf<Any?>("bound"), received)
+		assertFalse(gated.isOfferedIn(null), "nor is it offered where nothing aims it")
+		assertTrue(Command("test.plain", title = null, handler = {}).isAvailable("anything"), "a command without the gate ignores its argument")
+	}
+
+	/**
 	 * all() lists commands in registration order; get() and unregister() behave.
 	 */
 	@Test
@@ -311,5 +330,29 @@ class CommandRegistryTest {
 
 		assertTrue(registry.invoke("test.scoped"), "the registry knows nothing about where the pointer is")
 		assertEquals(1, runCount)
+	}
+
+	/**
+	 * A dispatch observer hears each command that runs, before its handler, and nothing that runs nothing; its cleanup
+	 * stops it.
+	 */
+	@Test
+	fun aDispatchObserverHearsEachCommandThatRunsBeforeItsHandler() {
+		val registry = CommandRegistry()
+		val heard = ArrayList<String>()
+		registry.register(Command("test.run", title = null, handler = { heard += "handler" }))
+		registry.register(Command("test.gated", title = null, availability = { false }, handler = { heard += "gated handler" }))
+		val stopObserving = registry.observeDispatch { command -> heard += command.id }
+
+		registry.invoke("test.run")
+		registry.invoke("test.gated")
+		registry.invoke("does.not.exist")
+
+		assertEquals(listOf("test.run", "handler"), heard, "told first, and only of a command that ran")
+
+		stopObserving()
+		registry.invoke("test.run")
+
+		assertEquals(listOf("test.run", "handler", "handler"), heard, "the cleanup stops the observer")
 	}
 }

@@ -24,7 +24,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -32,6 +34,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -43,6 +47,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.ui.kit.Divider
 import org.umamo.ui.kit.LocalPopupDismissOwned
@@ -54,10 +59,12 @@ import org.umamo.ui.kit.field.SearchField
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.search_hint
 import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.drawIcon
 import kotlin.math.max
+import kotlin.time.Duration.Companion.milliseconds
 
 /*
  * The kit's menus: the popup menu and its rows (this file), the item model (MenuItem.kt), the in-window
@@ -76,7 +83,7 @@ private const val SUBMENU_CLOSE_GRACE_MS = 180L
 /** The guaranteed gap between a row's label and its trailing shortcut or submenu arrow. */
 private val ROW_TRAILING_GAP = 24.dp
 
-/** Edge length of a row's leading icon, matching the kit's other 16.dp Canvas icons. */
+/** Edge length of a row's leading slot, its icon or its tick, matching the kit's other 16.dp Canvas icons. */
 private val MENU_ICON_SIZE = 16.dp
 
 /**
@@ -94,7 +101,7 @@ private val MENU_FALLBACK_MAX_HEIGHT = 360.dp
 /** The inset a pinned search box keeps from the menu's edges, matching the rows' own. */
 private val MENU_SEARCH_INSET = 8.dp
 
-/** The gap between a row's leading icon (or its reserved slot) and the label. */
+/** The gap between a row's leading slot and the label. */
 private val MENU_ICON_LABEL_GAP = 8.dp
 
 /**
@@ -155,7 +162,9 @@ private fun MenuPanel(
 	// otherwise stand as tall as the window, fit neither below nor above its chip, and open clamped to
 	// the window's bottom edge - far from the chip - until a search shrank it back under the anchor.
 	val searchRowsCap = searches.firstOrNull()?.maxRowsHeight
-	val reserveIconSlot = rows.any { menuEntry -> menuEntry is MenuItem.Action && menuEntry.icon != null }
+	// A choice row reserves the slot as an icon does, ticked or not, so the labels keep one edge as the tick moves
+	// between rows.
+	val reserveIconSlot = rows.any { menuEntry -> menuEntry is MenuItem.Action && (menuEntry.icon != null || menuEntry.checked != null) }
 	val scrollState = rememberScrollState()
 	// The pinned search's height, measured, so the row cap below leaves room for it: the rows' box is
 	// still measured against the window height, not the height left under the search.
@@ -276,12 +285,13 @@ private fun MenuHeadingRow(item: MenuItem.Heading) {
 }
 
 /**
- * One selectable menu row: an optional leading icon, the label, an optional shortcut hint right-aligned.
- * A disabled row is dimmed (icon included) and neither hovers nor clicks.  An icon-less row in a panel
- * that reserves the slot indents its label to the shared column.
+ * One selectable menu row: a leading slot, the label, an optional shortcut hint right-aligned.  The slot holds
+ * the tick while the row is the choice in effect, else its icon.  A disabled row is dimmed (slot included) and
+ * neither hovers nor clicks.  A row with nothing in the slot, in a panel that reserves it, indents its label to
+ * the shared column.
  *
  * @param MenuItem.Action item The row to render.
- * @param Boolean reserveIconSlot Whether icon-less rows indent to the panel's shared label column.
+ * @param Boolean reserveIconSlot Whether a row with an empty slot indents to the panel's shared label column.
  * @param Function onClick Invoked when an enabled row is chosen.
  */
 @Composable
@@ -296,12 +306,16 @@ private fun MenuActionRow(item: MenuItem.Action, reserveIconSlot: Boolean, onCli
 		} else {
 			Modifier
 		}
+	// A choice row says whether it is the one in effect, so assistive technology reads the tick too.
+	val checked = item.checked
+	val choiceModifier = if (checked == null) Modifier else Modifier.semantics { selected = checked }
 	Row(
 		modifier =
 			Modifier
 				.fillMaxWidth()
 				.padding(horizontal = 4.dp, vertical = 1.dp)
 				.then(rowModifier)
+				.then(choiceModifier)
 				.background(
 					when {
 						hovered && item.enabled -> colors.rowHover
@@ -312,10 +326,13 @@ private fun MenuActionRow(item: MenuItem.Action, reserveIconSlot: Boolean, onCli
 				.padding(horizontal = 4.dp, vertical = 2.dp),
 		verticalAlignment = Alignment.CenterVertically,
 	) {
-		if (item.icon != null) {
+		// The tick takes the slot in place of the row's own icon, so the two never stack.
+		val leadingIcon = if (checked == true) LocalUmamoIcons.checkmark else item.icon
+
+		if (leadingIcon != null) {
 			val iconTint = if (item.enabled) colors.text else colors.textMuted
 			Canvas(modifier = Modifier.size(MENU_ICON_SIZE)) {
-				drawIcon(item.icon, iconTint)
+				drawIcon(leadingIcon, iconTint)
 			}
 			Spacer(modifier = Modifier.width(MENU_ICON_LABEL_GAP))
 		} else if (reserveIconSlot) {
@@ -385,14 +402,18 @@ private fun MenuSubmenuRow(
 			onRequestOpen()
 		}
 	}
-	// Close after a grace once neither the row nor the flyout is hovered, re-checking after the delay so a
-	// diagonal move from the row across the gap onto the flyout keeps it open.
-	LaunchedEffect(rowHovered, flyoutHovered) {
-		if (!rowHovered && !flyoutHovered) {
-			delay(SUBMENU_CLOSE_GRACE_MS)
+	// Close after a grace once neither the row nor the flyout is hovered, and call that close off the moment either
+	// is hovered again, so a diagonal move from the row across the gap onto the flyout keeps it open.
+	val currentOnRequestClose by rememberUpdatedState(onRequestClose)
+	LaunchedEffect(Unit) {
+		snapshotFlow { rowHovered || flyoutHovered }.collectLatest { hovered ->
+			if (!hovered) {
+				delay(SUBMENU_CLOSE_GRACE_MS.milliseconds)
 
-			if (!rowHovered && !flyoutHovered) {
-				onRequestClose()
+				// Read once more as the grace ends, for a hover already written and not yet handed to this collector.
+				if (!rowHovered && !flyoutHovered) {
+					currentOnRequestClose()
+				}
 			}
 		}
 	}

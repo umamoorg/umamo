@@ -84,6 +84,7 @@ class Moc3Cmo3ParityTest {
 			assertEquals(cmo3Parameter.min, mocParameter.min, "min of ${mocParameter.id.raw}")
 			assertEquals(cmo3Parameter.max, mocParameter.max, "max of ${mocParameter.id.raw}")
 			assertEquals(cmo3Parameter.default, mocParameter.default, "default of ${mocParameter.id.raw}")
+			assertEquals(cmo3Parameter.repeat, mocParameter.repeat, "repeat of ${mocParameter.id.raw}")
 		}
 
 		assertEquals(fromCmo3.parameterLinks, fromMoc3.parameterLinks, "parameter links")

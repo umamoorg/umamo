@@ -8,6 +8,7 @@ import org.umamo.ui.action.CommandFamily
 import org.umamo.ui.action.CommandHint
 import org.umamo.ui.action.CommandState
 import org.umamo.ui.action.CommandTable
+import org.umamo.ui.action.KeymapCategory
 import org.umamo.ui.model.EditorModeHandle
 import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.resources.*
@@ -47,7 +48,14 @@ internal fun modeCommands(selection: SelectionHandle?, editorMode: EditorModeHan
 
 	return commandTable(
 		CommandTable.Mode,
-		Command("select.clear", title = Res.string.cmd_select_clear, availability = hasSelection) { selection?.set(SelectionOps.clear()) },
+		Command(
+			"select.clear",
+			title = Res.string.cmd_select_clear,
+			availability = hasSelection,
+			keymapCategory = KeymapCategory.Select,
+		) {
+			selection?.set(SelectionOps.clear())
+		},
 		Command(
 			"mode.toggleEdit",
 			title = Res.string.cmd_mode_toggle_edit,
@@ -56,7 +64,13 @@ internal fun modeCommands(selection: SelectionHandle?, editorMode: EditorModeHan
 		) {
 			editorMode?.toggleEdit()
 		},
-		Command("mode.togglePose", title = Res.string.cmd_mode_toggle_pose, availability = hasMode) { editorMode?.togglePose() },
+		Command(
+			"mode.togglePose",
+			title = Res.string.cmd_mode_toggle_pose,
+			availability = hasMode,
+		) {
+			editorMode?.togglePose()
+		},
 		// Explicit set-mode commands, the family the viewport header's mode dropdown lists (and the palette).
 		// setMode no-ops when already in the requested mode, so re-selecting the current row records no undo step.
 		Command(

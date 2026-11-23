@@ -165,10 +165,11 @@ internal object SessionTestModels {
 	 * @param Float min     The parameter minimum.
 	 * @param Float max     The parameter maximum.
 	 * @param Float default The parameter default (the initial pose value).
+	 * @param Boolean repeat Whether the axis wraps past its limits.
 	 * @return PuppetModel The fixture model.
 	 */
-	fun paramModel(min: Float = -1f, max: Float = 1f, default: Float = 0f): PuppetModel =
-		model().copy(parameters = listOf(Parameter(angleX, "Angle X", min, max, default)))
+	fun paramModel(min: Float = -1f, max: Float = 1f, default: Float = 0f, repeat: Boolean = false): PuppetModel =
+		model().copy(parameters = listOf(Parameter(angleX, "Angle X", min, max, default, repeat = repeat)))
 
 	/** The second parameter id of [linkModel]. */
 	val angleY = ParameterId("ParamAngleY")

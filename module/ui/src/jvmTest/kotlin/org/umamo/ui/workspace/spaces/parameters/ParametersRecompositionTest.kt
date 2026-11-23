@@ -9,6 +9,7 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.DpSize
+import org.umamo.edit.ParameterControl
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.parameter.renameParameter
@@ -181,6 +182,30 @@ class ParametersRecompositionTest {
 			releasePress()
 		}
 
+	/** A value field's scrub previews the pose as a slider drag does, and is held to the same: its own row, once per move. */
+	@Test
+	fun aFieldScrubRunsOnlyItsOwnRow() =
+		counting { counter ->
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			val field = numberFieldBounds(PanelValues.BODY_X)
+			val moves = listOf(14f, 20f, 26f, 32f, 38f).map { deltaX -> field.besideCenter(deltaX) }
+			pressAndMove(field.center, listOf(field.besideCenter(8f)))
+			counter.reset()
+
+			moveOn(moves)
+
+			val named = counter.namedRuns()
+			assertEquals(setOf("ParameterSlider", "ParameterValueRow"), named.keys, "a field scrub must run its own row's controls and no other composable")
+			assertTrue(named.getValue("ParameterSlider") <= moves.size, "the row runs at most once per move, and ran ${named["ParameterSlider"]} times")
+			assertTrue(named.getValue("ParameterValueRow") <= moves.size, "and so does its value row, which ran ${named["ParameterValueRow"]} times")
+			assertTrue(
+				counter.lambdaRuns() <= moves.size,
+				"only the moved row re-reads its value, once per move; ${counter.lambdaRuns()} lambdas ran for ${moves.size} moves",
+			)
+			releasePress()
+		}
+
 	/** A pad scrub is held to the same: the pad, its two value rows, and nothing else by name. */
 	@Test
 	fun aPadScrubRunsOnlyThePadItMoves() =
@@ -200,6 +225,59 @@ class ParametersRecompositionTest {
 			assertTrue(
 				counter.lambdaRuns() <= PAD_LAMBDAS_PER_MOVE * moves.size,
 				"only the pad re-reads its values; ${counter.lambdaRuns()} lambdas ran for ${moves.size} moves",
+			)
+			releasePress()
+		}
+
+	/** A dial scrub is held to what a slider scrub is: the dial's row and its value row, once per move. */
+	@Test
+	fun aDialScrubRunsOnlyTheDialItMoves() =
+		counting { counter ->
+			val harness = ParametersPanelHarness(model = panelFixtureModel(repeating = setOf(PanelIds.bodyX)))
+			mountParametersPanel(harness)
+			val dial = dialBox(harness, PanelRows.BODY_X, PanelValues.BODY_X)
+			val moves = listOf(dial.atClock(0.36f), dial.atClock(0.4f), dial.atClock(0.44f), dial.atClock(0.48f), dial.atClock(0.52f))
+			pressAndMove(dial.atClock(0.3f), listOf(dial.atClock(0.33f)))
+			counter.reset()
+
+			moveOn(moves)
+
+			val named = counter.namedRuns()
+			assertEquals(setOf("ParameterSlider", "ParameterValueRow", "ParameterDial"), named.keys, "a dial scrub must run the moved row's controls and no other composable")
+			assertTrue(named.getValue("ParameterSlider") <= moves.size, "the dial's row runs at most once per move, and ran ${named["ParameterSlider"]} times")
+			assertTrue(named.getValue("ParameterDial") <= moves.size, "and so does its dial, which ran ${named["ParameterDial"]} times")
+			assertTrue(
+				counter.lambdaRuns() <= moves.size,
+				"only the moved row re-reads its value, once per move; ${counter.lambdaRuns()} lambdas ran for ${moves.size} moves",
+			)
+			releasePress()
+		}
+
+	/** A scrub of one of a pair's dials runs that dial and its axis row; the other dial skips. */
+	@Test
+	fun aPairDialScrubRunsOnlyTheDialItMoves() =
+		counting { counter ->
+			val harness = ParametersPanelHarness(model = panelFixtureModel(repeating = setOf(PanelIds.angleX, PanelIds.angleY)))
+			mountParametersPanel(harness)
+			val (left, _) = pairDialBoxes(harness, PanelRows.ANGLE_PAD, PanelValues.ANGLE_X, PanelValues.ANGLE_Y)
+			val moves = listOf(left.atClock(0.36f), left.atClock(0.4f), left.atClock(0.44f))
+			pressAndMove(left.atClock(0.3f), listOf(left.atClock(0.33f)))
+			counter.reset()
+
+			moveOn(moves)
+
+			val named = counter.namedRuns()
+			assertEquals(
+				setOf("ParameterPad2D", "ParameterValueRow", "ParameterPairDial", "ParameterDial"),
+				named.keys,
+				"a pair dial scrub must run the pair's controls and no other composable",
+			)
+			assertTrue(named.getValue("ParameterPairDial") <= moves.size, "only the moved dial runs; the pair's dials ran ${named["ParameterPairDial"]} times")
+			assertTrue(named.getValue("ParameterDial") <= moves.size, "the dial inside it likewise; they ran ${named["ParameterDial"]} times")
+			assertTrue(named.getValue("ParameterValueRow") <= moves.size, "only the moved axis's value row runs; they ran ${named["ParameterValueRow"]} times")
+			assertTrue(
+				counter.lambdaRuns() <= PAIR_DIAL_LAMBDAS_PER_MOVE * moves.size,
+				"only the pair re-reads its values; ${counter.lambdaRuns()} lambdas ran for ${moves.size} moves",
 			)
 			releasePress()
 		}
@@ -256,6 +334,48 @@ class ParametersRecompositionTest {
 			assertEquals(1, counter.runsOf("ParameterValueRow"))
 			assertEquals(0, counter.runsOf("ParameterPad2D"), "and its pad")
 			assertEquals(0, counter.runsOf("ParametersSpace"), "view state of a row is not the panel's to read")
+		}
+
+	/**
+	 * A control pick is read by the one row it names, so it runs that row's control and nothing else, the panel
+	 * included.
+	 */
+	@Test
+	fun pickingOneRowsControlRunsOnlyThatRowsControl() =
+		counting { counter ->
+			val harness = ParametersPanelHarness()
+			harness.panelSize = DpSize(PANEL_WIDTH, PANEL_HEIGHT_WITH_SPACE)
+			mountParametersPanel(harness)
+			counter.reset()
+
+			runOnIdle { harness.session.setParameterControl(PanelIds.bodyX, ParameterControl.Dial) }
+			waitForIdle()
+
+			assertEquals(1, counter.runsOf("ParameterSlider"), "the picked row's control runs")
+			assertEquals(0, counter.runsOf("ParameterPad2D"), "no other row's control runs")
+			assertEquals(0, counter.runsOf("ParametersSpace"), "a row's control is not the panel's to read")
+		}
+
+	/**
+	 * What a row's menu reads from the command registry is resolved by the panel, once for every row, so a row that
+	 * composes again resolves nothing of its own.
+	 */
+	@Test
+	fun aRowComposingAgainResolvesNoMenu() =
+		counting { counter ->
+			val harness = ParametersPanelHarness()
+			harness.panelSize = DpSize(PANEL_WIDTH, PANEL_HEIGHT_WITH_SPACE)
+			mountParametersPanel(harness)
+
+			assertEquals(1, counter.runsOf("toggleRepeatEntry"), "the panel resolves the entry once as it mounts")
+			counter.reset()
+
+			runOnIdle { harness.viewState.openRangeEditors[PanelIds.bodyX] = true }
+			waitForIdle()
+
+			assertTrue(counter.runsOf("ParameterSliderRow") > 0, "the rows must really have composed again")
+			assertEquals(0, counter.runsOf("toggleRepeatEntry"), "a row resolves no command of its own")
+			assertEquals(0, counter.runsOf("ParametersSpace"), "and the panel did not run to resolve one for it")
 		}
 
 	/**
@@ -467,5 +587,11 @@ class ParametersRecompositionTest {
 		 * axis rows, which show them.  None belongs to another row.
 		 */
 		const val PAD_LAMBDAS_PER_MOVE = 3
+
+		/**
+		 * The lambdas a pair-dial move runs: the island content that reads the pair's values, the moved axis's
+		 * row, the row holding the two dials, and the moved dial's own column.  None belongs to another row.
+		 */
+		const val PAIR_DIAL_LAMBDAS_PER_MOVE = 4
 	}
 }

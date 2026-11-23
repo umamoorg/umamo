@@ -39,17 +39,21 @@ import androidx.compose.ui.graphics.Color
  * @property Color panelBorder        Hairline border around panels, dialogs, and popups.
  * @property Color panelBorderHover   Border pop on hover (area chrome, select fields).
  * @property Color controlBorder      Inset border around controls; the Pad2D frame.
- * @property Color guideLine          Mid-strength drawn line-work: the Pad2D grid, slider ticks, in-menu
- *   dividers, and the area drag-indicator strip.
+ * @property Color guideLine          Mid-strength drawn line-work: the Pad2D key lines and pips, slider and dial ticks,
+ *   in-menu dividers, and the area drag-indicator strip.
  * @property Color treeGuideLine      Outliner ancestry guide lines.
  * @property Color text               Primary text and text cursors.
  * @property Color textMuted          Secondary / dimmed text, placeholders, and muted glyphs.
  * @property Color textDisabled       Disabled text and glyphs.
  * @property Color accent             The brand accent fill: primary buttons, checkboxes, the slider fill,
- *   armed/recording states, and accent borders/marks.
+ *   armed/recording states, and accent borders/marks.  A control whose value wraps draws in [repeatAccent]
+ *   instead.
  * @property Color accentHover        Accent hover state.
  * @property Color accentPressed      Accent fill while a control is held down.
  * @property Color accentText         Text/icon on top of accent fills.
+ * @property Color repeatAccent       The accent of a control whose value wraps past its ends, in place of [accent]: a
+ *   repeating parameter's slider fill, its dial's arc and hand, and the ring of a pad handle either of whose axes
+ *   repeats.  The brand's secondary yellow, so a repeating control reads apart from one that clamps.
  * @property Color selection          Selected-item row background.
  * @property Color selectionText      Text and marks on selection rows.
  * @property Color controlBackground  Neutral control fill (text fields, secondary buttons, segments, key
@@ -132,6 +136,7 @@ data class UmamoColors(
 	val accentHover: Color,
 	val accentPressed: Color,
 	val accentText: Color,
+	val repeatAccent: Color,
 	val selection: Color,
 	val selectionText: Color,
 	val controlBackground: Color,
@@ -182,6 +187,7 @@ data class UmamoColors(
 // like 0.7f have no exact 8-bit representation, and the derivation keeps the rendered floats bit-identical
 // to what the call sites historically computed inline.
 private val brandPurple = Color(0xFFBF86D7)
+private val brandYellow = Color(0xFFFCDD83)
 
 // Blender's keyframe colors, identical in both schemes on purpose - they are learned signals, and a
 // per-scheme variant would make the light theme's "orange" mean something a user has to relearn.  Shared as
@@ -205,6 +211,9 @@ private val brandPurpleDim = Color(0xFFA96FC1)
 // value is too pale against light surfaces).
 private val brandPurpleDeep = Color(0xFF8A4FA8)
 private val brandPurpleDeepBright = Color(0xFF9B63B9)
+
+// The secondary yellow deepened the same way, so a fill in it still reads against the light track.
+private val brandYellowDeep = Color(0xFFA07A10)
 private val mutedGreyDark = Color(0xFF9A9A9A)
 private val mutedGreyLight = Color(0xFF6B6B6B)
 
@@ -245,6 +254,7 @@ val umamoDarkColors =
 		accentHover = brandPurpleBright,
 		accentPressed = brandPurpleDim,
 		accentText = Color(0xFFFFFFFF),
+		repeatAccent = brandYellow,
 		selection = brandPurple,
 		selectionText = Color(0xFFFFFFFF),
 		controlBackground = Color(0xFF545454),
@@ -317,6 +327,7 @@ val umamoLightColors =
 		accentHover = brandPurpleDeepBright,
 		accentPressed = brandPurpleDim,
 		accentText = Color(0xFFFFFFFF),
+		repeatAccent = brandYellowDeep,
 		selection = Color(0xFFDCC3EA),
 		selectionText = Color(0xFF3B2144),
 		controlBackground = Color(0xFFDFDFDF),

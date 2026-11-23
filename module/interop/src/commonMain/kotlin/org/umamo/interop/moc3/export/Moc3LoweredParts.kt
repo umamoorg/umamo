@@ -65,13 +65,15 @@ internal fun lowerParts(
 			val keyforms =
 				lowerObjectKeyforms(
 					pool,
+					noticeSink,
+					ExportEntityCategory.Part,
+					part.id.raw,
 					null as KeyformGrid<Unit>?,
 					UnitInterpolator,
 					part.channelGrids.onlyChannels(*(compositeChannels + arrayOf(FormChannel.DRAW_ORDER))),
 					compositeStatics + mapOf(FormChannel.DRAW_ORDER to ChannelValue.Scalar(part.drawOrder.toFloat())),
 					requireGeometry = false,
 				)
-			noticeSink.reportDemotions(ExportEntityCategory.Part, part.id.raw, keyforms)
 			partKeyformsById[part.id] = keyforms
 			val bundle = keyforms?.bundle
 			val cellCount = bundle?.cells?.size ?: 0

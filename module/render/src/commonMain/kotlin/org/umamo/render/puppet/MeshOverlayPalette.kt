@@ -37,8 +37,7 @@ data class OverlayColor(
  * The colors the mesh overlay draws with: each domain's idle, selected, and active color, the two
  * placement colors a UV area's islands outline in, the three a warp's lattice draws in by its role, and the
  * one a pending lattice draws in whatever its role.  The active face color colors the active face's DOT
- * only; a fill never uses it, the active face fills as selected.  The viewport.meshEdit settings also
- * carry an off-key color per domain, which nothing draws, so it has no place here.
+ * only; a fill never uses it, the active face fills as selected.
  *
  * @property OverlayColor vertexIdle An unselected vertex dot.
  * @property OverlayColor vertexSelected A selected vertex dot.
@@ -93,7 +92,7 @@ data class MeshOverlayPalette(
 				faceActive = OverlayColor.fromArgb(0xFF7DE400L),
 				warning = OverlayColor.fromArgb(0xFFFF5A5AL),
 				pinnedPlacement = OverlayColor.fromArgb(0xFFB266FFL),
-				latticeIdle = OverlayColor.fromArgb(0x80404040L),
+				latticeIdle = OverlayColor.fromArgb(0x80FFFFFFL),
 				latticeSelected = OverlayColor.fromArgb(0xFF338CFFL),
 				latticeActive = OverlayColor.fromArgb(0xFF7DE400L),
 				latticePending = OverlayColor.fromArgb(0xFFDF8431L),

@@ -7,10 +7,14 @@ import org.umamo.format.moc3.moc.MocParameter
 import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.format.moc3.moc.ParameterType
 import org.umamo.format.moc3.moc.Section
+import org.umamo.format.moc3.model.ArtMesh
+import org.umamo.format.moc3.model.ArtMeshKeyform
 import org.umamo.format.moc3.model.KeyformAxis
 import org.umamo.format.moc3.model.KeyformBinding
 import org.umamo.format.moc3.model.Part
+import org.umamo.format.moc3.model.RenderOrderChild
 import org.umamo.format.moc3.model.RenderOrderGroup
+import org.umamo.format.moc3.model.Rgb
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -60,25 +64,29 @@ class MocLoweringInvariantsTest {
 		)
 
 	/**
-	 * Builds a document around [keyformBindings], with no deformers, meshes, or blend records.
+	 * Builds a document around [keyformBindings], with no deformers or blend records.
 	 *
 	 * @param Map<Int, KeyformBinding>  keyformBindings   The binding map, sparse or dense.
 	 * @param List<MocParameter>        parameters        The parameter list.
 	 * @param List<RenderOrderGroup>    renderOrderGroups The render-order groups, empty by default.
+	 * @param List<Part>                parts             The parts, one static root by default.
+	 * @param List<ArtMesh>             artMeshes         The art meshes, empty by default.
 	 * @return MocDocument The document.
 	 */
 	private fun documentWith(
 		keyformBindings: Map<Int, KeyformBinding>,
 		parameters: List<MocParameter>,
 		renderOrderGroups: List<RenderOrderGroup> = emptyList(),
+		parts: List<Part> = listOf(Part("Part0", -1, 0, floatArrayOf(0f))),
+		artMeshes: List<ArtMesh> = emptyList(),
 	) = MocDocument(
 		version = MocVersion.V50,
 		canvas = CanvasInfo(pixelsPerUnit = 1f, originX = 0f, originY = 0f, width = 10f, height = 10f),
 		parameters = parameters,
 		keyformBindings = keyformBindings,
-		parts = listOf(Part("Part0", -1, 0, floatArrayOf(0f))),
+		parts = parts,
 		deformers = emptyList(),
-		artMeshes = emptyList(),
+		artMeshes = artMeshes,
 		glues = emptyList(),
 		renderOrderGroups = renderOrderGroups,
 	)
@@ -184,6 +192,65 @@ class MocLoweringInvariantsTest {
 				"$producerName ran: ${section.name} is present in the merged map",
 			)
 		}
+	}
+
+	@Test
+	fun groupDrawOrderExtentSpansEveryKeyformOfEveryChild() {
+		val version = MocVersion.V50
+		val parameters = listOf(parameter("ParamA", ParameterType.NORMAL))
+		val bindings =
+			mapOf(
+				0 to KeyformBinding(index = 0, axes = emptyList()),
+				1 to KeyformBinding(index = 1, axes = listOf(KeyformAxis(0, floatArrayOf(-1f, 0f, 1f)))),
+			)
+		// In every corpus group some child's FIRST keyform already holds each extreme, so a fold over
+		// first keyforms alone reproduces the corpus byte for byte.  Here both extremes sit on later
+		// keyforms only: the part dips to 490 on its middle key, the mesh rises to 510 on its last.
+		val parts =
+			listOf(
+				Part("Root", -1, 0, floatArrayOf(500f)),
+				Part("KeyedPart", 0, 1, floatArrayOf(500f, 490f, 500f)),
+			)
+		val triangle = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f)
+		val keyedMesh =
+			ArtMesh(
+				id = "KeyedMesh",
+				textureIndex = 0,
+				constantFlags = 0,
+				parentPartIndex = 0,
+				parentDeformerIndex = -1,
+				vertexUvs = triangle,
+				triangleIndices = shortArrayOf(0, 1, 2),
+				maskDrawableIndices = IntArray(0),
+				keyformBindingIndex = 1,
+				keyforms =
+					listOf(500f, 500f, 510f).map { drawOrder ->
+						ArtMeshKeyform(triangle, opacity = 1f, drawOrder = drawOrder, multiplyColor = Rgb(1f, 1f, 1f), screenColor = Rgb(0f, 0f, 0f))
+					},
+			)
+		val groups =
+			listOf(
+				RenderOrderGroup(
+					listOf(
+						RenderOrderChild(kind = 1, index = 1, groupIndex = 1),
+						RenderOrderChild(kind = 0, index = 0, groupIndex = 0),
+					),
+				),
+				RenderOrderGroup(emptyList()),
+			)
+		val document = documentWith(bindings, parameters, groups, parts, listOf(keyedMesh))
+		val lowered = MocLowering.lower(document)
+
+		assertEquals(
+			listOf(510, -Int.MAX_VALUE),
+			intsOf(lowered, Section.RENDER_ORDER_GROUP_MAX_DRAW_ORDER, version).toList(),
+			"s84 reaches the mesh's last keyform; the childless sub-group keeps the fold identity",
+		)
+		assertEquals(
+			listOf(490, Int.MAX_VALUE),
+			intsOf(lowered, Section.RENDER_ORDER_GROUP_MIN_DRAW_ORDER, version).toList(),
+			"s85 reaches the part's middle keyform; the childless sub-group keeps the fold identity",
+		)
 	}
 
 	@Test

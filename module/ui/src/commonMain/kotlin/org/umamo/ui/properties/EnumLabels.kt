@@ -50,7 +50,6 @@ import org.umamo.ui.resources.runtime_feature_extended_blend_shapes
 import org.umamo.ui.resources.runtime_feature_mesh_warp_blend_shapes
 import org.umamo.ui.resources.runtime_feature_motion_sync
 import org.umamo.ui.resources.runtime_feature_multiply_color
-import org.umamo.ui.resources.runtime_feature_parameter_repeat
 import org.umamo.ui.resources.runtime_feature_part_composite
 import org.umamo.ui.resources.runtime_feature_reversed_mask
 import org.umamo.ui.resources.runtime_feature_screen_color
@@ -216,7 +215,6 @@ fun runtimeFeatureLabelRes(feature: RuntimeFeature): StringResource =
 		RuntimeFeature.MotionSync -> Res.string.runtime_feature_motion_sync
 		RuntimeFeature.ExtendedBlendModes -> Res.string.runtime_feature_extended_blend_modes
 		RuntimeFeature.PartComposite -> Res.string.runtime_feature_part_composite
-		RuntimeFeature.ParameterRepeat -> Res.string.runtime_feature_parameter_repeat
 		RuntimeFeature.ArtPath -> Res.string.runtime_feature_art_path
 	}
 

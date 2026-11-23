@@ -24,6 +24,7 @@ import org.umamo.ui.progress.LocalProgressTracker
 import org.umamo.ui.settings.MESH_GENERATION_PRESET_KEY
 import org.umamo.ui.workspace.KeyformHover
 import org.umamo.ui.workspace.LocalViewportChrome
+import org.umamo.ui.workspace.RelationPickController
 import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.commands.SessionAvailability
 import org.umamo.ui.workspace.commands.atlasCommands
@@ -40,8 +41,10 @@ import org.umamo.ui.workspace.commands.meshGenerationCommands
 import org.umamo.ui.workspace.commands.modeCommands
 import org.umamo.ui.workspace.commands.objectCommands
 import org.umamo.ui.workspace.commands.overlayCommands
+import org.umamo.ui.workspace.commands.parameterCommands
 import org.umamo.ui.workspace.commands.proportionalCommands
 import org.umamo.ui.workspace.commands.registerAll
+import org.umamo.ui.workspace.commands.relationCommands
 import org.umamo.ui.workspace.commands.selectCommands
 import org.umamo.ui.workspace.commands.sidebarCommands
 import org.umamo.ui.workspace.commands.snapCommands
@@ -222,20 +225,24 @@ internal fun RegisterShellCommands(
 	DisposableEffect(commandRegistry, editorSession, selection) {
 		val cleanup =
 			commandRegistry.registerAll(
-				historyCommands(editorSession, availability, operationStrip) +
-					objectCommands(editorSession, selection, availability) +
-					transformCommands(editorSession, routing, availability) +
-					selectCommands(editorSession, routing, keyformSheetViews, availability) +
-					snapCommands(editorSession, routing, availability, areaOverlays) +
-					uvCommands(editorSession, routing, availability) +
-					topologyCommands(editorSession, routing, availability) +
-					meshGenerationCommands(availability, routing, generateMesh, generateQuadMesh) +
-					latticeCommands(editorSession, routing, availability) +
-					proportionalCommands(editorSession, availability) +
-					displayCommands(editorSession, availability) +
-					atlasCommands(availability, routing, repackAtlas) +
-					fileArtworkCommands(routing) { currentArtwork } +
-					fileImageExportCommands(routing) { currentExportImage },
+				buildList {
+					addAll(historyCommands(editorSession, availability, operationStrip))
+					addAll(objectCommands(editorSession, selection, availability))
+					addAll(relationCommands(editorSession, controllers.relationPick, routing, availability))
+					addAll(parameterCommands(editorSession, availability))
+					addAll(transformCommands(editorSession, routing, availability))
+					addAll(selectCommands(editorSession, routing, keyformSheetViews, availability))
+					addAll(snapCommands(editorSession, routing, availability, areaOverlays))
+					addAll(uvCommands(editorSession, routing, availability))
+					addAll(topologyCommands(editorSession, routing, availability))
+					addAll(meshGenerationCommands(availability, routing, generateMesh, generateQuadMesh))
+					addAll(latticeCommands(editorSession, routing, availability))
+					addAll(proportionalCommands(editorSession, availability))
+					addAll(displayCommands(editorSession, availability))
+					addAll(atlasCommands(availability, routing, repackAtlas))
+					addAll(fileArtworkCommands(routing) { currentArtwork })
+					addAll(fileImageExportCommands(routing) { currentExportImage })
+				},
 			)
 		onDispose { cleanup() }
 	}
@@ -248,5 +255,19 @@ internal fun RegisterShellCommands(
 				keyformCommands(editorSession, hoveredKeyable, routing, keyformSheetViews, availability),
 			)
 		onDispose { cleanup() }
+	}
+}
+
+/**
+ * Ends an armed relation pick whenever a command runs, for as long as the shell is composed.
+ *
+ * @param CommandRegistry commandRegistry The registry whose dispatches end the pick.
+ * @param RelationPickController relationPick The shell's relation-pick slot.
+ */
+@Composable
+internal fun EndRelationPickOnCommand(commandRegistry: CommandRegistry, relationPick: RelationPickController) {
+	DisposableEffect(commandRegistry, relationPick) {
+		val stopObserving = commandRegistry.observeDispatch { relationPick.cancel() }
+		onDispose { stopObserving() }
 	}
 }

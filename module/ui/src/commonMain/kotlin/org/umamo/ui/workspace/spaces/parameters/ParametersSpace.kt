@@ -22,16 +22,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import org.umamo.edit.ParameterControl
 import org.umamo.edit.ParameterMoveSubject
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.Selection
+import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.menu.ContextMenuArea
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalLiveParams
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalSelection
+import org.umamo.ui.rememberStringSetting
 import org.umamo.ui.resources.*
+import org.umamo.ui.settings.ParametersSettings
+import org.umamo.ui.settings.RepeatControlSetting
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.rowdrag.RowDragController
 import org.umamo.ui.workspace.rowdrag.RowDragLabel
@@ -54,6 +59,7 @@ import org.umamo.ui.workspace.rowdrag.parkCancelOnSeam
  *
  *   ParameterPose.kt              the pose writes and their Edit-mode lock, and the follow rule
  *   ParameterRows.kt              the row model and what the panel asks of it
+ *   ParameterControlChoice.kt     which control a row shows: slider or dial, pad or dials
  *   ParametersDropRules.kt        where a dragged row may land
  *   ParameterObjectBinding.kt     which parameters drive a selection
  */
@@ -95,6 +101,12 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// Per-parameter key marks (circle grid keys / square blend keys) for the sliders; one graph pass,
 	// recomputed only when the model changes.
 	val keyMarksByParameter = remember(puppet) { puppet.parameterKeyMarks() }
+	// The control a repeating parameter shows unless set otherwise, read once here and handed down, so the rows do not each subscribe.
+	val repeatControlKey by rememberStringSetting(ParametersSettings.REPEAT_CONTROL_KEY, ParametersSettings.REPEAT_CONTROL_DEFAULT.key)
+	val repeatControl = RepeatControlSetting.fromKey(repeatControlKey)
+	// The control each parameter was set to show, held as state and never read here: each row reads its own entry,
+	// so a pick runs the row it changes and not the panel.
+	val parameterControls = remember(session) { session?.parameterControls ?: MutableStateFlow(emptyMap<ParameterId, ParameterControl>()) }.collectAsState()
 
 	// The "affects the selected object" filter: when it is on and something is selected, restrict the panel
 	// to the parameters that drive the selection (effective, through the deformer chain).  Inert with no
@@ -166,6 +178,9 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// first parameter or group can be made with no row to right-click.
 	val createMenuItems =
 		createParameterMenuItems(labels, puppet.runtimeTarget, session, viewState) + newParameterGroupMenuItem(labels, session, viewState)
+	// What a row's menu reads from the command registry, resolved here once: every row's is the same but for the
+	// parameter it runs with.
+	val rowMenus = rememberParameterRowMenus()
 	// One release handler for every row's grip: a drag reads the panel's drag state, not the row it began on.
 	// The rows and the model are read through state at the release, so the handler stays one object while
 	// the panel builds new rows and an edit publishes a new model, and no grip runs again for it.
@@ -200,12 +215,15 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 						ParameterRowView(
 							row = row,
 							keyMarksByParameter = keyMarksByParameter,
+							repeatControl = repeatControl,
+							parameterControls = parameterControls,
 							parameterSelection = parameterSelection,
 							labels = labels,
 							pose = pose,
 							viewState = viewState,
 							session = session,
 							createMenuItems = createMenuItems,
+							rowMenus = rowMenus,
 							dragController = dragController,
 							onDrop = onDrop,
 						)

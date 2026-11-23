@@ -1,8 +1,6 @@
 package org.umamo.ui.kit.field
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -14,18 +12,19 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.unit.dp
+import org.umamo.ui.kit.LocalCursorWarp
 import org.umamo.ui.theme.LocalUmamoColors
 import kotlin.math.abs
 
 /** The thumb dot's radius; the thumb travels inset by this from each end so it never spills past the control. */
-private val SLIDER_THUMB_RADIUS = 5.dp
+internal val SLIDER_THUMB_RADIUS = 5.dp
 
 /** A per-key marker's half-extent; kept under the thumb radius so the current-value thumb stays dominant. */
-private val SLIDER_KEY_MARK_RADIUS = 3.5.dp
+internal val SLIDER_KEY_MARK_RADIUS = 3.5.dp
 
 /**
  * The shape a slider draws for its thumb and for a per-key marker.  A circle marks a key-form (grid) point;
@@ -50,22 +49,28 @@ data class SliderKeyMark(
 )
 
 /**
- * A flat, draggable slider: a thin track + fill + small thumb on a [Canvas], set by tap or drag anywhere on
- * the control.  A fixed-height control; pass a width via [modifier] (e.g. `Modifier.fillMaxWidth()`).
+ * A flat, draggable slider: a thin track + fill + small thumb on a [Canvas].  A press jumps the value to the pointer
+ * and a drag follows it.  A fixed-height control; pass a width via [modifier] (e.g. `Modifier.fillMaxWidth()`).
  * [onValueChangeFinished] fires once per gesture, so a caller can treat a whole drag as one undo step while
- * [onValueChange] still previews each frame.  While Ctrl is held, a tap or drag near a key mark latches onto
- * it (see [snapToNearestWithin]).
+ * [onValueChange] still previews each frame.  While Ctrl is held, a press or drag near a key mark latches onto it
+ * (see [snapToNearestWithin]).
+ *
+ * A slider that [wraps] carries a drag past either end round to the other: once the pointer is past an end by more
+ * than [CONTROL_WRAP_DETENT], the value comes in at the other end, and the cursor is moved to the thumb where the
+ * platform allows.  The value it reports stays inside [valueRange], exactly max included.
  *
  * @param Float    value                 The current value.
- * @param Function onValueChange         Called with the new value on each tap / drag frame (the preview).
+ * @param Function onValueChange         Called with the new value on the press and each drag frame (the preview).
  * @param Modifier modifier              Layout modifier (supply the width).
- * @param Function onValueChangeFinished Called once when the gesture ends (tap, drag release, or cancel).
+ * @param Function onValueChangeFinished Called once when the gesture ends (release or cancel).
  * @param ClosedFloatingPointRange valueRange The min..max range.
  * @param List keyMarks Parameter keys to mark on the track, each with its shape (circle grid key / square
  *   blend-shape key), so the user can see and scrub onto a key, and the values a held-Ctrl scrub snaps to.
  *   Empty by default.
  * @param SliderKeyShape thumbShape The thumb's shape (Circle for a key-form parameter, Square for a
  *   blend-shape parameter); defaults to Circle.
+ * @param Boolean wraps Whether a drag past an end comes in at the other instead of stopping there; false by default.
+ * @param Color accentColor The fill's color; the theme's accent when unspecified.
  */
 @Composable
 fun Slider(
@@ -76,12 +81,14 @@ fun Slider(
 	valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
 	keyMarks: List<SliderKeyMark> = emptyList(),
 	thumbShape: SliderKeyShape = SliderKeyShape.Circle,
+	wraps: Boolean = false,
+	accentColor: Color = Color.Unspecified,
 ) {
 	val colors = LocalUmamoColors.current
 	val span = (valueRange.endInclusive - valueRange.start).takeIf { it != 0f } ?: 1f
 	val fraction = ((value - valueRange.start) / span).coerceIn(0f, 1f)
 	val trackColor = colors.sliderTrack
-	val fillColor = colors.accent
+	val fillColor = accentColor.takeOrElse { colors.accent }
 	val thumbColor = colors.sliderThumb
 	val tickColor = colors.guideLine
 	// pointerInput is keyed only on valueRange, so it does not restart when a recomposition hands in a new
@@ -91,46 +98,29 @@ fun Slider(
 	val currentOnValueChangeFinished by rememberUpdatedState(onValueChangeFinished)
 	val snapValues = remember(keyMarks) { keyMarks.map { mark -> mark.value } }
 	val currentSnapValues by rememberUpdatedState(snapValues)
-	val ctrlLatch = remember { SliderCtrlLatch() }
+	val currentWraps by rememberUpdatedState(wraps)
+	val currentWarp by rememberUpdatedState(LocalCursorWarp.current)
+	val placement = remember { ControlPlacement() }
 	Canvas(
 		modifier =
 			modifier
 				.height(18.dp)
-				// Ctrl is read off every event rather than sampled at the press: snapping is a live toggle, and on
-				// macOS, where Ctrl+click is the right click, Ctrl joins a drag already under way.  The tap and
-				// drag detectors below hide the event's modifiers, so this watches the INITIAL pass, which runs
-				// for the whole event before their main pass does, and they read the latch current.
-				.pointerInput(Unit) {
-					awaitPointerEventScope {
-						while (true) {
-							ctrlLatch.held = awaitPointerEvent(PointerEventPass.Initial).keyboardModifiers.isCtrlPressed
-						}
-					}
-				}
+				.onPlaced { coordinates -> placement.coordinates = coordinates }
 				.pointerInput(valueRange) {
 					val thumbRadius = SLIDER_THUMB_RADIUS.toPx()
 					val snapRadius = KEY_SNAP_RADIUS.toPx()
-					detectTapGestures { offset ->
-						val snapTargets = if (ctrlLatch.held) currentSnapValues else emptyList()
-						currentOnValueChange(
-							sliderValueAt(offset.x, size.width.toFloat(), thumbRadius, valueRange, snapTargets, snapRadius),
-						)
-						currentOnValueChangeFinished()
-					}
-				}
-				.pointerInput(valueRange) {
-					val thumbRadius = SLIDER_THUMB_RADIUS.toPx()
-					val snapRadius = KEY_SNAP_RADIUS.toPx()
-					detectDragGestures(
-						onDragEnd = { currentOnValueChangeFinished() },
-						onDragCancel = { currentOnValueChangeFinished() },
-					) { change, _ ->
-						change.consume()
-						val snapTargets = if (ctrlLatch.held) currentSnapValues else emptyList()
-						currentOnValueChange(
-							sliderValueAt(change.position.x, size.width.toFloat(), thumbRadius, valueRange, snapTargets, snapRadius),
-						)
-					}
+					trackControlDrags(
+						// The band the thumb travels, inset by its radius at each end, as the drawing below places it.
+						horizontalAxisOf = { size -> ControlWrapAxis(thumbRadius, travelWidth(size.width.toFloat(), thumbRadius), currentWraps) },
+						verticalAxisOf = { ControlWrapAxis.CLAMPED },
+						warp = { currentWarp },
+						placement = placement,
+						onDrag = { control, ctrlHeld ->
+							val snapTargets = if (ctrlHeld) currentSnapValues else emptyList()
+							currentOnValueChange(sliderValueAt(control.x, size.width.toFloat(), thumbRadius, valueRange, snapTargets, snapRadius))
+						},
+						onFinished = { currentOnValueChangeFinished() },
+					)
 				},
 	) {
 		val trackHeight = 4.dp.toPx()
@@ -175,7 +165,7 @@ fun Slider(
  * @param Float          centerY The marker center y.
  * @param Float          radius  The circle radius, or the square's half-side.
  */
-private fun DrawScope.drawSliderShape(shape: SliderKeyShape, color: Color, centerX: Float, centerY: Float, radius: Float) {
+internal fun DrawScope.drawSliderShape(shape: SliderKeyShape, color: Color, centerX: Float, centerY: Float, radius: Float) {
 	when (shape) {
 		SliderKeyShape.Circle -> {
 			drawCircle(color = color, radius = radius, center = Offset(centerX, centerY))
@@ -193,17 +183,9 @@ private fun DrawScope.drawSliderShape(shape: SliderKeyShape, color: Color, cente
 }
 
 /**
- * Whether Ctrl was held on the latest pointer event over a slider.  A plain holder rather than snapshot state:
- * only the gesture handlers read it, and nothing draws from it, so a change must not recompose the slider.
- */
-private class SliderCtrlLatch {
-	/** Ctrl as of the latest pointer event. */
-	var held: Boolean = false
-}
-
-/**
  * The value a slider press or drag at [x] sets: the pointer's place on the track, latched onto the nearest of
- * [snapTargets] within [snapRadius] pixels of it, and kept inside [range].
+ * [snapTargets] within [snapRadius] pixels of it, and kept inside [range].  A wrapping slider hands in the point it
+ * reads after its wrap, so the same clamp holds the value at an end inside the detent.
  *
  * @param Float x The pointer x within the control.
  * @param Float width The control's full width.

@@ -53,23 +53,6 @@ internal class Moc3ExportNotices {
 	}
 
 	/**
-	 * Reports every channel a bundle had to drop to its static.
-	 *
-	 * @param ExportEntityCategory category The entity category.
-	 * @param String               subject  The entity's id.
-	 * @param Moc3ObjectKeyforms?  keyforms The lowered keyforms, or null when unrepresentable.
-	 */
-	fun reportDemotions(
-		category: ExportEntityCategory,
-		subject: String,
-		keyforms: Moc3ObjectKeyforms?,
-	) {
-		for (channel in keyforms?.demotedChannels.orEmpty()) {
-			unsupported(category, subject, ExportNoticeReason.ChannelDemotedToStatic(channel))
-		}
-	}
-
-	/**
 	 * Reports every drawable the eligibility pass left out, with the reason it gave.
 	 *
 	 * Called LAST by the orchestrator, so drop notices trail the per-object findings rather than

@@ -231,6 +231,8 @@ class WarpLatticeTest {
 	/** A pose outside the warp's keyed range hides it, so it has no lattice there. */
 	@Test
 	fun aHiddenWarpHasNoLattice() {
-		assertNull(warpLatticeAt(model(), mapOf(angleX to 2f), warpId))
+		// X's range reaches past the last key: a pose outside the range would clamp back onto that key.
+		val model = model().let { rig -> rig.copy(parameters = rig.parameters.map { parameter -> if (parameter.id == angleX) parameter.copy(max = 3f) else parameter }) }
+		assertNull(warpLatticeAt(model, mapOf(angleX to 2f), warpId))
 	}
 }

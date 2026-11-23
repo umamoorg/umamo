@@ -11,16 +11,30 @@
 1.) (Everything required for glue, deformers, and so on.)
 2.) UMA Format - Mostly done, a few final pieces to go through.  I'm leaving it "unfinished" as pre-v1.0 for the format until Umamo 1.0 is ready to release.
 
-## 0.6.0 Goals
+## 0.6.0 Goals - Late December, Early January
 0.) Merge in the existing language translations.(Some were merged.)
 1.) Finish 3D Depth Rotation and Merge
-2.) Fix Platform Bugs - Linux and MacOS
+2.) Fix Platform Bugs - Linux and MacOS (Partially done.)
 3.) Proper Bone and Skeleton System
 4.) Rotation Deformer Gizmos and Editing
+5.) Github Issues and Pull Requests
+~~6.) Lint - Prefer multiline argument rule.~~
 
-## 0.7.0 Goals
+## 0.7.0 Goals - January
 5.) Glue Gizmos and Editing - Part of all of this may end up happening with "Proper Bone and Skeleton System" in 0.6.0.
 6.) Modifiers - Generate -> Mirror - This will also seed being able to mirror things along with other potential modifiers.
+
+### 0.8.0 Goals - February
+1.) (Tentative) Brush/Tool Backend Machinery.  See: https://github.com/umamoorg/umamo/pull/376
+2.) Polish UMA.md format document and publish it.
+3.) Automatic File Backup
+4.) Pen Input Work
+
+### 0.9.0 Goals - March
+1.) Android Tablet Work - I expect that this will take up a good portion of time since it needs the build system, render layer, UI adjustments, and pen input work.
+
+### 1.0.0 Goals - June/July
+1.) Big release!~
 
 ## VERY IMPORTANT
 * Hire translators for localization.
@@ -92,9 +106,6 @@
 	* Mirror along X/Z axis, mirror with 2D cursor as the axis.  Note: This is a small divergence to Blender's style.  In Blender there is an origin for each object that can be moved to different places.  Umamo still has the centroid origin calculated, but no way to move it or even if it was moved, a way to store it.
 	* Extrude(E) - Extrude an edge creates triangle cut quad automatically.
 
-## Progress Bar
-* CMO3 and MOC3 export need to show the progress bar.
-
 ## Texture Authoring/UV Editor
 * Follow Selection Header Control - Split it into options and images.
 	* New custom image selection control.  This will also be an entry point for adding artwork.
@@ -132,8 +143,7 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 * Single/multiple relation pickers.
 	* Improvements
 		* Persist list height.(Stored in UMA format, maybe?)
-		* Deformer pickAt().
-		* Context Menus
+		* Change icon on picker to an eyedropper.
 
 ## Parameters
 * Parameter templates:
@@ -200,9 +210,11 @@ See format planning document: docs/plan/uma-format.md
 	* Versioned Settings
 	* Import from Previous
 	* Auto Key Enable/Disable - This is for migrators from Cubism since Cubism automatically keys.
-* The settings UI needs a design pass since it is basically just squares and whatever thrown together right now.
 * New Settings
 	* Setting to make Left Click, instead of ALT+Left Click, the default to activate the popup overlap picker.
+* Keybindings Design
+	* Group by category in collapsible sections.
+	* Search by name or binding.  Like when searching in the Properties panel, matches force collapsed sections to appear.
 
 ## Keybindings
 * Audit default keybinding maps for Blender and Cubism styles.
@@ -214,6 +226,8 @@ See format planning document: docs/plan/uma-format.md
 * History playback for proof of work.  The history system is there, but that is a lot of track over a long session.  So capture a snapshot every time period or number of snapshots.
 * A proper bone skeleton system with bendy bones.
 * Parameter Frame by Frame animation: A quick setup to select multiple drawables and define them as a frame by frame animation.(Instant on/off opacity.)
+* MIDI Protocol Support
+* Multiple Monitor Support
 
 ## Rights Management
 * One time, permanently dismissable message dialog informing users to not edit MOC3 files without permission from the author.
@@ -253,6 +267,8 @@ Sketch:
 ## Color Space and Management
 Right now the goal is to support sRGB from ingest to output with full correctness.  Eventually we want to be able to add linear color space, HDR, and so on.  While vtubers typically are 100% sRGB(art, edit, broadcast) some game developers may opt for different color spaces and require that flexibility.  I'm tentatively planning this work for Q1 2027.
 
+## Stable Pad
+* Build Firmware ^_~
 
 # Claude Notes
 
@@ -353,3 +369,13 @@ the tile.  Each is its own design question.
 **Why it showed now.** The exact outgrown test (auto-mesh Phase 5a) reads the texture mapping and flags the shifted mesh; the bounding-box test it replaced compared canvas positions and did not.  `ReloadArtworkFlowTest`'s last step walked exactly this sequence; it now relinks a tile whose binding matches its pixels.
 
 **Fix options.** Record the frame a tile's pixels were read at on the tile itself (it is the inventory row of whatever layer last filled it), or have a binding-only relink also retarget the tile's recorded frame; either way the carry would read the pixels' own origin.
+
+## Menus aimed at one item: two ways to name the argument (deferred 2026-11-22)
+
+**What.** A menu's rows get the thing they act on in one of two ways.  A row can name it as the menu is resolved (`CommandMenuRow.Members(group, argument = ...)`: workspace tabs in `WorkspaceTabs.kt`, relation fields and mask entries in `RelationMenus.kt`), or the builder can be handed it as the menu opens (`rememberCommandMenuFor(rows)`, which the Parameters panel uses so it resolves a row's menus once and not once per row).  Both stand, with one stated rule between them: a row's own argument holds, and the open-time one aims only the rows that name none.
+
+**Why it was left.** One way would be simpler, but the open-time argument aims every row, and a workspace tab's menu mixes rows aimed at the tab with rows run with nothing (`Members(WorkspaceTab, argument = id)` beside `Members(WorkspaceSwitch)`).  Moving every site to the open-time form needs a way for a row to say whether it takes the menu's argument, which is a change to `CommandMenuRow` and to three surfaces outside the Parameters panel.
+
+**The Parameters panel's half (your call, 2026-11-22: not sure yet).** `ParameterMenus.kt` builds command rows two ways.  The Control submenus come from the registry through `rememberCommandMenuFor`; Toggle Repeat comes from `ToggleRepeatEntry`, a hand-rolled row factory that holds the command, its title, the registry, and the keymap.  A slider row's Toggle Repeat could be one more row of the same arrangement (`CommandMenuRow.Single("parameter.toggleRepeat")` beside `Family(ParameterControl)`), which would leave `ToggleRepeatEntry` for the pad's per-axis labels alone.  It would revisit the REPEAT-3 choice of `commandMenuItem` rows for Toggle Repeat.  Separately, `rowMenus` travels down the row composables beside `createMenuItems`; both are the panel's share of every row's menu and could be one holder.
+
+**Fix options.** (1) Give `CommandMenuRow.Members` and `Family` a flag for "takes the menu's argument", drop the row-level `argument`, and move the three other surfaces to `rememberCommandMenuFor`, hoisting the workspace tabs' menu out of the per-tab loop.  (2) Leave the two forms as they are and only fold the slider's Toggle Repeat into the arrangement.

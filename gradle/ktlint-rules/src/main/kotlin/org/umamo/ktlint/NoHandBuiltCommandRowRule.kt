@@ -15,9 +15,9 @@ import org.jetbrains.kotlin.com.intellij.lang.ASTNode
  * widget that asks the keymap for a chord is building such a row by hand, and what it builds can run one command
  * and advertise another's chord, or stay enabled while its command does not apply.
  *
- * So `chordFor` is called only by what shows a command with its chord for every surface: the menu builders and the
- * palette beside the registry, the keybindings editor, and the status bar's hints.  Nothing is autocorrected: the
- * fix is to build the row from its command.
+ * So `chordFor` and `chordsFor` are called only by what shows a command with its chords for every surface: the menu
+ * builders and the palette beside the registry, the keybindings editor, and the status bar's hints.  Nothing is
+ * autocorrected: the fix is to build the row from its command.
  */
 public class NoHandBuiltCommandRowRule :
 	Rule(
@@ -57,14 +57,14 @@ public class NoHandBuiltCommandRowRule :
 				else -> null
 			}
 
-		if (lookup?.elementType == ElementType.REFERENCE_EXPRESSION && lookup.text == CHORD_LOOKUP) {
+		if (lookup?.elementType == ElementType.REFERENCE_EXPRESSION && lookup.text in CHORD_LOOKUPS) {
 			emit(lookup.startOffset, "A command's chord comes with its row: build the row from the command (`rememberFamilyMenu`, `rememberCommandMenu`, `commandMenuItem`) and never ask the keymap for it by hand", false)
 		}
 	}
 
 	private companion object {
-		/** The keymap's lookup of the chord bound to a command. */
-		const val CHORD_LOOKUP = "chordFor"
+		/** The keymap's lookups of the chords bound to a command: the first one, and all of them. */
+		val CHORD_LOOKUPS = setOf("chordFor", "chordsFor")
 
 		/** The packages that show a command with its chord: the registry's own, the keybindings editor's, and the status bar's. */
 		val CHORD_PACKAGES = listOf("org.umamo.ui.action", "org.umamo.ui.settings", "org.umamo.ui.workspace.statusbar")

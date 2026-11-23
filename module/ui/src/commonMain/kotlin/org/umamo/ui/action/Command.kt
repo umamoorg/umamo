@@ -38,6 +38,21 @@ fun interface CommandAvailability {
 }
 
 /**
+ * Reports whether a command applies when run with a given argument.
+ *
+ * A `fun interface` so a table passes a lambda reading live state, evaluated fresh at each query.
+ */
+fun interface CommandArgumentAvailability {
+	/**
+	 * Reports whether the command applies when run with [argument].
+	 *
+	 * @param Any? argument What the command would run with, or null for none (a chord, the palette).
+	 * @return Boolean True when it may be shown enabled and invoked so.
+	 */
+	fun isAvailableFor(argument: Any?): Boolean
+}
+
+/**
  * Reports whether a command is the one in effect: the pivot that is current, the select mode in use.  It is what a
  * control listing a family lights, and whose glyph its chip wears, without knowing what the family sets.
  *
@@ -52,6 +67,23 @@ fun interface CommandState {
 	 * @return Boolean True while it is.
 	 */
 	fun isOn(): Boolean
+}
+
+/**
+ * Reports whether a command is the one in effect for a given argument: the control a parameter was set to show, among
+ * the commands that set it.  The argument-aware form of [CommandState], as [CommandArgumentAvailability] is of
+ * [CommandAvailability].
+ *
+ * A `fun interface` so a table passes a lambda reading live state, evaluated fresh at each query.
+ */
+fun interface CommandArgumentState {
+	/**
+	 * Reports whether the command is the one in effect for [argument].
+	 *
+	 * @param Any? argument What the command would run with, or null for none.
+	 * @return Boolean True while it is.
+	 */
+	fun isOnFor(argument: Any?): Boolean
 }
 
 /**
@@ -89,6 +121,12 @@ data class CommandChoice(val label: String, val argument: Any?)
  * @property StringResource? title The localized menu/palette label, or null for commands never shown in UI (e.g. test-only).
  * @property CommandAvailability availability Whether the command currently applies (palette filter +
  *   dispatch guard); defaults to always.
+ * @property CommandArgumentAvailability? availableFor Whether it applies run with a given argument, on top of
+ *   [availability], or null for a command whose argument never changes that.  Asked with null for a chord, the
+ *   palette, and the status bar.
+ * @property Boolean needsArgument Whether the command can only run with an argument, which a row supplies: a
+ *   parameter's menu hands over its parameter.  A chord, the palette, and the status bar run a command with none, so
+ *   such a command never applies there, and the keybindings list leaves it out however it is titled.
  * @property SpaceScope spaces The editor spaces the command belongs to (palette filter + status bar
  *   suggestion, never a dispatch guard); defaults to everywhere.  Read off what the handler's routing
  *   actually does, never narrower: a handler that reaches back to a surface the pointer has left (the lone
@@ -104,11 +142,16 @@ data class CommandChoice(val label: String, val argument: Any?)
  *   members from whichever tables hold them.
  * @property StringResource? groupLabel The label of the command's row under its family's heading, where the heading
  *   already says what the family does ("Parts" under "Select All of Type"), or null to show the [title] there too.
+ * @property KeymapCategory? keymapCategory The category the keybindings page lists the command under, where it is not
+ *   its table's, or null to follow the table ([CommandTable.keymapCategory]).  Like [group], a listing only: dispatch
+ *   never reads it.
  * @property UmamoIcon? icon The command's glyph wherever a pie slot, a menu row, or a chip stands for it, or null
  *   for a command with none drawn.
  * @property CommandState? state Whether the command is the one in effect, which a control listing its family lights
- *   (never a dispatch guard), or null for a command that is never "the current one".  Its table decides what it
- *   reports with no document open, so a control shows the same face before the first file opens.
+ *   and a check-list menu ticks (never a dispatch guard), or null for a command that is never "the current one".  Its table
+ *   decides what it reports with no document open, so a control shows the same face before the first file opens.
+ * @property CommandArgumentState? stateFor Whether the command is the one in effect for the argument a row runs it
+ *   with, in place of [state], or null for a command whose state does not depend on its argument.
  * @property CommandChoices? choices The arguments the command is offered with, a row apiece, or null for a command
  *   that is one row.  Never read by dispatch: the handler takes whatever argument it is run with.
  * @property CommandHandler handler The work to perform when invoked.
@@ -117,13 +160,17 @@ data class Command(
 	val id: String,
 	val title: StringResource?,
 	val availability: CommandAvailability = CommandAvailability.Always,
+	val availableFor: CommandArgumentAvailability? = null,
+	val needsArgument: Boolean = false,
 	val spaces: SpaceScope = SpaceScope.Everywhere,
 	val hint: CommandHint? = null,
 	val table: CommandTable? = null,
 	val group: CommandListing? = null,
 	val groupLabel: StringResource? = null,
+	val keymapCategory: KeymapCategory? = null,
 	val icon: UmamoIcon? = null,
 	val state: CommandState? = null,
+	val stateFor: CommandArgumentState? = null,
 	val choices: CommandChoices? = null,
 	val handler: CommandHandler,
 ) {
@@ -131,15 +178,33 @@ data class Command(
 		require(groupLabel == null || group != null) { "Command $id has a group label and no group to show it under" }
 		// A command no family shows may go unlabeled (the palette hides it); a family is a list of rows.
 		require(group == null || rowLabel != null) { "Command $id is a member of $group with no label for its row" }
+		require(state == null || stateFor == null) { "Command $id reports its state both with and without an argument" }
 	}
 
 	/** The label of the command's row in a listing of its group: its [groupLabel], else its [title]. */
 	val rowLabel: StringResource? get() = groupLabel ?: title
 
 	/**
-	 * Reports whether the command is the one in effect.
-	 *
-	 * @return Boolean True while its [state] reports on; false for a command that reports no state.
+	 * The category the keybindings page lists the command under: its own [keymapCategory], else its table's, else
+	 * [KeymapCategory.Other] for a command built outside every table.
 	 */
-	fun isOn(): Boolean = state?.isOn() == true
+	val shownKeymapCategory: KeymapCategory get() = keymapCategory ?: table?.keymapCategory ?: KeymapCategory.Other
+
+	/**
+	 * Whether the command applies when run with [argument]: its [availability], its [availableFor] over that
+	 * argument, and an argument at all where it [needsArgument].
+	 *
+	 * @param Any? argument What it would run with, or null for none.
+	 * @return Boolean True when it may be shown enabled and invoked so.
+	 */
+	fun isAvailable(argument: Any? = null): Boolean = (argument != null || !needsArgument) && availability.isAvailable() && availableFor?.isAvailableFor(argument) != false
+
+	/**
+	 * Reports whether the command is the one in effect, run with [argument].
+	 *
+	 * @param Any? argument What it would run with, or null for none.
+	 * @return Boolean True while its [state], or its [stateFor] over that argument, reports on; false for a command
+	 *   that reports no state.
+	 */
+	fun isOn(argument: Any? = null): Boolean = state?.isOn() ?: stateFor?.isOnFor(argument) ?: false
 }

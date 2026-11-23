@@ -155,10 +155,11 @@ class TransformRowsScrubTest {
 	 *
 	 * @param SelectionTarget target The active item.
 	 * @param Pose pose The rig's pose.
+	 * @param PuppetModel rig The rig.
 	 * @return EditorSession The session, in Object mode.
 	 */
-	private fun sessionSelecting(target: SelectionTarget, pose: Pose = emptyMap()): EditorSession {
-		val session = EditorSession(model(), initialPose = pose)
+	private fun sessionSelecting(target: SelectionTarget, pose: Pose = emptyMap(), rig: PuppetModel = model()): EditorSession {
+		val session = EditorSession(rig, initialPose = pose)
 		session.setSelection(Selection(setOf(target), target))
 
 		return session
@@ -305,7 +306,9 @@ class TransformRowsScrubTest {
 	@Test
 	fun aWarpThePoseHidesShowsOneNoteForBothRows() =
 		runComposeUiTest {
-			val session = sessionSelecting(warpTarget, mapOf(parameterId to 2f))
+			// The range reaches past the warp's last key: a pose outside the range would clamp back onto that key.
+			val widened = model().let { rig -> rig.copy(parameters = rig.parameters.map { parameter -> parameter.copy(max = 3f) }) }
+			val session = sessionSelecting(warpTarget, mapOf(parameterId to 2f), widened)
 			mountTransformRows(session, warpTarget, RecordingPuppetRenderSync())
 
 			onAllNodesWithText(UNAVAILABLE_NOTE).assertCountEquals(1)

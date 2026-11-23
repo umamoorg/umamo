@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,7 +80,8 @@ import org.umamo.ui.workspace.statusbar.StatusBar
  *  - EditorShell.kt: the wiring.  It builds the controllers, registers the commands, reclaims focus, and
  *    lays out the window: the menu and tab row, the area tree, the status bar, then the overlays.
  *  - ShellControllers.kt: everything the shell remembers for its lifetime, and the locals they back.
- *  - ShellCommandRegistration.kt: the shell's own command tables, registered in palette order.
+ *  - ShellCommandRegistration.kt: the shell's own command tables, registered in palette order, and the
+ *    observer that ends a relation pick on any command.
  *  - ShellFocus.kt: keeping the keyboard on the root.
  *  - ModalKeyLadder.kt, over ShellModalState.kt and ShellKeyStroke.kt: the Escape / Enter ladder that
  *    runs before the keymap.
@@ -153,27 +155,33 @@ fun EditorShell(
 	// The split arm distance is in dp; convert it once to the px the controller hit-tests in.
 	controllers.dragController.splitThresholdPx = with(LocalDensity.current) { SPLIT_ARM_DISTANCE.toPx() }
 
-	// Both outside the locale key below, which rebuilds everything inside it on a language switch: the
+	// All outside the locale key below, which rebuilds everything inside it on a language switch: the
 	// command groups must not re-register (the palette order would shuffle) and the focus effects must not
 	// restart.  Registration comes first, so the palette lists the shell's groups in the order declared there.
 	RegisterShellCommands(commandRegistry, controllers, artwork, exportImage)
+	EndRelationPickOnCommand(commandRegistry, controllers.relationPick)
 	ReclaimShellFocus(controllers, languageTag)
 
 	// The open document the key ladder hands its arms, read afresh for each key event.
 	val editorSession = LocalEditorSession.current
 	val selection = LocalSelection.current
 	// Whether a tracked operation has run past the grace, read as a flip so a task's steps recompose nothing here.
-	val busyPointer by collectBusyPointerAsState(LocalProgressTracker.current)
+	val busyPointer = collectBusyPointerAsState(LocalProgressTracker.current)
 	// The window-wide cursor: hidden under an armed relation pick (the shell draws the eyedropper
 	// itself), the editor's I-beam while text entry is live, the wait pointer while a tracked operation
 	// runs, and otherwise nothing of its own.  Claiming it here rather than in each viewport is what makes
-	// a mode announce itself the instant it begins, wherever the pointer happens to be sitting.
-	val cursorClaim =
-		shellCursorClaim(
-			relationPickArmed = controllers.relationPick.request != null,
-			textEntryActive = controllers.inlineEditController.cancel != null,
-			busy = busyPointer,
-		)
+	// a mode announce itself the instant it begins, wherever the pointer happens to be sitting.  Derived, so
+	// the pointer crossing a search field's clear button recomposes the shell only when the claim changes.
+	val cursorClaim by remember(controllers, busyPointer) {
+		derivedStateOf {
+			shellCursorClaim(
+				relationPickArmed = controllers.relationPick.request != null,
+				textEntryActive = controllers.inlineEditController.cancel != null,
+				pointerOnEditorControl = controllers.inlineEditController.pointerOnEditorControl,
+				busy = busyPointer.value,
+			)
+		}
+	}
 	val claimedPointerIcon = remember(cursorClaim) { cursorClaim.pointerIcon() }
 	// The busy pointer yields to the descendants' cursors, so the regions that hand back the plain pointer
 	// over a cursor of their own read this instead, and the wait pointer reaches inside them.

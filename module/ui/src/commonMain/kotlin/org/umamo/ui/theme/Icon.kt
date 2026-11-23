@@ -64,6 +64,7 @@ data class UmamoIcon(
 
 /** The bundled set of editor icons, each a fully described [UmamoIcon]. */
 data class UmamoIcons(
+	// Simple icons.
 	val reset: UmamoIcon,
 	val resetAll: UmamoIcon,
 	val groupAdd: UmamoIcon,
@@ -74,6 +75,7 @@ data class UmamoIcons(
 	val armature: UmamoIcon,
 	val rotationDeformer: UmamoIcon,
 	val search: UmamoIcon,
+	val keyboard: UmamoIcon,
 	val close: UmamoIcon,
 	val plus: UmamoIcon,
 	val eyedropper: UmamoIcon,
@@ -131,6 +133,8 @@ data class UmamoIcons(
 	val refreshAlert: UmamoIcon,
 	val wand: UmamoIcon,
 	val language: UmamoIcon,
+	val checkmark: UmamoIcon,
+	// Complex icons.
 	val overlays: UmamoIcon,
 	val editorModeObject: UmamoIcon,
 	val editorModeEdit: UmamoIcon,
@@ -222,6 +226,8 @@ val LocalUmamoIcons =
 		rotationDeformer = simpleIcon("M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0 M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"),
 		// Tabler "search" (viewBox 0 0 24 24, stroked).
 		search = simpleIcon("M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0 M21 21l-6 -6"),
+		// Tabler "keyboard" (viewBox 0 0 24 24, stroked).
+		keyboard = simpleIcon("M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8 M6 10l0 .01 M10 10l0 .01 M14 10l0 .01 M18 10l0 .01 M6 14l0 .01 M18 14l0 .01 M10 14l4 .01"),
 		// Tabler "x" (viewBox 0 0 24 24, stroked).
 		close = simpleIcon("M18 6l-12 12 M6 6l12 12"),
 		// Tabler "plus" (viewBox 0 0 24 24, stroked).
@@ -314,6 +320,8 @@ val LocalUmamoIcons =
 		wand = simpleIcon("M6 21l15 -15l-3 -3l-15 15l3 3 M15 6l3 3 M9 3a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2 M19 13a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2"),
 		// Tabler "language" (viewBox 0 0 24 24, stroked).
 		language = simpleIcon("M9 6.371c0 4.418 -2.239 6.629 -5 6.629 M4 6.371h7 M5 9c0 2.144 2.252 3.908 6 4 M12 20l4 -9l4 9 M19.1 18h-6.2 M6.694 3l.793 .582"),
+		// Tabler "check" (viewBox 0 0 24 24, stroked).
+		checkmark = simpleIcon("M5 12l5 5l10 -10"),
 		// Overlays (docs/design/icons/overlay-circles.svg, modified from Tabler "chart-circles"; viewBox 0 0 24 24, filled).
 		overlays =
 			compositeIcon(

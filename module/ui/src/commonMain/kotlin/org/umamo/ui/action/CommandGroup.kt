@@ -59,32 +59,37 @@ internal fun CommandListing.sectionIn(family: CommandFamily): CommandSection? {
 /**
  * Everything one command table registers: one entry per table file in the command tables package, named after it.
  * A table function builds its list through commandTable, which is what places its commands here.
+ *
+ * @property KeymapCategory keymapCategory The category the keybindings page lists the table's commands under, unless
+ *   a command names its own.
  */
-enum class CommandTable : CommandGroup {
-	Atlas,
-	Chrome,
-	Display,
-	Document,
-	File,
-	History,
-	Keyform,
-	Lattice,
-	Log,
-	MeshGeneration,
-	Mode,
-	Object,
-	Overlay,
-	Proportional,
-	Select,
-	Sidebar,
-	Snap,
-	Topology,
-	Transform,
-	Update,
-	Uv,
-	View,
-	ViewportChrome,
-	Workspace,
+enum class CommandTable(val keymapCategory: KeymapCategory) : CommandGroup {
+	Atlas(KeymapCategory.Artwork),
+	Chrome(KeymapCategory.Help),
+	Display(KeymapCategory.Artwork),
+	Document(KeymapCategory.File),
+	File(KeymapCategory.File),
+	History(KeymapCategory.Edit),
+	Keyform(KeymapCategory.Keyforms),
+	Lattice(KeymapCategory.Deformers),
+	Log(KeymapCategory.Help),
+	MeshGeneration(KeymapCategory.Mesh),
+	Mode(KeymapCategory.Modes),
+	Object(KeymapCategory.Object),
+	Overlay(KeymapCategory.Overlays),
+	Parameter(KeymapCategory.Keyforms),
+	Proportional(KeymapCategory.Transform),
+	Relation(KeymapCategory.Relations),
+	Select(KeymapCategory.Select),
+	Sidebar(KeymapCategory.View),
+	Snap(KeymapCategory.Snap),
+	Topology(KeymapCategory.Mesh),
+	Transform(KeymapCategory.Transform),
+	Update(KeymapCategory.Help),
+	Uv(KeymapCategory.Uv),
+	View(KeymapCategory.View),
+	ViewportChrome(KeymapCategory.View),
+	Workspace(KeymapCategory.Workspace),
 	;
 
 	override val parent: CommandGroup? get() = null
@@ -104,8 +109,15 @@ enum class CommandTable : CommandGroup {
  *   pie's title.
  * @property Function parentOf Names the listing the family sits inside.  Read on first use and never while the entries
  *   are built, since a section names its family and a family may name a section.
+ * @property Boolean checkList Whether the family's menu is a check list: its rows carry a tick slot, ticked on the
+ *   member in effect.  A family opts in; any other family's menu shows its rows' glyphs and no tick, whatever state
+ *   its members report.
  */
-enum class CommandFamily(val heading: StringResource, private val parentOf: () -> CommandListing? = { null }) : CommandListing {
+enum class CommandFamily(
+	val heading: StringResource,
+	private val parentOf: () -> CommandListing? = { null },
+	val checkList: Boolean = false,
+) : CommandListing {
 	/** The File menu: the puppet's own file, with the Import and Export submenus, then leaving the application. */
 	File(Res.string.menu_file),
 
@@ -165,6 +177,15 @@ enum class CommandFamily(val heading: StringResource, private val parentOf: () -
 
 	/** The editor modes, one member per mode. */
 	EditorMode(Res.string.group_editor_mode),
+
+	/** What is done to a relation field or one row of a relation list: a Properties field's own menu. */
+	Relation(Res.string.group_relation),
+
+	/** The control a parameter's row shows: following the preference, then one member per control.  A check list. */
+	ParameterControl(Res.string.group_parameter_control, checkList = true),
+
+	/** The control a linked pair's row shows: following the preference, then one member per control.  A check list. */
+	PairControl(Res.string.group_parameter_control, checkList = true),
 	;
 
 	override val parent: CommandListing? get() = parentOf()
@@ -257,4 +278,16 @@ enum class CommandSection(override val parent: CommandFamily, val ruled: Boolean
 
 	/** The texture-space snaps that move the UV editor's cursor. */
 	UvSnapCursor(CommandFamily.UvSnap),
+
+	/** Selecting what a relation binds. */
+	RelationSelect(CommandFamily.Relation),
+
+	/** Unbinding a relation field, and arming its eyedropper. */
+	RelationBind(CommandFamily.Relation),
+
+	/** Taking one row out of a relation list. */
+	RelationRemove(CommandFamily.Relation),
+
+	/** Giving the selection the binding a relation holds. */
+	RelationCopy(CommandFamily.Relation),
 }

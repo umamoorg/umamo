@@ -204,6 +204,27 @@ class OutlinerGestureTest {
 			assertTrue(harness.session.selection.value.isEmpty)
 		}
 
+	/** While a deformer pick is armed, a drawable row stands for its parent deformer, as the drawable's art does in a viewport. */
+	@Test
+	fun anArmedDeformerPickTakesADrawableRowsParentDeformer() =
+		runComposeUiTest {
+			val rig = outlinerFixtureModel()
+			val deformed = rig.copy(drawables = rig.drawables.map { drawable -> if (drawable.id == OutlinerIds.loose) drawable.copy(parentDeformerId = OutlinerIds.rootWarp) else drawable })
+			val harness = mountOutliner(model = deformed)
+			val rootWarp = SelectionTarget.Deformer(OutlinerIds.rootWarp)
+			var picked: SelectionTarget? = null
+			runOnIdle { harness.relationPick.arm(setOf(PickKind.Deformer), model = { harness.session.model.value }) { target -> picked = target } }
+
+			hoverAt(rowBox(OutlinerNames.LOOSE).center)
+			assertEquals(rootWarp, harness.relationPick.hoveredTarget, "the badge names the deformer, not the drawable")
+
+			clickAt(rowBox(OutlinerNames.LOOSE).center)
+
+			assertEquals(rootWarp, picked)
+			assertNull(harness.relationPick.request, "the pick is over")
+			assertTrue(harness.session.selection.value.isEmpty)
+		}
+
 	/** While a relation pick is armed, resting on a row reports it as what a click there would bind. */
 	@Test
 	fun anArmedPickFollowsTheHoveredRow() =
