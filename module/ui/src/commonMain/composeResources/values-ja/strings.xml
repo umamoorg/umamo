@@ -427,6 +427,7 @@
 	<string name="history_parameter_value">パラメータを調整</string>
 	<string name="history_parameter_range">パラメータの範囲を編集</string>
 	<string name="history_parameter_repeat">パラメータのリピートを切り替え</string>
+	<string name="history_parameter_note">パラメータのメモを編集</string>
 	<string name="history_parameter_link">パラメータをリンク</string>
 	<string name="history_parameter_unlink">パラメータのリンクを解除</string>
 	<string name="history_parameter_move">パラメータを移動</string>
@@ -1214,6 +1215,8 @@
 	<string name="parameter_range_default">既定</string>
 	<string name="parameter_range_max">最大</string>
 	<string name="parameter_range_repeat">リピート</string>
+	<string name="parameter_range_note">メモ</string>
+	<string name="parameter_range_note_placeholder">メモを追加</string>
 
 	<!-- 設定ウィンドウ。edit.preferences コマンド（編集メニュー / Ctrl+, / パレット）で開く。 -->
 	<string name="cmd_preferences">設定</string>

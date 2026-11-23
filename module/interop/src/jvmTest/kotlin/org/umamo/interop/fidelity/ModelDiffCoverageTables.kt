@@ -161,6 +161,7 @@ internal object ModelDiffCoverageTables {
 			compared("default", ParameterField.RANGE) { copy(default = 0.5f) }
 			compared("kind", ParameterField.KIND) { copy(kind = ParameterKind.BLEND_SHAPE) }
 			compared("repeat", ParameterField.REPEAT) { copy(repeat = !repeat) }
+			compared("note", ParameterField.NOTE) { copy(note = "Edited") }
 		}
 
 	val part =

@@ -121,6 +121,7 @@ object UmaPuppetExport {
 			default = finite(parameter.default, "$path.default"),
 			kind = parameter.kind.takeIf { kind -> kind != ParameterKind.NORMAL }?.toUma(),
 			repeat = optionalBoolean(parameter.repeat, false),
+			note = parameter.note.ifEmpty { null },
 		)
 	}
 

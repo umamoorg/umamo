@@ -43,11 +43,11 @@ import kotlin.test.assertTrue
  * hop rather than being reported and left out.  Every keyform survives too: the `.uma` keeps each mesh array
  * and delta bit for bit, and each keyform the export writes back at one of the original keys rebuilds within
  * one ulp of the larger of its value and its base - bit for bit almost everywhere - with no triangle turned
- * over, modelA's ArtMesh193 ("Display 1 Line Out", a line squashed to 0.002 units) included.  Each export is
- * kept under `build/uma-hop/` for the shape gate and the official-editor check.
+ * over, modelA's ArtMesh193 ("Display 1 Line Out", a line squashed to 0.002 units) included.  Every parameter
+ * keeps its note.  Each export is kept under `build/uma-hop/` for the shape gate and the official-editor check.
  *
  * Corpus-gated on `cmo3.probe`; self-skips when it names nothing, and fails when the whole run met no unplaced
- * drawable, since the case it exists for would then go untested.
+ * drawable or no parameter note, since a case it exists for would then go untested.
  */
 class UmaCmo3HopCorpusTest {
 	private val writer = UmaWriterInfo("Umamo", "corpus-test")
@@ -57,6 +57,9 @@ class UmaCmo3HopCorpusTest {
 
 	// Every sample's failure, so one run reports the whole corpus rather than its first broken sample.
 	private val failures = ArrayList<String>()
+
+	// How many non-empty parameter notes the run compared.
+	private var comparedNoteCount = 0
 
 	/**
 	 * The pages the synthesis takes, in the model's order, and each drawable's page among them: the resolution
@@ -276,7 +279,8 @@ class UmaCmo3HopCorpusTest {
 
 		assertTrue(failures.isEmpty(), "${failures.size} samples failed the hop:\n${failures.joinToString("\n") { failure -> failure.take(800) }}")
 		assertTrue(unplacedDrawableCount > 0, "the corpus met no drawable over never-packed art, so the case this gate exists for went untested")
-		println("uma cmo3 hop: ${samples.size} samples, $unplacedDrawableCount drawables over never-packed art")
+		assertTrue(comparedNoteCount > 0, "the corpus met no parameter with a note, so the notes went untested")
+		println("uma cmo3 hop: ${samples.size} samples, $unplacedDrawableCount drawables over never-packed art, $comparedNoteCount parameter notes")
 	}
 
 	/**
@@ -333,6 +337,17 @@ class UmaCmo3HopCorpusTest {
 		val exported = Cmo3.read(exportedBytes)
 		val exportedRoot = exported.root as CModelSource
 		val back = Cmo3Import.importModelSource(exportedRoot)
+		// A .uma holds no retained graph, so every parameter is synthesized afresh and its note must come with it.
+		val backNoteById = back.puppet.parameters.associate { parameter -> parameter.id to parameter.note }
+
+		for (parameter in imported.puppet.parameters) {
+			assertTrue(backNoteById[parameter.id] == parameter.note, "${parameter.id.raw}'s note came back as ${backNoteById[parameter.id]}, not ${parameter.note}")
+
+			if (parameter.note.isNotEmpty()) {
+				comparedNoteCount++
+			}
+		}
+
 		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases.
 		val atlasCount = elementsOf((exportedRoot.textureManager as? CTextureManager)?._textureAtlases).filterIsInstance<CTextureAtlas>().size
 		assertTrue(atlasCount == maxOf(reopened.atlas.pages.size, pages.size), "$atlasCount atlases for ${reopened.atlas.pages.size} model pages")

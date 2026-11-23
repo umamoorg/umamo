@@ -26,6 +26,7 @@ import org.umamo.edit.ParameterSelection
 import org.umamo.edit.parameter.renameParameter
 import org.umamo.edit.parameter.renameParameterGroup
 import org.umamo.edit.parameter.setParameterLink
+import org.umamo.edit.parameter.setParameterNote
 import org.umamo.edit.parameter.setParameterRange
 import org.umamo.edit.parameter.setParameterRepeat
 import org.umamo.edit.structure.RowDropBand
@@ -352,12 +353,13 @@ private fun ParameterSliderRow(
 			)
 
 			if (rangeOpen) {
-				ParameterRangeEditor(
+				ParameterExtraEditor(
 					parameter = parameter,
 					labels = labels,
 					onSetRange = { min, default, max -> session?.setParameterRange(parameter.id, min, default, max) },
-					// A document edit, not a pose write, so it bypasses the Edit-mode parameter lock as range edits do.
+					// Repeat and the note are document edits, not pose writes, so they bypass the Edit-mode parameter lock as range edits do.
 					onSetRepeat = { repeat -> session?.setParameterRepeat(parameter.id, repeat) },
+					onSetNote = { note -> session?.setParameterNote(parameter.id, note) },
 				)
 			}
 		}
@@ -462,18 +464,20 @@ private fun ParameterPadRow(
 				// One range row per axis, each captioned with its axis name (user
 				// data, never localized).
 				RangeAxisLabel(horizontal.name)
-				ParameterRangeEditor(
+				ParameterExtraEditor(
 					parameter = horizontal,
 					labels = labels,
 					onSetRange = { min, default, max -> session?.setParameterRange(horizontal.id, min, default, max) },
 					onSetRepeat = { repeat -> session?.setParameterRepeat(horizontal.id, repeat) },
+					onSetNote = { note -> session?.setParameterNote(horizontal.id, note) },
 				)
 				RangeAxisLabel(vertical.name)
-				ParameterRangeEditor(
+				ParameterExtraEditor(
 					parameter = vertical,
 					labels = labels,
 					onSetRange = { min, default, max -> session?.setParameterRange(vertical.id, min, default, max) },
 					onSetRepeat = { repeat -> session?.setParameterRepeat(vertical.id, repeat) },
+					onSetNote = { note -> session?.setParameterNote(vertical.id, note) },
 				)
 			}
 		}

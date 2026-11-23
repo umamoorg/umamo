@@ -12,7 +12,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.findParameterGroup
 
 /**
- * The field pass for parameters: each changed parameter's name, range, kind, and repeat flag, and each
+ * The field pass for parameters: each changed parameter's name, range, kind, repeat flag, and note, and each
  * changed parameter group's name, folder state, and children.
  */
 internal class Cmo3ParameterLowering(
@@ -75,6 +75,12 @@ internal class Cmo3ParameterLowering(
 								// CMO3: CParameterSource field isRepeat.
 								source.isRepeat = editedParameter.repeat
 								editor.ensureChildSlot(source, "CParameterSource", "isRepeat", "id")
+							}
+
+							ParameterField.NOTE -> {
+								// CMO3: CParameterSource field description - the note, "" when there is none.
+								source.description = editedParameter.note
+								editor.ensureChildSlot(source, "CParameterSource", "description", "combined")
 							}
 						}
 					}
