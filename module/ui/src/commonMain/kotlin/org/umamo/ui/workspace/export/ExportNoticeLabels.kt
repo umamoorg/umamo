@@ -98,6 +98,13 @@ fun exportNoticeReasonPhrase(reason: ExportNoticeReason): ExportNoticePhrase =
 			)
 		}
 
+		is ExportNoticeReason.KeyformsDemotedToStatic -> {
+			ExportNoticePhrase(
+				Res.string.export_reason_keyforms_demoted_to_static,
+				listOf(ExportNoticeArgument.Nested(keyformBundleRejectionPhrase(reason.rejection))),
+			)
+		}
+
 		ExportNoticeReason.SketchPartIsNotRuntimeContent -> {
 			ExportNoticePhrase(Res.string.export_reason_sketch_part_not_runtime_content)
 		}

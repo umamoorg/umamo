@@ -41,6 +41,14 @@ sealed interface ExportNoticeReason {
 	 */
 	data class ChannelDemotedToStatic(val channel: FormChannel) : ExportNoticeReason
 
+	/**
+	 * A keyform set that will not bundle into the single grid MOC3 stores per object, so the object was
+	 * written with one static form instead.
+	 *
+	 * @property KeyformBundleRejection rejection Which bundling rule the keyforms broke.
+	 */
+	data class KeyformsDemotedToStatic(val rejection: KeyformBundleRejection) : ExportNoticeReason
+
 	/** A guide-image (sketch) part holds authoring aids, not runtime content. */
 	data object SketchPartIsNotRuntimeContent : ExportNoticeReason
 
@@ -75,10 +83,16 @@ sealed interface ExportNoticeReason {
 	/** An offscreen's clipping mask names a drawable that could not be written. */
 	data object OffscreenMaskNotInExport : ExportNoticeReason
 
-	/** A warp deformer carries no control-point grid, so it has no lattice to write. */
+	/**
+	 * A warp deformer has no lattice to write, so an empty one was written: it carries no control-point
+	 * grid, or its keyforms would not bundle.
+	 */
 	data object WarpDeformerHasNoLattice : ExportNoticeReason
 
-	/** A rotation deformer carries no pivot grid, so it has no transform to write. */
+	/**
+	 * A rotation deformer has no transform to write, so the identity was written: it carries no pivot
+	 * grid, or its keyforms would not bundle.
+	 */
 	data object RotationDeformerHasNoPivot : ExportNoticeReason
 
 	/** A glue names a drawable that is not in this export. */

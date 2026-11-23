@@ -86,7 +86,8 @@ sealed interface KeyformBundleResult {
  *
  * The bundler owns this vocabulary rather than [ExportNoticeReason] because the rule that was broken
  * is a fact about bundling, not about any one format - the CMO3 lowering wraps it in
- * [ExportNoticeReason.KeyformCannotBundle], and a future format would wrap the same cases its own way.
+ * [ExportNoticeReason.KeyformCannotBundle], the MOC3 lowering in
+ * [ExportNoticeReason.KeyformsDemotedToStatic], and a future format would wrap the same cases its own way.
  * Format-neutral for the same reason: the "one grid per object" clause a reader sees is supplied by
  * the wrapping notice, not baked in here.
  */

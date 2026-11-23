@@ -26,7 +26,7 @@ import org.umamo.format.moc3.model.Deformer as MocDeformer
  * @param Moc3ExportContext context    The export's derived state.
  * @param Moc3KeyformPool   pool       Interned into: every deformer claims a binding index here.
  * @param Moc3ExportIds     ids        Claimed from: each deformer's written id.
- * @param Moc3ExportNotices noticeSink Appended to: demotions and unrepresentable grids.
+ * @param Moc3ExportNotices noticeSink Appended to: keyform losses, and deformers with no form to write.
  * @return List<MocDeformer> The records, in plan order.
  */
 internal fun lowerDeformers(
@@ -47,6 +47,9 @@ internal fun lowerDeformers(
 				val keyforms =
 					lowerObjectKeyforms(
 						pool,
+						noticeSink,
+						ExportEntityCategory.Deformer,
+						deformer.id.raw,
 						deformer.geometryGrid,
 						WarpLatticeInterpolator,
 						deformer.channelGrids.onlyChannels(*renderChannels(context.colorsEnabled)),
@@ -58,9 +61,11 @@ internal fun lowerDeformers(
 						),
 						requireGeometry = true,
 					)
-				noticeSink.reportDemotions(ExportEntityCategory.Deformer, deformer.id.raw, keyforms)
+				val bundle = keyforms?.bundle
 
-				if (keyforms == null) {
+				// Reported whenever the empty lattice below is what gets written, whatever left the warp
+				// without one to write: no grid at all, or keyforms that would not bundle.
+				if (bundle?.cells?.firstOrNull()?.geometry == null) {
 					noticeSink.unsupported(
 						ExportEntityCategory.Deformer,
 						deformer.id.raw,
@@ -68,7 +73,6 @@ internal fun lowerDeformers(
 					)
 				}
 
-				val bundle = keyforms?.bundle
 				// A MOC3 addresses an object's forms as `gridSize` rows from its own keyform base, and
 				// the static binding 0 still declares ONE row - so an object that writes zero rows puts
 				// its base on top of the next object's, and the last one sends the reader off the end of
@@ -113,6 +117,9 @@ internal fun lowerDeformers(
 				val keyforms =
 					lowerObjectKeyforms(
 						pool,
+						noticeSink,
+						ExportEntityCategory.Deformer,
+						deformer.id.raw,
 						deformer.geometryGrid,
 						RotationPivotInterpolator,
 						deformer.channelGrids.onlyChannels(
@@ -125,9 +132,10 @@ internal fun lowerDeformers(
 							),
 						requireGeometry = true,
 					)
-				noticeSink.reportDemotions(ExportEntityCategory.Deformer, deformer.id.raw, keyforms)
+				val bundle = keyforms?.bundle
 
-				if (keyforms == null) {
+				// Reported whenever the identity transform below is what gets written, as for the warp.
+				if (bundle?.cells?.firstOrNull()?.geometry == null) {
 					noticeSink.unsupported(
 						ExportEntityCategory.Deformer,
 						deformer.id.raw,
@@ -135,7 +143,6 @@ internal fun lowerDeformers(
 					)
 				}
 
-				val bundle = keyforms?.bundle
 				// One form minimum, for the same base-collision reason as the warp branch above.  A
 				// pivot-less rotation has a well-defined fallback the warp does not: the identity
 				// transform, which is what `pivot == null` already resolves to below.

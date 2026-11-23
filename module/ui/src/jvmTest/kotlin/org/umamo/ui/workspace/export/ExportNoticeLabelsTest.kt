@@ -29,6 +29,7 @@ class ExportNoticeLabelsTest {
 		listOf(
 			ExportNoticeReason.DrawableHasNoMesh,
 			ExportNoticeReason.ChannelDemotedToStatic(FormChannel.OPACITY),
+			ExportNoticeReason.KeyformsDemotedToStatic(KeyformBundleRejection.KeysOutsideGeometrySpan),
 			ExportNoticeReason.SketchPartIsNotRuntimeContent,
 			ExportNoticeReason.HiddenPartOmittedByExportOption,
 			ExportNoticeReason.HiddenDrawableOmittedByExportOption,
