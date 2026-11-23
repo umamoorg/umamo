@@ -261,6 +261,7 @@ class PuppetModelDiffTest {
 		assertEquals(setOf(DeformerField.LATTICE), fieldsAfter(warp.copy(rows = 3)))
 		assertEquals(setOf(DeformerField.STATICS), fieldsAfter(warp.copy(opacity = 0.5f)))
 		assertEquals(setOf(DeformerField.PARENT), fieldsAfter(warp.copy(parent = DeformerId("Other"))))
+		assertEquals(setOf(DeformerField.VISIBLE), fieldsAfter(warp.copy(isVisible = false)))
 		val rotationUnderSameId =
 			Deformer.Rotation(
 				id = warp.id,

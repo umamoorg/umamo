@@ -65,6 +65,10 @@ internal class Cmo3DeformerLowering(
 								lowerLocalName(editor, source, editedDeformer.name)
 							}
 
+							DeformerField.VISIBLE -> {
+								lowerIsVisible(editor, source, editedDeformer.isVisible)
+							}
+
 							DeformerField.SELECTABLE -> {
 								lowerIsLocked(editor, source, editedDeformer.isSelectable)
 							}

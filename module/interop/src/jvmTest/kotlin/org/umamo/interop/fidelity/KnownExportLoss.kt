@@ -25,20 +25,6 @@ internal enum class FidelityGate(val label: String) {
  * @property Function matcher Whether a divergence is this loss.
  */
 internal enum class KnownExportLoss(val gates: Set<FidelityGate>, val removedWhen: String, private val matcher: (MocDivergence) -> Boolean) {
-	/** A hidden deformer comes back visible after a trip through CMO3. */
-	DEFORMER_VISIBILITY(
-		setOf(FidelityGate.MOC3_CMO3_MOC3_LOOP),
-		"the CMO3 export writes deformer visibility",
-		{ divergence ->
-			val aspect = divergence.aspect
-			(divergence.kind == MocObjectKind.WARP || divergence.kind == MocObjectKind.ROTATION) &&
-				aspect is DivergenceAspect.Attribute &&
-				aspect.name == MocAttribute.VISIBLE &&
-				aspect.expected == false &&
-				aspect.actual == true
-		},
-	),
-
 	/** A blend shape on a part, which the CMO3 import does not ingest and no CMO3 lowering writes. */
 	PART_BLEND_SHAPES(
 		setOf(FidelityGate.CMO3_TO_MOC3_VS_EDITOR, FidelityGate.MOC3_CMO3_MOC3_LOOP),

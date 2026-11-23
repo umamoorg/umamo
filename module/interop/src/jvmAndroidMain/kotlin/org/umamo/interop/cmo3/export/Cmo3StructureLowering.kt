@@ -561,7 +561,7 @@ internal class Cmo3StructureLowering(
 			}
 		fresh.apply {
 			localName = editedDeformer.name
-			isVisible = true
+			isVisible = editedDeformer.isVisible
 			isLocked = !editedDeformer.isSelectable
 			keyformMorphTargetSet = emptyMorphTargetSet()
 			_extensions = CArrayList<Any?>()
