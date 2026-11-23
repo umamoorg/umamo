@@ -137,6 +137,24 @@ class CommandMenuTest {
 		assertEquals(listOf("Import >", "  CMO3… (off)", "  MOC3…"), menuOutline(familyMenuOf(CommandFamily.File, oneOn)))
 	}
 
+	/** A row shows its command's first chord, so reordering the command's chords changes what the row reads. */
+	@Test
+	fun aRowShowsItsCommandsFirstChord() {
+		val save =
+			Command(
+				"file.save",
+				title = null,
+				group = CommandFamily.MergeTarget,
+				groupLabel = Res.string.menu_file_save,
+				handler = {},
+			)
+		val chords = listOf(checkNotNull(parseKeyChord("F5")), checkNotNull(parseKeyChord("primary+KeyS")))
+		val keymap = resolveKeymap(keymapPresetBinds("default"), mapOf("file.save" to chords))
+		val row = familyMenuOf(CommandFamily.MergeTarget, registryOf(save), keymap).single() as MenuItem.Action
+
+		assertEquals(formatAccelerator(chords.first()), row.shortcut)
+	}
+
 	/** A row is its command: the command's glyph, the chord the keymap binds to it, and a pick that runs it and nothing else. */
 	@Test
 	fun aRowIsBuiltFromItsCommandAlone() {

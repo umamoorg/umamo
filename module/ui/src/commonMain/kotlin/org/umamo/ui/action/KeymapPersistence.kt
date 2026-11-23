@@ -167,8 +167,7 @@ fun replaceCommandBind(settings: Settings, commandId: String, previous: KeyChord
 }
 
 /**
- * Removes [chord] from [commandId]'s chords and persists it; the rest keep their order.  Removing the last one leaves
- * the command unbound.
+ * Removes [chord] from [commandId]'s chords.
  *
  * @param Settings settings The settings store to write to.
  * @param String commandId The command losing the chord.
@@ -176,6 +175,24 @@ fun replaceCommandBind(settings: Settings, commandId: String, previous: KeyChord
  */
 fun removeCommandBind(settings: Settings, commandId: String, chord: KeyChord) {
 	editCommandBinds(settings, commandId) { chords -> chords - chord }
+}
+
+/**
+ * Moves [chord] one place earlier in [commandId]'s chords.
+ *
+ * @param Settings settings The settings store to write to.
+ * @param String commandId The command whose chords are reordered.
+ * @param KeyChord chord The chord to move.
+ */
+fun moveCommandBindUp(settings: Settings, commandId: String, chord: KeyChord) {
+	editCommandBinds(settings, commandId) { chords ->
+		val chordIndex = chords.indexOf(chord)
+
+		when {
+			chordIndex <= 0 -> chords
+			else -> chords.toMutableList().apply { add(chordIndex - 1, removeAt(chordIndex)) }
+		}
+	}
 }
 
 /**

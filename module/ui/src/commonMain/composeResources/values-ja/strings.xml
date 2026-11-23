@@ -1264,6 +1264,7 @@
 	<string name="settings_keybindings_unbound">未割り当て</string>
 	<string name="settings_keybindings_remove">ショートカットを削除</string>
 	<string name="settings_keybindings_add">ショートカットを追加</string>
+	<string name="settings_keybindings_move_up">上へ移動</string>
 	<!-- %1$s はショートカット、%2$s は既に割り当てられているコマンド。 -->
 	<string name="settings_keybindings_conflict">%1$s は既に「%2$s」に割り当てられています。再割り当てしますか？</string>
 	<string name="settings_keybindings_reassign">再割り当て</string>

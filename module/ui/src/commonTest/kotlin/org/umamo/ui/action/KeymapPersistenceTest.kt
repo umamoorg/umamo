@@ -15,8 +15,8 @@ import kotlin.test.assertNull
 
 /**
  * Verifies settings-backed keymap resolution and editing over an in-memory filesystem: preset selection, per-command
- * override lists, adding, replacing, and removing one chord, taking a chord from its holder, and reset, each read
- * back through a fresh Settings load.
+ * override lists, adding, replacing, removing, and moving up one chord, taking a chord from its holder, and reset,
+ * each read back through a fresh Settings load.
  */
 class KeymapPersistenceTest {
 	private val configDir: Path = "/config".toPath()
@@ -167,6 +167,37 @@ class KeymapPersistenceTest {
 		val keymap = loadKeymap(Settings.load(storage, defaultJson))
 		assertEquals(emptyList(), keymap.chordsFor("palette.toggle"))
 		assertNull(keymap.commandFor(chord("Space")))
+	}
+
+	/**
+	 * Moving a chord up brings it a place forward, so the second becomes the first, the one menus show; the list
+	 * survives a reload, and moving the other back stores nothing, since the preset's order is restored.
+	 */
+	@Test
+	fun moveUpBringsAChordForwardAndBackStoresNothing() {
+		val storage = storage()
+		val settings = Settings.load(storage, defaultJson)
+		moveCommandBindUp(settings, "palette.toggle", chord("Space"))
+
+		val keymap = loadKeymap(Settings.load(storage, defaultJson))
+		assertEquals(listOf(chord("Space"), chord("primary+KeyP")), keymap.chordsFor("palette.toggle"))
+		assertEquals(chord("Space"), keymap.chordFor("palette.toggle"))
+		assertEquals(overrides("palette.toggle" to listOf("Space", "primary+KeyP")), storedOverrides(settings))
+
+		moveCommandBindUp(settings, "palette.toggle", chord("primary+KeyP"))
+		assertEquals(listOf(chord("primary+KeyP"), chord("Space")), loadKeymap(settings).chordsFor("palette.toggle"))
+		assertEquals(JsonObject(emptyMap()), storedOverrides(settings))
+	}
+
+	/** Moving up the first chord, or one the command does not hold, changes nothing and stores nothing. */
+	@Test
+	fun moveUpOfTheFirstOrAnAbsentChordChangesNothing() {
+		val settings = Settings.load(storage(), defaultJson)
+		moveCommandBindUp(settings, "palette.toggle", chord("primary+KeyP"))
+		moveCommandBindUp(settings, "palette.toggle", chord("F5"))
+
+		assertEquals(listOf(chord("primary+KeyP"), chord("Space")), loadKeymap(settings).chordsFor("palette.toggle"))
+		assertEquals(JsonObject(emptyMap()), storedOverrides(settings))
 	}
 
 	/**

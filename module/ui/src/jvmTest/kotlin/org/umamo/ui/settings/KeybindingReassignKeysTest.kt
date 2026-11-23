@@ -13,6 +13,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.isEnabled
@@ -45,6 +46,7 @@ import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.cmd_mesh_grab
 import org.umamo.ui.resources.cmd_preferences
 import org.umamo.ui.resources.settings_keybindings_add
+import org.umamo.ui.resources.settings_keybindings_move_up
 import org.umamo.ui.resources.settings_keybindings_press_shortcut
 import org.umamo.ui.resources.settings_keybindings_remove
 import org.umamo.ui.resources.settings_keybindings_unbound
@@ -82,6 +84,9 @@ class KeybindingReassignKeysTest {
 
 	/** The remove button's label, as the running locale renders it. */
 	private var removeLabel = ""
+
+	/** The Move Up button's label, as the running locale renders it. */
+	private var moveUpLabel = ""
 
 	/**
 	 * Parses a chord spec the test knows is valid.
@@ -122,6 +127,7 @@ class KeybindingReassignKeysTest {
 			pressShortcutLabel = stringResource(Res.string.settings_keybindings_press_shortcut)
 			addLabel = stringResource(Res.string.settings_keybindings_add)
 			removeLabel = stringResource(Res.string.settings_keybindings_remove)
+			moveUpLabel = stringResource(Res.string.settings_keybindings_move_up)
 			val keymap by rememberLiveKeymap(settings)
 			UmamoTheme {
 				CompositionLocalProvider(LocalSettings provides settings, LocalCommands provides registry, LocalKeymap provides keymap, LocalKeyCapture provides keyCapture) {
@@ -417,6 +423,30 @@ class KeybindingReassignKeysTest {
 			assertEquals(listOf(chord("primary+KeyS"), chord("F7")), keymap.chordsFor("test.bound"))
 			assertEquals(emptyList(), keymap.chordsFor("test.unbound"))
 			onAllNodesWithText(unboundLabel, useUnmergedTree = true).fetchSemanticsNodes().let { nodes -> assertEquals(1, nodes.size, "the other command reads Unbound again") }
+		}
+	}
+
+	/**
+	 * Move Up on a command's second chord swaps the two, on the page as in the settings.  Only rows after the first
+	 * carry it: the first holds the add button there.
+	 */
+	@Test
+	fun moveUpSwapsTheTwoChords() {
+		runComposeUiTest {
+			val overlays = ShellOverlayState().apply { settingsVisible = true }
+			val settings = mount(this, overlays, mutableListOf())
+			onAllNodes(hasContentDescription(moveUpLabel), useUnmergedTree = true).assertCountEquals(0)
+			clickAdd(this)
+			press(this, Key.F5)
+
+			onAllNodes(hasContentDescription(moveUpLabel), useUnmergedTree = true).assertCountEquals(1)
+			onNode(hasContentDescription(moveUpLabel), useUnmergedTree = true).performClick()
+			waitForIdle()
+
+			assertEquals(listOf(chord("F5"), chord("primary+KeyS")), loadKeymap(settings).chordsFor("test.bound"))
+			val firstTop = onNodeWithText(formatAccelerator(chord("F5")), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.top
+			val secondTop = onNodeWithText(formatAccelerator(chord("primary+KeyS")), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.top
+			assertTrue(firstTop < secondTop, "F5 now stands above Ctrl+S")
 		}
 	}
 }
