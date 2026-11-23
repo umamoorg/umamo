@@ -192,11 +192,14 @@
 	<!-- Export report reasons, one per ExportNoticeReason case.  The dialog header already names the
 	     format, so a reason never repeats it.  Shared by both export paths: -->
 	<string name="export_reason_drawable_has_no_mesh">A drawable with no mesh cannot be written.</string>
-	<!-- MOC3 lowering.  %1$s in the channel line is a channel_* label; %1$d/%2$d in the conversion line
+	<!-- MOC3 lowering.  %1$s in the two channel lines is a channel_* label; %1$s in the keyforms line is an
+	     export_bundle_* sentence; %1$d/%2$d in the conversion line
 	     are the returned and expected coordinate counts; %1$s in the mask line is the mask drawable
 	     names; %1$d/%2$s in the id lines are the record width in bytes and the written id; %1$d/%2$d in
 	     the index-width line are the mesh's vertex count and the most a mesh can have. -->
 	<string name="export_reason_channel_demoted_to_static">%1$s is keyed over a narrower span than the object's grid, so it was written as a constant.  MOC3 stores one grid per object.</string>
+	<string name="export_reason_channel_demoted_by_geometry">%1$s has keys that do not fit the geometry's keyed span, so it was written as a constant.  MOC3 stores one grid per object.</string>
+	<string name="export_reason_keyforms_demoted_to_static">%1$s  The object was written without its keyforms.  MOC3 stores one grid per object.</string>
 	<string name="export_reason_sketch_part_not_runtime_content">A guide-image (sketch) part is not runtime content, so it was left out.</string>
 	<string name="export_reason_hidden_part_omitted_by_option">The part is hidden and the export options omit hidden parts, so its contents were left out.</string>
 	<string name="export_reason_hidden_drawable_omitted_by_option">The drawable is hidden and the export options omit hidden drawables, so it was left out.</string>
@@ -244,7 +247,8 @@
 	<string name="export_reason_keyforms_without_base_mesh">Keyforms without a base mesh cannot be bundled into CMO3.</string>
 	<string name="export_reason_fractional_draw_order">CMO3 stores a whole-number draw order, so the fractional value was not written.</string>
 	<string name="export_reason_static_glue_intensity_without_keyforms">A static glue intensity with no keyforms has nowhere to live in CMO3.</string>
-	<!-- Why a keyform set would not bundle into one grid, nested into export_reason_keyform_cannot_bundle.
+	<!-- Why a keyform set would not bundle into one grid, nested into export_reason_keyform_cannot_bundle
+	     and export_reason_keyforms_demoted_to_static.
 	     %1$s in the channel line is a channel_* label. -->
 	<string name="export_bundle_keys_outside_geometry_span">Keys outside the geometry's keyed span cannot be bundled into one grid.</string>
 	<string name="export_bundle_channel_keys_without_geometry">Channel keys with no geometry cannot be bundled into one grid.</string>
