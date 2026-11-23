@@ -173,6 +173,7 @@ class PuppetModelDiffTest {
 		assertEquals(setOf(ParameterField.RANGE), fieldsAfter { entity -> entity.copy(max = 2f) })
 		assertEquals(setOf(ParameterField.KIND), fieldsAfter { entity -> entity.copy(kind = ParameterKind.BLEND_SHAPE) })
 		assertEquals(setOf(ParameterField.REPEAT), fieldsAfter { entity -> entity.copy(repeat = true) })
+		assertEquals(setOf(ParameterField.NOTE), fieldsAfter { entity -> entity.copy(note = "A note") })
 	}
 
 	/** A one-ULP float nudge is a reported change - the diff is bit-exact, never tolerance-based. */
@@ -261,6 +262,7 @@ class PuppetModelDiffTest {
 		assertEquals(setOf(DeformerField.LATTICE), fieldsAfter(warp.copy(rows = 3)))
 		assertEquals(setOf(DeformerField.STATICS), fieldsAfter(warp.copy(opacity = 0.5f)))
 		assertEquals(setOf(DeformerField.PARENT), fieldsAfter(warp.copy(parent = DeformerId("Other"))))
+		assertEquals(setOf(DeformerField.VISIBLE), fieldsAfter(warp.copy(isVisible = false)))
 		val rotationUnderSameId =
 			Deformer.Rotation(
 				id = warp.id,

@@ -20,8 +20,7 @@ import org.umamo.edit.subtreeTargets
  */
 
 /**
- * Toggles the visibility of one [target] as a single undo step, dispatching the part- or drawable-specific
- * change and transform.  A deformer has no visibility flag, so it is a no-op.
+ * Toggles the visibility of one [target] as a single undo step, dispatching the per-kind change and transform.
  *
  * @param SelectionTarget target The entity whose eyeball to flip.
  */
@@ -38,7 +37,7 @@ fun EditorSession.toggleVisibility(target: SelectionTarget) {
 		}
 
 		is SelectionTarget.Deformer -> {
-			// Deformers have no visibility flag; nothing to toggle.
+			mutate(VisibilityChange.Deformer(target.id, newVisible)) { model -> model.withDeformerVisibility(target.id, newVisible) }
 		}
 	}
 }
@@ -66,7 +65,7 @@ fun EditorSession.rename(target: SelectionTarget, newName: String) {
 
 /**
  * Toggles the viewport selectability of one [target] as a single undo step, dispatching the per-kind
- * change and transform.  Unlike visibility, a deformer has a selectable flag too.
+ * change and transform.
  *
  * @param SelectionTarget target The entity whose selectability to flip.
  */
@@ -109,9 +108,7 @@ fun EditorSession.toggleSelectableSubtree(target: SelectionTarget) {
 
 /**
  * Toggles visibility for [target] and its whole outliner subtree as one undo step, applied uniformly like
- * the selectable variant.  Deformers have no visibility flag, so a deformer target is a no-op (the
- * outliner shows no eye for one anyway) and any deformer inside a part subtree is skipped by
- * withSelectionVisibility.
+ * the selectable variant: a part's sub-parts and drawables, or a deformer's nested deformers.
  *
  * @param SelectionTarget target The clicked subtree root.
  */
@@ -120,18 +117,16 @@ fun EditorSession.toggleVisibilitySubtree(target: SelectionTarget) {
 	val change: VisibilityChange =
 		when (target) {
 			is SelectionTarget.Part -> VisibilityChange.Part(target.id, newVisible)
-
 			is SelectionTarget.Drawable -> VisibilityChange.Drawable(target.id, newVisible)
-
-			// A deformer has no visibility flag; nothing to toggle.
-			is SelectionTarget.Deformer -> return
+			is SelectionTarget.Deformer -> VisibilityChange.Deformer(target.id, newVisible)
 		}
 	mutate(change) { model -> model.withSelectionVisibility(model.subtreeTargets(target).toSet(), newVisible) }
 }
 
 /**
  * Hides everything outside the current selection as one undo step, each unselected branch at its topmost part
- * or drawable (see unselectedBranches).  An empty selection, or one that no longer resolves, records nothing.
+ * or drawable and each unselected deformer left shown (see unselectedBranches).  An empty selection, or one that
+ * no longer resolves, records nothing.
  */
 fun EditorSession.hideUnselected() {
 	val branches = model.value.unselectedBranches(selection.value.targets)
@@ -144,8 +139,8 @@ fun EditorSession.hideUnselected() {
 }
 
 /**
- * Turns on every part's and drawable's eye as one undo step, leaving the selection alone.  Nothing hidden
- * records nothing.
+ * Turns on every part's, drawable's, and deformer's eye as one undo step, leaving the selection alone.  Nothing
+ * hidden records nothing.
  */
 fun EditorSession.unhideAll() {
 	val hidden = model.value.hiddenTargets()

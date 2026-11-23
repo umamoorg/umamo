@@ -284,6 +284,7 @@ internal fun puppetStructureDifferences(expected: PuppetModel, actual: PuppetMod
 			bits("$path.default", left.default, right.default)
 			same("$path.kind", left.kind, right.kind)
 			same("$path.repeat", left.repeat, right.repeat)
+			same("$path.note", left.note, right.note)
 		}
 
 		each("parts", expected.parts, actual.parts) { path, left, right ->

@@ -359,7 +359,7 @@ object Cmo3Export {
 	 */
 	private fun promotedDiff(context: Cmo3ExportContext, diff: PuppetDiff, structure: StructuralOutcome): PuppetDiff =
 		PuppetDiff(
-			parameters = promoteSynthesized(diff.parameters, structure.parameters) { setOf(ParameterField.NAME, ParameterField.RANGE, ParameterField.REPEAT) },
+			parameters = promoteSynthesized(diff.parameters, structure.parameters) { setOf(ParameterField.NAME, ParameterField.RANGE, ParameterField.REPEAT, ParameterField.NOTE) },
 			parameterGroups =
 				promoteSynthesized(diff.parameterGroups, structure.parameterGroups) {
 					setOf(ParameterGroupField.NAME, ParameterGroupField.INITIALLY_OPEN, ParameterGroupField.CHILDREN)

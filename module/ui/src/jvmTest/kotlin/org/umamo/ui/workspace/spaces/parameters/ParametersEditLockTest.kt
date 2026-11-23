@@ -4,6 +4,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.isFocused
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.v2.runComposeUiTest
 import org.umamo.runtime.model.ParameterLink
 import kotlin.test.Test
@@ -357,6 +360,23 @@ class ParametersEditLockTest {
 			clickAt(panelBoundsOfText(harness.text.repeat).center)
 
 			assertTrue(harness.session.model.value.parameters.first { parameter -> parameter.id == PanelIds.bodyX }.repeat)
+			assertEquals(cursorBefore + 1, harness.historyCursor)
+		}
+
+	/** The note is the document's too, so Edit mode leaves its field working. */
+	@Test
+	fun editModeLeavesTheNoteEditable() =
+		runComposeUiTest {
+			val harness = lockedPanel(this)
+			clickAt(panelBoundsOfText(PanelNames.BODY_X).center)
+			val cursorBefore = harness.historyCursor
+
+			clickAt(panelBoundsOfText(harness.text.notePlaceholder).center)
+			onNode(hasSetTextAction() and isFocused(), useUnmergedTree = true).performTextReplacement("Leans the torso")
+			waitForIdle()
+			pressKey(Key.Enter)
+
+			assertEquals("Leans the torso", harness.session.model.value.parameters.first { parameter -> parameter.id == PanelIds.bodyX }.note)
 			assertEquals(cursorBefore + 1, harness.historyCursor)
 		}
 

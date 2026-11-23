@@ -19,12 +19,23 @@ import org.umamo.interop.DocumentField
 import org.umamo.interop.EntityDiff
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
+import org.umamo.interop.PuppetDiff
 import org.umamo.interop.cmo3.export.Cmo3Conversion
 import org.umamo.interop.cmo3.export.Cmo3PageImage
 import org.umamo.interop.cmo3.export.fitAtlasPageToCanvasTransform
 import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.diffPuppetModels
+import org.umamo.interop.fidelity.DivergenceAspect
+import org.umamo.interop.fidelity.FidelityGate
+import org.umamo.interop.fidelity.FidelityLedger
+import org.umamo.interop.fidelity.MocAttribute
+import org.umamo.interop.fidelity.MocDivergence
+import org.umamo.interop.fidelity.MocObjectKind
+import org.umamo.interop.fidelity.compareMocDocuments
 import org.umamo.interop.moc3.Moc3Sidecars
+import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
+import org.umamo.render.restMeshesToCanvasSpace
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.testkit.skipTest
 import java.io.File
@@ -32,6 +43,7 @@ import java.util.Collections
 import java.util.IdentityHashMap
 import kotlin.math.abs
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -42,6 +54,10 @@ import kotlin.test.assertTrue
  * bounded-ULP drift on keyform deltas (fresh absolutes are base + delta and the re-import
  * subtracts, which is not an IEEE identity).  The canvas editable mesh is written to
  * CArtMeshSource.positions and read back from it as it is, so a MESH_POSITIONS residue fails.
+ *
+ * The re-import then makes the trip back to MOC3, and the file it writes is compared with the source
+ * moc through the fidelity comparator the export gates share.  A divergence on that loop fails unless
+ * it is a known loss of the path.
  */
 class Cmo3ConversionRoundTripTest {
 	private val geometryDriftTolerance = 1e-3f
@@ -58,15 +74,18 @@ class Cmo3ConversionRoundTripTest {
 				.toList()
 		assertTrue(mocFiles.isNotEmpty(), "no corpus moc3 with a model3 sidecar under $samplesDirectory")
 		val failures = ArrayList<String>()
+		val ledger = FidelityLedger(FidelityGate.MOC3_CMO3_MOC3_LOOP)
 		var convertedModelCount = 0
 
 		for (mocFile in mocFiles) {
-			runCatching { roundTripOne(mocFile, failures) }
+			runCatching { roundTripOne(mocFile, ledger, failures) }
 				.onSuccess { converted -> convertedModelCount += if (converted) 1 else 0 }
 				.onFailure { failure -> failures.add("${mocFile.name}: threw $failure") }
 		}
 
-		assertTrue(failures.isEmpty(), "MOC3 conversion round trip failed:\n" + failures.joinToString("\n"))
+		ledger.tallyLines().forEach(::println)
+		failures.addAll(ledger.problems())
+		assertEquals(emptyList(), failures.take(25), "MOC3 conversion round trip failed")
 
 		if (convertedModelCount == 0) {
 			skipTest("no corpus moc3 has its atlas pages on disk; nothing was converted")
@@ -77,10 +96,11 @@ class Cmo3ConversionRoundTripTest {
 	 * Converts one corpus moc and validates the self round trip.
 	 *
 	 * @param File mocFile The .moc3 file (sidecars beside it).
+	 * @param FidelityLedger ledger The loop's divergences, sorted against the known losses.
 	 * @param ArrayList failures The shared violation collector.
 	 * @return Boolean Whether the model was converted, which it is not when its atlas pages are absent.
 	 */
-	private fun roundTripOne(mocFile: File, failures: ArrayList<String>): Boolean {
+	private fun roundTripOne(mocFile: File, ledger: FidelityLedger, failures: ArrayList<String>): Boolean {
 		val label = mocFile.name
 		val mocDocument = Moc3.read(mocFile.readBytes())
 		val manifest = Moc3.readModel3(File(mocFile.parentFile, "${mocFile.nameWithoutExtension}.model3.json").readText())
@@ -112,7 +132,7 @@ class Cmo3ConversionRoundTripTest {
 			) { reference, failure ->
 				failures.add("$label: unparseable $reference: ${failure.message}")
 			}
-		val puppet = org.umamo.render.restMeshesToCanvasSpace(Moc3Import.fromMocDocument(mocDocument, displayInfo))
+		val puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(mocDocument, displayInfo))
 		val pageIndexByDrawableId = mocDocument.artMeshes.associate { artMesh -> artMesh.id to artMesh.textureIndex }
 
 		val result =
@@ -180,10 +200,42 @@ class Cmo3ConversionRoundTripTest {
 		// baked twin its slot representative's canvas mesh, so the caller's puppet is not the
 		// round-trip target wherever twins existed.
 		val reimported = Cmo3Import.fromModelSource(reimportedSource)
-		val residual = org.umamo.interop.diffPuppetModels(reimported, result.puppet)
+		checkResidue(label, diffPuppetModels(reimported, result.puppet), result.puppet, reimported, failures)
 
+		// The trip back to MOC3, compared with the source file.  A root-level coordinate is stored in units
+		// of the canvas scale, so a scale the re-import lost would read as drift on every root object; it
+		// is recorded once, as the canvas field it is, and restored for the export so the value comparison
+		// stays strict at the root.
+		val sourceScale = Moc3Export.mocPixelsPerUnitFor(result.puppet)
+		val reimportedScale = Moc3Export.mocPixelsPerUnitFor(reimported)
+		val scaleDivergences =
+			if (sourceScale == reimportedScale) {
+				emptyList()
+			} else {
+				listOf(
+					MocDivergence(MocObjectKind.CANVAS, "canvas", DivergenceAspect.Attribute(MocAttribute.PIXELS_PER_UNIT, sourceScale, reimportedScale)),
+				)
+			}
+		val looped = Moc3Export.toMocDocument(reimported.copy(pixelsPerUnit = result.puppet.pixelsPerUnit), mocDocument.version).document
+		// A CMO3-origin drawable carries no atlas page index, so the page is not compared here.
+		val divergences = compareMocDocuments(mocDocument, Moc3.read(Moc3.write(looped)), ignoredAttributes = setOf(MocAttribute.TEXTURE))
+		ledger.record(label, scaleDivergences + divergences)
+
+		return true
+	}
+
+	/**
+	 * Fails every difference between the encoded puppet and its re-import that is not a documented residue.
+	 *
+	 * @param String      label      The corpus model name, for failure text.
+	 * @param PuppetDiff  residual   The re-import diffed against the encoded puppet.
+	 * @param PuppetModel encoded    The puppet the conversion encoded.
+	 * @param PuppetModel reimported The written file's re-import.
+	 * @param ArrayList   failures   The shared violation collector.
+	 */
+	private fun checkResidue(label: String, residual: PuppetDiff, encoded: PuppetModel, reimported: PuppetModel, failures: ArrayList<String>) {
 		if (residual.isEmpty) {
-			return true
+			return
 		}
 
 		// Allowed residues: WORLD_ORIGIN plus bounded-ULP GEOMETRY/BLEND_SHAPES drift.
@@ -219,14 +271,12 @@ class Cmo3ConversionRoundTripTest {
 				continue
 			}
 
-			val drift = maxGeometryDrift(result.puppet, reimported, entityDiff.id.raw)
+			val drift = maxGeometryDrift(encoded, reimported, entityDiff.id.raw)
 
 			if (drift > geometryDriftTolerance) {
 				failures.add("$label: drawable ${entityDiff.id.raw} geometry drifted by $drift")
 			}
 		}
-
-		return true
 	}
 
 	/**

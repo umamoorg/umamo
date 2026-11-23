@@ -43,7 +43,7 @@ import org.umamo.runtime.model.lineageRoot
  */
 
 /** The changed aspects of a [Parameter]. */
-enum class ParameterField { NAME, RANGE, KIND, REPEAT }
+enum class ParameterField { NAME, RANGE, KIND, REPEAT, NOTE }
 
 /** The changed aspects of a [ParameterNode.Group]. */
 enum class ParameterGroupField { NAME, INITIALLY_OPEN, CHILDREN }
@@ -57,6 +57,7 @@ enum class DeformerField {
 	NAME,
 	PARENT,
 	PART,
+	VISIBLE,
 	SELECTABLE,
 	LATTICE,
 	QUAD_TRANSFORM,
@@ -307,6 +308,10 @@ private fun parameterFields(baseline: Parameter, edited: Parameter): Set<Paramet
 		if (baseline.repeat != edited.repeat) {
 			add(ParameterField.REPEAT)
 		}
+
+		if (baseline.note != edited.note) {
+			add(ParameterField.NOTE)
+		}
 	}
 
 /**
@@ -403,6 +408,10 @@ private fun deformerFields(baseline: Deformer, edited: Deformer): Set<DeformerFi
 
 		if (baseline.partId != edited.partId) {
 			add(DeformerField.PART)
+		}
+
+		if (baseline.isVisible != edited.isVisible) {
+			add(DeformerField.VISIBLE)
 		}
 
 		if (baseline.isSelectable != edited.isSelectable) {

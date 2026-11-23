@@ -86,6 +86,9 @@
 ## Keyform Sheet
 * Option to isolate a single track of the keyform sheet to allow scrubbing only that track.  This would allow debugging an individual keyform to determine if the problem is coming from the entire parameter or just that keyform.
 
+## Outliner
+* Expand/Collapse Hierarchy (May apply to other list based areas as well.)
+
 ## Tools, Shortcuts, and Gizmos
 * Improvements
 	* ALT+H (Unhide All) and SHIFT+H (Hide everything that is not selected.)

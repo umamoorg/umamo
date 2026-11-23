@@ -102,7 +102,7 @@ class UmaPuppetBridgeTest {
 			parameters =
 				listOf(
 					Parameter(ParameterId("P0"), "Angle", -0.0f, 30f, Float.MIN_VALUE),
-					Parameter(ParameterId("P1"), "Morph", -1f, 1f, 1.4e-44f, ParameterKind.BLEND_SHAPE, repeat = true),
+					Parameter(ParameterId("P1"), "Morph", -1f, 1f, 1.4e-44f, ParameterKind.BLEND_SHAPE, repeat = true, note = " 口を開く <&> "),
 				),
 			parts =
 				listOf(

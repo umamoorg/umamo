@@ -25,6 +25,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.action.Command
+import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.viewport.CameraController
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.OverlaySurface
@@ -177,6 +178,30 @@ class CommandDispatchTest {
 		objectCommands(session, null, SessionAvailability(session)).run("object.unhideAll")
 
 		assertTrue(session.model.value.drawables.first().isVisible)
+	}
+
+	/**
+	 * H with a deformer active flips the whole selection's eyes, the deformer's and a drawable's, as one step that
+	 * the history names for the deformer.
+	 */
+	@Test
+	fun toggleVisibilityWithADeformerActiveFlipsTheWholeSelection() {
+		val session = session(EditorMode.Object)
+		val deformer = SelectionTarget.Deformer(DeformerId("w"))
+		val drawable = SelectionTarget.Drawable(DrawableId("a"))
+		session.setSelection(Selection(setOf(deformer, drawable), deformer))
+		val handle =
+			object : SelectionHandle {
+				override val selection: Selection get() = session.selection.value
+
+				override fun set(selection: Selection) = session.setSelection(selection)
+			}
+
+		objectCommands(session, handle, SessionAvailability(session)).run("object.toggleVisibility")
+
+		assertFalse(session.model.value.deformers.single().isVisible)
+		assertFalse(session.model.value.drawables.single().isVisible)
+		assertEquals("change.visibility.deformer", session.historyView.value.let { view -> view.steps[view.cursor].labelKey })
 	}
 
 	/**

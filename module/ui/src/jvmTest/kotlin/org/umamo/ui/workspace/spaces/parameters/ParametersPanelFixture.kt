@@ -371,6 +371,8 @@ private fun keyedTriangle(id: DrawableId, axes: List<KeyformAxis>): Drawable {
  * @property String rangeDefault The range editor's default caption.
  * @property String rangeMaximum The range editor's maximum caption.
  * @property String repeat The range editor's Repeat checkbox.
+ * @property String note The caption of the range editor's note field.
+ * @property String notePlaceholder The hint an empty note field shows.
  * @property String toggleRepeat The Toggle Repeat entry of a parameter row's menu.
  * @property String control The Control submenu of a parameter row's menu.
  * @property String controlFollow The Control submenu's Follow Settings row, on a slider's menu and a pad's.
@@ -445,6 +447,8 @@ internal class PanelText(
 	val rangeDefault: String,
 	val rangeMaximum: String,
 	val repeat: String,
+	val note: String,
+	val notePlaceholder: String,
 	val toggleRepeat: String,
 	val control: String,
 	val controlFollow: String,
@@ -787,6 +791,8 @@ internal fun ComposeUiTest.mountParametersPanel(harness: ParametersPanelHarness)
 				rangeDefault = stringResource(Res.string.parameter_range_default),
 				rangeMaximum = stringResource(Res.string.parameter_range_max),
 				repeat = stringResource(Res.string.parameter_range_repeat),
+				note = stringResource(Res.string.parameter_range_note),
+				notePlaceholder = stringResource(Res.string.parameter_range_note_placeholder),
 				toggleRepeat = stringResource(Res.string.cmd_parameter_toggle_repeat),
 				control = stringResource(Res.string.group_parameter_control),
 				controlFollow = stringResource(Res.string.menu_parameter_control_follow),

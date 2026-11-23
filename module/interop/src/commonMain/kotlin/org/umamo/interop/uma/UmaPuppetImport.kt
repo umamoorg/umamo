@@ -125,6 +125,7 @@ object UmaPuppetImport {
 			default = record.default,
 			kind = record.kind?.toRuntime() ?: ParameterKind.NORMAL,
 			repeat = record.repeat ?: false,
+			note = record.note.orEmpty(),
 		)
 
 	/**

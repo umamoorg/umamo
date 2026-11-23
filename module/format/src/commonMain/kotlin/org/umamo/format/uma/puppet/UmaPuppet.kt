@@ -62,6 +62,7 @@ public data class UmaPuppet(
  * @property Float              default The resting value.
  * @property UmaParameterKind?  kind    Absent for a normal parameter.
  * @property Boolean?           repeat  Absent when the axis clamps.
+ * @property String?            note    The rigger's note, verbatim; absent when empty.
  */
 @Serializable
 public data class UmaParameter(
@@ -72,6 +73,7 @@ public data class UmaParameter(
 	val default: Float,
 	val kind: UmaParameterKind? = null,
 	val repeat: Boolean? = null,
+	val note: String? = null,
 )
 
 /**

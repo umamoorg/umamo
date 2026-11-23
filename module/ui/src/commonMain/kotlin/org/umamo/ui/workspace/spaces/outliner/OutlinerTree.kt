@@ -277,7 +277,7 @@ private fun buildArmatureNode(puppet: PuppetModel, armatureLabel: String): Outli
 			id = "deformer:${deformer.id.raw}",
 			label = deformer.name,
 			icon = icon,
-			dimmed = false,
+			dimmed = !deformer.isVisible,
 			target = SelectionTarget.Deformer(deformer.id),
 			children = children,
 			selectable = deformer.isSelectable,

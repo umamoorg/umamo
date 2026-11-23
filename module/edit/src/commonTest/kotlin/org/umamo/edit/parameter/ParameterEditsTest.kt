@@ -16,8 +16,8 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
- * Tests for ParameterEdits.kt: the pure range / repeat / link transforms, and the session steps that commit a
- * range with its pose brought back into range, a repeat flag, and a link with its narrowed target.
+ * Tests for ParameterEdits.kt: the pure range / repeat / note / link transforms, and the session steps that commit a
+ * range with its pose brought back into range, a repeat flag, a typed note, and a link with its narrowed target.
  */
 class ParameterEditsTest {
 	/**
@@ -115,6 +115,86 @@ class ParameterEditsTest {
 		assertEquals(listOf(false, true, false), edited.parameters.map { parameter -> parameter.repeat })
 		assertSame(base, base.withParameterRepeat(angleY, repeat = false), "a flag that already holds is the same instance")
 		assertSame(base, base.withParameterRepeat(ParameterId("ParamUnknown"), repeat = true), "an unknown id is the same instance")
+	}
+
+	/** Setting a note is one dirty step that leaves the pose alone, and undo gives the old note back. */
+	@Test
+	fun setNoteIsOneDirtyStepLeavingPoseUntouched() {
+		val session = EditorSession(paramModel())
+		session.commitPose(ParameterChange.SetValue(listOf(angleX)), mapOf(angleX to 0.6f))
+		val stepCountBefore = session.historyView.value.steps.size
+
+		session.setParameterNote(angleX, "Tilts the head toward the viewer's left")
+
+		assertEquals("Tilts the head toward the viewer's left", session.model.value.parameters.first().note)
+		assertEquals(stepCountBefore + 1, session.historyView.value.steps.size)
+		assertEquals(0.6f, session.pose.value[angleX], "a note edit never moves the live pose")
+		assertTrue(session.dirty.value, "a note edit changes the model and dirties the document")
+		assertEquals("change.parameter.note", session.historyView.value.steps.last().labelKey)
+
+		session.undo()
+		assertEquals("", session.model.value.parameters.first().note, "undo gives the old note back")
+		assertFalse(session.dirty.value)
+	}
+
+	/** An empty note clears one that was set, as its own step. */
+	@Test
+	fun setNoteToEmptyClearsIt() {
+		val session = EditorSession(paramModel())
+		session.setParameterNote(angleX, "Opens the jaw")
+		val stepCountBefore = session.historyView.value.steps.size
+
+		session.setParameterNote(angleX, "")
+
+		assertEquals("", session.model.value.parameters.first().note)
+		assertEquals(stepCountBefore + 1, session.historyView.value.steps.size)
+	}
+
+	/** A typed note is trimmed, so whitespace alone clears one. */
+	@Test
+	fun aTypedNoteIsTrimmed() {
+		val session = EditorSession(paramModel())
+
+		session.setParameterNote(angleX, "  Opens the jaw \t")
+		assertEquals("Opens the jaw", session.model.value.parameters.first().note)
+
+		session.setParameterNote(angleX, "   ")
+		assertEquals("", session.model.value.parameters.first().note, "whitespace alone clears the note")
+	}
+
+	/** A note holds no line breaks: each one, in any platform's form, becomes one space. */
+	@Test
+	fun aTypedLineBreakBecomesOneSpace() {
+		val session = EditorSession(paramModel())
+
+		session.setParameterNote(angleX, "Opens\r\nthe\rjaw\nwide")
+
+		assertEquals("Opens the jaw wide", session.model.value.parameters.first().note)
+	}
+
+	/** Typing the note a parameter already holds, padding included, or naming no parameter, records nothing. */
+	@Test
+	fun setNoteThatChangesNothingRecordsNothing() {
+		val session = EditorSession(paramModel())
+		session.setParameterNote(angleX, "Opens the jaw")
+		val stepCountBefore = session.historyView.value.steps.size
+
+		session.setParameterNote(angleX, "Opens the jaw")
+		session.setParameterNote(angleX, " Opens the jaw ")
+		session.setParameterNote(ParameterId("ParamUnknown"), "Opens the jaw")
+
+		assertEquals(stepCountBefore, session.historyView.value.steps.size)
+	}
+
+	/** withParameterNote stores the note verbatim on exactly the named parameter, and is the same instance when nothing changes. */
+	@Test
+	fun withParameterNoteSetsTheNoteVerbatim() {
+		val base = linkModel()
+		val edited = base.withParameterNote(angleY, " Kept as given ")
+
+		assertEquals(listOf("", " Kept as given ", ""), edited.parameters.map { parameter -> parameter.note })
+		assertSame(edited, edited.withParameterNote(angleY, " Kept as given "), "a note that already holds is the same instance")
+		assertSame(base, base.withParameterNote(ParameterId("ParamUnknown"), "Anything"), "an unknown id is the same instance")
 	}
 
 	/** withParameterLink appends the pair, removes exactly that pair, and no-ops an absent unlink. */
