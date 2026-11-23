@@ -2,11 +2,13 @@ package org.umamo.ui.kit.field
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
@@ -15,13 +17,17 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.width
+import org.umamo.ui.kit.textentry.InlineEditController
+import org.umamo.ui.kit.textentry.LocalInlineEditController
 import org.umamo.ui.theme.UmamoTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -104,6 +110,67 @@ class SearchFieldTest {
 		}
 	}
 
+	/**
+	 * The pointer on the clear button is reported to the host, which gives its window-wide text pointer way there
+	 * while the field is being typed in; moving off it, or the button leaving with the text it cleared, takes the
+	 * report back.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun thePointerOnTheClearButtonIsReportedToTheHost() {
+		val controller = InlineEditController()
+		runComposeUiTest {
+			setContent {
+				UmamoTheme {
+					CompositionLocalProvider(LocalInlineEditController provides controller) {
+						var query by remember { mutableStateOf(LONG_QUERY) }
+						Box(modifier = Modifier.testTag(FIELD_TAG)) {
+							SearchField(value = query, onValueChange = { edited -> query = edited })
+						}
+					}
+				}
+			}
+			waitForIdle()
+			val clear = onNodeWithContentDescription(CLEAR_LABEL, useUnmergedTree = true)
+
+			clear.performMouseInput { moveTo(center) }
+			waitForIdle()
+			assertTrue(controller.pointerOnEditorControl, "on the clear button")
+
+			onNodeWithTag(FIELD_TAG, useUnmergedTree = true).performMouseInput { moveTo(Offset(4f, centerY)) }
+			waitForIdle()
+			assertFalse(controller.pointerOnEditorControl, "on the text")
+
+			clear.performMouseInput { moveTo(center) }
+			waitForIdle()
+			clear.performClick()
+			waitForIdle()
+			onNodeWithContentDescription(CLEAR_LABEL, useUnmergedTree = true).assertDoesNotExist()
+			assertFalse(controller.pointerOnEditorControl, "the cleared button took its report along")
+		}
+	}
+
+	/** A trailing action drawn over the field reports the pointer on it the same way. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun thePointerOnATrailingActionIsReportedToTheHost() {
+		val controller = InlineEditController()
+		runComposeUiTest {
+			setContent {
+				UmamoTheme {
+					CompositionLocalProvider(LocalInlineEditController provides controller) {
+						SearchField(value = "", onValueChange = {}, trailingAction = { Box(modifier = Modifier.size(12.dp).testTag(ACTION_TAG)) })
+					}
+				}
+			}
+			waitForIdle()
+
+			onNodeWithTag(ACTION_TAG, useUnmergedTree = true).performMouseInput { moveTo(center) }
+			waitForIdle()
+			assertTrue(controller.pointerOnEditorControl)
+		}
+	}
+
 	/** The field keeps the kit's standard header width unless a caller overrides it. */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
@@ -164,6 +231,8 @@ class SearchFieldTest {
 		const val CLEAR_LABEL = "Clear search"
 
 		const val FIELD_TAG = "search"
+
+		const val ACTION_TAG = "action"
 
 		/** Wide enough that the reservation is unmistakable against layout rounding. */
 		val TRAILING_SIZE = 40.dp

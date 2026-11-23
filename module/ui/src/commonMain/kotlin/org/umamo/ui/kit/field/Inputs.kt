@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.menu.TextEditContextMenuArea
 import org.umamo.ui.kit.textentry.LocalInlineEditController
+import org.umamo.ui.kit.textentry.TextEntryControl
 import org.umamo.ui.kit.textentry.textEntrySurface
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -201,7 +202,10 @@ fun TextField(
 
 					if (trailing != null) {
 						Spacer(modifier = Modifier.width(4.dp))
-						trailing()
+						// Show the pointer for trailing icons.
+						TextEntryControl(controller) {
+							trailing()
+						}
 					}
 				}
 			},
