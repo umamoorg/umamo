@@ -4,6 +4,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.workspace.spaces.parameters.PANEL_OUTLINER_HEIGHT
 import org.umamo.ui.workspace.spaces.parameters.ParametersPanelHarness
@@ -20,8 +21,9 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 class OutlinerRowWidthTest {
 	/**
-	 * The outliner rig with a part and a drawable named far longer than a narrow panel is wide.  The two
-	 * draw their names in different styles and carry different trailing slots.
+	 * The outliner rig with a part, a drawable, and a deformer named far longer than a narrow panel is wide.
+	 * The part and the drawable draw their names in different styles; the deformer sits under the Armature,
+	 * folded until a test opens it.
 	 *
 	 * @return PuppetModel The rig.
 	 */
@@ -31,6 +33,7 @@ class OutlinerRowWidthTest {
 		return model.copy(
 			parts = model.parts.map { part -> if (part.id == OutlinerIds.head) part.copy(name = LONG_PART_NAME) else part },
 			drawables = model.drawables.map { drawable -> if (drawable.id == OutlinerIds.loose) drawable.copy(name = LONG_DRAWABLE_NAME) else drawable },
+			deformers = model.deformers.map { deformer -> if (deformer is Deformer.Warp && deformer.id == OutlinerIds.rootWarp) deformer.copy(name = LONG_DEFORMER_NAME) else deformer },
 		)
 	}
 
@@ -77,14 +80,33 @@ class OutlinerRowWidthTest {
 			assertTrue(abs(squeezedPart - roomyPart) <= 1f, "the part's name is $roomyPart wide with room and was laid out $squeezedPart wide without")
 		}
 
+	/** A deformer row carries both restriction slots as well, so its long name is as wide squeezed as with room. */
+	@Test
+	fun aLongDeformerNameKeepsItsFullWidth() =
+		runComposeUiTest {
+			val harness = ParametersPanelHarness(showOutliner = true, model = longNamedModel())
+			harness.outlinerSize = DpSize(NARROW_WIDTH, PANEL_OUTLINER_HEIGHT)
+			mountParametersPanel(harness)
+			runOnIdle { harness.outlinerViewState.toggleFold(OutlinerRowKeys.ARMATURE) }
+			waitForIdle()
+			val squeezed = outlinerBoundsOfText(LONG_DEFORMER_NAME).width
+
+			runOnIdle { harness.outlinerSize = DpSize(ROOMY_WIDTH, PANEL_OUTLINER_HEIGHT) }
+			waitForIdle()
+
+			val roomy = outlinerBoundsOfText(LONG_DEFORMER_NAME).width
+			assertTrue(abs(squeezed - roomy) <= 1f, "the deformer's name is $roomy wide with room and was laid out $squeezed wide without")
+		}
+
 	private companion object {
 		const val LONG_PART_NAME = "A part with a name a good deal longer than the panel"
 		const val LONG_DRAWABLE_NAME = "A drawable with a name a good deal longer than the panel"
+		const val LONG_DEFORMER_NAME = "A deformer with a name a good deal longer than the panel"
 
-		/** Far narrower than either long name. */
+		/** Far narrower than any of the long names. */
 		val NARROW_WIDTH = 140.dp
 
-		/** Wider than either long name with everything beside it. */
+		/** Wider than any of the long names with everything beside it. */
 		val ROOMY_WIDTH = 620.dp
 	}
 }

@@ -461,6 +461,7 @@
 	<string name="history_part_selectable">Toggle Part Selectability</string>
 	<string name="history_part_move">Move Part</string>
 	<string name="history_visibility_drawable">Toggle Mesh Visibility</string>
+	<string name="history_visibility_deformer">Toggle Deformer Visibility</string>
 	<string name="history_drawable_rename">Rename Mesh</string>
 	<string name="history_drawable_selectable">Toggle Mesh Selectability</string>
 	<string name="history_drawable_move">Move Mesh</string>

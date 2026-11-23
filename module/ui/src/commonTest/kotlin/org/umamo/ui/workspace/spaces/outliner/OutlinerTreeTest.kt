@@ -159,6 +159,17 @@ class OutlinerTreeTest {
 	}
 
 	@Test
+	fun dimsAHiddenDeformerRowAndNotTheDeformersNestedInIt() {
+		val base = model()
+		val puppet = base.copy(deformers = base.deformers.map { deformer -> if (deformer is Deformer.Warp) deformer.copy(isVisible = false) else deformer })
+		val warpNode = buildOutlinerTree(puppet).children.first { it.id == "armature" }.children.single()
+
+		assertTrue(warpNode.dimmed, "a hidden deformer is dimmed")
+		assertTrue(!warpNode.children.single().dimmed, "a deformer nested in a hidden one keeps its own eye")
+		assertTrue(buildOutlinerTree(base).children.first { it.id == "armature" }.children.none { it.dimmed }, "a shown deformer is not dimmed")
+	}
+
+	@Test
 	fun filterHidesArmatureWhenDeformersToggledOff() {
 		val filtered = filterOutliner(buildOutlinerTree(model()), query = "", showParts = true, showDrawables = true, showDeformers = false)
 

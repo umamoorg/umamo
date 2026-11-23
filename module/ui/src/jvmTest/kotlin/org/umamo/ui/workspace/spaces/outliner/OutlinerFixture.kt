@@ -195,6 +195,16 @@ internal fun drawableOf(harness: ParametersPanelHarness, id: DrawableId): Drawab
 	harness.session.model.value.drawables.first { drawable -> drawable.id == id }
 
 /**
+ * A deformer of the session's current model.
+ *
+ * @param ParametersPanelHarness harness The mounted harness.
+ * @param DeformerId id The deformer.
+ * @return Deformer The deformer as the model holds it now.
+ */
+internal fun deformerOf(harness: ParametersPanelHarness, id: DeformerId): Deformer =
+	harness.session.model.value.deformers.first { deformer -> deformer.id == id }
+
+/**
  * Restricts a matcher to the outliner's box, because the panel beside it shows names of its own.
  *
  * @return SemanticsMatcher The matcher.

@@ -75,8 +75,11 @@
 ## Deleted References (Unused Data)
 * Add a Blender like unused data to inspect and clean up dead references.
 
-# Object/Edit Mode Switch
+## Object/Edit Mode Switch
 * When there is no drawable selected, a default is found to select.  However, this does not update the selection and leaves the Properties and Outliner panels in a bad state.  The Properties shows nothing and Outliner has nothing selected.
+
+## Outliner
+* Expand/Collapse Hierarchy (May apply to other list based areas as well.)
 
 ## Tools, Shortcuts, and Gizmos
 * Improvements
