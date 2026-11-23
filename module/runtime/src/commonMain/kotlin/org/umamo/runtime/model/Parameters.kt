@@ -35,6 +35,11 @@ data class Parameter(
 	 * The evaluator reads every value through `wrapOrClamp`.
 	 */
 	val repeat: Boolean = false,
+	/**
+	 * Freeform text field to enter notes about this parameter.  This is unlocalized user entered data.
+	 * UMA §4.3 `note`.
+	 */
+	val note: String = "",
 )
 
 /**

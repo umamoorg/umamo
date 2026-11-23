@@ -152,10 +152,8 @@ internal class Cmo3StructureLowering(
 				maxValue = editedParameter.max
 				defaultValue = editedParameter.default
 				isRepeat = editedParameter.repeat
-				// CMO3: CParameterSource fields paramType / description - a Type element plus the
-				// (possibly empty) description string on every corpus parameter, never null.
-				paramType = if (editedParameter.kind == ParameterKind.BLEND_SHAPE) Type.MORPH_TARGET else template?.paramType ?: Type.NORMAL
-				description = "" // Unhandled right now.
+				paramType = if (editedParameter.kind == ParameterKind.BLEND_SHAPE) Type.MORPH_TARGET else template?.paramType ?: Type.NORMAL // Never null.
+				description = editedParameter.note
 				name = editedParameter.name
 				combined = false // This is handled in Cmo3DocumentLowering.lowerParameterOrderAndLinks().
 				parentGroupGuid = index.rootParameterGroup?.guid

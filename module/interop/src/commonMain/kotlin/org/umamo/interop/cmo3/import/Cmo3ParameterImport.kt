@@ -38,6 +38,8 @@ internal fun importParameters(context: Cmo3ImportContext): List<Parameter> =
 			kind = if ((source.paramType as? Type) == Type.MORPH_TARGET) ParameterKind.BLEND_SHAPE else ParameterKind.NORMAL,
 			// CMO3: CParameterSource field isRepeat.
 			repeat = source.isRepeat,
+			// CMO3: CParameterSource field description - the note, kept verbatim; an absent one is no note.
+			note = source.description.orEmpty(),
 		)
 	}
 
