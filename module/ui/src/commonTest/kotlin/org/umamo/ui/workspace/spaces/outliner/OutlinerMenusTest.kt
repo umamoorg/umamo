@@ -88,11 +88,11 @@ class OutlinerMenusTest {
 		)
 	}
 
-	/** A deformer has no visibility flag, so its menu has no visibility entry; it can be wrapped in a new warp. */
+	/** A deformer's menu has the visibility entry like any row's; it can be wrapped in a new warp. */
 	@Test
-	fun aDeformerHasNoVisibilityEntry() {
+	fun aDeformerHasAVisibilityEntry() {
 		assertEquals(
-			listOf("Select Hierarchy", null, "Toggle Selectability", "Rename", null, "Create Warp Deformer", null, "Delete"),
+			listOf("Select Hierarchy", null, "Toggle Visibility", "Toggle Selectability", "Rename", null, "Create Warp Deformer", null, "Delete"),
 			labelsOf(itemsFor(deformer)),
 		)
 	}
@@ -124,7 +124,10 @@ class OutlinerMenusTest {
 			listOf("Select Hierarchy", null, "Toggle Visibility", "Toggle Selectability", "Rename", null, "Delete"),
 			labelsOf(itemsFor(drawable, registry, inObjectMode = false)),
 		)
-		assertEquals(listOf("Select Hierarchy", null, "Toggle Selectability", "Rename", null, "Delete"), labelsOf(itemsFor(deformer, registry, inObjectMode = false)))
+		assertEquals(
+			listOf("Select Hierarchy", null, "Toggle Visibility", "Toggle Selectability", "Rename", null, "Delete"),
+			labelsOf(itemsFor(deformer, registry, inObjectMode = false)),
+		)
 		assertEquals(
 			listOf("Select Hierarchy", null, "Toggle Visibility", "Toggle Selectability", "Rename", null, "Delete", "Delete Hierarchy"),
 			labelsOf(itemsFor(part, registry, inObjectMode = false)),

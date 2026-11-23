@@ -61,19 +61,24 @@ class OutlinerMenuTest {
 			assertFalse(popupShows(harness.text.deleteHierarchy))
 		}
 
-	/** A deformer offers no visibility toggle, keeps the selectability toggle, and has a single Delete. */
+	/** A deformer offers the visibility and selectability toggles and a single Delete. */
 	@Test
-	fun aDeformersMenuHasNoVisibilityEntry() =
+	fun aDeformersMenuOffersVisibilityAndASingleDelete() =
 		runComposeUiTest {
 			val harness = mountOutliner()
 			clickAt(slotPoint(harness.text.expand, harness.text.outlinerArmature))
 
 			secondaryClickAt(rowBox(OutlinerNames.ROOT_WARP).center)
 
-			assertFalse(popupShows(harness.text.toggleVisibility))
+			assertTrue(popupShows(harness.text.toggleVisibility))
 			assertTrue(popupShows(harness.text.toggleSelectable))
 			assertTrue(popupShows(harness.text.outlinerDelete))
 			assertFalse(popupShows(harness.text.deleteHierarchy))
+
+			clickMenuEntry(harness.text.toggleVisibility)
+
+			assertFalse(deformerOf(harness, OutlinerIds.rootWarp).isVisible)
+			assertTrue(deformerOf(harness, OutlinerIds.neck).isVisible, "the menu entry flips the one row")
 		}
 
 	/** A synthetic row names no entity, so it opens no menu. */
