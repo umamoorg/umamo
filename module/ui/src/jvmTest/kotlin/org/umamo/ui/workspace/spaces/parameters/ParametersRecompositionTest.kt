@@ -5,14 +5,19 @@ import androidx.compose.runtime.CompositionTracer
 import androidx.compose.runtime.InternalComposeTracingApi
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.isFocused
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.DpSize
 import org.umamo.edit.ParameterControl
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.parameter.renameParameter
+import org.umamo.edit.parameter.setParameterNote
 import org.umamo.edit.structure.rename
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -465,6 +470,57 @@ class ParametersRecompositionTest {
 			assertEquals(1, counter.runsOf("ParameterValueRow"))
 			assertEquals(0, counter.runsOf("ParameterPad2D"))
 			assertEquals(0, counter.runsOf("ParameterGripHandle"))
+		}
+
+	/** Typing a note is the field's own business: the draft lives in the field, so the panel runs nothing per key. */
+	@Test
+	fun typingANoteRunsNothingOfThePanel() =
+		counting { counter ->
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			clickAt(panelBoundsOfText(PanelNames.BODY_X).center)
+			clickAt(panelBoundsOfText(harness.text.notePlaceholder).center)
+			val field = onNode(hasSetTextAction() and isFocused(), useUnmergedTree = true)
+			counter.reset()
+
+			field.performTextInput("L")
+			field.performTextInput("e")
+			field.performTextInput("a")
+			waitForIdle()
+
+			assertEquals("Lea", field.fetchSemanticsNode().config[SemanticsProperties.EditableText].text, "the typing must really have reached the field")
+			assertEquals(emptyMap(), counter.namedRuns())
+			assertEquals(0, counter.lambdaRuns())
+		}
+
+	/** A note set on one parameter runs that parameter's controls and its open editor, and no other row's. */
+	@Test
+	fun aNoteEditRunsItsOwnRowAlone() =
+		counting { counter ->
+			val harness = ParametersPanelHarness()
+			mountParametersPanel(harness)
+			clickAt(panelBoundsOfText(PanelNames.BODY_X).center)
+			// A row above the open editor, so the list still composes it.
+			assertTrue(showsText(PanelNames.EYE_OPEN), "the other row must be on screen, or its skip shows nothing")
+			counter.reset()
+
+			runOnIdle { harness.session.setParameterNote(PanelIds.eyeOpen, RENAMED) }
+			waitForIdle()
+
+			assertEquals(0, counter.runsOf("ParameterExtraEditor"), "Body X's open editor shows nothing of Eye Open")
+			assertEquals(0, counter.runsOf("ParameterIsland"))
+			assertEquals(1, counter.runsOf("ParameterSlider"))
+			assertEquals(0, counter.runsOf("ParameterPad2D"))
+			assertEquals(0, counter.runsOf("ParameterGripHandle"))
+
+			counter.reset()
+			runOnIdle { harness.session.setParameterNote(PanelIds.bodyX, RENAMED) }
+			waitForIdle()
+
+			assertEquals(RENAMED, onNode(hasSetTextAction(), useUnmergedTree = true).fetchSemanticsNode().config[SemanticsProperties.EditableText].text, "the edit must really have reached the open editor")
+			assertEquals(1, counter.runsOf("ParameterExtraEditor"))
+			assertEquals(1, counter.runsOf("ParameterSlider"))
+			assertEquals(0, counter.runsOf("ParameterPad2D"))
 		}
 
 	/**

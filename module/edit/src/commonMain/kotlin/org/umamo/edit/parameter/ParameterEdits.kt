@@ -56,6 +56,21 @@ fun PuppetModel.withParameterRepeat(id: ParameterId, repeat: Boolean): PuppetMod
 }
 
 /**
+ * A copy of this model with parameter [id]'s note set to [note], verbatim.
+ *
+ * @param ParameterId id The parameter to change.
+ * @param String note The note, empty for none.
+ * @return PuppetModel This model with the note updated, or this same instance when it already holds or [id] is unknown.
+ */
+fun PuppetModel.withParameterNote(id: ParameterId, note: String): PuppetModel {
+	if (parameters.none { parameter -> parameter.id == id && parameter.note != note }) {
+		return this
+	}
+
+	return copy(parameters = parameters.map { parameter -> if (parameter.id == id) parameter.copy(note = note) else parameter })
+}
+
+/**
  * A copy of this model with the parameter link [horizontal]->[vertical] added ([linked] = true) or
  * removed ([linked] = false).  This edit is the invariant keeper - any UI-side validity check is advisory
  * only - so a request that would pair a parameter twice, with itself, or with an unknown id returns this
@@ -165,6 +180,30 @@ fun EditorSession.setParameterRange(id: ParameterId, min: Float, default: Float,
 fun EditorSession.setParameterRepeat(id: ParameterId, repeat: Boolean) {
 	mutate(ParameterChange.SetRepeat(id, repeat)) { current -> current.withParameterRepeat(id, repeat) }
 }
+
+/**
+ * Sets parameter [id]'s note from what the rigger typed, as one undo step.  The pose is untouched, and a
+ * request that changes nothing records no step.
+ *
+ * @param ParameterId id The parameter to change.
+ * @param String note The typed note; whitespace alone clears it.
+ */
+fun EditorSession.setParameterNote(id: ParameterId, note: String) {
+	val typed = typedNote(note)
+	mutate(ParameterChange.SetNote(id, typed)) { current -> current.withParameterNote(id, typed) }
+}
+
+/** A line break in any platform's form, each of which a typed note holds as one space. */
+private val NOTE_LINE_BREAK = Regex("\r\n|\r|\n")
+
+/**
+ * The note a typed text becomes: one paragraph with its ends trimmed.  A note holds no line breaks, and an
+ * imported note never passes through here, so it keeps whatever edge whitespace it was written with.
+ *
+ * @param String text The text as typed.
+ * @return String The note to store.
+ */
+private fun typedNote(text: String): String = text.replace(NOTE_LINE_BREAK, " ").trim()
 
 /**
  * Links parameter [horizontal] with [vertical] (the next parameter below it in panel order) into

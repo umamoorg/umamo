@@ -41,6 +41,7 @@ import org.umamo.ui.kit.button.DisclosureChevron
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.button.IconButtonAppearance
 import org.umamo.ui.kit.field.Checkbox
+import org.umamo.ui.kit.field.CommitTextField
 import org.umamo.ui.kit.field.Dial
 import org.umamo.ui.kit.field.FieldStack
 import org.umamo.ui.kit.field.NumberField
@@ -683,25 +684,41 @@ internal fun RangeAxisLabel(name: String) {
 }
 
 /**
- * One parameter's range editor, inside its island while the editor is open: the min / default / max fields, then
- * the Repeat checkbox.  A pad shows one per axis.
+ * One parameter's extra fields editor.  Includes the minimum and maximum values, repeat, and notes.
  *
  * @param Parameter parameter The parameter the editor edits.
  * @param ParameterLabels labels The panel's localized chrome.
  * @param Function onSetRange Called with (min, default, max) to commit a range edit.
  * @param Function onSetRepeat Called with the new flag when the checkbox is clicked.
+ * @param Function onSetNote Called with the typed note when an edit of it ends with a change.
  */
 @Composable
-internal fun ParameterRangeEditor(
+internal fun ParameterExtraEditor(
 	parameter: Parameter,
 	labels: ParameterLabels,
 	onSetRange: (Float, Float, Float) -> Unit,
 	onSetRepeat: (Boolean) -> Unit,
+	onSetNote: (String) -> Unit,
 ) {
 	RangeFieldsRow(parameter, onSetRange)
 	// The checkbox claims its own press, so a click on it never reaches the island and retargets the keyform sheet.
 	Box(modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 2.dp)) {
 		Checkbox(checked = parameter.repeat, onCheckedChange = onSetRepeat, label = labels.repeat)
+	}
+	Column(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 6.dp)) {
+		Text(
+			text = labels.note,
+			style = LocalUmamoTypography.current.labelSmall,
+			color = LocalUmamoColors.current.textMuted,
+			modifier = Modifier.padding(start = 2.dp, bottom = 2.dp),
+		)
+		// User entered data.  Whitespace is trimmed and newlines are replaced with spaces.
+		CommitTextField(
+			value = parameter.note,
+			onCommit = onSetNote,
+			placeholder = labels.notePlaceholder,
+			modifier = Modifier.fillMaxWidth(),
+		)
 	}
 }
 

@@ -594,6 +594,17 @@ sealed interface ParameterChange : Change {
 	}
 
 	/**
+	 * Sets a parameter's note field.
+	 *
+	 * @property ParameterId id The parameter whose note changed.
+	 * @property String note The new note, empty for none.
+	 */
+	data class SetNote(val id: ParameterId, val note: String) : ParameterChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.parameter.note"
+	}
+
+	/**
 	 * Links two adjacent parameters into one 2D pad, or removes that link.  Document content - it
 	 * changes the model and marks the document dirty.  The live pose is untouched: both parameters
 	 * keep their values, only the panel presentation folds into (or splits out of) a pad.

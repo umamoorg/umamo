@@ -42,6 +42,7 @@ internal fun changeLabel(labelKey: String?): String =
 		"change.parameter.value" -> stringResource(Res.string.history_parameter_value)
 		"change.parameter.range" -> stringResource(Res.string.history_parameter_range)
 		"change.parameter.repeat" -> stringResource(Res.string.history_parameter_repeat)
+		"change.parameter.note" -> stringResource(Res.string.history_parameter_note)
 		"change.parameter.link" -> stringResource(Res.string.history_parameter_link)
 		"change.parameter.unlink" -> stringResource(Res.string.history_parameter_unlink)
 		"change.parameter.move" -> stringResource(Res.string.history_parameter_move)
