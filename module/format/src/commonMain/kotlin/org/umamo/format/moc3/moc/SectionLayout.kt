@@ -384,10 +384,10 @@ public enum class Section(
 	/** Per-group total render-index count (recursive: drawables + offscreen slots + sub-group totals). */
 	RENDER_ORDER_GROUP_RENDER_COUNT(ElementType.I32, Sizing.PER_RENDER_ORDER_GROUP, 83, 83, 83, 83, 83, 83),
 
-	/** Per-group maximum child draw order (drawable draw order, or a sub-group's part draw order). */
+	/** Per-group maximum child draw order over every keyform (a drawable's, or a sub-group part's). */
 	RENDER_ORDER_GROUP_MAX_DRAW_ORDER(ElementType.I32, Sizing.PER_RENDER_ORDER_GROUP, 84, 84, 84, 84, 84, 84),
 
-	/** Per-group minimum child draw order. */
+	/** Per-group minimum child draw order over every keyform. */
 	RENDER_ORDER_GROUP_MIN_DRAW_ORDER(ElementType.I32, Sizing.PER_RENDER_ORDER_GROUP, 85, 85, 85, 85, 85, 85),
 	RENDER_ORDER_CHILD_KIND(ElementType.I32, Sizing.TABLE, 86, 86, 86, 86, 86, 86),
 	RENDER_ORDER_CHILD_INDEX(ElementType.I32, Sizing.TABLE, 87, 87, 87, 87, 87, 87),
