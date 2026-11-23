@@ -153,6 +153,26 @@ class Moc3ExportKeyformNoticeTest {
 	}
 
 	/**
+	 * A key pair closer than the evaluator's snap tolerance is written as the rig holds it when the mesh
+	 * and its channel are keyed alike, which is how an imported rig carries one.
+	 */
+	@Test
+	fun aNearKeyPairIsWrittenAsAuthored() {
+		val lowered =
+			Moc3Export.toMocDocument(
+				puppet(drawable(floatArrayOf(0f, 0.999f, 1f), opacityOn(0f, 0.999f, 1f))),
+				MocVersion.V50,
+			)
+
+		assertEquals(emptyList(), lowered.report.notices)
+
+		val artMesh = lowered.document.artMeshes.single()
+		val binding = lowered.document.bindings.first { candidate -> candidate.index == artMesh.keyformBindingIndex }
+		assertEquals(listOf(0f, 0.999f, 1f), binding.axes.single().keyPositions.toList(), "the binding carries both keys of the pair")
+		assertEquals(3, artMesh.keyforms.size, "the mesh kept every keyform")
+	}
+
+	/**
 	 * A mesh whose keyforms will not bundle is written with one static form, and says so.  The opacity
 	 * track here reaches below the mesh's own keys, where the mesh has no shape to hold.
 	 */

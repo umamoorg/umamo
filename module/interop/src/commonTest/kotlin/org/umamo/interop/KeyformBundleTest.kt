@@ -122,6 +122,68 @@ class KeyformBundleTest {
 		)
 	}
 
+	/**
+	 * Geometry that stores both keys of a pair the evaluator cannot tell apart keeps both in the bundle,
+	 * and a channel keyed on a subset of that axis refines onto it.  This is the shape an imported rig
+	 * has: every track of an object starts on the object's one grid.
+	 */
+	@Test
+	fun aNearKeyPairTheGeometryStoresIsBundledWithBothKeys() {
+		val geometryKeys = floatArrayOf(0f, 0.5f, 0.999f, 1f)
+		val channels = ChannelGrids(mapOf(FormChannel.OPACITY to track(floatArrayOf(0f, 0.999f, 1f))))
+
+		for (policy in OutOfSpanPolicy.entries) {
+			val result = buildKeyformBundle(geometry(geometryKeys), floatBlend, channels, statics, requireGeometry = false, policy)
+			assertTrue(result is KeyformBundleResult.Bundled, "$policy: the owner bundles")
+			val bundle = result.bundle
+			assertEquals(geometryKeys.toList(), bundle.axes.single().keys.toList(), "$policy: both keys of the pair are kept")
+			assertEquals(emptyList(), bundle.demotedChannels, "$policy: the channel refined onto the union")
+			assertEquals(listOf(0f, 1f, 2f, 3f), bundle.cells.map { cell -> cell.geometry }, "$policy: every geometry form is carried")
+			assertEquals(
+				listOf(ChannelValue.Scalar(1f), ChannelValue.Scalar(2f)),
+				bundle.cells.takeLast(2).map { cell -> cell.channels[FormChannel.OPACITY] },
+				"$policy: the channel's own two forms sit on the pair",
+			)
+		}
+	}
+
+	/**
+	 * A channel key within the snap tolerance of a geometry key is that key met again, and never
+	 * displaces it: the geometry is what must refine onto the union.
+	 */
+	@Test
+	fun aChannelKeyNeverDisplacesAGeometryKeyItCoincidesWith() {
+		val geometryKeys = floatArrayOf(0f, 1.0005f)
+		val channels = ChannelGrids(mapOf(FormChannel.OPACITY to track(floatArrayOf(0f, 1f))))
+		val result =
+			buildKeyformBundle(geometry(geometryKeys), floatBlend, channels, statics, requireGeometry = false, OutOfSpanPolicy.DemoteChannel)
+
+		assertTrue(result is KeyformBundleResult.Bundled, "the geometry still bundles")
+		assertEquals(geometryKeys.toList(), result.bundle.axes.single().keys.toList(), "the union holds the geometry's own keys")
+	}
+
+	/**
+	 * A near pair only a channel stores still merges to one key.  The geometry could not take the
+	 * second, so keeping both would cost the whole owner where merging costs that one channel.
+	 */
+	@Test
+	fun aNearKeyPairOnlyAChannelStoresCostsThatChannelAlone() {
+		val channels = ChannelGrids(mapOf(FormChannel.OPACITY to track(floatArrayOf(0f, 0.3f, 0.3005f, 1f))))
+		val result =
+			buildKeyformBundle(
+				geometry(floatArrayOf(0f, 0.5f, 1f)),
+				floatBlend,
+				channels,
+				statics,
+				requireGeometry = false,
+				OutOfSpanPolicy.DemoteChannel,
+			)
+
+		assertTrue(result is KeyformBundleResult.Bundled, "the geometry still bundles")
+		assertEquals(listOf(0f, 0.3f, 0.5f, 1f), result.bundle.axes.single().keys.toList(), "the pair merged to its first key")
+		assertEquals(listOf(FormChannel.OPACITY), result.bundle.demotedChannels, "only the channel is lost")
+	}
+
 	@Test
 	fun bothPoliciesAgreeWhenNothingIsOutOfSpan() {
 		val geometryGrid = geometry(floatArrayOf(-30f, 0f, 30f))

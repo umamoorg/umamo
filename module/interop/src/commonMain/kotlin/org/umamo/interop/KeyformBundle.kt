@@ -10,6 +10,7 @@ import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.ParameterId
+import kotlin.math.abs
 
 /*
  * Re-bundles a runtime entity's SPLIT keyform representation - one geometry grid plus independent
@@ -131,7 +132,8 @@ fun <TGeometry> buildKeyformBundle(
 	outOfSpanPolicy: OutOfSpanPolicy,
 ): KeyformBundleResult {
 	// Union keys per parameter, geometry axes first so the bundled axis order follows the
-	// geometry grid (the order the import's fan-out preserved).
+	// geometry grid (the order the import's fan-out preserved).  First also means kept: the union
+	// never gives up a key it holds, so the geometry's keys all survive the channels merged after.
 	val unionKeys = LinkedHashMap<ParameterId, FloatArray>()
 
 	/**
@@ -297,22 +299,27 @@ fun <TGeometry> buildKeyformBundle(
 }
 
 /**
- * The two key arrays merged ascending with evaluator-tolerance duplicates dropped.
+ * A union's keys with another axis's merged in, ascending.
  *
- * @param FloatArray first  One axis's keys.
- * @param FloatArray second The other's.
+ * A key the evaluator cannot tell apart from one the union already holds is that key met again on another
+ * grid, and stays one key: the union's own.  The keys the union holds are never merged with each other,
+ * however close, because a grid that stores both keys of a near pair can only refine onto a union that
+ * holds both.
+ *
+ * @param FloatArray union The keys held so far.
+ * @param FloatArray added The other axis's keys.
  * @return FloatArray The merged ascending keys.
  */
-private fun mergedKeys(first: FloatArray, second: FloatArray): FloatArray {
-	val sorted = (first + second).sortedArray()
-	val kept = ArrayList<Float>(sorted.size)
+private fun mergedKeys(union: FloatArray, added: FloatArray): FloatArray {
+	val kept = ArrayList<Float>(union.size + added.size)
+	kept.addAll(union.asList())
 
-	for (candidate in sorted) {
-		// The evaluator's own key-snap tolerance: two keys it cannot tell apart stay one key.
-		if (kept.isEmpty() || candidate - kept.last() >= EPS_KEY) {
+	for (candidate in added) {
+		// The evaluator's own key-snap tolerance.
+		if (kept.none { held -> abs(held - candidate) < EPS_KEY }) {
 			kept.add(candidate)
 		}
 	}
 
-	return kept.toFloatArray()
+	return kept.sorted().toFloatArray()
 }
