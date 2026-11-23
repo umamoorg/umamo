@@ -63,8 +63,8 @@ internal fun lowerDeformers(
 					)
 				val bundle = keyforms?.bundle
 
-				// Reported whenever the empty lattice below is what gets written, whatever left the warp
-				// without one to write: no grid at all, or keyforms that would not bundle.
+				// Reported whenever the empty lattice below is what gets written.  A warp that carries a
+				// grid always bundles it, so this is the warp that carries none.
 				if (bundle?.cells?.firstOrNull()?.geometry == null) {
 					noticeSink.unsupported(
 						ExportEntityCategory.Deformer,

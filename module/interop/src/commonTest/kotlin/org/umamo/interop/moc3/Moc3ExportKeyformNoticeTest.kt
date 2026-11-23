@@ -1,6 +1,9 @@
 package org.umamo.interop.moc3
 
 import org.umamo.format.moc3.moc.MocVersion
+import org.umamo.format.moc3.model.RotationDeformer
+import org.umamo.format.moc3.model.WarpDeformer
+import org.umamo.interop.ChannelDemotionCause
 import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
@@ -128,9 +131,20 @@ class Moc3ExportKeyformNoticeTest {
 			canvasHeight = 100f,
 		)
 
+	/** The export of [deformers] beside a fully bundling drawable. */
+	private fun exportWith(vararg deformers: Deformer): Moc3Export.Lowered =
+		Moc3Export.toMocDocument(puppet(drawable(floatArrayOf(0f, 1f)), deformers.toList()), MocVersion.V50)
+
 	/** The notices exporting [deformers] beside a fully bundling drawable raises. */
-	private fun noticesFor(vararg deformers: Deformer): List<ExportNotice> =
-		Moc3Export.toMocDocument(puppet(drawable(floatArrayOf(0f, 1f)), deformers.toList()), MocVersion.V50).report.notices
+	private fun noticesFor(vararg deformers: Deformer): List<ExportNotice> = exportWith(*deformers).report.notices
+
+	/** The notice that [subject]'s opacity gave way to geometry it could not share a grid with. */
+	private fun opacityDemotedByGeometry(category: ExportEntityCategory, subject: String): ExportNotice =
+		ExportNotice.UnsupportedChange(
+			category,
+			subject,
+			ExportNoticeReason.ChannelDemotedToStatic(FormChannel.OPACITY, ChannelDemotionCause.GeometryCannotRefineOntoChannelKeys),
+		)
 
 	private fun deformerNotice(subject: String, reason: ExportNoticeReason): ExportNotice =
 		ExportNotice.UnsupportedChange(ExportEntityCategory.Deformer, subject, reason)
@@ -173,28 +187,16 @@ class Moc3ExportKeyformNoticeTest {
 	}
 
 	/**
-	 * A mesh whose keyforms will not bundle is written with one static form, and says so.  The opacity
-	 * track here reaches below the mesh's own keys, where the mesh has no shape to hold.
+	 * A channel keyed past its mesh's own keys is written as a constant, and the mesh stays keyed.  The
+	 * opacity track here reaches below the mesh's keys, where the mesh has no shape to hold.
 	 */
 	@Test
-	fun aDrawableWhoseKeyformsWillNotBundleIsReported() {
+	fun aChannelKeyedPastItsMeshIsDemotedAndTheMeshStaysKeyed() {
 		val lowered =
 			Moc3Export.toMocDocument(puppet(drawable(floatArrayOf(0f, 1f), opacityOn(-1f, 0f, 1f))), MocVersion.V50)
 
-		assertEquals(
-			listOf<ExportNotice>(
-				ExportNotice.UnsupportedChange(
-					ExportEntityCategory.Drawable,
-					drawableSubject,
-					ExportNoticeReason.KeyformsDemotedToStatic(KeyformBundleRejection.KeysOutsideGeometrySpan),
-				),
-			),
-			lowered.report.notices,
-		)
-
-		val artMesh = lowered.document.artMeshes.single()
-		assertEquals(0, artMesh.keyformBindingIndex, "the mesh points at the static binding")
-		assertEquals(1, artMesh.keyforms.size, "the mesh was written with one form")
+		assertEquals(listOf(opacityDemotedByGeometry(ExportEntityCategory.Drawable, drawableSubject)), lowered.report.notices)
+		assertEquals(2, lowered.document.artMeshes.single().keyforms.size, "the mesh kept its keyforms")
 	}
 
 	/** A channel keyed over less than its mesh's span is written as a constant; the mesh stays keyed. */
@@ -208,7 +210,7 @@ class Moc3ExportKeyformNoticeTest {
 				ExportNotice.UnsupportedChange(
 					ExportEntityCategory.Drawable,
 					drawableSubject,
-					ExportNoticeReason.ChannelDemotedToStatic(FormChannel.OPACITY),
+					ExportNoticeReason.ChannelDemotedToStatic(FormChannel.OPACITY, ChannelDemotionCause.ChannelCannotRefineOntoUnion),
 				),
 			),
 			lowered.report.notices,
@@ -217,20 +219,21 @@ class Moc3ExportKeyformNoticeTest {
 	}
 
 	/**
-	 * A warp whose keyforms will not bundle names the bundling rule it broke, ahead of the notice for the
-	 * empty lattice written in its place.
+	 * A warp keeps its lattice keyforms when a channel is keyed past them: the channel is what gives way,
+	 * so no empty lattice is written and none is reported.
 	 */
 	@Test
-	fun aWarpWhoseKeyformsWillNotBundleReportsTheRule() {
+	fun aWarpKeepsItsLatticeWhenAChannelIsKeyedPastIt() {
+		val lowered = exportWith(warp(gridOn(floatArrayOf(0f, 1f), ::lattice), opacityOn(-1f, 0f, 1f)))
+
+		assertEquals(listOf(opacityDemotedByGeometry(ExportEntityCategory.Deformer, warpSubject)), lowered.report.notices)
 		assertEquals(
-			listOf(
-				deformerNotice(
-					warpSubject,
-					ExportNoticeReason.KeyformsDemotedToStatic(KeyformBundleRejection.KeysOutsideGeometrySpan),
-				),
-				deformerNotice(warpSubject, ExportNoticeReason.WarpDeformerHasNoLattice),
-			),
-			noticesFor(warp(gridOn(floatArrayOf(0f, 1f), ::lattice), opacityOn(-1f, 0f, 1f))),
+			2,
+			lowered.document.deformers
+				.filterIsInstance<WarpDeformer>()
+				.single()
+				.keyforms.size,
+			"the warp kept both lattices",
 		)
 	}
 
@@ -255,19 +258,19 @@ class Moc3ExportKeyformNoticeTest {
 		)
 	}
 
-	/** A rotation reports the same two cases as a warp, with the identity transform as its stand-in. */
+	/** A rotation keeps its pivot keyforms the same way, and is reported only when it has no pivot grid. */
 	@Test
-	fun aRotationWithNoTransformToWriteIsReported() {
+	fun aRotationKeepsItsPivotWhenAChannelIsKeyedPastIt() {
+		val lowered = exportWith(rotation(gridOn(floatArrayOf(0f, 1f), ::pivot), opacityOn(-1f, 0f, 1f)))
+
+		assertEquals(listOf(opacityDemotedByGeometry(ExportEntityCategory.Deformer, rotationSubject)), lowered.report.notices)
 		assertEquals(
-			listOf(
-				deformerNotice(
-					rotationSubject,
-					ExportNoticeReason.KeyformsDemotedToStatic(KeyformBundleRejection.KeysOutsideGeometrySpan),
-				),
-				deformerNotice(rotationSubject, ExportNoticeReason.RotationDeformerHasNoPivot),
-			),
-			noticesFor(rotation(gridOn(floatArrayOf(0f, 1f), ::pivot), opacityOn(-1f, 0f, 1f))),
-			"keyforms that will not bundle",
+			2,
+			lowered.document.deformers
+				.filterIsInstance<RotationDeformer>()
+				.single()
+				.keyforms.size,
+			"the rotation kept both pivots",
 		)
 		assertEquals(
 			listOf(deformerNotice(rotationSubject, ExportNoticeReason.RotationDeformerHasNoPivot)),

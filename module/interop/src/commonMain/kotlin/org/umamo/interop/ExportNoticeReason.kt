@@ -35,11 +35,12 @@ sealed interface ExportNoticeReason {
 	// MOC3 lowering.
 
 	/**
-	 * A channel keyed over a narrower span than its object's grid, written as a constant instead.
+	 * A channel that cannot share its object's grid, written as a constant instead.
 	 *
-	 * @property FormChannel channel The demoted channel.
+	 * @property FormChannel          channel The demoted channel.
+	 * @property ChannelDemotionCause cause   Which side could not refine onto the other's keys.
 	 */
-	data class ChannelDemotedToStatic(val channel: FormChannel) : ExportNoticeReason
+	data class ChannelDemotedToStatic(val channel: FormChannel, val cause: ChannelDemotionCause) : ExportNoticeReason
 
 	/**
 	 * A keyform set that will not bundle into the single grid MOC3 stores per object, so the object was
@@ -83,16 +84,10 @@ sealed interface ExportNoticeReason {
 	/** An offscreen's clipping mask names a drawable that could not be written. */
 	data object OffscreenMaskNotInExport : ExportNoticeReason
 
-	/**
-	 * A warp deformer has no lattice to write, so an empty one was written: it carries no control-point
-	 * grid, or its keyforms would not bundle.
-	 */
+	/** A warp deformer carries no control-point grid, so it has no lattice to write. */
 	data object WarpDeformerHasNoLattice : ExportNoticeReason
 
-	/**
-	 * A rotation deformer has no transform to write, so the identity was written: it carries no pivot
-	 * grid, or its keyforms would not bundle.
-	 */
+	/** A rotation deformer carries no pivot grid, so it has no transform to write. */
 	data object RotationDeformerHasNoPivot : ExportNoticeReason
 
 	/** A glue names a drawable that is not in this export. */

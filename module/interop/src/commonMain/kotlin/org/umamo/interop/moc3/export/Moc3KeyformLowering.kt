@@ -144,8 +144,8 @@ internal fun <TGeometry> lowerObjectKeyforms(
 
 	return when (result) {
 		is KeyformBundleResult.Bundled -> {
-			for (channel in result.bundle.demotedChannels) {
-				noticeSink.unsupported(category, subject, ExportNoticeReason.ChannelDemotedToStatic(channel))
+			for ((channel, cause) in result.bundle.demotedChannels) {
+				noticeSink.unsupported(category, subject, ExportNoticeReason.ChannelDemotedToStatic(channel, cause))
 			}
 
 			Moc3ObjectKeyforms(pool.indexOf(result.bundle), result.bundle)
