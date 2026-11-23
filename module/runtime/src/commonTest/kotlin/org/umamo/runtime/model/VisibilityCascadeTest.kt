@@ -6,7 +6,7 @@ import kotlin.test.assertEquals
 /**
  * Unit-tests [visibleDrawableIds] and [visibleDeformerIds]: the Parts-panel eyeball cascades down the org tree,
  * so a drawable is shown only when its own flag and every ancestor part are visible, and a deformer only when its
- * own flag, every deformer above it, and its part chain are.  Corpus-free - a hand-built tree exercises
+ * own flag and its part chain are, whatever the deformers above it say.  Corpus-free - a hand-built tree exercises
  * own-hidden, direct-parent-hidden, ancestor-hidden, and root-level (no part) cases.
  */
 class VisibilityCascadeTest {
@@ -81,7 +81,7 @@ class VisibilityCascadeTest {
 		)
 
 	@Test
-	fun aDeformerIsShownWhenItsOwnItsAncestorsAndItsPartChainAre() {
+	fun aDeformerIsShownWhenItsOwnFlagAndItsPartChainAre() {
 		val parts =
 			listOf(
 				Part(PartId("root"), "Root", listOf(OrgChild.Part(PartId("hidden")), OrgChild.Part(PartId("shown"))), isVisible = true),
@@ -106,6 +106,11 @@ class VisibilityCascadeTest {
 
 		val shown = model.visibleDeformerIds()
 
-		assertEquals(listOf("body", "head", "partless", "orphan").map { id -> DeformerId(id) }, shown.toList(), "in model order")
+		// A hidden parent deformer hides nothing under it: underOwnHidden and childOfHiddenPart stay shown.
+		assertEquals(
+			listOf("body", "head", "underOwnHidden", "childOfHiddenPart", "partless", "orphan").map { id -> DeformerId(id) },
+			shown.toList(),
+			"in model order",
+		)
 	}
 }

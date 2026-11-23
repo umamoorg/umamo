@@ -33,7 +33,7 @@ internal fun objectCommands(
 ): List<Command> =
 	commandTable(
 		CommandTable.Object,
-		// The first real model mutation: flips the selected parts'/drawables' eyeball as one undo step.
+		// Flips the selected objects' eyes as one undo step.
 		// Suggested in Object mode alone: in Edit mode the key hides the very drawable being edited, which
 		// runs but is not worth advertising beside the mesh tools.
 		Command(
@@ -52,16 +52,10 @@ internal fun objectCommands(
 				val change =
 					when (active) {
 						is SelectionTarget.Part -> VisibilityChange.Part(active.id, newVisible)
-
 						is SelectionTarget.Drawable -> VisibilityChange.Drawable(active.id, newVisible)
-
-						// A deformer has no visibility flag; nothing to toggle.
-						is SelectionTarget.Deformer -> null
+						is SelectionTarget.Deformer -> VisibilityChange.Deformer(active.id, newVisible)
 					}
-
-				if (change != null) {
-					editorSession.mutate(change) { model -> model.withSelectionVisibility(current.targets, newVisible) }
-				}
+				editorSession.mutate(change) { model -> model.withSelectionVisibility(current.targets, newVisible) }
 			}
 		},
 		// Object mode only, so Shift+H and Alt+H stay free for hiding mesh elements in Edit mode.

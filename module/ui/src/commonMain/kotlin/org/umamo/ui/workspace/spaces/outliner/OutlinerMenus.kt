@@ -42,10 +42,7 @@ internal fun outlinerRowMenuItems(
 	buildList {
 		add(MenuItem.Action(labels.selectHierarchy, onSelect = { commands.invoke(SELECT_HIERARCHY_COMMAND, target) }))
 		add(MenuItem.Separator)
-
-		if (target is SelectionTarget.Part || target is SelectionTarget.Drawable) {
-			add(MenuItem.Action(labels.visibility, onSelect = onToggleVisibility))
-		}
+		add(MenuItem.Action(labels.visibility, onSelect = onToggleVisibility))
 
 		add(MenuItem.Action(labels.selectable, onSelect = onToggleSelectable))
 		add(MenuItem.Action(labels.rename, onSelect = onStartRename))

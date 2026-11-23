@@ -13,6 +13,7 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.relation.RelationSlot
 import org.umamo.edit.structure.rename
 import org.umamo.edit.structure.toggleVisibility
+import org.umamo.edit.structure.withDeformerVisibility
 import org.umamo.render.puppet.LatticeOverlay
 import org.umamo.render.puppet.LatticeRole
 import org.umamo.render.puppet.MeshOverlaySizes
@@ -29,8 +30,9 @@ import kotlin.test.assertNull
 /**
  * Pins which warps the 2D viewport is told to draw a lattice over and in which role: every shown warp in Object
  * and Pose mode, the active one active and the other selected ones selected, none in Edit mode, nothing for a
- * rotation or a warp in a hidden part, and none an armed deformer pick would refuse unless it is selected; and a
- * publish only when that answer changes, so an edit that leaves the roles as they were publishes nothing.
+ * rotation, a hidden warp, or a warp in a hidden part, and none an armed deformer pick would refuse unless it is
+ * selected; and a publish only when that answer changes, so an edit that leaves the roles as they were publishes
+ * nothing.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class LatticeOverlayPublishTest {
@@ -73,6 +75,16 @@ class LatticeOverlayPublishTest {
 	}
 
 	@Test
+	fun aHiddenWarpIsLeftOutEvenActiveWhileTheWarpsNestedInItStay() {
+		val model = latticeRigModel().withDeformerVisibility(LATTICE_RIG_BODY, false)
+		val selection = Selection(setOf(SelectionTarget.Deformer(LATTICE_RIG_BODY), SelectionTarget.Deformer(LATTICE_RIG_HEAD)), SelectionTarget.Deformer(LATTICE_RIG_BODY))
+
+		val overlay = assertNotNull(latticeOverlayOf(EditorMode.Object, selection, model, model.visibleDeformerIds(), sizes))
+
+		assertEquals(mapOf(LATTICE_RIG_HEAD to LatticeRole.Selected, LATTICE_RIG_GUIDE to LatticeRole.Idle), overlay.roles, "body's own eye hides body alone")
+	}
+
+	@Test
 	fun aPublishFollowsTheRolesAndNothingElse() =
 		runTest {
 			val session = latticeRigSession()
@@ -94,9 +106,14 @@ class LatticeOverlayPublishTest {
 			assertEquals(3, service.pushedLatticeOverlays.size, "hiding a warp's part publishes")
 			assertEquals(setOf(LATTICE_RIG_BODY, LATTICE_RIG_HEAD), assertNotNull(service.pushedLatticeOverlays.last()).roles.keys)
 
+			session.toggleVisibility(SelectionTarget.Deformer(LATTICE_RIG_HEAD))
+			runCurrent()
+			assertEquals(4, service.pushedLatticeOverlays.size, "hiding a warp's own eye publishes")
+			assertEquals(setOf(LATTICE_RIG_BODY), assertNotNull(service.pushedLatticeOverlays.last()).roles.keys)
+
 			session.setMode(EditorMode.Edit)
 			runCurrent()
-			assertEquals(4, service.pushedLatticeOverlays.size)
+			assertEquals(5, service.pushedLatticeOverlays.size)
 			assertNull(service.pushedLatticeOverlays.last(), "entering Edit mode takes every lattice down")
 		}
 

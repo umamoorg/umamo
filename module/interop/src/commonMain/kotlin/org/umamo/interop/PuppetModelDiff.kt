@@ -57,6 +57,7 @@ enum class DeformerField {
 	NAME,
 	PARENT,
 	PART,
+	VISIBLE,
 	SELECTABLE,
 	LATTICE,
 	QUAD_TRANSFORM,
@@ -403,6 +404,10 @@ private fun deformerFields(baseline: Deformer, edited: Deformer): Set<DeformerFi
 
 		if (baseline.partId != edited.partId) {
 			add(DeformerField.PART)
+		}
+
+		if (baseline.isVisible != edited.isVisible) {
+			add(DeformerField.VISIBLE)
 		}
 
 		if (baseline.isSelectable != edited.isSelectable) {

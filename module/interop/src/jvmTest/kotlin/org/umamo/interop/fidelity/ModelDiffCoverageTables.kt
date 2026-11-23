@@ -53,8 +53,6 @@ private const val PART_BLEND_SHAPES_NOT_CARRIED = "the CMO3 import does not inge
 
 private const val PART_FORM_NOT_CARRIED = "a form of a part's blend shape, which a CMO3 export drops whole"
 
-private const val DEFORMER_VISIBILITY_NOT_CARRIED = "no CMO3 lowering writes ACParameterControllableSource.isVisible, though the import reads it"
-
 private const val DEFORMER_ENABLED_NOT_CARRIED =
 	"a MOC3-only flag (MOC3 §5.6 s14) with no CMO3 field; every corpus deformer sets it, and its meaning is unpinned"
 
@@ -110,7 +108,7 @@ private fun <TDeformer : Deformer> CoverageTableBuilder<TDeformer>.deformerEntri
 	compared("partId", DeformerField.PART) { withDeformerFields(partId = PartId("PartElsewhere")) }
 	compared("channelGrids", DeformerField.CHANNELS) { withDeformerFields(channelGrids = opacityTrack()) }
 	compared("isSelectable", DeformerField.SELECTABLE) { withDeformerFields(isSelectable = !isSelectable) }
-	notCarried("isVisible", DEFORMER_VISIBILITY_NOT_CARRIED, KnownExportLoss.DEFORMER_VISIBILITY) { withDeformerFields(isVisible = !isVisible) }
+	compared("isVisible", DeformerField.VISIBLE) { withDeformerFields(isVisible = !isVisible) }
 	notCarried("isEnabled", DEFORMER_ENABLED_NOT_CARRIED) { withDeformerFields(isEnabled = !isEnabled) }
 }
 
