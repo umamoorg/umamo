@@ -122,8 +122,10 @@ fun <TForm> KeyformGrid<TForm>.compacted(
 private fun <TForm> KeyformGrid<TForm>.withVerifiedInteriorKeyDrops(interpolator: FormInterpolator<TForm>): KeyformGrid<TForm> {
 	val mustKeep = HashMap<ParameterId, MutableSet<Float>>()
 
-	// Terminates: a mismatched cell always involves at least one dropped key (a cell whose keys all survived
-	// is carried verbatim), so every round moves at least one key from dropped to kept.
+	// Terminates: a round that leads to another adds a key to mustKeep, and the grid has finitely many.
+	// The rounds converge on a reduction that restores exactly because the greedy pass drops only keys the
+	// restore can re-insert: a mismatched cell then involves a dropped key (a cell whose keys all survived
+	// is carried verbatim), and holding that key back is what cures it.
 	while (true) {
 		val reduced = withGreedyInteriorKeyDrops(interpolator, mustKeep)
 
@@ -139,8 +141,19 @@ private fun <TForm> KeyformGrid<TForm>.withVerifiedInteriorKeyDrops(interpolator
 			return reduced
 		}
 
+		var heldBackNewKey = false
+
 		for ((parameterId, keyValues) in offending) {
-			mustKeep.getOrPut(parameterId) { HashSet() }.addAll(keyValues)
+			if (mustKeep.getOrPut(parameterId) { HashSet() }.addAll(keyValues)) {
+				heldBackNewKey = true
+			}
+		}
+
+		// Nothing new to hold back, so the next round would repeat this one: the mismatch is not a dropped
+		// key's doing (a form that does not compare equal to itself).  No reduction can be verified, and
+		// every key stays.
+		if (!heldBackNewKey) {
+			return this
 		}
 	}
 }
@@ -245,12 +258,13 @@ private fun <TForm> KeyformGrid<TForm>.isConstantAlong(axisIndex: Int, interpola
 
 /**
  * Whether the whole slice at [keyIndex] on [axisIndex] is bit-equal to the blend of its neighbors - so
- * the evaluator would reproduce it exactly without the key being stored.
+ * the evaluator would reproduce it exactly without the key being stored - and [refinedToUnion] could put
+ * the key back.
  *
  * @param Int axisIndex The axis the key sits on.
  * @param Int keyIndex The interior key's index.
  * @param FormInterpolator interpolator The blend and exact-equality tests.
- * @return Boolean True when the key carries no information.
+ * @return Boolean True when the key carries no information and can be restored.
  */
 private fun <TForm> KeyformGrid<TForm>.isKeyInterpolable(
 	axisIndex: Int,
@@ -258,12 +272,14 @@ private fun <TForm> KeyformGrid<TForm>.isKeyInterpolable(
 	interpolator: FormInterpolator<TForm>,
 ): Boolean {
 	val keys = axes[axisIndex].keys
-	val span = keys[keyIndex + 1] - keys[keyIndex - 1]
 
-	if (span < EPS_SPAN) {
+	// A key closer than EPS_SPAN to a neighbor could never be put back: withKeyInserted refuses a span the
+	// evaluator cannot resolve.  Both keys of such a pair stay, whatever they hold.
+	if (keys[keyIndex] - keys[keyIndex - 1] < EPS_SPAN || keys[keyIndex + 1] - keys[keyIndex] < EPS_SPAN) {
 		return false
 	}
 
+	val span = keys[keyIndex + 1] - keys[keyIndex - 1]
 	val fraction = (keys[keyIndex] - keys[keyIndex - 1]) / span
 	val formByIndex = cells.associate { cell -> linearIndexOf(cell.coordinate) to cell.form }
 
