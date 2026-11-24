@@ -36,9 +36,10 @@ internal class Moc3ImportedParts(
  *
  * Runs AFTER [importRenderRoot] and the panel-index reconstruction it feeds, because MOC3 stores parent
  * indices but no interleaved panel order, so each parent's children are sorted by the panel index
- * recovered from the render tree.  Handed an empty [panelIndexByDrawable] this still succeeds and simply
- * produces a different, plausible ordering - which is why `Moc3ImportOrderTest` pins the sequence rather
- * than leaving it to be noticed.
+ * recovered from the render tree, with the parts that have none placed by the part table (see
+ * childrenOf).  Handed an empty [panelIndexByDrawable] this still succeeds and simply produces a
+ * different, plausible ordering - which is why `Moc3ImportOrderTest` pins the sequence rather than
+ * leaving it to be noticed.
  *
  * @param Moc3ImportContext context              The import's derived state.
  * @param Map               panelIndexByDrawable Reconstructed panel index per drawable.
@@ -146,29 +147,83 @@ internal fun importParts(
 	/**
 	 * Lists a part's direct children, sub-parts and drawables together, in parts-panel order.
 	 *
+	 * Children with a panel index sort by it; a sub-part without one is placed by the part table.
+	 *
 	 * @param Int parentIndex The parent part's file index, or -1 for the root.
-	 * @return List<OrgChild> The children, sorted by panel index.
+	 * @return List<OrgChild> The children, in panel order.
 	 */
 	fun childrenOf(parentIndex: Int): List<OrgChild> {
-		data class ChildEntry(val child: OrgChild, val panelIndex: Int)
+		data class ChildEntry(val child: OrgChild, val panelIndex: Int, val partIndex: Int?)
 
-		val entries = ArrayList<ChildEntry>()
+		// MOC3 §5.6 s9: a parent's sub-parts, in part-table order, which is their panel order, so a
+		// sub-part with no panel index of its own still keeps its place among its sibling parts.
+		val siblingPartIndices = childPartIndices[parentIndex].orEmpty()
+		val rankedEntries = ArrayList<ChildEntry>()
+		val unrankedDrawables = ArrayList<OrgChild>()
 
-		for (childPartIndex in childPartIndices[parentIndex].orEmpty()) {
-			entries.add(ChildEntry(OrgChild.Part(partIds[childPartIndex]), partPanelIndex(childPartIndex)))
+		for (childPartIndex in siblingPartIndices) {
+			val panelIndex = partPanelIndex(childPartIndex)
+
+			if (panelIndex != Int.MAX_VALUE) {
+				rankedEntries.add(ChildEntry(OrgChild.Part(partIds[childPartIndex]), panelIndex, childPartIndex))
+			}
 		}
 
 		for (drawableIndex in childDrawableIndices[parentIndex].orEmpty()) {
 			val drawableId = drawableIdsByFileIndex[drawableIndex]
-			entries.add(
-				ChildEntry(
-					OrgChild.Drawable(drawableId),
-					panelIndexByDrawable[drawableId] ?: Int.MAX_VALUE,
-				),
-			)
+			val panelIndex = panelIndexByDrawable[drawableId]
+
+			if (panelIndex != null) {
+				rankedEntries.add(ChildEntry(OrgChild.Drawable(drawableId), panelIndex, null))
+			} else {
+				unrankedDrawables.add(OrgChild.Drawable(drawableId))
+			}
 		}
 
-		return entries.sortedBy { entry -> entry.panelIndex }.map { entry -> entry.child }
+		// Each run of consecutive unranked sibling parts anchors to the ranked sibling part after it,
+		// or else to the one before it.  The neighbors of a run are ranked by construction.  Where an
+		// unranked part falls among its drawable siblings is stored nowhere.
+		val runBeforePart = HashMap<Int, List<OrgChild>>()
+		val runAfterPart = HashMap<Int, List<OrgChild>>()
+		val unanchoredParts = ArrayList<OrgChild>()
+		var position = 0
+
+		while (position < siblingPartIndices.size) {
+			if (partPanelIndex(siblingPartIndices[position]) != Int.MAX_VALUE) {
+				position++
+
+				continue
+			}
+
+			val runStart = position
+
+			while (position < siblingPartIndices.size && partPanelIndex(siblingPartIndices[position]) == Int.MAX_VALUE) {
+				position++
+			}
+
+			val run = siblingPartIndices.subList(runStart, position).map { childPartIndex -> OrgChild.Part(partIds[childPartIndex]) }
+			val nextPartIndex = siblingPartIndices.getOrNull(position)
+			val previousPartIndex = siblingPartIndices.getOrNull(runStart - 1)
+
+			when {
+				nextPartIndex != null -> runBeforePart[nextPartIndex] = run
+				previousPartIndex != null -> runAfterPart[previousPartIndex] = run
+				else -> unanchoredParts.addAll(run)
+			}
+		}
+
+		val ordered = ArrayList<OrgChild>()
+
+		for (entry in rankedEntries.sortedBy { entry -> entry.panelIndex }) {
+			entry.partIndex?.let { partIndex -> runBeforePart[partIndex]?.let(ordered::addAll) }
+			ordered.add(entry.child)
+			entry.partIndex?.let { partIndex -> runAfterPart[partIndex]?.let(ordered::addAll) }
+		}
+
+		ordered.addAll(unanchoredParts)
+		ordered.addAll(unrankedDrawables)
+
+		return ordered
 	}
 
 	val parts =
