@@ -29,6 +29,7 @@ import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.OrgChild
@@ -278,7 +279,10 @@ internal object ModelDiffCoverageTables {
 
 	val warpLatticeForm =
 		coverageOf(WarpLatticeForm::class.java, CoverageFixture.warpLatticeFormRoute) {
-			compared("controlPoints", DeformerField.GEOMETRY) { WarpLatticeForm(moved(controlPoints)) }
+			compared("controlPoints", DeformerField.GEOMETRY) { WarpLatticeForm(moved(controlPoints), depth) }
+			notCarried("depth", "CMO3 has no depth, so the export keeps the 2D points, which are the projection the deformation uses") {
+				WarpLatticeForm(controlPoints, LatticeDepth.PerPoint(FloatArray(controlPoints.size / 2) { 1f }))
+			}
 		}
 
 	val rotationPivotForm =

@@ -22,7 +22,7 @@ class RotationAngleTracker {
 	/**
 	 * Advances the accumulator to the pointer's current angle about the pivot and returns the total.
 	 *
-	 * @param Float pointerAngle The pointer's atan2 angle about the rotation pivot, radians.
+	 * @param Float pointerAngle The pointer's atan2 angle about the rotation pivot, in screen space, radians.
 	 * @return Float The accumulated gesture angle, radians.
 	 */
 	fun advance(pointerAngle: Float): Float {

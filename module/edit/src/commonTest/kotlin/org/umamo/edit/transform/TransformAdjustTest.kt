@@ -20,7 +20,7 @@ import kotlin.test.assertTrue
 
 /**
  * Pins the transform gestures' rows on the operation settings strip: they carry the gesture's numbers
- * in each space's convention (world y up as Z, page y down with the angle's sense flipped), read back
+ * in each space's convention (world Z up, page y down with the angle's sense flipped), read back
  * to the same parameters, the proportional rows appear only when the gesture could take weights and
  * read back as a state, and the slide's one row carries its factor.
  */
@@ -40,7 +40,7 @@ class TransformAdjustTest {
 
 		val worldRows = transformParameters(MeshOperatorKind.Grab, gesture, TransformRowSpace.World, proportional = null)
 		assertEquals(listOf(TransformParameterKeys.MOVE_X, TransformParameterKeys.MOVE_Z), worldRows.map { row -> row.key }, "world space names the vertical axis Z")
-		assertEquals(5f, worldRows.float(TransformParameterKeys.MOVE_Z), "world y is shown as-is (up)")
+		assertEquals(5f, worldRows.float(TransformParameterKeys.MOVE_Z), "world Z is shown as-is (up)")
 
 		val pageRows = transformParameters(MeshOperatorKind.Grab, gesture, TransformRowSpace.UvDisplay, proportional = null)
 		assertEquals(listOf(TransformParameterKeys.MOVE_X, TransformParameterKeys.MOVE_Y), pageRows.map { row -> row.key }, "the page names it Y")

@@ -23,7 +23,7 @@ internal const val HIT_RADIUS_PX = 10f
 
 /**
  * Projects an evaluator world-space position into screen pixels for the given camera and area size.
- * Y flips between the spaces (screen y grows downward, world y grows upward).
+ * The vertical axis flips between the spaces (screen y grows downward, world Z grows upward).
  *
  * @param Float worldX The world-space x.
  * @param Float worldZ The world-space z (up).

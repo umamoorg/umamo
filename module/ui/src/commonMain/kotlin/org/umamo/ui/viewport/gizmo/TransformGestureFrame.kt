@@ -19,14 +19,16 @@ import kotlin.math.min
  * gesture into world-space deltas, factors, and angles.  Frozen per pointer event and shared by every
  * mesh in the capture (the per-mesh loop varies only the geometry and pivot groups).
  *
- * @property Pair<Float, Float> anchor The world-space anchor factors / angles measure against.
+ * @property Pair<Float, Float> anchor The world-space anchor factors / angles measure against: world X, and world Z as the
+ *   second component.
  * @property Offset start The pointer position at gesture start, in screen pixels.
  * @property Offset current The current (wrap-continuous virtual) pointer, in screen pixels.
  * @property TransformAxisConstraint? axisConstraint The axis lock, or null when unconstrained; on a Rotate, the axis
  *   the turn goes about in depth (only a depth rotation ever holds one).
  * @property ViewportCamera camera The area camera (world<->screen affine).
  * @property IntSize size The area size in pixels.
- * @property Float pivotDepth The depth rotation's pivot depth along world Y, in world px (read only by a locked Rotate).
+ * @property Float pivotDepth The depth rotation's pivot depth along world Y, positive into the screen, in world px (read
+ *   only by a locked Rotate).
  * @property DepthSurface depthSurface How deep the points sit before a depth rotation (read only by a locked Rotate).
  */
 internal class TransformGestureFrame(
@@ -93,12 +95,12 @@ internal fun gestureParameters(
 /**
  * The translation a Grab gesture applies, in the positions' units: the pointer's screen travel over
  * the zoom, with the axis lock zeroing the constrained-out component (AxisX keeps horizontal movement,
- * AxisZ keeps vertical - world y, the displayed Z axis per the Y+ forward, Z+ up convention).
+ * AxisZ keeps vertical - the positions' y, which is world Z in Blender's axes, Y into the screen and Z up).
  *
  * Shared by [gestureParameters] and the placement gizmo so the two cannot drift on sign or axis.
  *
  * @param TransformGestureFrame frame The gesture's pointer frame.
- * @return Pair<Float, Float> The (x, y) delta.
+ * @return Pair<Float, Float> The translation in world px: x, then y as world Z (up).
  */
 internal fun gestureTranslation(frame: TransformGestureFrame): Pair<Float, Float> {
 	val deltaX = if (frame.axisConstraint == TransformAxisConstraint.AxisZ) 0f else (frame.current.x - frame.start.x) / frame.camera.zoom
@@ -113,7 +115,7 @@ internal fun gestureTranslation(frame: TransformGestureFrame): Pair<Float, Float
  * Origins), with the axis lock pinning the constrained-out axis at 1.
  *
  * @param TransformGestureFrame frame The gesture's pointer frame.
- * @return Pair<Float, Float> The (x, y) factors.
+ * @return Pair<Float, Float> The unitless scale factors along world X and world Z.
  */
 internal fun gestureScaleFactors(frame: TransformGestureFrame): Pair<Float, Float> {
 	val anchorScreen = worldToScreen(frame.anchor.first, frame.anchor.second, frame.camera, frame.size)
@@ -175,7 +177,7 @@ internal fun depthRotationRadians(frame: TransformGestureFrame): Float {
  * (Blender's Shift+V, without the unclamped and even-slide variants).  A degenerate on-screen edge
  * (both endpoints under the same pixel) yields 0.
  *
- * @param FloatArray originalWorld The captured world positions.
+ * @param FloatArray originalWorld The captured interleaved world positions (y world Z, up).
  * @param Int vertexIndex The sliding vertex.
  * @param Int neighborIndex The edge's far endpoint.
  * @param TransformGestureFrame frame The gesture's pointer frame (the virtual pointer projects).

@@ -277,7 +277,7 @@ class DrawableWorldTransformTest {
 		assertEquals(50f, resized.bounds.width)
 		assertEquals(25f, resized.bounds.height)
 		// The bounds center is the pivot, so the Position row does not move when Size is edited.  Z is
-		// negated against the art's local y because world y grows UPWARD - the Z+ up convention the panel
+		// negated against the art's local y because world Z grows UPWARD - the Z+ up convention the panel
 		// labels its rows with - so art sitting at local y 500 reads as Z -500.
 		assertEquals(500f, resized.bounds.centerX)
 		assertEquals(-500f, resized.bounds.centerY)
@@ -290,7 +290,7 @@ class DrawableWorldTransformTest {
 		val puppet = session.model.value
 		val centered = drawableWorldTransform(puppet, session.pose.value, drawableId, EditorMode.Object)!!
 		assertEquals(0f, puppet.originRelativeX(centered.bounds.centerX), "a mesh centered on the axes reads X 0")
-		assertEquals(0f, puppet.originRelativeZ(centered.bounds.centerY), "and Z 0, not the -500 world y")
+		assertEquals(0f, puppet.originRelativeZ(centered.bounds.centerY), "and Z 0, not the -500 world Z")
 
 		// Typing (10, 20) goes through the same conversions the Position rows use, one axis at a time.
 		session.setDrawableWorldCenter(drawableId, puppet.worldXFromOriginRelative(10f), puppet.worldZFromOriginRelative(20f))

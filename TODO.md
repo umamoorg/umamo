@@ -42,7 +42,7 @@
 * Final pass on default settings.
 * Final pass on default workspace layouts.
 * Final pass on theme colors.
-* Hire artist to make the application.
+* Hire artist to make the application icon.
 	* Horse is critical.
 * Hire artist to make the DMG background art.
 	* Chibi Tamamo carrying the icon to the application folder.

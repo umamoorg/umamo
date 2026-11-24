@@ -1,7 +1,9 @@
 package org.umamo.render.eval
 
+import org.umamo.runtime.eval.warpDepthAt
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
@@ -22,6 +24,8 @@ import org.umamo.runtime.model.WarpLatticeForm
  * @property FloatArray world The rendered lattice in world space, x right and z up - the space the viewport
  *   draws and picks in.
  * @property ParentSpaceMapping parentMapping Between the warp's parent's space and world space at this pose.
+ * @property LatticeDepth gridDepth How deep each control point sits at this pose: the pending lattice's depth, else the
+ *   grid's depths blended like [gridLocal].  Blend shapes carry no depth, so it is the lattice's depth as rendered too.
  */
 class WarpLattice internal constructor(
 	val rows: Int,
@@ -30,6 +34,7 @@ class WarpLattice internal constructor(
 	val local: FloatArray,
 	val world: FloatArray,
 	val parentMapping: ParentSpaceMapping,
+	val gridDepth: LatticeDepth,
 )
 
 /**
@@ -107,12 +112,14 @@ private fun latticeOf(
 	latticeOverrides: Map<DeformerId, WarpLatticeForm>,
 ): WarpLattice? {
 	val warpWorld = worlds[warp.id] as? WarpWorld ?: return null
-	val gridLocal = warpGridLattice(warp, pose.paramValue, latticeOverrides[warp.id]) ?: return null
+	val override = latticeOverrides[warp.id]
+	val gridLocal = warpGridLattice(warp, pose.paramValue, override) ?: return null
+	val gridDepth = override?.depth ?: warpDepthAt(warp.geometryGrid, pose.paramValue) ?: LatticeDepth.Flat
 	val local = gridLocal.copyOf()
 	addWarpBlendDeltas(warp, pose.paramValue, pose.defaultValue, local)
 	val world = warpWorld.worldControlPoints()
 	// A parent the model does not hold is treated as the root, exactly as the bake treats it.
 	val parentWorld = warp.parent?.let { parentId -> worlds[parentId] }
 
-	return WarpLattice(warp.rows, warp.columns, gridLocal, local, world, ParentSpaceMapping(parentWorld))
+	return WarpLattice(warp.rows, warp.columns, gridLocal, local, world, ParentSpaceMapping(parentWorld), gridDepth)
 }

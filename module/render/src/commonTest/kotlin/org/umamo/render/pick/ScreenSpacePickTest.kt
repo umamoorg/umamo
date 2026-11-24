@@ -19,7 +19,7 @@ class ScreenSpacePickTest {
 	// A centered 1:1 camera: world (0, 0) projects to screen (200, 150) and one world unit is one pixel.
 	private val camera = ViewportCamera(0f, 0f, 1f)
 
-	// A unit-quad-scaled mesh: v0 bottom-left origin, v1 right, v2 up, v3 diagonal (world y is up).
+	// A unit-quad-scaled mesh: v0 bottom-left origin, v1 right, v2 up, v3 diagonal (world Z is up).
 	// Screens at the fixed camera: v0 (200, 150), v1 (210, 150), v2 (200, 140), v3 (210, 140).
 	private val positions = floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f, 10f, 10f)
 	private val triangleIndices = intArrayOf(0, 1, 2, 1, 3, 2)

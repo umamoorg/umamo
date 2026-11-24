@@ -3,6 +3,7 @@ package org.umamo.runtime.keyform
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.latticeLayout
@@ -50,18 +51,24 @@ fun Deformer.Warp.withLatticeShifted(delta: FloatArray): Deformer.Warp {
  * This warp with [map] applied to the control points of every grid cell and every non-null blend-shape form,
  * the forms' other fields kept: the one walk over every lattice a warp carries, for any edit that must move
  * them all alike (a shift, an affine, a resample onto a new grid, re-expressing a child in a reshaped parent).
+ * Each grid cell's depth goes through [mapDepth], which keeps it as it is unless the edit renumbers the points;
+ * blend shapes carry no depth.
  *
  * An affine map applied this way ([org.umamo.runtime.model.applyAffine]) moves the evaluated lattice by that affine at
  * every pose: an affine map commutes with the grid's weighted blend (the weights sum to 1), and a blend shape's
  * contribution, a difference of two lattices, turns with the linear part.
  *
+ * @param Function mapDepth Maps one grid cell's depth to the depth of the mapped points; the same depth by default.
  * @param Function map Maps one form's interleaved control points to new ones (a fresh array).
  * @return Deformer.Warp The mapped warp.
  */
-fun Deformer.Warp.withEveryLatticeMapped(map: (FloatArray) -> FloatArray): Deformer.Warp {
+fun Deformer.Warp.withEveryLatticeMapped(
+	mapDepth: (LatticeDepth) -> LatticeDepth = { depth -> depth },
+	map: (FloatArray) -> FloatArray,
+): Deformer.Warp {
 	val mappedGrid =
 		geometryGrid?.let { grid ->
-			KeyformGrid(grid.axes, grid.cells.map { cell -> KeyformCell(cell.coordinate, WarpLatticeForm(map(cell.form.controlPoints))) })
+			KeyformGrid(grid.axes, grid.cells.map { cell -> KeyformCell(cell.coordinate, WarpLatticeForm(map(cell.form.controlPoints), mapDepth(cell.form.depth))) })
 		}
 	val mappedBlendShapes =
 		blendShapes.map { binding ->

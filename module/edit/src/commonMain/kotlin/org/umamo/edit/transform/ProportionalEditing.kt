@@ -10,7 +10,10 @@ import kotlin.math.sqrt
  * so mesh edits feel like sculpting instead of vertex-by-vertex CAD.  This file holds the pure math
  * (a falloff's weight over a distance and the influence maps); the state types live in
  * ProportionalEditState.kt, the session carries the on/off state, the modal capture derives each mesh's
- * influences, and the gizmo's transform operators feed them into the weighted MeshTransforms variants. */
+ * influences, and the gizmo's transform operators feed them into the weighted MeshTransforms variants.
+ *
+ * Every position, pivot, distance, and radius here is in the caller's space, as in MeshTransforms: world space in the
+ * 2D viewport (x right, y world Z, up), display texels in the UV editor (x right, y up). */
 
 /**
  * The falloff weight at a normalized distance: 1 at the selection, 0 at and beyond the radius edge, shaped
@@ -79,7 +82,7 @@ private const val RANDOM_FALLOFF_SAMPLE_SPAN = 16_777_216f
  *
  * @property Float weight The falloff weight in (0, 1].
  * @property Float pivotX The pivot's x, in the positions' coordinate space.
- * @property Float pivotY The pivot's y.
+ * @property Float pivotY The pivot's y, in the positions' coordinate space.
  */
 data class ProportionalInfluence(
 	val weight: Float,
@@ -92,8 +95,8 @@ data class ProportionalInfluence(
  * shares, and the pivot groups its covered vertices turn about.  The groups are the halo's sources and the
  * vertices it leaves out; a mesh with nothing selected has none, so only another mesh's halo reaches it.
  *
- * @property FloatArray positions The interleaved vertex positions.
- * @property List<TransformPivotGroup> groups The pivot groups covering the mesh's selected vertices.
+ * @property FloatArray positions The interleaved (x, y) vertex positions, in the shared space.
+ * @property List<TransformPivotGroup> groups The pivot groups covering the mesh's selected vertices, pivots in that space.
  */
 class ProportionalMesh(
 	val positions: FloatArray,
@@ -103,24 +106,24 @@ class ProportionalMesh(
 /**
  * The straight-line proportional influence maps for meshes that share one space, index-parallel to
  * [meshes]: every vertex not covered in its own mesh whose distance to the nearest covered vertex of ANY
- * of the meshes is inside [radiusWorld] maps to its falloff weight and the pivot of the group owning that
+ * of the meshes is inside [radius] maps to its falloff weight and the pivot of the group owning that
  * covered vertex, a tie going to the covered vertex listed first.  Measuring across the meshes lets the halo
  * reach nearby geometry with nothing selected (Blender's multi-object proportional editing).
  *
  * @param List<ProportionalMesh> meshes The meshes, their positions in one shared space.
- * @param Float radiusWorld The influence radius, in the positions' units.
+ * @param Float radius The influence radius, in the positions' units (world px in the 2D viewport, texels in the UV editor).
  * @param ProportionalFalloff falloff The falloff curve shaping the weights.
  * @return List<Map<Int, ProportionalInfluence>> Per mesh, vertex index to influence for every influenced
  *   vertex, parallel to [meshes].
  */
 fun proportionalInfluences(
 	meshes: List<ProportionalMesh>,
-	radiusWorld: Float,
+	radius: Float,
 	falloff: ProportionalFalloff,
 ): List<Map<Int, ProportionalInfluence>> {
 	val coveredCount = meshes.sumOf { mesh -> mesh.groups.sumOf { group -> group.vertexIndices.size } }
 
-	if (coveredCount == 0 || radiusWorld <= 0f) {
+	if (coveredCount == 0 || radius <= 0f) {
 		return meshes.map { emptyMap() }
 	}
 
@@ -145,17 +148,17 @@ fun proportionalInfluences(
 				coveredY[coveredSlot] = y
 				coveredPivotX[coveredSlot] = group.pivotX
 				coveredPivotY[coveredSlot] = group.pivotY
-				reachMinX = minOf(reachMinX, x - radiusWorld)
-				reachMinY = minOf(reachMinY, y - radiusWorld)
-				reachMaxX = maxOf(reachMaxX, x + radiusWorld)
-				reachMaxY = maxOf(reachMaxY, y + radiusWorld)
+				reachMinX = minOf(reachMinX, x - radius)
+				reachMinY = minOf(reachMinY, y - radius)
+				reachMaxX = maxOf(reachMaxX, x + radius)
+				reachMaxY = maxOf(reachMaxY, y + radius)
 				coveredSlot++
 			}
 		}
 	}
 
-	val radiusSquared = radiusWorld * radiusWorld
-	val grid = CoveredVertexGrid(coveredX, coveredY, radiusWorld)
+	val radiusSquared = radius * radius
+	val grid = CoveredVertexGrid(coveredX, coveredY, radius)
 
 	return meshes.map { mesh ->
 		val vertexCount = mesh.positions.size / 2
@@ -181,7 +184,7 @@ fun proportionalInfluences(
 			val nearestSquared = grid.foundDistanceSquared
 
 			if (nearestSlot >= 0 && nearestSquared < radiusSquared) {
-				val weight = proportionalWeight(falloff, sqrt(nearestSquared) / radiusWorld, vertexIndex)
+				val weight = proportionalWeight(falloff, sqrt(nearestSquared) / radius, vertexIndex)
 
 				if (weight > 0f) {
 					influences[vertexIndex] = ProportionalInfluence(weight, coveredPivotX[nearestSlot], coveredPivotY[nearestSlot])
@@ -205,8 +208,8 @@ fun proportionalInfluences(
  * the scanned cells.  A cell is at least the reach wide, and the grid is capped at [CoveredVertexGrid.MAX_AXIS_CELLS]
  * cells along each axis, so a small radius over a wide selection widens the cells rather than allocating a huge grid.
  *
- * @param FloatArray coveredX The covered vertices' x, by slot.
- * @param FloatArray coveredY The covered vertices' y, by slot.
+ * @param FloatArray coveredX The covered vertices' x, by slot, in the positions' space.
+ * @param FloatArray coveredY The covered vertices' y, by slot, in the positions' space.
  * @param Float radius The halo's radius, greater than zero.
  */
 private class CoveredVertexGrid(
@@ -295,8 +298,8 @@ private class CoveredVertexGrid(
 	 * The covered slot nearest ([x], [y]), measured among the cells within the reach of it; its squared distance is
 	 * left in [foundDistanceSquared].
 	 *
-	 * @param Float x The vertex's x.
-	 * @param Float y The vertex's y.
+	 * @param Float x The vertex's x, in the positions' space.
+	 * @param Float y The vertex's y, in the positions' space.
 	 * @return Int The nearest slot, or -1 when the scanned cells hold none at a finite distance.
 	 */
 	fun nearestSlot(x: Float, y: Float): Int {
@@ -336,7 +339,7 @@ private class CoveredVertexGrid(
 	 * The grid column holding [x], clamped onto the grid.  Monotone in [x], which is what lets a query's range of
 	 * columns cover every covered vertex between its ends.
 	 *
-	 * @param Float x The x.
+	 * @param Float x The x, in the positions' space.
 	 * @return Int The column.
 	 */
 	private fun columnOf(x: Float): Int = floor((x - originX) / cellWidth).toInt().coerceIn(0, columns - 1)
@@ -344,7 +347,7 @@ private class CoveredVertexGrid(
 	/**
 	 * The grid row holding [y], clamped onto the grid; monotone in [y] like [columnOf].
 	 *
-	 * @param Float y The y.
+	 * @param Float y The y, in the positions' space.
 	 * @return Int The row.
 	 */
 	private fun rowOf(y: Float): Int = floor((y - originY) / cellHeight).toInt().coerceIn(0, rows - 1)
@@ -364,10 +367,11 @@ private class CoveredVertexGrid(
  * influence never leaps a gap to nearby-but-unconnected geometry, in this mesh or another (Blender's
  * Connected Only).  Each influenced vertex takes the pivot of the group its shortest path started from.
  *
- * @param FloatArray positions The interleaved vertex positions (edge lengths measured here).
+ * @param FloatArray positions The interleaved (x, y) vertex positions, in the caller's space (edge lengths measured here).
  * @param List<TransformPivotGroup> groups The pivot groups covering the selected vertices (the geodesic
  *   sources); a covered vertex in two groups belongs to the first.
- * @param Float radiusWorld The influence radius, along edges, in the positions' units.
+ * @param Float radius The influence radius, along edges, in the positions' units (world px in the 2D viewport, texels in
+ *   the UV editor).
  * @param ProportionalFalloff falloff The falloff curve shaping the weights.
  * @param ElementTopology topology The mesh's topology (the edge graph), sized to [positions].
  * @return Map<Int, ProportionalInfluence> Vertex index to influence, for every reachable vertex.
@@ -375,11 +379,11 @@ private class CoveredVertexGrid(
 fun proportionalInfluencesConnected(
 	positions: FloatArray,
 	groups: List<TransformPivotGroup>,
-	radiusWorld: Float,
+	radius: Float,
 	falloff: ProportionalFalloff,
 	topology: ElementTopology,
 ): Map<Int, ProportionalInfluence> {
-	if (radiusWorld <= 0f || groups.all { group -> group.vertexIndices.isEmpty() }) {
+	if (radius <= 0f || groups.all { group -> group.vertexIndices.isEmpty() }) {
 		return emptyMap()
 	}
 
@@ -414,7 +418,7 @@ fun proportionalInfluencesConnected(
 			}
 		}
 
-		if (frontier < 0 || frontierDistance >= radiusWorld) {
+		if (frontier < 0 || frontierDistance >= radius) {
 			break
 		}
 
@@ -439,11 +443,11 @@ fun proportionalInfluencesConnected(
 	val influences = LinkedHashMap<Int, ProportionalInfluence>()
 
 	for (vertexIndex in 0 until vertexCount) {
-		if (covered[vertexIndex] || sourceGroup[vertexIndex] < 0 || distance[vertexIndex] >= radiusWorld) {
+		if (covered[vertexIndex] || sourceGroup[vertexIndex] < 0 || distance[vertexIndex] >= radius) {
 			continue
 		}
 
-		val weight = proportionalWeight(falloff, distance[vertexIndex] / radiusWorld, vertexIndex)
+		val weight = proportionalWeight(falloff, distance[vertexIndex] / radius, vertexIndex)
 
 		if (weight > 0f) {
 			val group = groups[sourceGroup[vertexIndex]]

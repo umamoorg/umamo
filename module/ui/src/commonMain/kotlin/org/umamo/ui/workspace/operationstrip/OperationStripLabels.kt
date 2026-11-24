@@ -86,7 +86,7 @@ internal fun operatorParameterLabel(labelKey: String): String =
 		MatchParameterKeys.THRESHOLD -> stringResource(Res.string.match_options_threshold)
 
 		// The transform rows share the placement rows' Move / Angle / Scale labels where the text is the
-		// same; the viewport's vertical axis is Z (Y+ forward, Z+ up), so it has labels of its own.
+		// same; the viewport's vertical axis is Z (Blender's axes: Y into the screen, Z up), so it has labels of its own.
 		TransformParameterKeys.MOVE_X -> stringResource(Res.string.placement_options_move_x)
 
 		TransformParameterKeys.MOVE_Y -> stringResource(Res.string.placement_options_move_y)

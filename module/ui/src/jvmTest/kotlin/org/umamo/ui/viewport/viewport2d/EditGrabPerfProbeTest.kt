@@ -524,25 +524,25 @@ class EditGrabPerfProbeTest {
 	 */
 	private fun fitCamera(model: PuppetModel): ViewportCamera {
 		var minX = Float.MAX_VALUE
-		var minWorldY = Float.MAX_VALUE
+		var minWorldZ = Float.MAX_VALUE
 		var maxX = -Float.MAX_VALUE
-		var maxWorldY = -Float.MAX_VALUE
+		var maxWorldZ = -Float.MAX_VALUE
 
 		for (drawable in model.drawables) {
 			val positions = drawable.mesh?.positions ?: continue
 			var slot = 0
 
 			while (slot + 1 < positions.size) {
-				val worldY = -positions[slot + 1]
+				val worldZ = -positions[slot + 1]
 				minX = minOf(minX, positions[slot])
 				maxX = maxOf(maxX, positions[slot])
-				minWorldY = minOf(minWorldY, worldY)
-				maxWorldY = maxOf(maxWorldY, worldY)
+				minWorldZ = minOf(minWorldZ, worldZ)
+				maxWorldZ = maxOf(maxWorldZ, worldZ)
 				slot += 2
 			}
 		}
 
-		return ViewportCamera.fit(ContentBounds(minX, minWorldY, maxX - minX, maxWorldY - minWorldY), areaWidth, areaHeight)
+		return ViewportCamera.fit(ContentBounds(minX, minWorldZ, maxX - minX, maxWorldZ - minWorldZ), areaWidth, areaHeight)
 	}
 
 	/**

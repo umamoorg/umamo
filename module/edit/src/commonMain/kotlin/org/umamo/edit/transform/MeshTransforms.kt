@@ -7,17 +7,21 @@ import kotlin.math.sin
 /**
  * Pure transforms over an interleaved mesh-position array (x0, y0, x1, y1, ..., matching
  * [org.umamo.runtime.model.DrawableMesh]) for the modal G / S / R operators.  Each returns a NEW array and
- * never touches its input, upholding the copy-on-write discipline.  The functions are coordinate-space
- * agnostic: the caller maps the pointer gesture into the positions' own space first.
+ * never touches its input, upholding the copy-on-write discipline.
+ *
+ * The functions are coordinate-space agnostic: the positions are in the caller's space, and every pivot, target, and
+ * translation is a point or offset in that same space.  In the 2D viewport that is world space (x right, y world Z,
+ * up); in the UV editor it is display texels (x right, y up).  Scale factors and angles are unitless.  The depth
+ * rotation alone is world-only, since it reads world Y as depth.
  */
 object MeshTransforms {
 	/**
 	 * The median pivot for scale / rotate: the mean (centroid) of the selected vertices' positions, in the
 	 * array's coordinate space.  Returns (0, 0) when nothing is selected (no operator runs in that case).
 	 *
-	 * @param FloatArray positions The interleaved mesh positions.
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
 	 * @param Set<Int> indices The selected vertex indices.
-	 * @return Pair<Float, Float> The (x, y) centroid of the selected vertices.
+	 * @return Pair<Float, Float> The (x, y) centroid of the selected vertices, in the positions' space.
 	 */
 	fun medianPivot(positions: FloatArray, indices: Set<Int>): Pair<Float, Float> {
 		if (indices.isEmpty()) {
@@ -42,8 +46,9 @@ object MeshTransforms {
 	 * every array, so a denser mesh pulls the pivot toward itself as [medianPivot] does within one mesh.  The
 	 * shared anchor an Object-mode Scale / Rotate turns all selected drawables about.
 	 *
-	 * @param Collection<FloatArray> positionsList The interleaved position arrays, one per selected drawable.
-	 * @return Pair<Float, Float> The (x, y) centroid across all arrays' vertices.
+	 * @param Collection<FloatArray> positionsList The interleaved (x, y) position arrays, one per selected drawable, all in one
+	 *   space.
+	 * @return Pair<Float, Float> The (x, y) centroid across all arrays' vertices, in their space.
 	 */
 	fun combinedCentroid(positionsList: Collection<FloatArray>): Pair<Float, Float> {
 		var sumX = 0f
@@ -73,10 +78,10 @@ object MeshTransforms {
 	/**
 	 * Translates the selected vertices by ([deltaX], [deltaY]).
 	 *
-	 * @param FloatArray positions The interleaved mesh positions.
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
 	 * @param Set<Int> indices The selected vertex indices.
-	 * @param Float deltaX The x offset.
-	 * @param Float deltaY The y offset.
+	 * @param Float deltaX The translation's x, in the positions' space.
+	 * @param Float deltaY The translation's y, in the positions' space.
 	 * @return FloatArray A new positions array with the selected vertices moved.
 	 */
 	fun translateVertices(positions: FloatArray, indices: Set<Int>, deltaX: Float, deltaY: Float): FloatArray {
@@ -95,10 +100,10 @@ object MeshTransforms {
 	 * semantics (Selection to Cursor / Selection to Active).  Unlike [translateVertices], the vertices
 	 * do not keep their offsets from each other; every one lands exactly on the target.
 	 *
-	 * @param FloatArray positions The interleaved mesh positions.
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
 	 * @param Set<Int> indices The selected vertex indices.
-	 * @param Float targetX The x every selected vertex lands on.
-	 * @param Float targetY The y every selected vertex lands on.
+	 * @param Float targetX The x every selected vertex lands on, in the positions' space.
+	 * @param Float targetY The y every selected vertex lands on, in the positions' space.
 	 * @return FloatArray A new positions array with the selected vertices piled onto the target.
 	 */
 	fun collapseVertices(positions: FloatArray, indices: Set<Int>, targetX: Float, targetY: Float): FloatArray {
@@ -115,11 +120,11 @@ object MeshTransforms {
 	/**
 	 * Scales the selected vertices about the pivot ([pivotX], [pivotY]) by [factor] (uniform on both axes).
 	 *
-	 * @param FloatArray positions The interleaved mesh positions.
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
 	 * @param Set<Int> indices The selected vertex indices.
-	 * @param Float factor The uniform scale factor (1 leaves them unchanged).
-	 * @param Float pivotX The pivot x (the scale anchor).
-	 * @param Float pivotY The pivot y.
+	 * @param Float factor The uniform scale factor, unitless (1 leaves them unchanged).
+	 * @param Float pivotX The pivot's x (the scale anchor), in the positions' space.
+	 * @param Float pivotY The pivot's y, in the positions' space.
 	 * @return FloatArray A new positions array with the selected vertices scaled.
 	 */
 	fun scaleVertices(positions: FloatArray, indices: Set<Int>, factor: Float, pivotX: Float, pivotY: Float): FloatArray {
@@ -140,12 +145,12 @@ object MeshTransforms {
 	 * factors - the axis-locked variant of [scaleVertices] (an X-locked scale passes factorY = 1 and
 	 * vice versa).
 	 *
-	 * @param FloatArray positions The interleaved mesh positions.
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
 	 * @param Set<Int> indices The selected vertex indices.
-	 * @param Float factorX The scale factor along x (1 leaves x unchanged).
-	 * @param Float factorY The scale factor along y (1 leaves y unchanged).
-	 * @param Float pivotX The pivot x (the scale anchor).
-	 * @param Float pivotY The pivot y.
+	 * @param Float factorX The scale factor along x, unitless (1 leaves x unchanged).
+	 * @param Float factorY The scale factor along y, unitless (1 leaves y unchanged).
+	 * @param Float pivotX The pivot's x (the scale anchor), in the positions' space.
+	 * @param Float pivotY The pivot's y, in the positions' space.
 	 * @return FloatArray A new positions array with the selected vertices scaled.
 	 */
 	fun scaleVerticesAxis(positions: FloatArray, indices: Set<Int>, factorX: Float, factorY: Float, pivotX: Float, pivotY: Float): FloatArray {
@@ -164,11 +169,11 @@ object MeshTransforms {
 	/**
 	 * Rotates the selected vertices about the pivot ([pivotX], [pivotY]) by [radians].
 	 *
-	 * @param FloatArray positions The interleaved mesh positions.
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
 	 * @param Set<Int> indices The selected vertex indices.
 	 * @param Float radians The rotation angle in radians.
-	 * @param Float pivotX The pivot x (the rotation center).
-	 * @param Float pivotY The pivot y.
+	 * @param Float pivotX The pivot's x (the rotation center), in the positions' space.
+	 * @param Float pivotY The pivot's y, in the positions' space.
 	 * @return FloatArray A new positions array with the selected vertices rotated.
 	 */
 	fun rotateVertices(positions: FloatArray, indices: Set<Int>, radians: Float, pivotX: Float, pivotY: Float): FloatArray {
@@ -193,13 +198,13 @@ object MeshTransforms {
 	 * one about X (positive tilts the front toward -z, down) only z, and Flat is exact and affine - a squash by the cosine and
 	 * a slide of the depth times the sine.  [RotationAxis.Y] is the in-plane turn, exactly [rotateVertices].
 	 *
-	 * @param FloatArray positions The interleaved mesh positions (the second component is world Z, up).
+	 * @param FloatArray positions The interleaved world positions (the second component is world Z, up).
 	 * @param Set<Int> indices The selected vertex indices.
 	 * @param RotationAxis axis The axis to turn about.
 	 * @param Float radians The turn angle in radians.
 	 * @param Float pivotDepth The pivot's depth along world Y, positive into the screen.
 	 * @param DepthSurface surface How deep the points sit before the turn.
-	 * @param Float pivotX The pivot x.
+	 * @param Float pivotX The pivot's world X.
 	 * @param Float pivotZ The pivot's world Z (the positions' second component).
 	 * @return FloatArray A new positions array with the selected vertices turned.
 	 */
@@ -233,8 +238,8 @@ object MeshTransforms {
 	 * proportional-editing companion of [rotateVerticesInDepth], weighting the ANGLE as [rotateVerticesWeighted] does, with
 	 * the same pivot depth and surface for every vertex.
 	 *
-	 * @param FloatArray positions The interleaved mesh positions.
-	 * @param Map<Int, ProportionalInfluence> influences Vertex index to its influence (weight in [0, 1], pivot).
+	 * @param FloatArray positions The interleaved world positions (the second component is world Z, up).
+	 * @param Map<Int, ProportionalInfluence> influences Vertex index to its influence (weight in [0, 1], pivot in world space).
 	 * @param RotationAxis axis The axis to turn about.
 	 * @param Float radians The full turn angle in radians (each vertex turns weight x this).
 	 * @param Float pivotDepth The pivot's depth along world Y, positive into the screen.
@@ -267,14 +272,14 @@ object MeshTransforms {
 	 * Turns one vertex of [positions] in place about X or Z: the turn [rotateVerticesInDepth] and its weighted companion
 	 * share, given the angle's cosine and sine.
 	 *
-	 * @param FloatArray positions The interleaved positions, written in place.
+	 * @param FloatArray positions The interleaved world positions (the second component is world Z, up), written in place.
 	 * @param Int vertexIndex The vertex to turn.
 	 * @param RotationAxis axis X or Z (Y never reaches here).
 	 * @param Float cosAngle The turn angle's cosine.
 	 * @param Float sinAngle The turn angle's sine.
 	 * @param Float pivotDepth The pivot's depth along world Y.
 	 * @param DepthSurface surface How deep the point sits.
-	 * @param Float pivotX The pivot x.
+	 * @param Float pivotX The pivot's world X.
 	 * @param Float pivotZ The pivot's world Z (the positions' second component).
 	 */
 	private fun rotateVertexInDepth(
@@ -312,10 +317,10 @@ object MeshTransforms {
 	 * companion of [translateVertices]: a weight of 1 moves fully, 0.5 half way.  A translation has no pivot,
 	 * so the influences' pivots go unread.
 	 *
-	 * @param FloatArray positions The interleaved mesh positions.
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
 	 * @param Map<Int, ProportionalInfluence> influences Vertex index to its influence (weight in [0, 1]).
-	 * @param Float deltaX The full x offset (each vertex takes weight x this).
-	 * @param Float deltaY The full y offset.
+	 * @param Float deltaX The full translation's x, in the positions' space (each vertex takes weight x this).
+	 * @param Float deltaY The full translation's y, in the positions' space.
 	 * @return FloatArray A new positions array with the influenced vertices moved.
 	 */
 	fun translateVerticesWeighted(positions: FloatArray, influences: Map<Int, ProportionalInfluence>, deltaX: Float, deltaY: Float): FloatArray {
@@ -335,10 +340,10 @@ object MeshTransforms {
 	 * position toward its fully-scaled position by its weight (equivalently, its effective factor per axis is
 	 * 1 + (factor - 1) x weight).
 	 *
-	 * @param FloatArray positions The interleaved mesh positions.
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
 	 * @param Map<Int, ProportionalInfluence> influences Vertex index to its influence (weight in [0, 1], pivot).
-	 * @param Float factorX The full scale factor along x.
-	 * @param Float factorY The full scale factor along y.
+	 * @param Float factorX The full scale factor along x, unitless.
+	 * @param Float factorY The full scale factor along y, unitless.
 	 * @return FloatArray A new positions array with the influenced vertices scaled.
 	 */
 	fun scaleVerticesWeighted(positions: FloatArray, influences: Map<Int, ProportionalInfluence>, factorX: Float, factorY: Float): FloatArray {
@@ -360,7 +365,7 @@ object MeshTransforms {
 	 * turns half the angle along the arc), not the endpoint position: lerping positions would cut the
 	 * chord and collapse the falloff ring toward the pivot on large rotations.
 	 *
-	 * @param FloatArray positions The interleaved mesh positions.
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
 	 * @param Map<Int, ProportionalInfluence> influences Vertex index to its influence (weight in [0, 1], pivot).
 	 * @param Float radians The full rotation angle in radians (each vertex turns weight x this).
 	 * @return FloatArray A new positions array with the influenced vertices rotated.
