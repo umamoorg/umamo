@@ -24,7 +24,7 @@ internal const val FIDELITY_RELATIVE_TOLERANCE = 1e-5f
  */
 private const val MAX_SAMPLE_POINTS = 60_000L
 
-/** The kinds of object a fidelity comparison walks, plus the two document-level records. */
+/** The kinds of object a fidelity comparison walks, plus the three document-level records. */
 internal enum class MocObjectKind {
 	PARAMETER,
 	PART,
@@ -36,7 +36,13 @@ internal enum class MocObjectKind {
 	BLEND_SHAPE,
 	CANVAS,
 	RENDER_TREE,
+
+	/** A parent's sub-parts in part-table order, keyed `part:` and the parent part's id, or [ROOT_PART_TREE]. */
+	PART_TREE,
 }
+
+/** The [MocObjectKind.PART_TREE] id of the sub-parts no part owns. */
+internal const val ROOT_PART_TREE = "root"
 
 /** The attribute names a comparison reports, shared with the matchers in [KnownExportLoss]. */
 internal object MocAttribute {
@@ -118,6 +124,9 @@ internal sealed interface DivergenceAspect {
 
 	/** A render-order group lists its shared children differently. */
 	data object RenderTree : DivergenceAspect
+
+	/** A parent lists the sub-parts both documents place under it in a different part-table order. */
+	data object PartOrder : DivergenceAspect
 }
 
 /**
@@ -146,6 +155,7 @@ internal data class MocDivergence(val kind: MocObjectKind, val id: String, val a
 				DivergenceAspect.GridMalformed -> "grid malformed"
 				DivergenceAspect.GridUnverifiable -> "grid changed and too large to verify"
 				DivergenceAspect.RenderTree -> "render tree differs"
+				DivergenceAspect.PartOrder -> "sub-part order differs"
 			}
 
 		return "$kind $id: $aspectText" + (if (detail.isEmpty()) "" else " ($detail)")
@@ -166,10 +176,13 @@ internal fun blendShapeObjectId(target: BlendShapeTarget, targetId: String?, par
  * Everything that differs between [reference] and [candidate], object by object.
  *
  * Objects are matched by kind and id, never by position: two files may order their objects differently
- * and still describe the same rig, so order is not compared here.  A keyform grid is judged by what it
- * evaluates to, not by its shape, so a grid whose keys changed without changing any value passes; both
- * grids are evaluated at every point of the union of their keys, which for multilinear grids decides
- * agreement everywhere between them too.  The canvas is compared exactly, and the render tree on the
+ * and still describe the same rig, so the order of an object list is not compared here.  The one order
+ * that is compared is each parent's sub-parts in part-table order, since that is the only place a moc
+ * records how sibling parts stack in the parts panel; the editor's bake and Umamo's export lay the table
+ * out differently overall but keep it.  A keyform grid is judged by what it evaluates to, not by its
+ * shape, so a grid whose keys changed without changing any value passes; both grids are evaluated at
+ * every point of the union of their keys, which for multilinear grids decides agreement everywhere
+ * between them too.  The canvas is compared exactly, and the render tree on the
  * objects both documents carry, since a missing or extra object is reported once already.
  *
  * @param MocDocument reference The document the candidate should reproduce.
@@ -217,6 +230,7 @@ internal fun compareMocDocuments(reference: MocDocument, candidate: MocDocument,
 	}
 
 	compareRenderTrees(reference, candidate, divergences)
+	comparePartTrees(reference, candidate, divergences)
 
 	return divergences
 }
@@ -524,6 +538,45 @@ private fun compareRenderTrees(reference: MocDocument, candidate: MocDocument, d
 		}
 	}
 }
+
+/**
+ * Compares each parent's sub-parts in part-table order, on the sub-parts both documents place under that
+ * parent.  A part missing from one side, or moved to another parent, is reported once already, as Missing,
+ * Extra, or its parent part, so it is left out here rather than read as a reorder of its old siblings.
+ */
+private fun comparePartTrees(reference: MocDocument, candidate: MocDocument, divergences: MutableList<MocDivergence>) {
+	val referenceTree = partTreeOf(reference)
+	val candidateTree = partTreeOf(candidate)
+
+	for ((parent, referenceChildren) in referenceTree) {
+		val candidateChildren = candidateTree[parent] ?: continue
+		val shared = referenceChildren.toSet().intersect(candidateChildren.toSet())
+		val expected = referenceChildren.filter { partId -> partId in shared }
+		val actual = candidateChildren.filter { partId -> partId in shared }
+
+		if (expected != actual) {
+			val position = expected.indices.firstOrNull { index -> expected[index] != actual.getOrNull(index) } ?: expected.size
+			divergences.add(
+				MocDivergence(
+					MocObjectKind.PART_TREE,
+					parent,
+					DivergenceAspect.PartOrder,
+					"first difference at $position: ${expected.getOrNull(position)} -> ${actual.getOrNull(position)}; ${shown(expected)} -> ${shown(actual)}",
+				),
+			)
+		}
+	}
+}
+
+/**
+ * Each part's sub-part ids in part-table order, keyed `part:` and the parent's id, or by [ROOT_PART_TREE]
+ * for the parts at the root.  A parent index outside the table counts as the root, as the import reads it.
+ */
+private fun partTreeOf(document: MocDocument): Map<String, List<String>> =
+	document.parts.groupBy(
+		keySelector = { part -> document.parts.getOrNull(part.parentPartIndex)?.id?.let { parentId -> "part:$parentId" } ?: ROOT_PART_TREE },
+		valueTransform = { part -> part.id },
+	)
 
 /**
  * Each render-order group's children by label, keyed by the part that owns the group, or by a root
