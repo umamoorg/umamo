@@ -207,6 +207,19 @@ class KeyformGridAlgebraTest {
 		assertSame(sparse, sparse.withKeyInserted(angleX, 2f, ChannelValueInterpolator))
 		assertSame(sparse, sparse.withKeyRemoved(angleX, keyIndex = 1))
 		assertSame(sparse, sparse.withFormCaptured({ 2f }, scalar(1f), ChannelValueInterpolator))
+		assertSame(sparse, sparse.refinedToUnion(mapOf(angleX to floatArrayOf(0f, 2f, 5f, 10f)), emptyMap(), ChannelValueInterpolator))
+		assertEquals(-1, sparse.keyIndexAfterInsert(angleX, 2f), "a sparse grid reports no insert ordinal")
+	}
+
+	/** The insert-ordinal query names the slot a new key takes, and -1 wherever the insert adds no key. */
+	@Test
+	fun keyIndexAfterInsertNamesTheNewKeysSlot() {
+		val grid = track(floatArrayOf(0f, 5f, 10f), floatArrayOf(0f, 40f, 100f))
+		assertEquals(1, grid.keyIndexAfterInsert(angleX, 2f))
+		assertEquals(3, grid.keyIndexAfterInsert(angleX, 20f), "an out-of-span key still reports where it would go")
+		assertEquals(-1, grid.keyIndexAfterInsert(angleX, 5f), "a key already sits there")
+		assertEquals(-1, grid.keyIndexAfterInsert(angleX, 5.0005f), "inside the snap tolerance of an existing key")
+		assertEquals(-1, grid.keyIndexAfterInsert(angleY, 2f), "no axis for the parameter")
 	}
 
 	/** Moving a key changes only WHERE it applies; the value it holds rides along. */
