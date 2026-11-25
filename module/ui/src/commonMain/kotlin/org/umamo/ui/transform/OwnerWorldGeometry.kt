@@ -7,6 +7,7 @@ import org.umamo.render.eval.WarpLattice
 import org.umamo.render.eval.WarpLatticeResolver
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.PuppetModel
 
 /**
@@ -40,7 +41,7 @@ internal sealed interface OwnerWorldGeometry {
 }
 
 /**
- * One warp's lattice captured at a stage: where that pose draws its points, in its parent's space and in world space,
+ * One warp's lattice captured at a stage: Where that pose draws its points, in its parent's space and in world space,
  * with the mapping between them.  The arrays are the bake's own copies, so a gesture transforms them without freezing
  * them first.
  *
@@ -54,6 +55,9 @@ internal class LatticeWorldGeometry(
 	override val owner: ElementOwner = ElementOwner.Deformer(deformerId)
 
 	override val world: FloatArray get() = lattice.world
+
+	/** How deep each point sits at the stage's pose, carried beside [world] through every edit. */
+	val depth: LatticeDepth get() = lattice.gridDepth
 
 	/**
 	 * This capture itself: its arrays are already the bake's own copies.

@@ -10,6 +10,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -17,7 +18,7 @@ import kotlin.test.assertTrue
 /**
  * Pins a warp lattice's depth through the model and the grid algebra: an all-zero depth is flat, flat reads as 0
  * everywhere, a depth counts in exact form equality, the interpolator and the posed blend carry it beside the points,
- * compaction never merges keys that differ only in depth, and the whole-lattice walk keeps it.
+ * compaction never merges keys that differ only in depth, and the whole-lattice walk keeps it or shifts it alike.
  */
 class LatticeDepthTest {
 	private val angle = ParameterId("ParamAngleX")
@@ -105,10 +106,22 @@ class LatticeDepthTest {
 	@Test
 	fun theWholeLatticeWalkCarriesDepth() {
 		val depth = LatticeDepth.PerPoint(floatArrayOf(1f, 2f, 3f, 4f))
-		val shifted = warp(floatArrayOf(-1f, 1f), listOf(WarpLatticeForm(square, depth), WarpLatticeForm(square))).withLatticeShifted(FloatArray(8) { 5f })
+		val shifted = assertNotNull(warp(floatArrayOf(-1f, 1f), listOf(WarpLatticeForm(square, depth), WarpLatticeForm(square))).withLatticeShifted(FloatArray(8) { 5f }).geometryGrid)
 
-		assertSame(depth, shifted.geometryGrid!!.cells[0].form.depth)
-		assertSame(LatticeDepth.Flat, shifted.geometryGrid!!.cells[1].form.depth)
-		assertEquals(5f, shifted.geometryGrid!!.cells[0].form.controlPoints[0])
+		assertSame(depth, shifted.cells[0].form.depth)
+		assertSame(LatticeDepth.Flat, shifted.cells[1].form.depth)
+		assertEquals(5f, shifted.cells[0].form.controlPoints[0])
+	}
+
+	/** A depth shift moves every grid cell's depth alike, a flat cell included, and one that cancels out leaves flat. */
+	@Test
+	fun aDepthShiftMovesEveryCellAlike() {
+		val depth = LatticeDepth.PerPoint(floatArrayOf(1f, 2f, 3f, 4f))
+		val original = warp(floatArrayOf(-1f, 1f), listOf(WarpLatticeForm(square, depth), WarpLatticeForm(square)))
+
+		val shifted = assertNotNull(original.withLatticeShifted(FloatArray(8), LatticeDepth.PerPoint(floatArrayOf(-1f, -2f, -3f, -4f))).geometryGrid)
+
+		assertSame(LatticeDepth.Flat, shifted.cells[0].form.depth, "cancelled back onto the art plane")
+		assertContentEquals(floatArrayOf(-1f, -2f, -3f, -4f), assertIs<LatticeDepth.PerPoint>(shifted.cells[1].form.depth).values)
 	}
 }

@@ -76,6 +76,14 @@ val LatticeDepth.isFlat: Boolean
 			is LatticeDepth.PerPoint -> values.all { value -> value == 0f }
 		}
 
+/** Whether every depth is a finite number: always for a flat lattice. */
+val LatticeDepth.isFinite: Boolean
+	get() =
+		when (this) {
+			LatticeDepth.Flat -> true
+			is LatticeDepth.PerPoint -> values.all { value -> value.isFinite() }
+		}
+
 /**
  * The depths of [pointCount] control points as a fresh array, a flat lattice's all 0.
  *

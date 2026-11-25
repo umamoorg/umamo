@@ -8,8 +8,13 @@ import org.umamo.runtime.keyform.withLatticeShifted
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.deformerChain
+import org.umamo.runtime.model.depthAt
+import org.umamo.runtime.model.isFinite
+import org.umamo.runtime.model.isFlat
+import org.umamo.runtime.model.latticeDepthOf
 
 /*
  * An Edit-mode reshape of warp lattices, lowered onto the model.  Edit mode shapes a cage to the art without moving
@@ -42,9 +47,15 @@ internal class LatticeReshape(
  * @param PuppetModel model The model the lattices are dragged over.
  * @param Map<DeformerId, FloatArray> targetWorldById Each reshaped warp's new rest lattice in world space,
  *   interleaved x, z.
+ * @param Map<DeformerId, LatticeDepth> targetDepthById Each reshaped warp's new rest depth; a warp it does not name
+ *   keeps its depth.
  * @return LatticeReshape The reshaped model and the children it could not keep in place.
  */
-internal fun latticeReshapeOf(model: PuppetModel, targetWorldById: Map<DeformerId, FloatArray>): LatticeReshape {
+internal fun latticeReshapeOf(
+	model: PuppetModel,
+	targetWorldById: Map<DeformerId, FloatArray>,
+	targetDepthById: Map<DeformerId, LatticeDepth> = emptyMap(),
+): LatticeReshape {
 	val unconvertedDrawables = ArrayList<DrawableId>()
 	val unconvertedDeformers = ArrayList<DeformerId>()
 	var current = model
@@ -59,12 +70,17 @@ internal fun latticeReshapeOf(model: PuppetModel, targetWorldById: Map<DeformerI
 
 		val targetLocal = lattice.parentMapping.worldToLocalLinearized(target, lattice.local, allPointIndices(target))
 		val delta = FloatArray(target.size) { componentIndex -> targetLocal[componentIndex] - lattice.local[componentIndex] }
+		// The depth shifts every form alike too, so each keyed motion in depth also stays what it was.
+		val depthDelta =
+			targetDepthById[deformerId]?.let { targetDepth ->
+				latticeDepthOf(FloatArray(target.size / 2) { pointIndex -> targetDepth.depthAt(pointIndex) - lattice.gridDepth.depthAt(pointIndex) })
+			} ?: LatticeDepth.Flat
 
-		if (delta.all { component -> component == 0f } || delta.any { component -> !component.isFinite() }) {
+		if ((delta.all { component -> component == 0f } && depthDelta.isFlat) || delta.any { component -> !component.isFinite() } || !depthDelta.isFinite) {
 			return@forEachWarpParentsFirst
 		}
 
-		val shifted = warp.withLatticeShifted(delta)
+		val shifted = warp.withLatticeShifted(delta, depthDelta)
 		val reshaped = current.copy(deformers = current.deformers.map { deformer -> if (deformer.id == deformerId) shifted else deformer })
 		val kept = warpChildrenKeptInPlace(current, reshaped, deformerId)
 		unconvertedDrawables.addAll(kept.unconvertedDrawables)

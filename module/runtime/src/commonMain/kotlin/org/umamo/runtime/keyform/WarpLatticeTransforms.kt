@@ -6,6 +6,9 @@ import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.depthAt
+import org.umamo.runtime.model.isFlat
+import org.umamo.runtime.model.latticeDepthOf
 import org.umamo.runtime.model.latticeLayout
 
 /*
@@ -20,22 +23,33 @@ import org.umamo.runtime.model.latticeLayout
  */
 
 /**
- * This warp with [delta] added to every point of every lattice it carries: each grid cell and each blend-shape
- * form.  The render channels are untouched.
+ * This warp with [delta] added to every point of every lattice it carries, each grid cell and each blend-shape
+ * form, and [depthDelta] added to every grid cell's depth.  The render channels are untouched.
  *
  * The evaluated lattice moves by exactly [delta] at every pose: the grid blend's weights sum to 1, and a
  * blend shape's contribution is its form minus the grid at the default pose, both of which move by [delta].
- * That is what reshaping the lattice at rest means - every keyed motion stays what it was.
+ * That is what reshaping the lattice at rest means - every keyed motion stays what it was.  The depth moves the same
+ * way, by the same argument over the grid alone.
  *
  * @param FloatArray delta Interleaved (x, y) offsets, one pair per control point, in the warp's parent space.
+ * @param LatticeDepth depthDelta How far each control point moves in depth, in world px; flat moves none.
  * @return Deformer.Warp The shifted warp, or this when [delta] does not hold one pair per control point.
  */
-fun Deformer.Warp.withLatticeShifted(delta: FloatArray): Deformer.Warp {
-	if (delta.size != latticeLayout.pointCount * 2) {
+fun Deformer.Warp.withLatticeShifted(delta: FloatArray, depthDelta: LatticeDepth = LatticeDepth.Flat): Deformer.Warp {
+	val pointCount = latticeLayout.pointCount
+
+	if (delta.size != pointCount * 2) {
 		return this
 	}
 
-	return withEveryLatticeMapped { points ->
+	val mapDepth: (LatticeDepth) -> LatticeDepth =
+		if (depthDelta.isFlat) {
+			{ depth -> depth }
+		} else {
+			{ depth -> latticeDepthOf(FloatArray(pointCount) { pointIndex -> depth.depthAt(pointIndex) + depthDelta.depthAt(pointIndex) }) }
+		}
+
+	return withEveryLatticeMapped(mapDepth) { points ->
 		val shifted = points.copyOf()
 		val count = minOf(shifted.size, delta.size)
 
