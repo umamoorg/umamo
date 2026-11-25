@@ -39,7 +39,7 @@ internal class TransformGestureFrame(
 	val camera: ViewportCamera,
 	val size: IntSize,
 	val pivotDepth: Float = 0f,
-	val depthSurface: DepthSurface = DepthSurface.Flat,
+	val depthSurface: DepthSurface = DepthSurface.Unchanged,
 )
 
 /**

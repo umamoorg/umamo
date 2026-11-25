@@ -35,7 +35,7 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	/** The depth rotation's pivot depth along world Y (see [SessionToolSettings.pivotDepth]). */
 	override val pivotDepth: StateFlow<Float> = mutablePivotDepth.asStateFlow()
 
-	private val mutableDepthSurface = MutableStateFlow(DepthSurface.Flat)
+	private val mutableDepthSurface = MutableStateFlow(DepthSurface.Unchanged)
 
 	/** How deep the points sit before a depth rotation (see [SessionToolSettings.depthSurface]). */
 	override val depthSurface: StateFlow<DepthSurface> = mutableDepthSurface.asStateFlow()
@@ -274,6 +274,7 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
  */
 private fun depthSurfaceNoticeKey(surface: DepthSurface): String =
 	when (surface) {
+		DepthSurface.Unchanged -> "notice.depthSurface.unchanged"
 		DepthSurface.Flat -> "notice.depthSurface.flat"
 		DepthSurface.Cylinder -> "notice.depthSurface.cylinder"
 		DepthSurface.Sphere -> "notice.depthSurface.sphere"

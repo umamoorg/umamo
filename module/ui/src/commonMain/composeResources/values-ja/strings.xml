@@ -833,6 +833,7 @@
 	<string name="hud_scale_factor">×%1$s</string>
 	<string name="notice_proportional_connected_on">プロポーショナル編集: 接続のみ</string>
 	<string name="notice_proportional_connected_off">プロポーショナル編集: 半径内すべて</string>
+	<string name="notice_depth_surface_unchanged">面: 変更なし</string>
 	<string name="notice_depth_surface_flat">面: 平面</string>
 	<string name="notice_depth_surface_cylinder">面: 円柱</string>
 	<string name="notice_depth_surface_sphere">面: 球面</string>
@@ -1010,6 +1011,7 @@
 	<string name="transform_axis_y">Y</string>
 	<string name="transform_axis_x">X</string>
 	<string name="transform_axis_z">Z</string>
+	<string name="transform_depth_surface_unchanged">変更なし</string>
 	<string name="transform_depth_surface_flat">平面</string>
 	<string name="transform_depth_surface_cylinder">円柱</string>
 	<string name="transform_depth_surface_sphere">球面</string>

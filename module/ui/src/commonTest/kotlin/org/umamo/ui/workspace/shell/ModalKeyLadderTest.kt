@@ -951,18 +951,18 @@ class ModalKeyLadderTest {
 		assertNotNull(posing.activeMeshOperator.value, "the Pose Rotate latched")
 
 		assertTrue(press(Key.T, ShellModalState(editorSession = posing)), "a Pose Rotate takes T")
-		assertEquals(DepthSurface.Cylinder, posing.depthSurface.value)
+		assertEquals(DepthSurface.Flat, posing.depthSurface.value, "the cycle steps on from Unchanged")
 
 		// A T with a modifier held is some other chord's, and passes on to the keymap.
 		assertFalse(press(Key.T, ShellModalState(editorSession = posing), primaryModifier = true), "the primary modifier's T passes on")
 		assertFalse(press(Key.T, ShellModalState(editorSession = posing), shift = true), "Shift+T passes on")
-		assertEquals(DepthSurface.Cylinder, posing.depthSurface.value, "and neither cycles the surface")
+		assertEquals(DepthSurface.Flat, posing.depthSurface.value, "and neither cycles the surface")
 
 		// Everywhere else T must reach the keymap, where it toggles the toolbar.
 		val editRotate = session(EditorMode.Edit).apply { beginMeshOperator(MeshOperatorKind.Rotate, areaId) }
 		assertNotNull(editRotate.activeMeshOperator.value, "the Edit Rotate latched")
 		assertFalse(press(Key.T, ShellModalState(editorSession = editRotate)), "an Edit Rotate leaves T alone")
-		assertEquals(DepthSurface.Flat, editRotate.depthSurface.value)
+		assertEquals(DepthSurface.Unchanged, editRotate.depthSurface.value)
 
 		for ((family, latched) in latchedOperatorFamilies()) {
 			assertFalse(press(Key.T, ShellModalState(editorSession = latched)), family)
@@ -984,14 +984,14 @@ class ModalKeyLadderTest {
 		press(Key.Z, state)
 		assertEquals(TransformAxisConstraint.AxisZ, posing.axisConstraint.value, "Z locked the axis")
 		press(Key.T, state)
-		assertEquals(DepthSurface.Cylinder, posing.depthSurface.value)
+		assertEquals(DepthSurface.Flat, posing.depthSurface.value)
 		assertNull(posing.notice.value, "the locked rotation's inset names the surface, so no notice does")
 
 		press(Key.Z, state)
 		assertNull(posing.axisConstraint.value, "Z again released the lock")
 		press(Key.T, state)
-		assertEquals(DepthSurface.Sphere, posing.depthSurface.value)
-		assertEquals("notice.depthSurface.sphere", posing.notice.value?.messageKey, "an unlocked T names the surface")
+		assertEquals(DepthSurface.Cylinder, posing.depthSurface.value)
+		assertEquals("notice.depthSurface.cylinder", posing.notice.value?.messageKey, "an unlocked T names the surface")
 	}
 
 	@Test

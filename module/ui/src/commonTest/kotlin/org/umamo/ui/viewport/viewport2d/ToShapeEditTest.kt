@@ -25,6 +25,7 @@ import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.depthAt
 import org.umamo.ui.transform.elementEditStage
 import kotlin.math.PI
 import kotlin.math.sin
@@ -68,7 +69,8 @@ private val SHAPE_HALF_TURN_QUARTER_OUT = SHAPE_HALF_TURN_RADIUS * sin(20f / SHA
 
 /**
  * To Shape as a Pose-mode lattice edit ([handleToShapeRequest]): it holds the bent lattice pending under its own history
- * label, leaves the model alone, and hands the depth rotation the radius and surface it bent round; its strip switches
+ * label with the depths the bend gave, leaves the model alone, and hands the depth rotation the radius it bent round
+ * and the Unchanged surface; its strip switches
  * the shape, the axis, and the factor over the one step; Edit and Object mode refuse it; a selection that would not
  * move answers with the notice; and Individual Origins bends each warp round its own center.
  */
@@ -173,6 +175,18 @@ class ToShapeEditTest {
 	}
 
 	/**
+	 * How deep the point at [row] and [column] of a warp's pending lattice sits.
+	 *
+	 * @param EditorSession session The session.
+	 * @param DeformerId warp The warp.
+	 * @param Int row The row, top first in canvas space.
+	 * @param Int column The column, left first.
+	 * @return Float The point's depth in world px.
+	 */
+	private fun pendingDepth(session: EditorSession, warp: DeformerId, row: Int, column: Int): Float =
+		assertNotNull(session.pendingLatticeEdits.value[warp], "$warp is held pending").depth.depthAt(row * (SHAPE_DIVISIONS + 1) + column)
+
+	/**
 	 * Sets one of the live strip record's rows, as the strip does.
 	 *
 	 * @param EditorSession session The session.
@@ -220,8 +234,17 @@ class ToShapeEditTest {
 			}
 		}
 
+		// And how deep: the front column on the art plane, the quarter columns at the axis's depth, the ends at the back.
+		val expectedDepths = listOf(2f, 1f, 0f, 1f, 2f).map { radii -> radii * SHAPE_WHOLE_TURN_RADIUS }
+
+		for (row in 0..SHAPE_DIVISIONS) {
+			for (column in 0..SHAPE_DIVISIONS) {
+				assertEquals(expectedDepths[column], pendingDepth(session, SHAPE_FACE, row, column), 1e-3f, "row $row column $column depth")
+			}
+		}
+
 		assertEquals(SHAPE_WHOLE_TURN_RADIUS, session.pivotDepth.value, 1e-3f, "the depth rotation turns round the cylinder laid down")
-		assertEquals(DepthSurface.Cylinder, session.depthSurface.value)
+		assertEquals(DepthSurface.Unchanged, session.depthSurface.value, "at the depths the bend gave")
 	}
 
 	/** The strip switches to a sphere, about X, a half turn, and no factor, each over the same one step; undo clears it. */
@@ -235,8 +258,9 @@ class ToShapeEditTest {
 		val (cornerX, cornerY) = pendingPoint(session, SHAPE_FACE, 0, 0)
 		assertEquals(40f, cornerX, 1e-3f, "a whole-turn sphere bends the corner round to the back")
 		assertEquals(40f, cornerY, 1e-3f)
+		assertEquals(2f * SHAPE_WHOLE_TURN_SPHERE_RADIUS, pendingDepth(session, SHAPE_FACE, 0, 0), 1e-3f, "at the back of the sphere")
 		assertEquals(SHAPE_WHOLE_TURN_SPHERE_RADIUS, session.pivotDepth.value, 1e-3f, "an adjustment hands over its own radius")
-		assertEquals(DepthSurface.Sphere, session.depthSurface.value)
+		assertEquals(DepthSurface.Unchanged, session.depthSurface.value)
 
 		choose(session, ToShapeParameterKeys.SHAPE, "cylinder")
 		choose(session, ToShapeParameterKeys.AXIS, "x")
@@ -250,6 +274,7 @@ class ToShapeEditTest {
 
 		adjust(session, ToShapeParameterKeys.FACTOR) { row -> (row as OperatorParameter.FloatParameter).copy(value = 0f) }
 		assertEquals(20f to 20f, pendingPoint(session, SHAPE_FACE, 1, 1), "no factor lands every point where it was")
+		assertEquals(0f, pendingDepth(session, SHAPE_FACE, 1, 1), "and as deep as it was")
 		assertEquals(stepsAfterCommit, session.historyView.value.steps.size, "every adjustment amends the one step")
 
 		session.undo()

@@ -194,9 +194,48 @@ object MeshTransforms {
 	/**
 	 * Turns the selected vertices about the pivot ([pivotX], [pivotZ]) by [radians] about [axis], in depth (see
 	 * DepthRotation.kt): each point is lifted to its depth under [surface], rotated in 3D about the pivot sitting at
-	 * [pivotDepth], and dropped back onto the plane.  A turn about Z (positive turns the front toward +x) moves only x,
-	 * one about X (positive tilts the front toward -z, down) only z, and Flat is exact and affine - a squash by the cosine and
-	 * a slide of the depth times the sine.  [RotationAxis.Y] is the in-plane turn, exactly [rotateVertices].
+	 * [pivotDepth], and projected back onto the plane, its turned depth handed back beside it.  A turn about Z (positive
+	 * turns the front toward +x) moves only x, one about X (positive tilts the front toward -z, down) only z, and Flat is
+	 * exact and affine - a squash by the cosine and a slide of the depth times the sine.  [RotationAxis.Y] is the in-plane
+	 * turn, exactly [rotateVertices], and keeps every depth.
+	 *
+	 * @param PointsInDepth points The world positions (the second component is world Z, up) and their depths.
+	 * @param Set<Int> indices The selected vertex indices.
+	 * @param RotationAxis axis The axis to turn about.
+	 * @param Float radians The turn angle in radians.
+	 * @param Float pivotDepth The pivot's depth along world Y, positive into the screen.
+	 * @param DepthSurface surface How deep the points sit before the turn.
+	 * @param Float pivotX The pivot's world X.
+	 * @param Float pivotZ The pivot's world Z (the positions' second component).
+	 * @return PointsInDepth New arrays with the selected vertices turned.
+	 */
+	fun rotateVerticesInDepth(
+		points: PointsInDepth,
+		indices: Set<Int>,
+		axis: RotationAxis,
+		radians: Float,
+		pivotDepth: Float,
+		surface: DepthSurface,
+		pivotX: Float,
+		pivotZ: Float,
+	): PointsInDepth {
+		if (axis == RotationAxis.Y) {
+			return PointsInDepth(rotateVertices(points.positions, indices, radians, pivotX, pivotZ), points.depths)
+		}
+
+		val turned = PointsInDepth(points.positions.copyOf(), points.depths.copyOf())
+		val cosAngle = cos(radians)
+		val sinAngle = sin(radians)
+
+		for (vertexIndex in indices) {
+			rotateVertexInDepth(turned, vertexIndex, axis, cosAngle, sinAngle, pivotDepth, surface, pivotX, pivotZ)
+		}
+
+		return turned
+	}
+
+	/**
+	 * [rotateVerticesInDepth] over points on the art plane, a mesh's or the UV editor's, whose turned depth nothing keeps.
 	 *
 	 * @param FloatArray positions The interleaved world positions (the second component is world Z, up).
 	 * @param Set<Int> indices The selected vertex indices.
@@ -217,26 +256,45 @@ object MeshTransforms {
 		surface: DepthSurface,
 		pivotX: Float,
 		pivotZ: Float,
-	): FloatArray {
-		if (axis == RotationAxis.Y) {
-			return rotateVertices(positions, indices, radians, pivotX, pivotZ)
-		}
-
-		val result = positions.copyOf()
-		val cosAngle = cos(radians)
-		val sinAngle = sin(radians)
-
-		for (vertexIndex in indices) {
-			rotateVertexInDepth(result, vertexIndex, axis, cosAngle, sinAngle, pivotDepth, surface, pivotX, pivotZ)
-		}
-
-		return result
-	}
+	): FloatArray = rotateVerticesInDepth(onTheArtPlane(positions), indices, axis, radians, pivotDepth, surface, pivotX, pivotZ).positions
 
 	/**
 	 * Turns the influenced vertices in depth by their share of [radians], each about its own influence's pivot - the
 	 * proportional-editing companion of [rotateVerticesInDepth], weighting the ANGLE as [rotateVerticesWeighted] does, with
 	 * the same pivot depth and surface for every vertex.
+	 *
+	 * @param PointsInDepth points The world positions (the second component is world Z, up) and their depths.
+	 * @param Map<Int, ProportionalInfluence> influences Vertex index to its influence (weight in [0, 1], pivot in world space).
+	 * @param RotationAxis axis The axis to turn about.
+	 * @param Float radians The full turn angle in radians (each vertex turns weight x this).
+	 * @param Float pivotDepth The pivot's depth along world Y, positive into the screen.
+	 * @param DepthSurface surface How deep the points sit before the turn.
+	 * @return PointsInDepth New arrays with the influenced vertices turned.
+	 */
+	fun rotateVerticesInDepthWeighted(
+		points: PointsInDepth,
+		influences: Map<Int, ProportionalInfluence>,
+		axis: RotationAxis,
+		radians: Float,
+		pivotDepth: Float,
+		surface: DepthSurface,
+	): PointsInDepth {
+		if (axis == RotationAxis.Y) {
+			return PointsInDepth(rotateVerticesWeighted(points.positions, influences, radians), points.depths)
+		}
+
+		val turned = PointsInDepth(points.positions.copyOf(), points.depths.copyOf())
+
+		for ((vertexIndex, influence) in influences) {
+			val weightedRadians = radians * influence.weight
+			rotateVertexInDepth(turned, vertexIndex, axis, cos(weightedRadians), sin(weightedRadians), pivotDepth, surface, influence.pivotX, influence.pivotY)
+		}
+
+		return turned
+	}
+
+	/**
+	 * [rotateVerticesInDepthWeighted] over points on the art plane, whose turned depth nothing keeps.
 	 *
 	 * @param FloatArray positions The interleaved world positions (the second component is world Z, up).
 	 * @param Map<Int, ProportionalInfluence> influences Vertex index to its influence (weight in [0, 1], pivot in world space).
@@ -253,26 +311,21 @@ object MeshTransforms {
 		radians: Float,
 		pivotDepth: Float,
 		surface: DepthSurface,
-	): FloatArray {
-		if (axis == RotationAxis.Y) {
-			return rotateVerticesWeighted(positions, influences, radians)
-		}
-
-		val result = positions.copyOf()
-
-		for ((vertexIndex, influence) in influences) {
-			val weightedRadians = radians * influence.weight
-			rotateVertexInDepth(result, vertexIndex, axis, cos(weightedRadians), sin(weightedRadians), pivotDepth, surface, influence.pivotX, influence.pivotY)
-		}
-
-		return result
-	}
+	): FloatArray = rotateVerticesInDepthWeighted(onTheArtPlane(positions), influences, axis, radians, pivotDepth, surface).positions
 
 	/**
-	 * Turns one vertex of [positions] in place about X or Z: the turn [rotateVerticesInDepth] and its weighted companion
-	 * share, given the angle's cosine and sine.
+	 * [positions] with every point at depth 0, on the art plane.
 	 *
-	 * @param FloatArray positions The interleaved world positions (the second component is world Z, up), written in place.
+	 * @param FloatArray positions The interleaved world positions.
+	 * @return PointsInDepth The points.
+	 */
+	private fun onTheArtPlane(positions: FloatArray): PointsInDepth = PointsInDepth(positions, FloatArray(positions.size / 2))
+
+	/**
+	 * Turns one vertex of [points] in place about X or Z: the turn [rotateVerticesInDepth] and its weighted companion
+	 * share, given the angle's cosine and sine.  The turned depth is the pivot's plus the turned offset.
+	 *
+	 * @param PointsInDepth points The world positions (the second component is world Z, up) and depths, written in place.
 	 * @param Int vertexIndex The vertex to turn.
 	 * @param RotationAxis axis X or Z (Y never reaches here).
 	 * @param Float cosAngle The turn angle's cosine.
@@ -283,7 +336,7 @@ object MeshTransforms {
 	 * @param Float pivotZ The pivot's world Z (the positions' second component).
 	 */
 	private fun rotateVertexInDepth(
-		positions: FloatArray,
+		points: PointsInDepth,
 		vertexIndex: Int,
 		axis: RotationAxis,
 		cosAngle: Float,
@@ -293,19 +346,22 @@ object MeshTransforms {
 		pivotX: Float,
 		pivotZ: Float,
 	) {
+		val positions = points.positions
 		val offsetX = positions[vertexIndex * 2] - pivotX
 		val offsetZ = positions[vertexIndex * 2 + 1] - pivotZ
-		val offsetDepth = depthOffsetOf(offsetX, offsetZ, pivotDepth, surface, axis)
+		val offsetDepth = depthOffsetOf(offsetX, offsetZ, points.depths[vertexIndex], pivotDepth, surface, axis)
 
 		// Right-handed with X right, Y into the screen, Z up: about +Z the front (-Y) swings toward +X, and about +X it
 		// swings toward -Z.
 		when (axis) {
 			RotationAxis.Z -> {
 				positions[vertexIndex * 2] = pivotX + offsetX * cosAngle - offsetDepth * sinAngle
+				points.depths[vertexIndex] = pivotDepth + offsetX * sinAngle + offsetDepth * cosAngle
 			}
 
 			RotationAxis.X -> {
 				positions[vertexIndex * 2 + 1] = pivotZ + offsetDepth * sinAngle + offsetZ * cosAngle
+				points.depths[vertexIndex] = pivotDepth + offsetDepth * cosAngle - offsetZ * sinAngle
 			}
 
 			RotationAxis.Y -> {}

@@ -99,6 +99,13 @@ class TransformAdjustTest {
 		val withoutDepthRows = transformGestureParametersOf(MeshOperatorKind.Rotate, TransformRowSpace.World, plain)
 		assertEquals(RotationAxis.Y, withoutDepthRows.rotationAxis, "missing depth rows read as the in-plane turn")
 		assertEquals(0f, withoutDepthRows.pivotDepth)
+		assertEquals(DepthSurface.Unchanged, withoutDepthRows.depthSurface, "and the default surface")
+
+		// The Surface row offers every surface, Unchanged first.
+		val surfaceRow = rows.first { row -> row.key == TransformParameterKeys.DEPTH_SURFACE } as OperatorParameter.ChoiceParameter
+		assertEquals(listOf("unchanged", "flat", "cylinder", "sphere"), surfaceRow.choices.map { choice -> choice.key })
+		val unchanged = rows.withParameter(TransformParameterKeys.DEPTH_SURFACE, surfaceRow.copy(value = DepthSurface.Unchanged.choiceKey))
+		assertEquals(DepthSurface.Unchanged, transformGestureParametersOf(MeshOperatorKind.Rotate, TransformRowSpace.World, unchanged).depthSurface)
 	}
 
 	@Test

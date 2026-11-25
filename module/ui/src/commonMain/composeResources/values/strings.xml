@@ -905,9 +905,10 @@
 	<string name="notice_proportional_connected_on">Proportional editing: Connected only.</string>
 	<string name="notice_proportional_connected_off">Proportional editing: All within radius.</string>
 	<!-- The depth surface T cycles to during a Pose-mode Rotate with no axis locked. -->
-	<string name="notice_depth_surface_flat">Surface: Flat.</string>
-	<string name="notice_depth_surface_cylinder">Surface: Cylinder.</string>
-	<string name="notice_depth_surface_sphere">Surface: Sphere.</string>
+	<string name="notice_depth_surface_unchanged">Surface: Unchanged</string>
+	<string name="notice_depth_surface_flat">Surface: Flat</string>
+	<string name="notice_depth_surface_cylinder">Surface: Cylinder</string>
+	<string name="notice_depth_surface_sphere">Surface: Sphere</string>
 	<!-- %1$s is the drawable's name. -->
 	<string name="notice_reparent_place_not_kept">%1$s was moved to its new parent but could not keep its place: The new deformers could not map its position.</string>
 	<string name="notice_reparent_places_not_kept">%1$d object(s) were moved to their new parent but could not keep their place: The new deformers could not map their positions.</string>
@@ -1093,6 +1094,7 @@
 	<string name="transform_axis_y">Y</string>
 	<string name="transform_axis_x">X</string>
 	<string name="transform_axis_z">Z</string>
+	<string name="transform_depth_surface_unchanged">Unchanged</string>
 	<string name="transform_depth_surface_flat">Flat</string>
 	<string name="transform_depth_surface_cylinder">Cylinder</string>
 	<string name="transform_depth_surface_sphere">Sphere</string>
