@@ -110,10 +110,32 @@ fun <TForm> KeyformGrid<TForm>.withKeyInserted(
 	keyValue: Float,
 	interpolator: FormInterpolator<TForm>,
 	outOfSpan: OutOfSpanKeyPolicy = OutOfSpanKeyPolicy.Extend,
+): KeyformGrid<TForm> = withKeyInserted(parameterId, keyValue, interpolator, outOfSpan, densityKnown = false)
+
+/**
+ * [withKeyInserted] for a caller that may already know the receiver is dense.
+ *
+ * An insert into a dense grid yields a dense grid, so a chain of inserts needs only the one density check
+ * its caller made up front.
+ *
+ * @param ParameterId parameterId The axis to insert into.
+ * @param Float keyValue The parameter value of the new key.
+ * @param FormInterpolator interpolator Blends the neighboring slices into the new one.
+ * @param OutOfSpanKeyPolicy outOfSpan How to treat a key beyond the axis's current ends.
+ * @param Boolean densityKnown Whether the caller has already established that the receiver is dense.
+ * @return KeyformGrid The grid with the key inserted, or the receiver when the insert was refused.
+ * @pre When [densityKnown] is true, the receiver is dense.
+ */
+private fun <TForm> KeyformGrid<TForm>.withKeyInserted(
+	parameterId: ParameterId,
+	keyValue: Float,
+	interpolator: FormInterpolator<TForm>,
+	outOfSpan: OutOfSpanKeyPolicy,
+	densityKnown: Boolean,
 ): KeyformGrid<TForm> {
 	val axisIndex = axisIndexOf(parameterId)
 
-	if (axisIndex < 0 || !isDense) {
+	if (axisIndex < 0) {
 		return this
 	}
 
@@ -138,6 +160,12 @@ fun <TForm> KeyformGrid<TForm>.withKeyInserted(
 	}
 
 	if (!spansStayResolvable(oldKeys, keyValue, insertPosition)) {
+		return this
+	}
+
+	// Density last: isDense walks every cell, while every refusal above reads only the key array, so a
+	// refused insert stays cheap.
+	if (!densityKnown && !isDense) {
 		return this
 	}
 
@@ -327,7 +355,7 @@ private fun axisMidpointExcluding(keys: FloatArray, keyIndex: Int): Float {
 fun KeyformGrid<*>.keyIndexAfterInsert(parameterId: ParameterId, keyValue: Float): Int {
 	val axisIndex = axisIndexOf(parameterId)
 
-	if (axisIndex < 0 || !isDense) {
+	if (axisIndex < 0) {
 		return -1
 	}
 
@@ -336,6 +364,12 @@ fun KeyformGrid<*>.keyIndexAfterInsert(parameterId: ParameterId, keyValue: Float
 	// Through keyIndexAt, the one definition of the evaluator's on-a-key snap tolerance - the same gate
 	// withKeyInserted applies before it decides it has anything to add.
 	if (keys.isEmpty() || keyIndexAt(parameterId, keyValue) >= 0) {
+		return -1
+	}
+
+	// Density last, as in withKeyInserted: isDense walks every cell, while the refusals above read only the
+	// key array.
+	if (!isDense) {
 		return -1
 	}
 
@@ -556,7 +590,8 @@ fun <TForm> KeyformGrid<TForm>.withFormCaptured(
 			continue
 		}
 
-		working = working.withKeyInserted(axis.parameterId, poseValue, interpolator)
+		// Checked dense on entry, and each insert keeps it so.
+		working = working.withKeyInserted(axis.parameterId, poseValue, interpolator, OutOfSpanKeyPolicy.Extend, densityKnown = true)
 	}
 
 	val coordinate = IntArray(working.axes.size)
@@ -618,9 +653,10 @@ fun <TForm> KeyformGrid<TForm>.refinedToUnion(
 			val spanStart = ownKeys.first()
 			val spanEnd = ownKeys.last()
 
+			// Checked dense on entry, and each insert (like the axis append below) keeps it so.
 			for (unionKey in unionKeys.sortedArray()) {
 				if (unionKey > spanStart && unionKey < spanEnd) {
-					working = working.withKeyInserted(parameterId, unionKey, interpolator, OutOfSpanKeyPolicy.Reject)
+					working = working.withKeyInserted(parameterId, unionKey, interpolator, OutOfSpanKeyPolicy.Reject, densityKnown = true)
 				}
 			}
 		} else {
