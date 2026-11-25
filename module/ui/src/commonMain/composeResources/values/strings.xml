@@ -192,6 +192,7 @@
 	<!-- Export report reasons, one per ExportNoticeReason case.  The dialog header already names the
 	     format, so a reason never repeats it.  Shared by both export paths: -->
 	<string name="export_reason_drawable_has_no_mesh">A drawable with no mesh cannot be written.</string>
+	<string name="export_reason_lattice_depth_flattened">The warp lattices of %1$s have Y depth editing data.  This file format does not handle Y depth so it is not exported.  The deformer(s) will still warp in 2D space.</string>
 	<!-- MOC3 lowering.  %1$s in the two channel lines is a channel_* label; %1$s in the keyforms line is an
 	     export_bundle_* sentence; %1$d/%2$d in the conversion line
 	     are the returned and expected coordinate counts; %1$s in the mask line is the mask drawable

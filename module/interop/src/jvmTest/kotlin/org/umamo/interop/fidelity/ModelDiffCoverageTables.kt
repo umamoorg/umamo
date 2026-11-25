@@ -280,9 +280,7 @@ internal object ModelDiffCoverageTables {
 	val warpLatticeForm =
 		coverageOf(WarpLatticeForm::class.java, CoverageFixture.warpLatticeFormRoute) {
 			compared("controlPoints", DeformerField.GEOMETRY) { WarpLatticeForm(moved(controlPoints), depth) }
-			notCarried("depth", "CMO3 has no depth, so the export keeps the 2D points, which are the projection the deformation uses") {
-				WarpLatticeForm(controlPoints, LatticeDepth.PerPoint(FloatArray(controlPoints.size / 2) { 1f }))
-			}
+			compared("depth", DeformerField.DEPTH) { WarpLatticeForm(controlPoints, LatticeDepth.PerPoint(FloatArray(controlPoints.size / 2) { 1f })) }
 		}
 
 	val rotationPivotForm =
