@@ -47,6 +47,7 @@ import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.OrgChild
@@ -67,6 +68,7 @@ import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.latticeDepthOf
 import org.umamo.runtime.model.withDerivedRenderRoot
 
 /**
@@ -327,7 +329,7 @@ object UmaPuppetImport {
 		KeyformGrid(axesOf(record.axes), record.cells.map { cell -> KeyformCell(cell.coordinate.toIntArray(), MeshDeltaForm(cell.positionDeltas)) })
 
 	/**
-	 * UMA §4.11: a warp's geometry grid, whose cells carry a whole lattice.
+	 * UMA §4.11: a warp's geometry grid, whose cells carry a whole lattice and, when it does not lie flat, its depth.
 	 *
 	 * @param UmaDeformerGrid record The record.
 	 * @return KeyformGrid The grid.
@@ -335,7 +337,12 @@ object UmaPuppetImport {
 	private fun warpGridOf(record: UmaDeformerGrid): KeyformGrid<WarpLatticeForm> =
 		KeyformGrid(
 			axesOf(record.axes),
-			record.cells.map { cell -> KeyformCell(cell.coordinate.toIntArray(), WarpLatticeForm(checkNotNull(cell.controlPoints) { "the codec checked a warp cell has controlPoints" })) },
+			record.cells.map { cell ->
+				val controlPoints = checkNotNull(cell.controlPoints) { "the codec checked a warp cell has controlPoints" }
+				// UMA §4.11: an absent depth is a flat lattice, and so is one whose every value is 0.
+				val depth = cell.depth?.let { values -> latticeDepthOf(values) } ?: LatticeDepth.Flat
+				KeyformCell(cell.coordinate.toIntArray(), WarpLatticeForm(controlPoints, depth))
+			},
 		)
 
 	/**

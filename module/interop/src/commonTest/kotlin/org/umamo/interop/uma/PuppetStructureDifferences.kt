@@ -15,6 +15,7 @@ import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
 import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.WarpForm
+import org.umamo.runtime.model.valuesFor
 
 /*
  * The structural comparer the UMA round-trip tests share: every field the puppet entry carries - structure,
@@ -327,7 +328,10 @@ internal fun puppetStructureDifferences(expected: PuppetModel, actual: PuppetMod
 					bits("$path.opacity", left.opacity, right.opacity)
 					color("$path.multiplyColor", left.multiplyColor, right.multiplyColor)
 					color("$path.screenColor", left.screenColor, right.screenColor)
-					grid("$path.geometry", left.geometryGrid, right.geometryGrid) { formPath, leftForm, rightForm -> floats("$formPath.controlPoints", leftForm.controlPoints, rightForm.controlPoints) }
+					grid("$path.geometry", left.geometryGrid, right.geometryGrid) { formPath, leftForm, rightForm ->
+						floats("$formPath.controlPoints", leftForm.controlPoints, rightForm.controlPoints)
+						floats("$formPath.depth", leftForm.depth.valuesFor(leftForm.controlPoints.size / 2), rightForm.depth.valuesFor(rightForm.controlPoints.size / 2))
+					}
 					blendShapes(path, left.blendShapes, right.blendShapes) { formPath, leftForm: WarpForm, rightForm -> warpForm(formPath, leftForm, rightForm) }
 				}
 
