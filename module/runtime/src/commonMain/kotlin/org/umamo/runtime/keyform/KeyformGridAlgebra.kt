@@ -94,10 +94,10 @@ fun <TForm> KeyformGrid<TForm>?.withAxisSeeded(parameter: Parameter, currentForm
 }
 
 /**
- * This grid with a new key at [keyValue] on [parameterId]'s axis, filling the whole new slice.
+ * [withKeyInserted] with densityKnown defaulted to false.
  *
- * A key adds a whole hyperplane of cells, each blended from the two neighboring slices with [interpolator]
- * (the same insert the export refinement runs), or copied from the nearest end slice when extending.
+ * An insert into a dense grid yields a dense grid, so a chain of inserts needs only the one density check
+ * its caller made up front.
  *
  * @param ParameterId parameterId The axis to insert into.
  * @param Float keyValue The parameter value of the new key.
@@ -113,10 +113,10 @@ fun <TForm> KeyformGrid<TForm>.withKeyInserted(
 ): KeyformGrid<TForm> = withKeyInserted(parameterId, keyValue, interpolator, outOfSpan, densityKnown = false)
 
 /**
- * [withKeyInserted] for a caller that may already know the receiver is dense.
+ * This grid with a new key at [keyValue] on [parameterId]'s axis, filling the whole new slice.
  *
- * An insert into a dense grid yields a dense grid, so a chain of inserts needs only the one density check
- * its caller made up front.
+ * A key adds a whole hyperplane of cells, each blended from the two neighboring slices with [interpolator]
+ * (the same insert the export refinement runs), or copied from the nearest end slice when extending.
  *
  * @param ParameterId parameterId The axis to insert into.
  * @param Float keyValue The parameter value of the new key.
