@@ -97,6 +97,12 @@
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.
 * Toolbar - Needs a pull tab.
 
+## Mesh and Lattice
+* Mint a default form on creation/generation.
+* Command to set the current form as the default.
+* Command to reset to default.
+* I encountered an issue when working on the 3D barrel demonstration.  After I keyed off the default warp pose I had no way to reset it back to default and with it bent in a circle that would be a pain in the ass to fix manually.
+
 ## Overlay Toggles
 * When entering pose or edit mode with both a mesh and deformer selected it shows only the type of the active selection.  Having the other types show as a wireframe by default would be useful for visual inspection.
 	* Investigate making the wireframe overlay scoped to selected in the overlay options.  This might not be the best way to implemented and/or over complicated.
