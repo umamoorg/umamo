@@ -99,9 +99,10 @@
 
 ## Mesh and Lattice
 * Mint a default form on creation/generation.
-* Command to set the current form as the default.
+* Command to set the current form as the default.  For meshes, possibily an additional option to reset to the UV shape.
 * Command to reset to default.
 * I encountered an issue when working on the 3D barrel demonstration.  After I keyed off the default warp pose I had no way to reset it back to default and with it bent in a circle that would be a pain in the ass to fix manually.
+* CMO3/MOC3 import - Mint the default form from the default pose.  This won't be accurate since some poses will be off default, but the escape hatch is the command to set the default form.
 
 ## Overlay Toggles
 * When entering pose or edit mode with both a mesh and deformer selected it shows only the type of the active selection.  Having the other types show as a wireframe by default would be useful for visual inspection.
