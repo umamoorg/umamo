@@ -284,7 +284,7 @@ class EditorSessionTest {
 		assertFalse(session.dirty.value, "a vertex-selection gesture does not dirty the document")
 
 		session.commitMeshPositions(
-			MeshChange.TransformVertices(mapOf(DrawableId("d") to listOf(0, 1)), MeshOperatorKind.Grab),
+			MeshChange.TransformVertices(mapOf(DrawableId("d") to listOf(0, 1)), ElementEditKind.Grab),
 			mapOf(DrawableId("d") to MeshRestPositions.shared(floatArrayOf(9f, 9f, 9f, 0f, 0f, 2f))),
 		)
 		session.setMeshSelection(MeshSelectionOps.replace(session.meshSelection.value, DrawableId("d"), MeshElement.Vertex(2)))

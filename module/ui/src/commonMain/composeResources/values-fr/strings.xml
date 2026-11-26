@@ -778,7 +778,8 @@
 	<string name="placement_options_scale_x">Changer la Taille sur X</string>
 	<string name="placement_options_scale_y">Changer la Taille sur Y</string>
 	<!-- The mesh / object / UV transform rows of the operation settings strip; the shared Move / Angle / Scale
-	     labels are the placement rows' above, and the viewport's vertical axis reads as Z (Y+ forward, Z+ up). -->
+	     labels are the placement rows' above, and the viewport's vertical axis reads as Z (Blender's axes: Y into
+	     the screen, Z up). -->
 	<string name="transform_options_move_z">Bouger sur Z</string>
 	<string name="transform_options_scale_z">Changer la Taille sur Z</string>
 	<string name="transform_options_proportional">Édition Proportionnelle</string>

@@ -2,8 +2,8 @@ package org.umamo.edit.mesh
 
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.MeshChange
-import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SessionTestModels.drawable
@@ -201,7 +201,7 @@ class MeshArrayEditsTest {
 		val originalArray = initial.drawables.first().mesh!!.positions
 		val moved = floatArrayOf(9f, 9f, 2f, 0f, 0f, 2f)
 
-		session.commitMeshPositions(MeshChange.TransformVertices(mapOf(DrawableId("d") to listOf(0)), MeshOperatorKind.Grab), mapOf(DrawableId("d") to MeshRestPositions.shared(moved)))
+		session.commitMeshPositions(MeshChange.TransformVertices(mapOf(DrawableId("d") to listOf(0)), ElementEditKind.Grab), mapOf(DrawableId("d") to MeshRestPositions.shared(moved)))
 		assertTrue(session.dirty.value, "a mesh edit dirties the document")
 		assertTrue(session.canUndo.value)
 		assertEquals(9f, session.model.value.drawables.first().mesh!!.positions[0])
@@ -237,7 +237,7 @@ class MeshArrayEditsTest {
 		// One commit moving vertices on both meshes is a single undo step restoring both.
 		val stepsBefore = session.historyView.value.steps.size
 		session.commitMeshPositions(
-			MeshChange.TransformVertices(mapOf(DrawableId("d") to listOf(0), DrawableId("d2") to listOf(1)), MeshOperatorKind.Grab),
+			MeshChange.TransformVertices(mapOf(DrawableId("d") to listOf(0), DrawableId("d2") to listOf(1)), ElementEditKind.Grab),
 			mapOf(
 				DrawableId("d") to MeshRestPositions.shared(floatArrayOf(9f, 9f, 2f, 0f, 0f, 2f)),
 				DrawableId("d2") to MeshRestPositions.shared(floatArrayOf(0f, 0f, 7f, 7f, 0f, 2f)),

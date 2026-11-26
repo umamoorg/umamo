@@ -3,9 +3,11 @@ package org.umamo.runtime.eval
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.depthAt
 
 /*
  * Pure keyform-grid sampling: the multilinear corner selection and the pose-sampling helpers that
@@ -270,6 +272,54 @@ public fun warpControlPointsAt(grid: KeyformGrid<WarpLatticeForm>?, paramValue: 
 	}
 
 	return blended
+}
+
+/**
+ * The lattice's depths grid-blended at the given pose with the same corner weights as [warpControlPointsAt], or null
+ * when the warp is unkeyed or the pose is out of the grid's range.  Flat when every corner it blends is flat.
+ *
+ * @param KeyformGrid? grid       The warp's keyform grid.
+ * @param Function     paramValue Value per parameter id defining the pose.
+ * @return LatticeDepth? The blended depth, or null.
+ */
+public fun warpDepthAt(grid: KeyformGrid<WarpLatticeForm>?, paramValue: (ParameterId) -> Float): LatticeDepth? {
+	if (grid == null) {
+		return null
+	}
+
+	val corners = gridCorners(grid, paramValue) ?: return null
+
+	return warpDepthOver(grid, corners)
+}
+
+/**
+ * The lattice's depths blended over [corners], for a caller that already walked the pose's corners for the points.
+ *
+ * @param KeyformGrid grid    The warp's keyform grid.
+ * @param List        corners The weighted corner cells [gridCorners] gave at the pose.
+ * @return LatticeDepth? The blended depth, or null when no corner resolves to a cell.
+ */
+public fun warpDepthOver(grid: KeyformGrid<WarpLatticeForm>, corners: List<WeightedCell>): LatticeDepth? {
+	val byLinearIndex = cellsByLinearIndex(grid)
+	var blended: FloatArray? = null
+	var resolvedAnyCell = false
+
+	for (corner in corners) {
+		val form = byLinearIndex[corner.linearIndex]?.form ?: continue
+		resolvedAnyCell = true
+		val depth = form.depth as? LatticeDepth.PerPoint ?: continue
+		val target = blended ?: FloatArray(form.controlPoints.size / 2).also { blended = it }
+
+		for (pointIndex in target.indices) {
+			target[pointIndex] += corner.weight * depth.depthAt(pointIndex)
+		}
+	}
+
+	if (!resolvedAnyCell) {
+		return null
+	}
+
+	return blended?.let { values -> LatticeDepth.PerPoint(values) } ?: LatticeDepth.Flat
 }
 
 /**

@@ -90,10 +90,10 @@ class GridBackdropRenderTest {
 		val framebuffer = (target as GlRenderTarget).framebuffer
 
 		// 1:1 camera centered on the world origin: world x = 0 is the center column, x = +-scale sit scale
-		// pixels either side.  Sample a row OFF the horizontal y = 0 line (else every column reads that
+		// pixels either side.  Sample a row OFF the horizontal Z = 0 line (else every column reads that
 		// line's red) and clear of the corner probe quad.
 		val center = viewportSize / 2
-		val row = center + gridScale.toInt() / 2 // world y = ~half a cell: no horizontal line here
+		val row = center + gridScale.toInt() / 2 // world Z = ~half a cell: no horizontal line here
 		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
 		renderer.render(target, viewportSize, viewportSize)

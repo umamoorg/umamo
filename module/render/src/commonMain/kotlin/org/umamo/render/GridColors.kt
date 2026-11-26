@@ -82,7 +82,7 @@ data class GridColors(
 
 /**
  * The world-axis colors, as 0..1 linear RGB triples - the red X axis and the blue Z axis drawn through
- * the world origin behind the puppet (the project's display convention is Y+ forward, Z+ up, so the
+ * the world origin behind the puppet (the project uses Blender's axes, Y into the screen and Z up, so the
  * vertical world axis is presented as Z), and the green Y axis, the depth no axis line shows, which only
  * the depth rotation's chrome draws.  Plain floats for the same reason as [GridColors]: :render stays free of
  * any UI dependency.

@@ -94,21 +94,6 @@ internal fun registerMeshTransformAdjustment(
 }
 
 /**
- * Lands a rerun's drive over the adjusted operation's own step: its lattices at [stage] when it moved any, else its
- * meshes folded onto the record's base.
- *
- * @param AdjustableOperation record The record the rerun was given.
- * @param MeshDriveResult result The rerun's drive.
- * @param ElementEditStage stage Where the moved geometry was captured.
- * @return Boolean True when the step was replaced.
- */
-private fun EditorSession.amendDrive(
-	record: AdjustableOperation,
-	result: MeshDriveResult,
-	stage: ElementEditStage,
-): Boolean = result.latticeLanding(stage)?.let { landing -> amendLatticeLanding(record, landing) } ?: amendLastCommit(record, result.folded)
-
-/**
  * Registers the Vertex Slide that just committed as the session's adjustable operation, with its
  * one Factor row.  The rerun slides the same vertex along the same frozen edge by the row's factor
  * from the record's base, through the drive's own compute - a lattice's point along its grid line, landed at

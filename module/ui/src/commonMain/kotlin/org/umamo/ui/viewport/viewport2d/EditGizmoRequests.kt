@@ -5,20 +5,24 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.EditorSession
+import org.umamo.edit.TargetShape
 import org.umamo.edit.mesh.refusesLatticeTopology
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.transform.ElementEditStage
+import org.umamo.ui.transform.runToShape
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.ViewportOverlayState
+import org.umamo.ui.viewport.gizmo.activeElementMedian
 import org.umamo.ui.viewport.gizmo.editableGeometryOrNotice
 import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
 
 /**
  * Collects the keymap commands the Edit overlay executes for its area: Select Linked, Alt+Q switch
- * object, Rip, and the Shift+S snaps.  Only the area each request names runs it, checked BEFORE the
+ * object, Rip, the Shift+S snaps, and To Shape.  Only the area each request names runs it, checked BEFORE the
  * empty-geometry notice so a request over nothing to edit answers once, from the asking area.
  *
  * Runs until its caller's effect is cancelled.  Everything that changes while it runs is read through
@@ -108,5 +112,45 @@ internal suspend fun collectEditGizmoRequests(
 				handleEditSnapRequest(session, editable, stage.value, request.kind, (overlays?.grid ?: GridConfig()).snapStep)
 			}
 		}
+		// To Shape over the selected points, gated like the snaps so exactly one viewport commits it; this area's
+		// operation strip then carries the rows that switch the shape after the fact.
+		launch {
+			session.toShapeRequests.collect { request ->
+				if (request.areaId != areaId) {
+					return@collect
+				}
+
+				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
+				handleToShapeRequest(session, editable, stage.value, request.shape, areaId)
+			}
+		}
 	}
 }
+
+/**
+ * Runs a To Shape over [geometries] ([runToShape]), handing it the overlay's owners as plain world geometry, their
+ * topologies, and the active element's own median.
+ *
+ * @param EditorSession session The session owning the selection and the commits.
+ * @param List<EditOwnerGeometry> geometries The session owners' live geometry.
+ * @param ElementEditStage stage Where [geometries] were captured.
+ * @param TargetShape shape The surface the command named.
+ * @param String areaId The viewport that executes, where the strip shows.
+ * @return AdjustableOperation? The registered record, or null when nothing was recorded.
+ */
+internal fun handleToShapeRequest(
+	session: EditorSession,
+	geometries: List<EditOwnerGeometry>,
+	stage: ElementEditStage,
+	shape: TargetShape,
+	areaId: String,
+): AdjustableOperation? =
+	runToShape(
+		session,
+		geometries.map { geometry -> geometry.worldGeometry },
+		geometries.associate { geometry -> geometry.owner to geometry.topology },
+		activeElementMedian(session.meshSelection.value, geometries.map { geometry -> geometry.gizmo }),
+		stage,
+		shape,
+		areaId,
+	)

@@ -121,7 +121,7 @@ class TransformRowAdjustTest {
 		val change = assertIs<MeshChange.TransformObjects>(record.change)
 		assertEquals(MeshOperatorKind.Grab, change.kind)
 		assertEquals(-500f, record.parameters.floatValue(TransformParameterKeys.MOVE_X, Float.NaN))
-		assertEquals(500f, record.parameters.floatValue(TransformParameterKeys.MOVE_Z, Float.NaN), "world y up, shown as Z")
+		assertEquals(500f, record.parameters.floatValue(TransformParameterKeys.MOVE_Z, Float.NaN), "world Z up, shown as Z")
 		val stepsBefore = session.historyView.value.steps.size
 
 		session.adjustLastOperation(adjusted(record.parameters, TransformParameterKeys.MOVE_X, -250f))

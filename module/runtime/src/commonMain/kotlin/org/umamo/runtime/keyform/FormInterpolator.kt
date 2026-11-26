@@ -2,9 +2,12 @@ package org.umamo.runtime.keyform
 
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.latticeDepthsEqual
+import org.umamo.runtime.model.valuesFor
 
 /*
  * The one interpolation primitive the grid algebra is allowed to use: a 1-D blend between two ADJACENT
@@ -94,13 +97,37 @@ object MeshDeltaInterpolator : FormInterpolator<MeshDeltaForm> {
 		left.positionDeltas.contentEquals(right.positionDeltas)
 }
 
-/** Interpolates a warp deformer's absolute lattice control points. */
+/**
+ * Interpolates a warp deformer's absolute lattice control points and their depths, so two keys that differ only in
+ * depth are never taken for one.
+ */
 object WarpLatticeInterpolator : FormInterpolator<WarpLatticeForm> {
-	override fun interpolate(lower: WarpLatticeForm, upper: WarpLatticeForm, fraction: Float): WarpLatticeForm =
-		WarpLatticeForm(blendComponents(lower.controlPoints, upper.controlPoints, fraction))
+	override fun interpolate(lower: WarpLatticeForm, upper: WarpLatticeForm, fraction: Float): WarpLatticeForm {
+		val controlPoints = blendComponents(lower.controlPoints, upper.controlPoints, fraction)
+
+		return WarpLatticeForm(controlPoints, blendDepth(lower.depth, upper.depth, controlPoints.size / 2, fraction))
+	}
 
 	override fun isExactlyEqual(left: WarpLatticeForm, right: WarpLatticeForm): Boolean =
-		left.controlPoints.contentEquals(right.controlPoints)
+		left.controlPoints.contentEquals(right.controlPoints) && latticeDepthsEqual(left.depth, right.depth, left.controlPoints.size / 2)
+}
+
+/**
+ * Blends two lattices' depths over [pointCount] control points with the evaluator's corner-weight expression: two
+ * flat lattices stay flat, and anything else blends point by point, a flat one reading as all 0.
+ *
+ * @param LatticeDepth lower The lower key's depth.
+ * @param LatticeDepth upper The upper key's depth.
+ * @param Int pointCount How many control points the lattice has.
+ * @param Float fraction The blend position in 0..1.
+ * @return LatticeDepth The blended depth.
+ */
+internal fun blendDepth(lower: LatticeDepth, upper: LatticeDepth, pointCount: Int, fraction: Float): LatticeDepth {
+	if (lower is LatticeDepth.Flat && upper is LatticeDepth.Flat) {
+		return LatticeDepth.Flat
+	}
+
+	return LatticeDepth.PerPoint(blendComponents(lower.valuesFor(pointCount), upper.valuesFor(pointCount), fraction))
 }
 
 /** Interpolates a rotation deformer's absolute pivot transform (its flags are FLAG channels, not geometry). */

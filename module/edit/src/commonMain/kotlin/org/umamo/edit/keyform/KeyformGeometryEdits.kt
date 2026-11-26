@@ -5,6 +5,7 @@ import org.umamo.edit.KeyformChange
 import org.umamo.edit.Pose
 import org.umamo.runtime.eval.poseValueLookup
 import org.umamo.runtime.eval.warpControlPointsAt
+import org.umamo.runtime.eval.warpDepthAt
 import org.umamo.runtime.keyform.FormInterpolator
 import org.umamo.runtime.keyform.MeshDeltaInterpolator
 import org.umamo.runtime.keyform.RotationPivotInterpolator
@@ -19,6 +20,7 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -137,7 +139,7 @@ fun PuppetModel.withGeometryKeyRemoved(owner: KeyformOwner, parameter: Parameter
 
 /**
  * The lattice warp [warpId]'s keyform grid blends to at [pose]: the parent-space shape before any blend shape adds
- * to it, which is what a capture with nothing pending pins.
+ * to it, with its depth, which is what a capture with nothing pending pins.
  *
  * @param DeformerId warpId The warp.
  * @param Pose pose The pose, by parameter id; a parameter it does not name sits at its default.
@@ -146,7 +148,10 @@ fun PuppetModel.withGeometryKeyRemoved(owner: KeyformOwner, parameter: Parameter
 fun PuppetModel.warpGridLatticeAt(warpId: DeformerId, pose: Pose): WarpLatticeForm? {
 	val warp = deformers.firstOrNull { deformer -> deformer.id == warpId } as? Deformer.Warp ?: return null
 
-	return warpControlPointsAt(warp.geometryGrid, poseValueLookup(pose))?.let { controlPoints -> WarpLatticeForm(controlPoints) }
+	val lookup = poseValueLookup(pose)
+	val controlPoints = warpControlPointsAt(warp.geometryGrid, lookup) ?: return null
+
+	return WarpLatticeForm(controlPoints, warpDepthAt(warp.geometryGrid, lookup) ?: LatticeDepth.Flat)
 }
 
 /**

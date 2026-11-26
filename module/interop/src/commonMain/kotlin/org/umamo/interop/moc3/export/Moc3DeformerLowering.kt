@@ -6,6 +6,7 @@ import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.format.moc3.model.WarpKeyform
 import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNoticeReason
+import org.umamo.interop.latticeDepthFlattenedNotice
 import org.umamo.interop.moc3.convertPointsToMoc
 import org.umamo.runtime.keyform.RotationPivotInterpolator
 import org.umamo.runtime.keyform.WarpLatticeInterpolator
@@ -26,7 +27,8 @@ import org.umamo.format.moc3.model.Deformer as MocDeformer
  * @param Moc3ExportContext context    The export's derived state.
  * @param Moc3KeyformPool   pool       Interned into: every deformer claims a binding index here.
  * @param Moc3ExportIds     ids        Claimed from: each deformer's written id.
- * @param Moc3ExportNotices noticeSink Appended to: keyform losses, and deformers with no form to write.
+ * @param Moc3ExportNotices noticeSink Appended to: keyform losses, deformers with no form to write, and the one notice for
+ *   the warps whose editing depth the file cannot hold.
  * @return List<MocDeformer> The records, in plan order.
  */
 internal fun lowerDeformers(
@@ -36,6 +38,8 @@ internal fun lowerDeformers(
 	noticeSink: Moc3ExportNotices,
 ): List<MocDeformer> {
 	val plan = context.plan
+	// MOC3 has no depth: the records below carry each lattice's 2D points, so only the editing depth is lost.
+	latticeDepthFlattenedNotice(plan.deformers.filterIsInstance<Deformer.Warp>())?.let { notice -> noticeSink.add(notice) }
 
 	return plan.deformers.map { deformer ->
 		val parentPartIndex = plan.partIndex(deformer.partId)

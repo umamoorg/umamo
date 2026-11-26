@@ -14,6 +14,7 @@ import org.umamo.edit.MeshElement
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SnapKind
+import org.umamo.edit.TargetShape
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.ui.transform.ElementEditStage
@@ -184,6 +185,7 @@ class EditGizmoRequestsTest {
 				{ session -> session.requestRip(LEFT_AREA_ID) },
 				{ session -> session.requestSnap(SnapKind.CursorToSelected, LEFT_AREA_ID) },
 				{ session -> session.requestSelectLinked(fromSelection = true, areaId = LEFT_AREA_ID) },
+				{ session -> session.requestToShape(TargetShape.Cylinder, LEFT_AREA_ID) },
 			)) {
 				val serialBefore = areas.session.notice.value?.serial ?: 0L
 				request(areas.session)

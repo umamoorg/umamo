@@ -192,6 +192,7 @@
 	<!-- Export report reasons, one per ExportNoticeReason case.  The dialog header already names the
 	     format, so a reason never repeats it.  Shared by both export paths: -->
 	<string name="export_reason_drawable_has_no_mesh">A drawable with no mesh cannot be written.</string>
+	<string name="export_reason_lattice_depth_flattened">The warp lattices of %1$s have Y depth editing data.  This file format does not handle Y depth so it is not exported.  The deformer(s) will still warp in 2D space.</string>
 	<!-- MOC3 lowering.  %1$s in the two channel lines is a channel_* label; %1$s in the keyforms line is an
 	     export_bundle_* sentence; %1$d/%2$d in the conversion line
 	     are the returned and expected coordinate counts; %1$s in the mask line is the mask drawable
@@ -394,6 +395,8 @@
 	<string name="cmd_mesh_grab">Grab Vertices</string>
 	<string name="cmd_mesh_scale">Scale Vertices</string>
 	<string name="cmd_mesh_rotate">Rotate Vertices</string>
+	<string name="cmd_mesh_to_shape_cylinder">To Shape (Cylinder)</string>
+	<string name="cmd_mesh_to_shape_sphere">To Shape (Sphere)</string>
 	<string name="cmd_mesh_select_mode_vertex">Vertex Select Mode</string>
 	<string name="cmd_mesh_select_mode_edge">Edge Select Mode</string>
 	<string name="cmd_mesh_select_mode_face">Face Select Mode</string>
@@ -493,10 +496,12 @@
 	<string name="history_mesh_scale">Scale Vertices</string>
 	<string name="history_mesh_rotate">Rotate Vertices</string>
 	<string name="history_mesh_slide">Slide Vertex</string>
+	<string name="history_mesh_to_shape">Vertices to Shape</string>
 	<string name="history_lattice_move">Move Lattice Points</string>
 	<string name="history_lattice_scale">Scale Lattice Points</string>
 	<string name="history_lattice_rotate">Rotate Lattice Points</string>
 	<string name="history_lattice_slide">Slide Lattice Point</string>
+	<string name="history_lattice_to_shape">Lattice Points to Shape</string>
 	<string name="history_lattice_resize">Lattice Resolution</string>
 	<string name="history_lattice_subdivide">Subdivide Lattice</string>
 	<string name="history_deformer_create">Create Warp Deformer</string>
@@ -504,6 +509,7 @@
 	<string name="history_pose_scale">Pose: Scale Lattice Points</string>
 	<string name="history_pose_rotate">Pose: Rotate Lattice Points</string>
 	<string name="history_pose_slide">Pose: Slide Lattice Point</string>
+	<string name="history_pose_to_shape">Pose: Lattice Points to Shape</string>
 	<string name="history_pose_clear_edits">Clear Pose Edits</string>
 	<string name="history_uv_move">Move UVs</string>
 	<string name="history_uv_scale">Scale UVs</string>
@@ -749,6 +755,7 @@
 	<string name="notice_mesh_no_targets">Select a drawable with a mesh to generate one from its art.</string>
 	<string name="history_drawable_duplicate">Duplicate Drawable</string>
 	<string name="notice_merge_needs_vertices">Merge needs two or more selected vertices (vertex mode).</string>
+	<string name="notice_to_shape_nothing">Nothing to shape: select lattice points that spread out from the pivot.</string>
 	<string name="notice_connect_needs_two_vertices">Connect needs exactly two selected vertices (vertex mode).</string>
 	<string name="notice_connect_refused">Can't connect: The cut crosses nothing, or the geometry is degenerate.</string>
 	<string name="notice_rip_nothing">Nothing to rip here: The selection has no fan to split.</string>
@@ -898,9 +905,10 @@
 	<string name="notice_proportional_connected_on">Proportional editing: Connected only.</string>
 	<string name="notice_proportional_connected_off">Proportional editing: All within radius.</string>
 	<!-- The depth surface T cycles to during a Pose-mode Rotate with no axis locked. -->
-	<string name="notice_depth_surface_flat">Surface: Flat.</string>
-	<string name="notice_depth_surface_cylinder">Surface: Cylinder.</string>
-	<string name="notice_depth_surface_sphere">Surface: Sphere.</string>
+	<string name="notice_depth_surface_unchanged">Surface: Unchanged</string>
+	<string name="notice_depth_surface_flat">Surface: Flat</string>
+	<string name="notice_depth_surface_cylinder">Surface: Cylinder</string>
+	<string name="notice_depth_surface_sphere">Surface: Sphere</string>
 	<!-- %1$s is the drawable's name. -->
 	<string name="notice_reparent_place_not_kept">%1$s was moved to its new parent but could not keep its place: The new deformers could not map its position.</string>
 	<string name="notice_reparent_places_not_kept">%1$d object(s) were moved to their new parent but could not keep their place: The new deformers could not map their positions.</string>
@@ -1071,7 +1079,8 @@
 	<string name="placement_options_scale_x">Scale X</string>
 	<string name="placement_options_scale_y">Scale Y</string>
 	<!-- The mesh / object / UV transform rows of the operation settings strip; the shared Move / Angle / Scale
-	     labels are the placement rows' above, and the viewport's vertical axis reads as Z (Y+ forward, Z+ up). -->
+	     labels are the placement rows' above, and the viewport's vertical axis reads as Z (Blender's axes: Y into
+	     the screen, Z up). -->
 	<string name="transform_options_move_z">Move Z</string>
 	<string name="transform_options_scale_z">Scale Z</string>
 	<string name="transform_options_proportional">Proportional Editing</string>
@@ -1086,11 +1095,14 @@
 	<string name="transform_axis_y">Y</string>
 	<string name="transform_axis_x">X</string>
 	<string name="transform_axis_z">Z</string>
+	<string name="transform_depth_surface_unchanged">Unchanged</string>
 	<string name="transform_depth_surface_flat">Flat</string>
 	<string name="transform_depth_surface_cylinder">Cylinder</string>
 	<string name="transform_depth_surface_sphere">Sphere</string>
 	<!-- The Merge row of the operation settings strip and its choices. -->
 	<string name="merge_options_target">Merge At</string>
+	<string name="to_shape_options_shape">Shape</string>
+	<string name="to_shape_options_degrees">Degrees</string>
 	<string name="lattice_options_rows">Rows</string>
 	<string name="rehome_options_keep_in_place">Keep in Place</string>
 	<string name="create_warp_options_margin">Margin</string>
@@ -1227,6 +1239,10 @@
 	<string name="transform_options_pivot_depth_description">How far forwards or backwards along the Y axis the pivot is moved.</string>
 	<string name="transform_options_depth_surface_description">The shape of the 3D surface applied to the lattice.</string>
 	<string name="merge_options_target_description">The position where the merged vertices will end up at.</string>
+	<string name="to_shape_options_shape_description">The surface the selected points wrap onto, seen from the front.</string>
+	<string name="to_shape_options_axis_description">The axis the cylinder runs along.  The sphere does not use it.</string>
+	<string name="to_shape_options_degrees_description">How far round the shape the selection wraps: 180 covers the front half, 360 goes all the way round, and 0 leaves it flat.</string>
+	<string name="to_shape_options_factor_description">How far the points move toward the shape, from where they were (0) to fully on it (1).</string>
 	<string name="lattice_options_rows_description">The lattice's new cell count from top to bottom.</string>
 	<string name="create_warp_options_rows_description">How many cells the new warp has from top to bottom.</string>
 	<string name="create_warp_options_columns_description">How many cells the new warp has from left to right.</string>

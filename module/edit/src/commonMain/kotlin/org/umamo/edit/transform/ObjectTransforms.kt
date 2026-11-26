@@ -33,10 +33,10 @@ fun isPoseNeutral(model: PuppetModel, pose: Pose): Boolean {
  * decision and a consequential one - see the Properties panel's DrawableWorldTransform.kt, which measures
  * WORLD positions because a keyformed drawable's base array is nothing like its on-screen shape.
  *
- * @property Float centerX The bounds' center x.
- * @property Float centerY The bounds' center y.
- * @property Float width The x extent (0 for a degenerate or empty mesh).
- * @property Float height The y extent (0 for a degenerate or empty mesh).
+ * @property Float centerX The bounds' center x, in the measured array's space.
+ * @property Float centerY The bounds' center y, in the measured array's space.
+ * @property Float width The x extent, in that space's units (0 for a degenerate or empty mesh).
+ * @property Float height The y extent, in that space's units (0 for a degenerate or empty mesh).
  */
 class MeshBounds(val centerX: Float, val centerY: Float, val width: Float, val height: Float)
 
@@ -46,7 +46,7 @@ class MeshBounds(val centerX: Float, val centerY: Float, val width: Float, val h
  * - a second definition would let the two drift and make a typed value land somewhere else.  Both must be
  * handed positions in the SAME space for that to hold.
  *
- * @param FloatArray positions Interleaved x, y vertex positions.
+ * @param FloatArray positions Interleaved x, y vertex positions, in whatever space the caller measures.
  * @return MeshBounds The center and extents; a zero box when there are no vertices.
  */
 fun meshBounds(positions: FloatArray): MeshBounds {
@@ -100,9 +100,9 @@ fun allPointIndices(positions: FloatArray): Set<Int> = (0 until positions.size /
  * the Properties Position row, which reads [meshBounds]'s center, so the displayed number becomes exactly
  * the value entered.
  *
- * @param FloatArray positions The interleaved positions.
- * @param Float newCenterX The x the bounds center should land on.
- * @param Float newCenterY The y the bounds center should land on.
+ * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
+ * @param Float newCenterX The x the bounds center should land on, in the positions' space.
+ * @param Float newCenterY The y the bounds center should land on, in the positions' space.
  * @return FloatArray A new positions array, or the same instance when nothing moves.
  */
 fun movedToBoundsCenter(positions: FloatArray, newCenterX: Float, newCenterY: Float): FloatArray {
@@ -127,9 +127,9 @@ fun movedToBoundsCenter(positions: FloatArray, newCenterX: Float, newCenterY: Fl
  * center, so resizing never makes the position readout jump; the vertex centroid the viewport gizmo pivots
  * on sits off it on an asymmetric mesh.
  *
- * @param FloatArray positions The interleaved positions.
- * @param Float newWidth The target x extent (ignored when the current x extent is 0).
- * @param Float newHeight The target y extent (ignored when the current y extent is 0).
+ * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
+ * @param Float newWidth The target x extent, in the positions' units (ignored when the current x extent is 0).
+ * @param Float newHeight The target y extent, in the positions' units (ignored when the current y extent is 0).
  * @return FloatArray A new positions array, or the same instance when nothing changes.
  */
 fun resizedAboutBoundsCenter(positions: FloatArray, newWidth: Float, newHeight: Float): FloatArray {
@@ -161,9 +161,9 @@ fun resizedAboutBoundsCenter(positions: FloatArray, newWidth: Float, newHeight: 
  * resized as a whole.
  *
  * @param MeshBounds bounds The current bounds.
- * @param Float newWidth The target x extent.
- * @param Float newHeight The target y extent.
- * @return Pair<Float, Float> The x and y factors.
+ * @param Float newWidth The target x extent, in the bounds' units.
+ * @param Float newHeight The target y extent, in the bounds' units.
+ * @return Pair<Float, Float> The unitless x and y scale factors.
  */
 fun boundsScaleFactors(bounds: MeshBounds, newWidth: Float, newHeight: Float): Pair<Float, Float> =
 	(if (bounds.width > 0f) newWidth / bounds.width else 1f) to (if (bounds.height > 0f) newHeight / bounds.height else 1f)

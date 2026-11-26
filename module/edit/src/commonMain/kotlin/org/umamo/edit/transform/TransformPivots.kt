@@ -28,8 +28,8 @@ object TransformPivots {
 	 * Element, and Cursor pivots all reduce to (they differ only in where the anchor is).
 	 *
 	 * @param Set<Int> coveredIndices The vertices the gesture moves.
-	 * @param Float pivotX The shared anchor's x.
-	 * @param Float pivotY The shared anchor's y.
+	 * @param Float pivotX The shared anchor's x, in the positions' coordinate space.
+	 * @param Float pivotY The shared anchor's y, in the positions' coordinate space.
 	 * @return List<TransformPivotGroup> The single shared-pivot group.
 	 */
 	fun sharedGroup(coveredIndices: Set<Int>, pivotX: Float, pivotY: Float): List<TransformPivotGroup> =

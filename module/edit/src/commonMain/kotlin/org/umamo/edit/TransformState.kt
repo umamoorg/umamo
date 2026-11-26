@@ -40,9 +40,8 @@ enum class TransformPivotMode {
 
 /**
  * The axis a modal Grab / Scale is locked to, toggled by pressing X or Z during the gesture (Blender's
- * axis constraint).  Named by the DISPLAYED axes: the project presents the 2D plane as X (horizontal)
- * and Z (vertical, world +y) per the Y+ forward, Z+ up convention, so AxisZ constrains the position
- * arrays' y coordinates.
+ * axis constraint).  Named by the DISPLAYED axes: the project presents the 2D plane as X+ right and
+ * Z+ up (right-handed, like Blender), so AxisZ constrains the position arrays' y coordinates.
  */
 enum class TransformAxisConstraint {
 	AxisX,
@@ -50,20 +49,24 @@ enum class TransformAxisConstraint {
 }
 
 /**
- * How deep each point sits before a depth rotation, each surface's radius the pivot's depth.  Flat keeps the art a
- * plane, so the turn squashes it and slides it by the pivot's depth; Cylinder bends it around a cylinder through the
- * pivot along the rotation axis, so every row of a turn about Z (every column of a tilt about X) curves alike; Sphere
- * lays it over a sphere around the pivot, so its middle moves furthest - the look of a head turning.  The three agree
- * at depth 0.  The declaration order is the order T cycles them in during a rotation ([next]).
+ * How deep each point sits before a depth rotation, each curved surface's radius the pivot's depth.  Unchanged turns a
+ * lattice's points at the depth they already have, so a shape To Shape laid down, or an earlier turn left, turns as
+ * that shape; a mesh carries no depth, so for it Unchanged is Flat.  Flat lays the art on the plane first, so the turn
+ * squashes it and slides it by the pivot's depth; Cylinder bends it around a cylinder through the pivot along the
+ * rotation axis, so every row of a turn about Z (every column of a tilt about X) curves alike; Sphere lays it over a
+ * sphere around the pivot, so its middle moves furthest - the look of a head turning.  Every surface hands the turned
+ * depth back, and on flat art at depth 0 all four agree.  The declaration order is the order T cycles them in during a
+ * rotation ([next]).
  */
 enum class DepthSurface {
+	Unchanged,
 	Flat,
 	Cylinder,
 	Sphere,
 }
 
 /**
- * The surface after this one in T's cycle: Flat, Cylinder, Sphere, then Flat again.
+ * The surface after this one in T's cycle: Unchanged, Flat, Cylinder, Sphere, then Unchanged again.
  *
  * @return DepthSurface The next surface.
  */
@@ -81,6 +84,16 @@ const val PIVOT_DEPTH_LIMIT = 100_000f
  * @return Float The depth within -[PIVOT_DEPTH_LIMIT]..[PIVOT_DEPTH_LIMIT].
  */
 fun clampPivotDepth(depthWorld: Float): Float = if (depthWorld.isNaN()) 0f else depthWorld.coerceIn(-PIVOT_DEPTH_LIMIT, PIVOT_DEPTH_LIMIT)
+
+/**
+ * The surface To Shape bends the selected points round, seen from the front: Cylinder bends the selection round one
+ * axis, so its sides foreshorten toward two edges, and Sphere bends it out from the pivot every way, so it rounds toward
+ * a circle - the surfaces a depth rotation turns ([DepthSurface]).
+ */
+enum class TargetShape {
+	Cylinder,
+	Sphere,
+}
 
 /**
  * Which radial pie menu is open over the viewport, or none (null in the session flow).  The pie

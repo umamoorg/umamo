@@ -1,24 +1,32 @@
 package org.umamo.ui.transform
 
+import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.edit.mesh.withMeshPositions
 import org.umamo.edit.transform.ModalTransformCapture
+import org.umamo.edit.transform.PointsInDepth
 import org.umamo.edit.transform.ProportionalInfluence
 import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.edit.transform.TransformPivotGroup
 import org.umamo.edit.transform.applyOperator
+import org.umamo.edit.transform.applyOperatorInDepth
+import org.umamo.edit.transform.slideDepthByFactor
 import org.umamo.edit.transform.slideVertexByFactor
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.deformerId
 import org.umamo.runtime.model.drawableId
+import org.umamo.runtime.model.latticeDepthOf
+import org.umamo.runtime.model.valuesFor
 
 /*
  * The 2D modal drive's compute, shared by the Edit, Pose, and Object transforms and the operation settings strip's
@@ -116,6 +124,7 @@ internal class MeshDriveRequest(
  * @property Map<DeformerId, Set<Int>> latticeMoved Each moving lattice's moved points.
  * @property Map<DeformerId, WarpLatticeForm> latticeForms At the pose, each moving lattice lowered to the pending form
  *   the renderer previews; empty at rest.
+ * @property Map<DeformerId, LatticeDepth> latticeDepth Each moving lattice's new depth, beside [latticeWorld].
  */
 internal class MeshDriveResult(
 	val preview: Map<DrawableId, MeshRestPositions>,
@@ -123,6 +132,7 @@ internal class MeshDriveResult(
 	val folded: PuppetModel,
 	val latticeMoved: Map<DeformerId, Set<Int>> = emptyMap(),
 	val latticeForms: Map<DeformerId, WarpLatticeForm> = emptyMap(),
+	val latticeDepth: Map<DeformerId, LatticeDepth> = emptyMap(),
 ) {
 	/**
 	 * This result with its meshes folded onto [model] instead of the request's base: what a confirm lands over the
@@ -131,17 +141,17 @@ internal class MeshDriveResult(
 	 * @param PuppetModel model The model to fold onto.
 	 * @return MeshDriveResult The refolded result.
 	 */
-	fun foldedOnto(model: PuppetModel): MeshDriveResult = MeshDriveResult(preview, latticeWorld, model.withMeshPositions(preview), latticeMoved, latticeForms)
+	fun foldedOnto(model: PuppetModel): MeshDriveResult = MeshDriveResult(preview, latticeWorld, model.withMeshPositions(preview), latticeMoved, latticeForms, latticeDepth)
 }
 
 /**
  * Commits a drive as one undo step: its lattices landed at [stage] when it moved any ([latticeLanding]), else its
- * meshes' new rest shapes, naming every vertex the drive moved.  The commit twin of the strip's amend, so a confirm,
- * a typed median, and a snap land a drive alike.
+ * meshes' new rest shapes, naming every vertex the drive moved.  The commit twin of [amendDrive], so a confirm, a
+ * typed median, a snap, and a To Shape land a drive alike.
  *
  * @param MeshDriveResult result The drive.
  * @param ElementEditStage stage Where the moved geometry was captured.
- * @param MeshOperatorKind kind The operator the drive ran as.
+ * @param ElementEditKind kind What the drive did to the points, which names the step.
  * @param Map<DrawableId, List<Int>> movedIndicesByDrawable Each moving mesh's moved vertices - the moved set, not just
  *   the covered one, since proportional editing moves weighted unselected vertices too.
  * @return Boolean True when a step was recorded; a drive that lands where it started records none, and so has no step
@@ -150,7 +160,7 @@ internal class MeshDriveResult(
 internal fun EditorSession.commitDrive(
 	result: MeshDriveResult,
 	stage: ElementEditStage,
-	kind: MeshOperatorKind,
+	kind: ElementEditKind,
 	movedIndicesByDrawable: Map<DrawableId, List<Int>>,
 ): Boolean {
 	result.latticeLanding(stage)?.let { landing -> return commitLatticeLanding(landing, kind) }
@@ -163,6 +173,21 @@ internal fun EditorSession.commitDrive(
 
 	return model.value !== modelBefore
 }
+
+/**
+ * Lands an operation strip rerun's drive over the adjusted operation's own step: its lattices at [stage] when it moved
+ * any, else its meshes folded onto the record's base.  The amend twin of [commitDrive].
+ *
+ * @param AdjustableOperation record The record the rerun was given.
+ * @param MeshDriveResult result The rerun's drive.
+ * @param ElementEditStage stage Where the moved geometry was captured.
+ * @return Boolean True when the step was replaced.
+ */
+internal fun EditorSession.amendDrive(
+	record: AdjustableOperation,
+	result: MeshDriveResult,
+	stage: ElementEditStage,
+): Boolean = result.latticeLanding(stage)?.let { landing -> amendLatticeLanding(record, landing) } ?: amendLastCommit(record, result.folded)
 
 /**
  * One job's share of a drive's result: a mesh's new rest shape, or a lattice's moved world points.
@@ -181,8 +206,9 @@ internal sealed interface MeshJobOutcome {
 	 *
 	 * @property DeformerId deformerId The warp.
 	 * @property FloatArray world Its points in world space, interleaved x, z.
+	 * @property LatticeDepth depth How deep each point sits after the move.
 	 */
-	class Lattice(val deformerId: DeformerId, val world: FloatArray) : MeshJobOutcome
+	class Lattice(val deformerId: DeformerId, val world: FloatArray, val depth: LatticeDepth) : MeshJobOutcome
 }
 
 /**
@@ -211,43 +237,48 @@ internal fun meshDriveJobs(
 /**
  * One owner's outcome under a request: its frozen world shape through the operator (a Vertex Slide moves only the
  * slide owner's vertex, and nothing when the pointer landed on no edge), then for a mesh inverted back onto the rest
- * arrays over its moved vertices, and for a lattice left in world space.  Pure; the parallel compute runs it per
- * owner on any thread.
+ * arrays over its moved vertices, and for a lattice left in world space with its depth, which a turn about X or Z
+ * turns too.  Pure; the parallel compute runs it per owner on any thread.
  *
  * @param MeshDriveJob job The owner.
  * @param MeshDriveRequest request The request.
  * @return MeshJobOutcome The mesh's new rest shape, or the lattice's moved points.
  */
 internal fun meshJobOutcome(job: MeshDriveJob, request: MeshDriveRequest): MeshJobOutcome {
-	val transformedWorld =
-		if (request.operator == MeshOperatorKind.VertexSlide) {
-			val slide = request.slide
+	if (request.operator != MeshOperatorKind.VertexSlide) {
+		val lattice = job.geometry as? LatticeWorldGeometry ?: return job.geometry.outcomeOf(applyOperator(request.operator, job.positions, job.groups, request.parameters, job.influence), job.movedIndices)
+		val original = PointsInDepth(job.positions, lattice.depth.valuesFor(job.positions.size / 2))
+		val moved = applyOperatorInDepth(request.operator, original, job.groups, request.parameters, job.influence)
 
-			if (slide != null && slide.owner == job.owner) {
-				slideVertexByFactor(job.positions, slide.activeVertex, slide.landing.neighborIndex, slide.landing.factor)
-			} else {
-				job.positions
-			}
-		} else {
-			applyOperator(request.operator, job.positions, job.groups, request.parameters, job.influence)
-		}
+		return lattice.outcomeOf(moved.positions, job.movedIndices, latticeDepthOf(moved.depths))
+	}
 
-	return job.geometry.outcomeOf(transformedWorld, job.movedIndices)
+	val slide = request.slide?.takeIf { slide -> slide.owner == job.owner } ?: return job.geometry.outcomeOf(job.positions, job.movedIndices)
+	val slidWorld = slideVertexByFactor(job.positions, slide.activeVertex, slide.landing.neighborIndex, slide.landing.factor)
+	val slidDepth = (job.geometry as? LatticeWorldGeometry)?.let { lattice -> slideDepthByFactor(lattice.depth, slide.activeVertex, slide.landing.neighborIndex, slide.landing.factor) }
+
+	return job.geometry.outcomeOf(slidWorld, job.movedIndices, slidDepth)
 }
 
 /**
  * What a moved world shape of this owner comes to: a mesh's shape inverted back onto its rest arrays over its moved
- * vertices, a lattice's points left in world space for its landing.  The one switch over the owner kinds a drive and
- * a snap read.
+ * vertices, a lattice's points left in world space for its landing, with their depth.  The one switch over the owner
+ * kinds a drive and a snap read.
  *
  * @param FloatArray transformedWorld The moved world shape.
  * @param Set<Int> moved The vertices that moved.
+ * @param LatticeDepth? transformedDepth A lattice's moved depth, or null when the edit leaves the captured depth as it
+ *   was; a mesh has none.
  * @return MeshJobOutcome The outcome.
  */
-internal fun OwnerWorldGeometry.outcomeOf(transformedWorld: FloatArray, moved: Set<Int>): MeshJobOutcome =
+internal fun OwnerWorldGeometry.outcomeOf(
+	transformedWorld: FloatArray,
+	moved: Set<Int>,
+	transformedDepth: LatticeDepth? = null,
+): MeshJobOutcome =
 	when (this) {
 		is DrawableWorldGeometry -> MeshJobOutcome.Rest(drawableId, worldToRest(transformedWorld, moved))
-		is LatticeWorldGeometry -> MeshJobOutcome.Lattice(deformerId, transformedWorld)
+		is LatticeWorldGeometry -> MeshJobOutcome.Lattice(deformerId, transformedWorld, transformedDepth ?: depth)
 	}
 
 /**
@@ -270,8 +301,8 @@ internal fun foldMeshDrive(request: MeshDriveRequest, outcomes: List<MeshJobOutc
 
 /**
  * Folds a drive's outcomes onto [baseModel] in one pass: the meshes' new rest shapes into the model, the lattices'
- * moved points kept in world space - and at the pose lowered to their pending forms too, so the frame can preview
- * them.  What a drive and a snap both land through.
+ * moved points kept in world space with their depth - and at the pose lowered to their pending forms too, so the
+ * frame can preview them.  What a drive and a snap both land through.
  *
  * @param PuppetModel baseModel The model the new rest shapes fold onto.
  * @param List<MeshJobOutcome> outcomes Each moved owner's outcome, in order.
@@ -287,21 +318,28 @@ internal fun foldDrive(
 ): MeshDriveResult {
 	val preview = LinkedHashMap<DrawableId, MeshRestPositions>(outcomes.size)
 	val latticeWorld = LinkedHashMap<DeformerId, FloatArray>()
+	val latticeDepth = LinkedHashMap<DeformerId, LatticeDepth>()
 
 	for (outcome in outcomes) {
 		when (outcome) {
-			is MeshJobOutcome.Rest -> preview[outcome.drawableId] = outcome.rest
-			is MeshJobOutcome.Lattice -> latticeWorld[outcome.deformerId] = outcome.world
+			is MeshJobOutcome.Rest -> {
+				preview[outcome.drawableId] = outcome.rest
+			}
+
+			is MeshJobOutcome.Lattice -> {
+				latticeWorld[outcome.deformerId] = outcome.world
+				latticeDepth[outcome.deformerId] = outcome.depth
+			}
 		}
 	}
 
 	val latticeForms =
 		when (stage) {
 			ElementEditStage.Rest -> emptyMap()
-			is ElementEditStage.Posed -> posedLatticeForms(baseModel, stage, latticeWorld, latticeMoved)
+			is ElementEditStage.Posed -> posedLatticeForms(baseModel, stage, latticeWorld, latticeMoved, latticeDepth)
 		}
 
-	return MeshDriveResult(preview, latticeWorld, baseModel.withMeshPositions(preview), latticeMoved, latticeForms)
+	return MeshDriveResult(preview, latticeWorld, baseModel.withMeshPositions(preview), latticeMoved, latticeForms, latticeDepth)
 }
 
 /**
@@ -319,7 +357,7 @@ internal fun MeshDriveResult.latticeLanding(stage: ElementEditStage): LatticeLan
 	}
 
 	return when (stage) {
-		ElementEditStage.Rest -> LatticeLanding.Reshape(latticeWorld.keys.toList(), latticeReshapeOf(folded, latticeWorld))
+		ElementEditStage.Rest -> LatticeLanding.Reshape(latticeWorld.keys.toList(), latticeReshapeOf(folded, latticeWorld, latticeDepth))
 		is ElementEditStage.Posed -> LatticeLanding.Posed(latticeForms)
 	}
 }

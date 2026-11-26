@@ -29,6 +29,7 @@ class ExportNoticeLabelsTest {
 	private val sampleReasons: List<ExportNoticeReason> =
 		listOf(
 			ExportNoticeReason.DrawableHasNoMesh,
+			ExportNoticeReason.LatticeDepthFlattened(listOf("Face", "Hair")),
 			ExportNoticeReason.ChannelDemotedToStatic(FormChannel.OPACITY, ChannelDemotionCause.ChannelCannotRefineOntoUnion),
 			ExportNoticeReason.ChannelDemotedToStatic(FormChannel.OPACITY, ChannelDemotionCause.GeometryCannotRefineOntoChannelKeys),
 			ExportNoticeReason.KeyformsDemotedToStatic(KeyformBundleRejection.KeysOutsideGeometrySpan),

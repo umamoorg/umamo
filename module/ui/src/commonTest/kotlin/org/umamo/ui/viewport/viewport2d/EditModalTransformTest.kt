@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
@@ -439,7 +440,7 @@ class EditModalTransformTest {
 			rig.driveTo(Offset(240f, 150f))
 
 			rig.session.commitMeshPositions(
-				MeshChange.TransformVertices(mapOf(RIG_OTHER to listOf(0)), MeshOperatorKind.Grab),
+				MeshChange.TransformVertices(mapOf(RIG_OTHER to listOf(0)), ElementEditKind.Grab),
 				mapOf(RIG_OTHER to MeshRestPositions.shared(floatArrayOf(45f, 0f, 60f, 0f, 40f, 20f))),
 			)
 			runCurrent()

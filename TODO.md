@@ -26,7 +26,7 @@
 
 ### 0.8.0 Goals - February
 1.) (Tentative) Brush/Tool Backend Machinery.  See: https://github.com/umamoorg/umamo/pull/376
-2.) Polish UMA.md format document and publish it.
+2.) Physics
 3.) Automatic File Backup
 4.) Pen Input Work
 
@@ -34,7 +34,8 @@
 1.) Android Tablet Work - I expect that this will take up a good portion of time since it needs the build system, render layer, UI adjustments, and pen input work.
 
 ### 1.0.0 Goals - June/July
-1.) Big release!~
+1.) Polish UMA.md format document and publish it.
+2.) Big release!~
 
 ## VERY IMPORTANT
 * Hire translators for localization.
@@ -42,7 +43,7 @@
 * Final pass on default settings.
 * Final pass on default workspace layouts.
 * Final pass on theme colors.
-* Hire artist to make the application.
+* Hire artist to make the application icon.
 	* Horse is critical.
 * Hire artist to make the DMG background art.
 	* Chibi Tamamo carrying the icon to the application folder.
@@ -61,6 +62,11 @@
 * Generation
 	* Create a standardize skeleton naming system like Blender uses for L/R flipping and detection.  This could eventually be used to import artwork layers in grouped layers and automatically apply bones.
 
+## Bugs
+* Geometry rotation +/-180 degrees results in a weird zoom instead of rotating after key framing.
+* Keyframe Insert after selecting parameter axis still inserts on both with only the second actually receiving the key frame.
+	* Angle X/Y on Erica
+
 ## Artwork Import
 * Automatic visual matching of imported artwork layers to layers cut from a texture atlas after a MOC3 to CMO3 conversion.
 
@@ -78,6 +84,19 @@
 ## Object/Edit Mode Switch
 * When there is no drawable selected, a default is found to select.  However, this does not update the selection and leaves the Properties and Outliner panels in a bad state.  The Properties shows nothing and Outliner has nothing selected.
 
+## Keyform Sheet
+* Option to isolate a single track of the keyform sheet to allow scrubbing only that track.  This would allow debugging an individual keyform to determine if the problem is coming from the entire parameter or just that keyform.
+
+## Depth Inspector
+* A new area, "3D" Viewport that allows inspecting how a lattice and mesh are deforming.
+	* Drawable meshes are in 2D, but the optical illusion of them getting squished may not be obvious to some.
+	* Meshes would show as flat on their 2D plane.
+	* Lattices would show in 3D lifted from the depth information.
+	* Pan, zoom, and orbit around.
+	* Show the red/green/blue coordinate help in the top right corner.
+	* Overlay text to show current rotation.
+	* Lattice vertices should be colored by their current Y+/- position.
+
 ## Outliner
 * Expand/Collapse Hierarchy (May apply to other list based areas as well.)
 
@@ -87,11 +106,21 @@
 * New Icons (For myself to get/make.)
 	* Replace magnet from the cursor/selection menu.
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.
+* Toolbar - Needs a pull tab.
+
+## Mesh and Lattice
+* Mint a default form on creation/generation.
+* Command to set the current form as the default.  For meshes, possibily an additional option to reset to the UV shape.
+* Command to reset to default.
+* I encountered an issue when working on the 3D barrel demonstration.  After I keyed off the default warp pose I had no way to reset it back to default and with it bent in a circle that would be a pain in the ass to fix manually.
+* CMO3/MOC3 import - Mint the default form from the default pose.  This won't be accurate since some poses will be off default, but the escape hatch is the command to set the default form.
 
 ## Overlay Toggles
+* When entering pose or edit mode with both a mesh and deformer selected it shows only the type of the active selection.  Having the other types show as a wireframe by default would be useful for visual inspection.
+	* Investigate making the wireframe overlay scoped to selected in the overlay options.  This might not be the best way to implemented and/or over complicated.
 * Improvements
 	* Objects:
-		* Rotation Deformers, separate from Warp Deformers.  Might end be called bones, skeleton, or something else. (Deferred until rotation deformers are built.)
+		* Rotation Deformers, separate from Warp Deformers.  Might end up being called bones, skeleton, or something else. (Deferred until rotation deformers are built.)
 
 ## Object and Mesh Editing
 * Improvements
@@ -193,6 +222,10 @@ See format planning document: docs/plan/uma-format.md
 
 ## Settings
 * Keybinding - input.keybinding (Includes keyboard, mouse, and pen buttons.)
+	* Search field for bindings.
+	* Dim or use a different color for "Unbound".
+	* Multiple binds for the same shortcut.  The command palette has two bindings in the default preset, but no way to edit them.
+	* Z/X axis lock and other context dependent keys need to be exposed in the key map along with indicating their context.
 * Pen Binding (JPen, Wacom) - input.pen (Includes pen, pressure, and things related to the radial menu.)
 * Quick Setup
 	* Versioned Settings
@@ -213,6 +246,7 @@ See format planning document: docs/plan/uma-format.md
 * Key/mouse/pen input overlay for recording/streaming.
 * History playback for proof of work.  The history system is there, but that is a lot of track over a long session.  So capture a snapshot every time period or number of snapshots.
 * A proper bone skeleton system with bendy bones.
+* Parameter Frame by Frame animation: A quick setup to select multiple drawables and define them as a frame by frame animation.(Instant on/off opacity.)
 * MIDI Protocol Support
 * Multiple Monitor Support
 
@@ -244,9 +278,9 @@ Sketch:
 * Icons for commands - Long tail feature, would need to add a lot of icons.  We can reuse the existing icons for current commands such as editor/select modes.
 
 ## Status Bar
-* The first iteration to improve the status bar hints was a good success.  Eventually:
-	* Hint icons (Mouse button indicator, etc.)
-	* Better contextual hints: Swap out anything that is irrelevant when selecting for example and just show selection relevant shortcuts.
+* The second iteration to improve the status bar brought in better status messages and hints.  Eventually:
+	* Better hint icons: Keys need more styling, (Ctrl) + (V), bubbles around them.
+	* The updated shortcut hints are better, but eventually the system will need to be fully overhauled as the program becomes more complex.
 
 ## Pose Palette/Library
 * Cubism 5.4 added a "Model state set" which is just a pose library.  The data is saved into the CMO3 file.  This should be easy to implement and store in the native UMA format.

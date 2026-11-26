@@ -12,6 +12,7 @@ import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.cmo3.mutableGraphListOf
 import org.umamo.interop.cmo3.uuidOf
+import org.umamo.interop.latticeDepthFlattenedNotice
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.PartId
@@ -37,6 +38,10 @@ internal class Cmo3DeformerLowering(
 	 * @param List<EntityDiff<DeformerId, DeformerField>> diffs The deformer diffs.
 	 */
 	fun lowerDeformers(diffs: List<EntityDiff<DeformerId, DeformerField>>) {
+		// Warps whose depth changed, a created warp's included (its field pass names every field): CMO3 has no depth, so
+		// the graph keeps their 2D points and one notice names them after the pass.
+		val warpsWithDepth = ArrayList<Deformer.Warp>()
+
 		for (diff in diffs) {
 			when (diff) {
 				// Structural synthesis already failed and reported why; see the field pass in Cmo3Export.
@@ -135,6 +140,11 @@ internal class Cmo3DeformerLowering(
 							DeformerField.STATICS,
 							DeformerField.BLEND_SHAPES,
 							-> {}
+
+							// Nothing to write: CMO3 has no depth.  Reported once, after the pass.
+							DeformerField.DEPTH -> {
+								(editedDeformer as? Deformer.Warp)?.let { warp -> warpsWithDepth.add(warp) }
+							}
 						}
 					}
 
@@ -171,6 +181,8 @@ internal class Cmo3DeformerLowering(
 				}
 			}
 		}
+
+		latticeDepthFlattenedNotice(warpsWithDepth)?.let { notice -> notices.add(notice) }
 	}
 
 	/**

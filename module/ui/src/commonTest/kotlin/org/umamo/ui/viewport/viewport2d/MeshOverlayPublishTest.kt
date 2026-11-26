@@ -10,9 +10,9 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshElement
-import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelectionOps
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
@@ -74,7 +74,7 @@ class MeshOverlayPublishTest {
 			val modelBefore = session.model.value
 
 			session.commitMeshPositions(
-				MeshChange.TransformVertices(mapOf(RIG_QUAD to listOf(0)), MeshOperatorKind.Grab),
+				MeshChange.TransformVertices(mapOf(RIG_QUAD to listOf(0)), ElementEditKind.Grab),
 				mapOf(RIG_QUAD to MeshRestPositions.shared(floatArrayOf(5f, 5f, 20f, 0f, 20f, 20f, 0f, 20f))),
 			)
 			runCurrent()

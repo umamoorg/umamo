@@ -152,6 +152,24 @@ class UmaPuppetShapeTest {
 	}
 
 	/**
+	 * A warp cell's depth holds one float per lattice point when it is there, and a rotation's cells carry none.
+	 */
+	@Test
+	fun aWarpCellsDepthHoldsOneValuePerPoint() {
+		val deep = UmaDeformerCell(listOf(0), controlPoints = FloatArray(8), depth = floatArrayOf(0f, 1f, 2f, 3f))
+
+		assertNull(UmaPuppetShape.firstProblem(UmaPuppet(deformers = listOf(warp.copy(geometry = UmaDeformerGrid(listOf(axis), listOf(deep)))))))
+		assertRefused(
+			UmaPuppet(deformers = listOf(warp.copy(geometry = UmaDeformerGrid(listOf(axis), listOf(UmaDeformerCell(listOf(0), controlPoints = FloatArray(8), depth = FloatArray(3))))))),
+			"deformers[W].geometry.cells[0].depth",
+		)
+		assertRefused(
+			UmaPuppet(deformers = listOf(rotation.copy(geometry = UmaDeformerGrid(listOf(axis), listOf(UmaDeformerCell(listOf(0), originX = 0f, originY = 0f, angle = 0f, scale = 1f, depth = FloatArray(4))))))),
+			"deformers[R].geometry.cells[0] belongs to a rotation but carries depth",
+		)
+	}
+
+	/**
 	 * A save refuses a puppet that repeats an identity a reader would refuse, not only a broken shape.
 	 */
 	@Test

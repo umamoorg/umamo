@@ -30,7 +30,7 @@ class ClearPoseEditsTest {
 	private fun holding(): EditorSession {
 		val session = posing(listOf(SelectionTarget.Deformer(cage)), mapOf(parameterP to 0.5f))
 		session.commitPendingChannelEdit(opacity, ChannelValue.Scalar(0.25f), DeformerChange.SetOpacity(cage, 0.25f))
-		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage), MeshOperatorKind.Grab), mapOf(cage to shaped(1f, 2f)))
+		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage), ElementEditKind.Grab), mapOf(cage to shaped(1f, 2f)))
 
 		return session
 	}

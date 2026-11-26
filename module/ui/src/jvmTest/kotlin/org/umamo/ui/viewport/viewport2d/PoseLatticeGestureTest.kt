@@ -174,7 +174,7 @@ class PoseLatticeGestureTest {
 			)
 			assertEquals(DepthSurface.Cylinder, session.depthSurface.value, "the Surface row writes back")
 			val bent = posedWorld(session, LATTICE_RIG_BODY)
-			val cornerDepth = depthOffsetOf(before[0] - pivotX, before[1] - pivotZ, pushedDepth, DepthSurface.Cylinder, RotationAxis.Z)
+			val cornerDepth = depthOffsetOf(before[0] - pivotX, before[1] - pivotZ, 0f, pushedDepth, DepthSurface.Cylinder, RotationAxis.Z)
 			assertEquals(pivotX + (before[0] - pivotX) * cos(radians) - cornerDepth * sin(radians), bent[0], 1e-2f, "the corner sits on the cylinder")
 
 			val adjusted = assertNotNull(session.adjustableOperation.value)
@@ -247,6 +247,7 @@ class PoseLatticeGestureTest {
 			val pivotX = (before[0] + before[2] + before[4] + before[6]) / 4f
 			val pivotZ = (before[1] + before[3] + before[5] + before[7]) / 4f
 			session.setPivotDepth(30f)
+			session.setDepthSurface(DepthSurface.Flat)
 			moveIn(LEFT_AREA, listOf(gestureStart))
 			session.beginMeshOperator(MeshOperatorKind.Rotate, LEFT_AREA)
 			waitForIdle()
@@ -254,7 +255,7 @@ class PoseLatticeGestureTest {
 			moveIn(LEFT_AREA, listOf(tenUnitsRight))
 			val previewsBefore = fixture.service.pushedLatticePreviews.size
 
-			// T's cycle (the key ladder calls this) re-drives with no pointer move.
+			// T's cycle (the key ladder calls this) re-drives with no pointer move, Flat on to Cylinder.
 			session.cycleDepthSurface(announce = false)
 			waitForIdle()
 			assertEquals(previewsBefore + 1, fixture.service.pushedLatticePreviews.size, "the cycle re-drove the preview")
@@ -267,7 +268,7 @@ class PoseLatticeGestureTest {
 			val angle = record.parameters.first { parameter -> parameter.key == TransformParameterKeys.ANGLE } as OperatorParameter.FloatParameter
 			val radians = angle.value * PI.toFloat() / 180f
 			val landed = posedWorld(session, LATTICE_RIG_BODY)
-			val cornerDepth = depthOffsetOf(before[0] - pivotX, before[1] - pivotZ, 30f, DepthSurface.Cylinder, RotationAxis.Z)
+			val cornerDepth = depthOffsetOf(before[0] - pivotX, before[1] - pivotZ, 0f, 30f, DepthSurface.Cylinder, RotationAxis.Z)
 			assertEquals(pivotX + (before[0] - pivotX) * cos(radians) - cornerDepth * sin(radians), landed[0], 1e-2f, "the corner sits on the cylinder")
 		}
 

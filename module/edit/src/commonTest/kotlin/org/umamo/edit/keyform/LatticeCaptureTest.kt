@@ -3,9 +3,9 @@ package org.umamo.edit.keyform
 import org.umamo.edit.DeformerChange
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.KeyformAction
 import org.umamo.edit.KeyformAim
-import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.ParameterChange
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.PoseLatticeTestRig.cage
@@ -19,8 +19,11 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.KeyformTrackRef
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.isFlat
+import org.umamo.runtime.model.valuesFor
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -32,8 +35,8 @@ import kotlin.test.assertTrue
 /**
  * Pins how a key captures a warp's lattice: the pending Pose-mode shape lands at the pose whether the pose sits on a
  * key, between keys, or on a parameter the warp was never keyed on; with nothing pending the key pins what is shown;
- * several warps key in one step; a linked pad asks for the axis; and a removal takes the key under the pose but never
- * a warp's last axis.
+ * a deep shape keys its depth; several warps key in one step; a linked pad asks for the axis; and a removal takes the
+ * key under the pose but never a warp's last axis.
  */
 class LatticeCaptureTest {
 	/**
@@ -62,7 +65,7 @@ class LatticeCaptureTest {
 		session.setParameterSelection(ParameterSelection(targeted, targeted.last()))
 
 		if (forms.isNotEmpty()) {
-			session.commitPendingLatticeEdits(DeformerChange.PoseLattice(forms.keys.toList(), MeshOperatorKind.Grab), forms)
+			session.commitPendingLatticeEdits(DeformerChange.PoseLattice(forms.keys.toList(), ElementEditKind.Grab), forms)
 		}
 
 		return session
@@ -221,6 +224,35 @@ class LatticeCaptureTest {
 		val modelBefore = session.model.value
 		session.removeKeysOnTracks(listOf(track(cage)), null, KeyformAim.Pose)
 		assertSame(modelBefore, session.model.value, "a warp's last axis is never collapsed")
+	}
+
+	/**
+	 * A deep pending shape keys with its depth, which reads back at the key and blends toward the flat key beside it;
+	 * a key with nothing pending pins the blended depth, and undo returns the deep shape to pending.
+	 */
+	@Test
+	fun aDeepPendingShapeKeysItsDepth() {
+		val depth = FloatArray(9) { pointIndex -> pointIndex * 2f }
+		val form = WarpLatticeForm(shaped(1f, 2f).controlPoints, LatticeDepth.PerPoint(depth))
+		val session = session(mapOf(parameterP to 0.5f), mapOf(cage to form))
+		val between = mapOf(parameterP to 0.75f)
+		val stepsBefore = session.historyView.value.steps.size
+
+		session.captureKeysOnTracks(listOf(track(cage)), null, KeyformAim.Pose)
+
+		assertContentEquals(depth, assertNotNull(session.model.value.warpGridLatticeAt(cage, session.pose.value)).depth.valuesFor(9))
+		assertContentEquals(FloatArray(9) { pointIndex -> pointIndex * 1f }, assertNotNull(session.model.value.warpGridLatticeAt(cage, between)).depth.valuesFor(9), "halfway to the flat key at 1")
+
+		session.commitPose(ParameterChange.SetValue(listOf(parameterP)), session.pose.value + between)
+		session.captureKeysOnTracks(listOf(track(cage)), null, KeyformAim.Pose)
+
+		assertEquals(listOf(-1f, 0.5f, 0.75f, 1f), keysOf(session, cage, parameterP))
+		assertContentEquals(FloatArray(9) { pointIndex -> pointIndex * 1f }, assertNotNull(session.model.value.warpGridLatticeAt(cage, between)).depth.valuesFor(9), "the key pins the depth shown")
+
+		repeat(session.historyView.value.steps.size - stepsBefore) { session.undo() }
+
+		assertTrue(assertNotNull(session.model.value.warpGridLatticeAt(cage, mapOf(parameterP to 0.5f))).depth.isFlat, "the grid is flat again")
+		assertContentEquals(depth, assertNotNull(session.pendingLatticeEdits.value[cage]).depth.valuesFor(9), "undo returns the deep shape to pending")
 	}
 
 	@Test

@@ -365,7 +365,7 @@ class GpuGlueValidationTest {
 	}
 
 	/**
-	 * The (leftmost, rightmost) column carrying drawn art on the row through world y = 0, where both
+	 * The (leftmost, rightmost) column carrying drawn art on the row through world Z = 0, where both
 	 * quads are at full height.
 	 *
 	 * @param ByteBuffer frame The frame, bottom-up rows.

@@ -32,6 +32,15 @@ sealed interface ExportNoticeReason {
 	/** The drawable carries no mesh, so there is no geometry to write. */
 	data object DrawableHasNoMesh : ExportNoticeReason
 
+	/**
+	 * These warps' lattices carry editing depth, which the format cannot hold.  The file keeps their 2D points, the
+	 * projection the deformation uses, so the art deforms as it does in Umamo, but reopening it gives them no depth.
+	 * Raised once per export, as a document-level finding.
+	 *
+	 * @property List<String> warpNames The warps' display names, in document order.
+	 */
+	data class LatticeDepthFlattened(val warpNames: List<String>) : ExportNoticeReason
+
 	// MOC3 lowering.
 
 	/**

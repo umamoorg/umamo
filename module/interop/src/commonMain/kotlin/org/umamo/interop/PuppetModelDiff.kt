@@ -11,6 +11,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.Parameter
@@ -25,6 +26,7 @@ import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.holdsOnlyTheRest
+import org.umamo.runtime.model.latticeDepthsEqual
 import org.umamo.runtime.model.lineageRoot
 
 /*
@@ -66,6 +68,7 @@ enum class DeformerField {
 	CHANNELS,
 	STATICS,
 	BLEND_SHAPES,
+	DEPTH, // Warp deformer lattice depth.  This is an UMA format only feature.
 }
 
 /** The changed aspects of a [Drawable]. */
@@ -432,6 +435,10 @@ private fun deformerFields(baseline: Deformer, edited: Deformer): Set<DeformerFi
 
 				if (!gridEquals(baseline.geometryGrid, editedWarp.geometryGrid, ::warpLatticeFormEqual)) {
 					add(DeformerField.GEOMETRY)
+				}
+
+				if (!gridDepthsEqual(baseline.geometryGrid, editedWarp.geometryGrid)) {
+					add(DeformerField.DEPTH)
 				}
 
 				if (
@@ -1108,7 +1115,8 @@ private fun <TForm : Any> blendShapesEqual(
 }
 
 /**
- * Tells whether two warp lattice forms hold the same control points.
+ * Tells whether two warp lattice forms hold the same control points; their depth is its own field, compared by
+ * [gridDepthsEqual].
  *
  * @param WarpLatticeForm baseline The form before the edit.
  * @param WarpLatticeForm edited The form after it.
@@ -1116,6 +1124,30 @@ private fun <TForm : Any> blendShapesEqual(
  */
 private fun warpLatticeFormEqual(baseline: WarpLatticeForm, edited: WarpLatticeForm): Boolean =
 	baseline === edited || baseline.controlPoints.contentEquals(edited.controlPoints)
+
+/**
+ * Whether two warp grids hold the same depth at every keyform, a flat lattice reading as all 0.
+ *
+ * @param KeyformGrid? baseline The grid before the edit.
+ * @param KeyformGrid? edited The grid after it.
+ * @return Boolean True when every keyform sits at the same depth.
+ */
+private fun gridDepthsEqual(baseline: KeyformGrid<WarpLatticeForm>?, edited: KeyformGrid<WarpLatticeForm>?): Boolean {
+	val baselineByCoordinate = baseline?.cells.orEmpty().associate { cell -> cell.coordinate.toList() to cell.form }
+	val editedByCoordinate = edited?.cells.orEmpty().associate { cell -> cell.coordinate.toList() to cell.form }
+
+	for (coordinate in baselineByCoordinate.keys + editedByCoordinate.keys) {
+		val baselineForm = baselineByCoordinate[coordinate]
+		val editedForm = editedByCoordinate[coordinate]
+		val pointCount = ((editedForm ?: baselineForm)?.controlPoints?.size ?: 0) / 2
+
+		if (!latticeDepthsEqual(baselineForm?.depth ?: LatticeDepth.Flat, editedForm?.depth ?: LatticeDepth.Flat, pointCount)) {
+			return false
+		}
+	}
+
+	return true
+}
 
 /**
  * Tells whether two rotation pivot forms hold the same origin, angle, and scale.

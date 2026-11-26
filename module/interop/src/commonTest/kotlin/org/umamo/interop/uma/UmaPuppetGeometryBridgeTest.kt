@@ -22,6 +22,7 @@ import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.OrgChild
@@ -38,8 +39,12 @@ import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
+import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
@@ -206,6 +211,32 @@ class UmaPuppetGeometryBridgeTest {
 		val changedGrid = KeyformGrid(grid.axes, listOf(KeyformCell(grid.cells.first().coordinate, MeshDeltaForm(flipped))) + grid.cells.drop(1))
 		val changed = model.copy(drawables = listOf(drawable.copy(geometryGrid = changedGrid)) + model.drawables.drop(1))
 		assertEquals(listOf("drawables[0].geometry.cells[0].positionDeltas[5]"), puppetStructureDifferences(model, changed).map { difference -> difference.substringBefore(':') })
+	}
+
+	/**
+	 * A warp cell's depth survives a save bit for bit, and a flat lattice - Flat, or a depth of all 0 - writes no depth
+	 * and reads back Flat.
+	 */
+	@Test
+	fun aLatticesDepthRoundTripsAndAFlatOneWritesNone() {
+		val base = geometryModel()
+		val warp = base.deformers.first { deformer -> deformer is Deformer.Warp } as Deformer.Warp
+		val grid = warp.geometryGrid!!
+		val deep = LatticeDepth.PerPoint(floatArrayOf(0f, 12.5f, -3f, 40f))
+		val depthByCell = listOf(deep, LatticeDepth.PerPoint(FloatArray(4)), LatticeDepth.Flat)
+		val shaped = KeyformGrid(grid.axes, grid.cells.mapIndexed { cellIndex, cell -> KeyformCell(cell.coordinate, WarpLatticeForm(cell.form.controlPoints, depthByCell[cellIndex])) })
+		val model = base.copy(deformers = base.deformers.map { deformer -> if (deformer.id == warp.id) warp.copy(geometryGrid = shaped) else deformer })
+		val written = UmaPuppetExport.puppetOf(model).deformers!!.first { deformer -> deformer.id == warp.id.raw }.geometry!!.cells
+		val reopened = roundTrip(model)
+		val reopenedCells = (reopened.deformers.first { deformer -> deformer.id == warp.id } as Deformer.Warp).geometryGrid!!.cells
+
+		assertContentEquals(deep.values, written[0].depth)
+		assertNull(written[1].depth, "an all-zero depth writes no key")
+		assertNull(written[2].depth, "a flat lattice writes no key")
+		assertTrue(puppetStructureDifferences(model, reopened).isEmpty(), puppetStructureDifferences(model, reopened).take(5).toString())
+		assertContentEquals(deep.values, assertIs<LatticeDepth.PerPoint>(reopenedCells[0].form.depth).values)
+		assertSame(LatticeDepth.Flat, reopenedCells[1].form.depth)
+		assertSame(LatticeDepth.Flat, reopenedCells[2].form.depth)
 	}
 
 	/**

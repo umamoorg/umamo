@@ -267,6 +267,7 @@ internal fun falloffLabel(falloff: ProportionalFalloff): String = stringResource
 @Composable
 internal fun depthSurfaceLabel(surface: DepthSurface): String =
 	when (surface) {
+		DepthSurface.Unchanged -> stringResource(Res.string.transform_depth_surface_unchanged)
 		DepthSurface.Flat -> stringResource(Res.string.transform_depth_surface_flat)
 		DepthSurface.Cylinder -> stringResource(Res.string.transform_depth_surface_cylinder)
 		DepthSurface.Sphere -> stringResource(Res.string.transform_depth_surface_sphere)

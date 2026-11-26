@@ -91,6 +91,10 @@ fun exportNoticeReasonPhrase(reason: ExportNoticeReason): ExportNoticePhrase =
 			ExportNoticePhrase(Res.string.export_reason_drawable_has_no_mesh)
 		}
 
+		is ExportNoticeReason.LatticeDepthFlattened -> {
+			ExportNoticePhrase(Res.string.export_reason_lattice_depth_flattened, listOf(ExportNoticeArgument.Literal(reason.warpNames.joinToString())))
+		}
+
 		// MOC3 lowering.
 		is ExportNoticeReason.ChannelDemotedToStatic -> {
 			val sentence =

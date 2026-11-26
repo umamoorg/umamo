@@ -191,6 +191,8 @@ class CommandTableOrderTest {
 				"mesh.rotate",
 				"mesh.scale",
 				"mesh.modalCancel",
+				"mesh.toShape.cylinder",
+				"mesh.toShape.sphere",
 				"mesh.selectMode.vertex",
 				"mesh.selectMode.edge",
 				"mesh.selectMode.face",

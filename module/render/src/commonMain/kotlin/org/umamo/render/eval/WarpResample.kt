@@ -2,12 +2,15 @@ package org.umamo.render.eval
 
 import org.umamo.runtime.keyform.withEveryLatticeMapped
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.WarpLatticeLayout
+import org.umamo.runtime.model.valuesFor
 
 /**
  * This warp on a lattice of [rows] x [columns] cells: every grid cell's and every blend-shape form's lattice
  * resampled by evaluating its old map at the new grid's points, so the deformation keeps its shape.  The new
- * point at (row, column) is the old map at u = column / [columns], v = row / [rows], the far edges included.
+ * point at (row, column) is the old map at u = column / [columns], v = row / [rows], the far edges included, and a
+ * grid cell's depth is resampled at the same places the same way.
  *
  * In quad mode a refinement by whole multiples reproduces the old map exactly inside the lattice
  * ([isExactRefinementTo]): a bilinear patch restricted to a sub-cell is still bilinear.  Any other resample - a
@@ -29,7 +32,13 @@ fun Deformer.Warp.resampledTo(rows: Int, columns: Int): Deformer.Warp {
 
 	val layout = WarpLatticeLayout(rows, columns)
 
-	return withEveryLatticeMapped { points ->
+	/**
+	 * Interleaved values over the old lattice resampled onto the new grid's points by the old lattice's own map.
+	 *
+	 * @param FloatArray points The old lattice's interleaved pairs.
+	 * @return FloatArray The new lattice's interleaved pairs.
+	 */
+	fun resampledPairs(points: FloatArray): FloatArray {
 		val resampled = FloatArray(layout.pointCount * 2)
 
 		for (row in 0..rows) {
@@ -38,8 +47,26 @@ fun Deformer.Warp.resampledTo(rows: Int, columns: Int): Deformer.Warp {
 			}
 		}
 
-		resampled
-	}.copy(rows = rows, columns = columns)
+		return resampled
+	}
+
+	// A depth rides the x slot of the same evaluation, so it is interpolated exactly as the points are.
+	val resampledDepth = { depth: LatticeDepth ->
+		when (depth) {
+			LatticeDepth.Flat -> {
+				depth
+			}
+
+			is LatticeDepth.PerPoint -> {
+				val oldDepths = depth.valuesFor((oldRows + 1) * (oldColumns + 1))
+				val depthPairs = FloatArray(oldDepths.size * 2) { componentIndex -> if (componentIndex % 2 == 0) oldDepths[componentIndex / 2] else 0f }
+				val resampledPairs = resampledPairs(depthPairs)
+				LatticeDepth.PerPoint(FloatArray(layout.pointCount) { pointIndex -> resampledPairs[pointIndex * 2] })
+			}
+		}
+	}
+
+	return withEveryLatticeMapped(resampledDepth) { points -> resampledPairs(points) }.copy(rows = rows, columns = columns)
 }
 
 /**

@@ -78,18 +78,18 @@ class ProportionalEditingTest {
 	 * The strip's straight-line weights with [coveredIndices] covered under one shared group, alone in the halo.
 	 *
 	 * @param Set<Int> coveredIndices The covered strip vertices.
-	 * @param Float radiusWorld The influence radius.
+	 * @param Float radius The influence radius.
 	 * @param ProportionalFalloff falloff The falloff curve.
 	 * @return Map<Int, Float> Vertex index to weight.
 	 */
-	private fun stripWeights(coveredIndices: Set<Int>, radiusWorld: Float, falloff: ProportionalFalloff): Map<Int, Float> =
-		proportionalInfluences(listOf(ProportionalMesh(stripPositions, TransformPivots.sharedGroup(coveredIndices, 0f, 0f))), radiusWorld, falloff)
+	private fun stripWeights(coveredIndices: Set<Int>, radius: Float, falloff: ProportionalFalloff): Map<Int, Float> =
+		proportionalInfluences(listOf(ProportionalMesh(stripPositions, TransformPivots.sharedGroup(coveredIndices, 0f, 0f))), radius, falloff)
 			.single()
 			.mapValues { entry -> entry.value.weight }
 
 	@Test
 	fun weightsExcludeCoveredVerticesAndThoseOutsideTheRadius() {
-		val weights = stripWeights(setOf(0), radiusWorld = 25f, falloff = ProportionalFalloff.Linear)
+		val weights = stripWeights(setOf(0), radius = 25f, falloff = ProportionalFalloff.Linear)
 		assertFalse(0 in weights, "the covered vertex moves at full strength through its pivot group, not the weight map")
 		assertEquals(setOf(1, 2), weights.keys, "only the vertices strictly inside the radius take a weight")
 	}
@@ -98,7 +98,7 @@ class ProportionalEditingTest {
 	fun weightsMeasureDistanceToTheNearestCoveredVertex() {
 		// Covering both ends, the middle vertex is 20 from either end; the second and fourth are 10 from
 		// their nearer end - the nearest covered vertex, not the first one iterated.
-		val weights = stripWeights(setOf(0, 4), radiusWorld = 25f, falloff = ProportionalFalloff.Linear)
+		val weights = stripWeights(setOf(0, 4), radius = 25f, falloff = ProportionalFalloff.Linear)
 		assertEquals(1f - 10f / 25f, weights.getValue(1), 1e-6f, "vertex 1 is 10 from covered vertex 0")
 		assertEquals(1f - 20f / 25f, weights.getValue(2), 1e-6f, "vertex 2 is 20 from either covered end")
 		assertEquals(1f - 10f / 25f, weights.getValue(3), 1e-6f, "vertex 3 is 10 from covered vertex 4")
@@ -119,7 +119,7 @@ class ProportionalEditingTest {
 				TransformPivotGroup(setOf(0), pivotX = 0f, pivotY = 0f),
 				TransformPivotGroup(setOf(4), pivotX = 40f, pivotY = 0f),
 			)
-		val influences = proportionalInfluences(listOf(ProportionalMesh(stripPositions, groups)), radiusWorld = 25f, falloff = ProportionalFalloff.Linear).single()
+		val influences = proportionalInfluences(listOf(ProportionalMesh(stripPositions, groups)), radius = 25f, falloff = ProportionalFalloff.Linear).single()
 		assertEquals(0f, influences.getValue(1).pivotX, "vertex 1 turns about the first group's pivot")
 		assertEquals(0f, influences.getValue(2).pivotX, "the tie goes to the group listed first")
 		assertEquals(40f, influences.getValue(3).pivotX, "vertex 3 turns about the second group's pivot")
@@ -132,7 +132,7 @@ class ProportionalEditingTest {
 		val strip = ProportionalMesh(stripPositions, TransformPivots.sharedGroup(setOf(0), 1f, 2f))
 		val other = ProportionalMesh(floatArrayOf(40f, 0f, 70f, 0f), TransformPivots.sharedGroup(setOf(0), 3f, 4f))
 		val bystander = ProportionalMesh(floatArrayOf(5f, 3f, 100f, 0f), emptyList())
-		val (inStrip, inOther, inBystander) = proportionalInfluences(listOf(strip, other, bystander), radiusWorld = 25f, falloff = ProportionalFalloff.Linear)
+		val (inStrip, inOther, inBystander) = proportionalInfluences(listOf(strip, other, bystander), radius = 25f, falloff = ProportionalFalloff.Linear)
 
 		assertEquals(setOf(1, 2, 3, 4), inStrip.keys, "every uncovered strip vertex lies within the radius of a covered one")
 		assertEquals(1f - 10f / 25f, inStrip.getValue(3).weight, 1e-6f, "vertex 3 measures to the other mesh's covered vertex, 10 away")
@@ -157,8 +157,8 @@ class ProportionalEditingTest {
 		val positions = floatArrayOf(0f, 0f, 0f, 4f, 3f, 0f, 3f, 4f)
 		val indices = intArrayOf(0, 1, 2, 1, 2, 3)
 		val groups = TransformPivots.sharedGroup(setOf(0), 9f, 8f)
-		val straight = proportionalInfluences(listOf(ProportionalMesh(positions, groups)), radiusWorld = 6f, falloff = ProportionalFalloff.Linear).single()
-		val connected = proportionalInfluencesConnected(positions, groups, radiusWorld = 6f, falloff = ProportionalFalloff.Linear, topology = ElementTopology.ofTriangles(4, indices))
+		val straight = proportionalInfluences(listOf(ProportionalMesh(positions, groups)), radius = 6f, falloff = ProportionalFalloff.Linear).single()
+		val connected = proportionalInfluencesConnected(positions, groups, radius = 6f, falloff = ProportionalFalloff.Linear, topology = ElementTopology.ofTriangles(4, indices))
 		assertTrue(3 in straight, "straight-line influence reaches vertex 3 (distance 5, radius 6)")
 		assertFalse(3 in connected, "along edges vertex 3 is 7 away - outside the radius")
 		assertEquals(1f - 4f / 6f, connected.getValue(1).weight, 1e-6f, "a direct edge matches the straight-line distance")
@@ -169,10 +169,10 @@ class ProportionalEditingTest {
 		val islandIndices = intArrayOf(0, 1, 2, 3, 4, 5)
 		val islandTopology = ElementTopology.ofTriangles(6, islandIndices)
 		val islandConnected =
-			proportionalInfluencesConnected(twoIslands, TransformPivots.sharedGroup(setOf(0), 0f, 0f), radiusWorld = 100f, falloff = ProportionalFalloff.Constant, topology = islandTopology)
+			proportionalInfluencesConnected(twoIslands, TransformPivots.sharedGroup(setOf(0), 0f, 0f), radius = 100f, falloff = ProportionalFalloff.Constant, topology = islandTopology)
 		assertEquals(setOf(1, 2), islandConnected.keys, "influence never leaps to the unconnected island")
 		assertTrue(
-			proportionalInfluencesConnected(twoIslands, emptyList(), radiusWorld = 100f, falloff = ProportionalFalloff.Constant, topology = islandTopology).isEmpty(),
+			proportionalInfluencesConnected(twoIslands, emptyList(), radius = 100f, falloff = ProportionalFalloff.Constant, topology = islandTopology).isEmpty(),
 			"a mesh with nothing selected has no geodesic source",
 		)
 	}
@@ -186,7 +186,7 @@ class ProportionalEditingTest {
 				TransformPivotGroup(setOf(0), pivotX = -1f, pivotY = 0f),
 				TransformPivotGroup(setOf(3), pivotX = 6f, pivotY = 1f),
 			)
-		val connected = proportionalInfluencesConnected(twoIslands, groups, radiusWorld = 100f, falloff = ProportionalFalloff.Constant, topology = ElementTopology.ofTriangles(6, intArrayOf(0, 1, 2, 3, 4, 5)))
+		val connected = proportionalInfluencesConnected(twoIslands, groups, radius = 100f, falloff = ProportionalFalloff.Constant, topology = ElementTopology.ofTriangles(6, intArrayOf(0, 1, 2, 3, 4, 5)))
 		assertEquals(setOf(1, 2, 4, 5), connected.keys)
 		assertEquals(-1f, connected.getValue(2).pivotX, "the first island's halo turns about its pivot")
 		assertEquals(6f, connected.getValue(4).pivotX, "the second island's halo turns about its own")
@@ -239,13 +239,13 @@ class ProportionalEditingTest {
 	 * least squared distance, a tie to the slot listed first.
 	 *
 	 * @param List<ProportionalMesh> meshes The meshes.
-	 * @param Float radiusWorld The influence radius.
+	 * @param Float radius The influence radius.
 	 * @param ProportionalFalloff falloff The falloff curve.
 	 * @return List<Map<Int, ProportionalInfluence>> Per mesh, its halo.
 	 */
-	private fun bruteForceInfluences(meshes: List<ProportionalMesh>, radiusWorld: Float, falloff: ProportionalFalloff): List<Map<Int, ProportionalInfluence>> {
+	private fun bruteForceInfluences(meshes: List<ProportionalMesh>, radius: Float, falloff: ProportionalFalloff): List<Map<Int, ProportionalInfluence>> {
 		val slots = meshes.flatMap { mesh -> mesh.groups.flatMap { group -> group.vertexIndices.map { vertexIndex -> Triple(mesh.positions[vertexIndex * 2], mesh.positions[vertexIndex * 2 + 1], group) } } }
-		val radiusSquared = radiusWorld * radiusWorld
+		val radiusSquared = radius * radius
 
 		return meshes.map { mesh ->
 			val coveredHere = mesh.groups.flatMap { group -> group.vertexIndices }.toSet()
@@ -275,7 +275,7 @@ class ProportionalEditingTest {
 				val owning = nearestGroup ?: continue
 
 				if (nearestSquared < radiusSquared) {
-					val weight = proportionalWeight(falloff, sqrt(nearestSquared) / radiusWorld, vertexIndex)
+					val weight = proportionalWeight(falloff, sqrt(nearestSquared) / radius, vertexIndex)
 
 					if (weight > 0f) {
 						influences[vertexIndex] = ProportionalInfluence(weight, owning.pivotX, owning.pivotY)

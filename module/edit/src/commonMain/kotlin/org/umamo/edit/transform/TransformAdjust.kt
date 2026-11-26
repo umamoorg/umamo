@@ -35,16 +35,20 @@ import kotlin.math.PI
  * frame; after the commit the operation settings strip shows it as rows and builds one back from them,
  * so the same transform runs from a pointer or a typed value.
  *
+ * The positions' space is the gesture's: world space in the 2D viewport (x right, y world Z, up) and display texels
+ * in the UV editor (x right, y up).  The depth fields are world-only, read by a turn in the 2D viewport.
+ *
  * A Rotate also names its axis: Y, the view axis, is the in-plane turn, and X or Z rotate the art in depth about the
  * pivot pushed to [pivotDepth], over [depthSurface] (see DepthRotation.kt).  The depth and surface are read only by a
  * turn about X or Z.
  *
- * @property Float        deltaX          The Grab translation's x (identity 0 for the other operators).
- * @property Float        deltaY          The Grab translation's y, in the positions' sense (y up for world space).
- * @property Float        factorX         The Scale factor along x (identity 1 for the other operators).
- * @property Float        factorY         The Scale factor along y.
+ * @property Float        deltaX          The Grab translation's x, in the positions' space (identity 0 for the other
+ *   operators).
+ * @property Float        deltaY          The Grab translation's y, in the positions' space (up: world Z in the 2D viewport).
+ * @property Float        factorX         The Scale factor along x, unitless (identity 1 for the other operators).
+ * @property Float        factorY         The Scale factor along y, unitless.
  * @property Float        rotationRadians The Rotate angle in the positions' sense (identity 0 for the others); about X
- *   or Z, positive turns the front toward +x or tilts it toward -y.
+ *   or Z, positive turns the front toward +x or tilts it toward -z.
  * @property RotationAxis rotationAxis    The axis the Rotate turns about (Y, the in-plane turn, for the others).
  * @property Float        pivotDepth      The pivot's depth along world Y, positive into the screen, in world px.
  * @property DepthSurface depthSurface    How deep the points sit before a turn about X or Z.
@@ -57,7 +61,7 @@ class TransformGestureParameters(
 	val rotationRadians: Float,
 	val rotationAxis: RotationAxis = RotationAxis.Y,
 	val pivotDepth: Float = 0f,
-	val depthSurface: DepthSurface = DepthSurface.Flat,
+	val depthSurface: DepthSurface = DepthSurface.Unchanged,
 ) {
 	companion object {
 		/** The parameters that move nothing. */
@@ -132,8 +136,8 @@ private const val SLIDE_FACTOR_STEP = 0.01f
  */
 enum class TransformRowSpace {
 	/**
-	 * World units in a 2D viewport: y up, shown as the Z axis (the project presents the 2D plane as X
-	 * and Z per the Y+ forward, Z+ up convention, and the axis-lock badge says "along Z").
+	 * World units in a 2D viewport: the positions' y runs up and is world Z, shown as the Z axis (the project uses
+	 * Blender's axes, Y into the screen and Z up, and the axis-lock badge says "along Z").
 	 */
 	World,
 
@@ -289,7 +293,7 @@ fun transformGestureParametersOf(
 				rotationRadians = space.radiansOfRow(parameters.floatValue(TransformParameterKeys.ANGLE, 0f)),
 				rotationAxis = rotationAxisOf(parameters.choiceValue(TransformParameterKeys.AXIS, RotationAxis.Y.choiceKey)),
 				pivotDepth = parameters.floatValue(TransformParameterKeys.PIVOT_DEPTH, 0f),
-				depthSurface = depthSurfaceOf(parameters.choiceValue(TransformParameterKeys.DEPTH_SURFACE, DepthSurface.Flat.choiceKey)),
+				depthSurface = depthSurfaceOf(parameters.choiceValue(TransformParameterKeys.DEPTH_SURFACE, DepthSurface.Unchanged.choiceKey)),
 			)
 		}
 
@@ -373,12 +377,12 @@ val ProportionalFalloff.choiceKey: String
 fun rotationAxisOf(key: String): RotationAxis = RotationAxis.entries.firstOrNull { axis -> axis.choiceKey == key } ?: RotationAxis.Y
 
 /**
- * The depth surface a stored key names, falling back to Flat for a key no surface has.
+ * The depth surface a stored key names, falling back to Unchanged, the default, for a key no surface has.
  *
  * @param String key The surface's [DepthSurface.choiceKey].
  * @return DepthSurface The surface.
  */
-fun depthSurfaceOf(key: String): DepthSurface = DepthSurface.entries.firstOrNull { surface -> surface.choiceKey == key } ?: DepthSurface.Flat
+fun depthSurfaceOf(key: String): DepthSurface = DepthSurface.entries.firstOrNull { surface -> surface.choiceKey == key } ?: DepthSurface.Unchanged
 
 /**
  * A depth rotation's rows: the axis it turned about, the pivot's depth, and the surface.
@@ -476,7 +480,7 @@ private val TransformRowSpace.verticalScaleKey: String
 
 /**
  * The vertical component as the row reads it - and, being its own inverse, as the gesture reads a
- * row: world y is up and shown as-is; display y is flipped to read down like the page.
+ * row: world Z is up and shown as-is; display y is flipped to read down like the page.
  *
  * @param Float value A vertical component, from the gesture or from a row.
  * @return Float The same component in the other one's convention.

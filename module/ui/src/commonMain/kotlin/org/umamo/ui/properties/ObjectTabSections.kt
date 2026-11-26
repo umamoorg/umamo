@@ -49,7 +49,7 @@ import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
  * its geometry - so the rows measure its WORLD bounds and write back through the deformer chain (see
  * DrawableWorldTransform.kt for why world, and not the raw base mesh array); a warp's rows do the same for its
  * lattice.  A part and a rotation show where they sit read-only (ReadOnlyTransformRows.kt).  Axes are labeled by
- * the displayed convention (Y+ forward, Z+ up), the same naming the G / S / R axis lock uses.
+ * Blender's axes (Y into the screen, Z up), the same naming the G / S / R axis lock uses.
  *
  * An item with nothing to transform, such as a mesh-less drawable, contributes no rows, so sectionVisibility
  * hides the whole section rather than drawing an empty card.

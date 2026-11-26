@@ -171,7 +171,7 @@ class TransformStateTest {
 	fun theDepthRotationSettingsStick() {
 		val session = meshedSession()
 		assertEquals(0f, session.pivotDepth.value, "the pivot starts on the art")
-		assertEquals(DepthSurface.Flat, session.depthSurface.value)
+		assertEquals(DepthSurface.Unchanged, session.depthSurface.value, "the turn starts reading each point's own depth")
 
 		session.setPivotDepth(120f)
 		session.setDepthSurface(DepthSurface.Cylinder)
@@ -190,21 +190,23 @@ class TransformStateTest {
 		assertEquals(DepthSurface.Cylinder, reopened.depthSurface.value)
 	}
 
-	/** T's cycle walks Flat, Cylinder, and Sphere and wraps, and the view state carries where it stopped. */
+	/** T's cycle walks Unchanged, Flat, Cylinder, and Sphere and wraps, and the view state carries where it stopped. */
 	@Test
 	fun theDepthSurfaceCyclesAndSticks() {
 		val session = meshedSession()
 
 		session.cycleDepthSurface(announce = false)
-		assertEquals(DepthSurface.Cylinder, session.depthSurface.value)
+		assertEquals(DepthSurface.Flat, session.depthSurface.value)
 		session.cycleDepthSurface(announce = false)
-		assertEquals(DepthSurface.Sphere, session.viewState().depthSurface)
+		assertEquals(DepthSurface.Cylinder, session.viewState().depthSurface)
 		session.cycleDepthSurface(announce = false)
-		assertEquals(DepthSurface.Flat, session.depthSurface.value, "the cycle wraps")
+		assertEquals(DepthSurface.Sphere, session.depthSurface.value)
+		session.cycleDepthSurface(announce = false)
+		assertEquals(DepthSurface.Unchanged, session.depthSurface.value, "the cycle wraps")
 		assertNull(session.notice.value, "a silent cycle posts nothing")
 
 		session.cycleDepthSurface(announce = true)
-		assertEquals("notice.depthSurface.cylinder", session.notice.value?.messageKey, "an announced cycle names the surface")
+		assertEquals("notice.depthSurface.flat", session.notice.value?.messageKey, "an announced cycle names the surface")
 		assertEquals(NoticePlacement.NearCursor, session.notice.value?.placement)
 	}
 
