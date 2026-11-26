@@ -2,6 +2,7 @@ package org.umamo.edit.transform
 
 import org.umamo.edit.DepthSurface
 import org.umamo.edit.EditorSession
+import org.umamo.edit.PIVOT_DEPTH_LIMIT
 import org.umamo.edit.TargetShape
 import org.umamo.edit.TransformPivotMode
 import org.umamo.runtime.model.ElementOwner
@@ -149,21 +150,63 @@ fun shapeRadiusOf(piece: ShapePiece, settings: ToShapeSettings): Float {
 }
 
 /**
- * Sets the depth rotation's depth to the radius of the shape [settings] laid down and its surface to Unchanged, so an R
- * about the same pivot turns the bent points at the depths the bend gave them, round the very cylinder or sphere they
- * sit on.  A wrap that bends nothing (0 degrees) has no radius to hand over and leaves them as they are.
+ * The depth rotation's pivot depth and surface: the setup a To Shape finds before it hands its shape over, and puts
+ * back when a rerun leaves no shape to hand over.
+ *
+ * @property Float pivotDepth The pivot's depth along world Y, in world px, positive into the screen.
+ * @property DepthSurface surface The surface the depth rotation lays the points over.
+ */
+data class DepthRotationSetup(
+	val pivotDepth: Float,
+	val surface: DepthSurface,
+)
+
+/** The session's depth rotation setup as it stands. */
+val EditorSession.depthRotationSetup: DepthRotationSetup
+	get() = DepthRotationSetup(pivotDepth.value, depthSurface.value)
+
+/**
+ * The pivot depth a To Shape under [settings] hands the depth rotation: the shape's center line or point, R behind the
+ * art plane, scaled by [ToShapeSettings.factor] like every depth the bend gives.  At a factor of 1 a turn about it
+ * carries the bent points round the very cylinder or sphere they sit on; a partial factor leaves them between the flat
+ * sheet and the shape, turning about the depth the bend took its center to.
  *
  * @param ShapePiece piece The piece whose radius the depth rotation takes.
  * @param ToShapeSettings settings The shape laid down.
+ * @return Float? The pivot depth in world px, or null when there is none to hand over: a piece with no reach, a wrap or
+ *   factor of 0, or a center deeper than [PIVOT_DEPTH_LIMIT], which the clamped pivot would put off the shape's center.
  */
-fun EditorSession.handDepthRotationTheShape(piece: ShapePiece, settings: ToShapeSettings) {
-	val radius = shapeRadiusOf(piece, settings)
+fun handedPivotDepthOf(piece: ShapePiece, settings: ToShapeSettings): Float? {
+	val pivotDepth = shapeRadiusOf(piece, settings) * settings.factor
 
-	if (radius <= 0f) {
+	return pivotDepth.takeIf { depth -> depth > 0f && depth <= PIVOT_DEPTH_LIMIT }
+}
+
+/**
+ * Hands the depth rotation the shape [settings] laid down: the pivot at [handedPivotDepthOf] over the Unchanged surface,
+ * so an R about the same pivot turns the bent points at the depths the bend gave them.  With no shape to hand over it
+ * puts back [before], so a strip rerun that unbends the shape takes back what an earlier run handed over.  Tool settings
+ * are never snapshotted, so an undo of the To Shape leaves the hand-over in place, as it leaves the depth any turn set.
+ *
+ * @param ShapePiece piece The piece whose radius the depth rotation takes.
+ * @param ToShapeSettings settings The shape laid down.
+ * @param DepthRotationSetup before The depth rotation's setup before the To Shape ran.
+ */
+fun EditorSession.handDepthRotationTheShape(
+	piece: ShapePiece,
+	settings: ToShapeSettings,
+	before: DepthRotationSetup,
+) {
+	val pivotDepth = handedPivotDepthOf(piece, settings)
+
+	if (pivotDepth == null) {
+		setPivotDepth(before.pivotDepth)
+		setDepthSurface(before.surface)
+
 		return
 	}
 
-	setPivotDepth(radius)
+	setPivotDepth(pivotDepth)
 	setDepthSurface(DepthSurface.Unchanged)
 }
 

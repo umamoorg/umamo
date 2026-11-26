@@ -49,7 +49,10 @@ class ToShapeAdjustTest {
 		assertEquals(ToShapeSettings(TargetShape.Cylinder, CylinderAxis.Z, 1f, 360f), toShapeSettingsOf(emptyList()))
 	}
 
-	/** An unknown shape or axis key falls back, and the factor is held to 0..1 with NaN read as the full factor. */
+	/**
+	 * An unknown shape or axis key falls back, the factor is held to 0..1 and the degrees to 0..360, and NaN reads as the
+	 * full factor or a whole turn.
+	 */
 	@Test
 	fun unknownAndOutOfRangeRowsFallBack() {
 		val rows =

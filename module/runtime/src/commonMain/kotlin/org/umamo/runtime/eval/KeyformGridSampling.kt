@@ -288,6 +288,18 @@ public fun warpDepthAt(grid: KeyformGrid<WarpLatticeForm>?, paramValue: (Paramet
 	}
 
 	val corners = gridCorners(grid, paramValue) ?: return null
+
+	return warpDepthOver(grid, corners)
+}
+
+/**
+ * The lattice's depths blended over [corners], for a caller that already walked the pose's corners for the points.
+ *
+ * @param KeyformGrid grid    The warp's keyform grid.
+ * @param List        corners The weighted corner cells [gridCorners] gave at the pose.
+ * @return LatticeDepth? The blended depth, or null when no corner resolves to a cell.
+ */
+public fun warpDepthOver(grid: KeyformGrid<WarpLatticeForm>, corners: List<WeightedCell>): LatticeDepth? {
 	val byLinearIndex = cellsByLinearIndex(grid)
 	var blended: FloatArray? = null
 	var resolvedAnyCell = false

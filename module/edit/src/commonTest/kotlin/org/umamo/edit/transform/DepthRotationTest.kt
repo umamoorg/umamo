@@ -59,7 +59,7 @@ class DepthRotationTest {
 		assertEquals(-pushed[0], pulled[0], 1e-4f)
 	}
 
-	/** At depth 0 the three surfaces agree: every point sits in the pivot's plane and only squashes. */
+	/** At depth 0 Flat, Cylinder, and Sphere agree: every point sits in the pivot's plane and only squashes. */
 	@Test
 	fun theSurfacesAgreeAtDepthZero() {
 		val positions = floatArrayOf(12f, 3f, -8f, 40f, 0f, 0f)
@@ -155,7 +155,7 @@ class DepthRotationTest {
 		assertEquals(DepthSurface.Unchanged, DepthSurface.Sphere.next())
 	}
 
-	/** Unchanged turns each point at its own depth: about Z, x' = x cos + d sin and d' = d cos - x sin, about the pivot's depth. */
+	/** Unchanged turns each point at its own depth: about Z, x' = x cos - d sin and d' = d cos + x sin, about the pivot's depth. */
 	@Test
 	fun unchangedTurnsEachPointAtItsOwnDepth() {
 		val points = PointsInDepth(floatArrayOf(30f, 7f, -10f, 2f), floatArrayOf(25f, 90f))

@@ -1,6 +1,5 @@
 package org.umamo.render.eval
 
-import org.umamo.runtime.eval.warpDepthAt
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.LatticeDepth
@@ -112,14 +111,13 @@ private fun latticeOf(
 	latticeOverrides: Map<DeformerId, WarpLatticeForm>,
 ): WarpLattice? {
 	val warpWorld = worlds[warp.id] as? WarpWorld ?: return null
-	val override = latticeOverrides[warp.id]
-	val gridLocal = warpGridLattice(warp, pose.paramValue, override) ?: return null
-	val gridDepth = override?.depth ?: warpDepthAt(warp.geometryGrid, pose.paramValue) ?: LatticeDepth.Flat
+	val gridForm = warpGridForm(warp, pose.paramValue, latticeOverrides[warp.id]) ?: return null
+	val gridLocal = gridForm.controlPoints
 	val local = gridLocal.copyOf()
 	addWarpBlendDeltas(warp, pose.paramValue, pose.defaultValue, local)
 	val world = warpWorld.worldControlPoints()
 	// A parent the model does not hold is treated as the root, exactly as the bake treats it.
 	val parentWorld = warp.parent?.let { parentId -> worlds[parentId] }
 
-	return WarpLattice(warp.rows, warp.columns, gridLocal, local, world, ParentSpaceMapping(parentWorld), gridDepth)
+	return WarpLattice(warp.rows, warp.columns, gridLocal, local, world, ParentSpaceMapping(parentWorld), gridForm.depth)
 }

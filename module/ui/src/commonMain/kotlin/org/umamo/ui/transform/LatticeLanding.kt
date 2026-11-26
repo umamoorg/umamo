@@ -46,7 +46,7 @@ internal sealed interface LatticeLanding {
 }
 
 /**
- * Commits [landing] as one undo step labelled by [kind]: a rest reshape (with the children it moved reported), or
+ * Commits [landing] as one undo step labeled by [kind]: a rest reshape (with the children it moved reported), or
  * pending lattices at the pose.
  *
  * @param LatticeLanding landing The landing.

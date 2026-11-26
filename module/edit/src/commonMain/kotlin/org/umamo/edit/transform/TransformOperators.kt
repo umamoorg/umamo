@@ -174,8 +174,9 @@ fun applyOperatorInDepth(
 
 /**
  * The world transform [applyOperator] applies to a whole object in pivot group [group], as a 2x3 row-major affine
- * `[a, b, c, d, e, f]` (x' = a x + b y + c, y' = d x + e y + f, where x is world X and y world Z).  An object moved whole takes no proportional
- * halo, so the affine is the operator exactly - what a warp moved as an object maps every one of its forms through.
+ * `[a, b, c, d, e, f]` (x' = a x + b y + c, y' = d x + e y + f, where x is world X and y world Z).  An object moved
+ * whole takes no proportional halo, so the affine is the operator exactly - what a warp moved as an object maps every
+ * one of its forms through.
  *
  * @param MeshOperatorKind operator The active operator.
  * @param TransformGestureParameters parameters The delta / factors / angle to apply, in world space.

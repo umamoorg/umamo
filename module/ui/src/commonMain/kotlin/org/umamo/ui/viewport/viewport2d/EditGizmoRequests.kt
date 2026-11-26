@@ -5,14 +5,18 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.EditorSession
+import org.umamo.edit.TargetShape
 import org.umamo.edit.mesh.refusesLatticeTopology
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.transform.ElementEditStage
+import org.umamo.ui.transform.runToShape
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.ViewportOverlayState
+import org.umamo.ui.viewport.gizmo.activeElementMedian
 import org.umamo.ui.viewport.gizmo.editableGeometryOrNotice
 import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
 
@@ -122,3 +126,31 @@ internal suspend fun collectEditGizmoRequests(
 		}
 	}
 }
+
+/**
+ * Runs a To Shape over [geometries] ([runToShape]), handing it the overlay's owners as plain world geometry, their
+ * topologies, and the active element's own median.
+ *
+ * @param EditorSession session The session owning the selection and the commits.
+ * @param List<EditOwnerGeometry> geometries The session owners' live geometry.
+ * @param ElementEditStage stage Where [geometries] were captured.
+ * @param TargetShape shape The surface the command named.
+ * @param String areaId The viewport that executes, where the strip shows.
+ * @return AdjustableOperation? The registered record, or null when nothing was recorded.
+ */
+internal fun handleToShapeRequest(
+	session: EditorSession,
+	geometries: List<EditOwnerGeometry>,
+	stage: ElementEditStage,
+	shape: TargetShape,
+	areaId: String,
+): AdjustableOperation? =
+	runToShape(
+		session,
+		geometries.map { geometry -> geometry.worldGeometry },
+		geometries.associate { geometry -> geometry.owner to geometry.topology },
+		activeElementMedian(session.meshSelection.value, geometries.map { geometry -> geometry.gizmo }),
+		stage,
+		shape,
+		areaId,
+	)

@@ -1051,10 +1051,11 @@ sealed interface KeyformChange : Change {
  * Changes to a drawable's art mesh (its interior geometry, edited in Edit mode), plus the Object-mode move of whole
  * drawables and warps ([TransformObjects]).
  *
- * The three whole-gesture transforms ([TransformVertices], [TransformObjects], [TransformUvs]) each carry
- * what they performed ([ElementEditKind] for the vertices, the [MeshOperatorKind] for the others), so the history
- * panel can name the operation rather than filing every Grab, Scale, and Rotate under one "Move" label.  The kind names WHAT the transform was, not how it
- * was driven: the Properties panel's typed Size row records Scale with no modal operator ever latching.
+ * The three whole-gesture transforms ([TransformVertices], [TransformObjects], [TransformUvs]) each carry what they
+ * performed ([ElementEditKind] for the vertices, the [MeshOperatorKind] for the others), so the history panel can name
+ * the operation rather than filing every Grab, Scale, and Rotate under one "Move" label.  The kind names WHAT the
+ * transform was, not how it was driven: the Properties panel's typed Size row records Scale with no modal operator
+ * ever latching.
  *
  * Each label key is resolved by an exhaustive `when` over the kind rather than by interpolating a suffix
  * into a namespace.  Interpolation would happily mint a key like `change.object.slide` that no string

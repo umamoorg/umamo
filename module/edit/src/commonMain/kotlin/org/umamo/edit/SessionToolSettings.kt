@@ -74,8 +74,8 @@ interface SessionToolSettings {
 	/**
 	 * How far a depth rotation's pivot is pushed along world Y, in world px, positive into the screen: the
 	 * primary-modifier wheel pushes it mid-gesture and the operation strip's Depth row writes it back, so the next
-	 * turn starts where the last one left it (the proportional radius's rule).  Transient editor state like
-	 * [pivotMode] - never snapshotted.
+	 * turn starts where the last one left it (the proportional radius's rule), and a To Shape hands it the center of
+	 * the shape it laid down.  Transient editor state like [pivotMode] - never snapshotted.
 	 */
 	val pivotDepth: StateFlow<Float>
 
@@ -88,7 +88,8 @@ interface SessionToolSettings {
 
 	/**
 	 * How deep the points sit before a rotation about X or Z (see [DepthSurface]): T cycles it
-	 * during the rotation and the strip's Surface row writes it back, so the next rotation starts from it.
+	 * during the rotation and the strip's Surface row writes it back, so the next rotation starts from it, and a To
+	 * Shape sets it to Unchanged so the next turn keeps the depths it laid down.
 	 */
 	val depthSurface: StateFlow<DepthSurface>
 

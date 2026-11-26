@@ -65,8 +65,8 @@ fun Deformer.Warp.withLatticeShifted(delta: FloatArray, depthDelta: LatticeDepth
  * This warp with [map] applied to the control points of every grid cell and every non-null blend-shape form,
  * the forms' other fields kept: the one walk over every lattice a warp carries, for any edit that must move
  * them all alike (a shift, an affine, a resample onto a new grid, re-expressing a child in a reshaped parent).
- * Each grid cell's depth goes through [mapDepth], which keeps it as it is unless the edit renumbers the points;
- * blend shapes carry no depth.
+ * Each grid cell's depth goes through [mapDepth], kept as it is by default: an edit that moves the points in depth or
+ * renumbers them passes its own.  Blend shapes carry no depth.
  *
  * An affine map applied this way ([org.umamo.runtime.model.applyAffine]) moves the evaluated lattice by that affine at
  * every pose: an affine map commutes with the grid's weighted blend (the weights sum to 1), and a blend shape's

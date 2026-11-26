@@ -6,7 +6,6 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.ElementEditKind
 import org.umamo.edit.KeyformAction
 import org.umamo.edit.KeyformAim
-import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.ParameterChange
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.PoseLatticeTestRig.cage
@@ -36,8 +35,8 @@ import kotlin.test.assertTrue
 /**
  * Pins how a key captures a warp's lattice: the pending Pose-mode shape lands at the pose whether the pose sits on a
  * key, between keys, or on a parameter the warp was never keyed on; with nothing pending the key pins what is shown;
- * several warps key in one step; a linked pad asks for the axis; and a removal takes the key under the pose but never
- * a warp's last axis.
+ * a deep shape keys its depth; several warps key in one step; a linked pad asks for the axis; and a removal takes the
+ * key under the pose but never a warp's last axis.
  */
 class LatticeCaptureTest {
 	/**
