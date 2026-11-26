@@ -210,6 +210,7 @@ internal object UmaPuppetShape {
 						}
 
 						checkLattice(cell.controlPoints, pointFloats, cellPath)
+						checkDepth(cell.depth, pointFloats / 2, cellPath)
 					}
 				}
 				checkChannels(deformer.channels, path)
@@ -248,6 +249,10 @@ internal object UmaPuppetShape {
 
 						if (cell.controlPoints != null) {
 							problem("$cellPath belongs to a rotation but carries controlPoints")
+						}
+
+						if (cell.depth != null) {
+							problem("$cellPath belongs to a rotation but carries depth")
 						}
 
 						checkPivot(cell.originX, cell.originY, cell.angle, cell.scale, cellPath)
@@ -381,6 +386,20 @@ internal object UmaPuppetShape {
 
 		if (controlPoints.size != pointFloats) {
 			problem("$path.controlPoints holds ${controlPoints.size} floats; the lattice needs $pointFloats")
+		}
+	}
+
+	/**
+	 * Checks a warp cell's depth, when it has one, holds one value per lattice point.
+	 *
+	 * @param FloatArray? depth      The depths, or null for a flat lattice.
+	 * @param Int         pointCount The lattice's point count.
+	 * @param String      path       The cell's position.
+	 */
+	private fun checkDepth(depth: FloatArray?, pointCount: Int, path: String) {
+		// UMA §4.11: a warp cell's depth holds one float per control point.
+		if (depth != null && depth.size != pointCount) {
+			problem("$path.depth holds ${depth.size} floats; the lattice has $pointCount points")
 		}
 	}
 

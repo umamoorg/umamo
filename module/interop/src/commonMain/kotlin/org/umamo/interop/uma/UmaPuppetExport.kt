@@ -48,6 +48,7 @@ import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.OrgChild
@@ -64,6 +65,7 @@ import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.valuesFor
 
 /**
  * Lowers a [PuppetModel] onto the puppet entry's schema (docs/format/UMA.md §4).
@@ -351,14 +353,27 @@ object UmaPuppetExport {
 		UmaMeshGrid(axesOf(grid.axes, path), grid.cells.map { cell -> UmaMeshCell(cell.coordinate.toList(), cell.form.positionDeltas) })
 
 	/**
-	 * UMA §4.11: a warp's geometry grid.
+	 * UMA §4.11: a warp's geometry grid, each cell's depth written only when its lattice does not lie flat.
 	 *
 	 * @param KeyformGrid grid The grid.
 	 * @param String      path The grid's position, for a failure.
 	 * @return UmaDeformerGrid The record.
 	 */
 	private fun warpGridOf(grid: KeyformGrid<WarpLatticeForm>, path: String): UmaDeformerGrid =
-		UmaDeformerGrid(axesOf(grid.axes, path), grid.cells.map { cell -> UmaDeformerCell(cell.coordinate.toList(), controlPoints = cell.form.controlPoints) })
+		UmaDeformerGrid(
+			axesOf(grid.axes, path),
+			grid.cells.map { cell ->
+				val form = cell.form
+				// UMA §4.11: one depth per control point, so the reader's length check holds whatever the model stored, and none
+				// for a lattice that lies flat, every value 0 included.
+				val depth =
+					when (val formDepth = form.depth) {
+						LatticeDepth.Flat -> null
+						is LatticeDepth.PerPoint -> formDepth.valuesFor(form.controlPoints.size / 2).takeUnless { values -> values.all { value -> value == 0f } }
+					}
+				UmaDeformerCell(cell.coordinate.toList(), controlPoints = form.controlPoints, depth = depth)
+			},
+		)
 
 	/**
 	 * UMA §4.11: a rotation's geometry grid.

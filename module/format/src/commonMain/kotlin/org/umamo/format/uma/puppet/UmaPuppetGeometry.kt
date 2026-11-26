@@ -88,6 +88,8 @@ public data class UmaDeformerGrid(
  *
  * @property List<Int>   coordinate    The key index per axis.
  * @property FloatArray? controlPoints A warp's absolute lattice points, x, y per point (an accessor).
+ * @property FloatArray? depth         A warp's depth per lattice point along world Y, positive into the screen (an
+ *   accessor); absent when the lattice lies flat.
  * @property Float?      originX       A rotation's pivot x.
  * @property Float?      originY       A rotation's pivot y.
  * @property Float?      angle         A rotation's angle.
@@ -97,6 +99,7 @@ public data class UmaDeformerGrid(
 public class UmaDeformerCell(
 	val coordinate: List<Int>,
 	@Contextual val controlPoints: FloatArray? = null,
+	@Contextual val depth: FloatArray? = null,
 	val originX: Float? = null,
 	val originY: Float? = null,
 	val angle: Float? = null,
