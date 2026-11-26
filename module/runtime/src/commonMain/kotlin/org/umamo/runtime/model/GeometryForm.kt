@@ -68,6 +68,14 @@ fun LatticeDepth.depthAt(pointIndex: Int): Float =
 		is LatticeDepth.PerPoint -> values.getOrElse(pointIndex) { 0f }
 	}
 
+/** Whether every control point lies on the art plane: flat, or a depth of all 0. */
+val LatticeDepth.isFlat: Boolean
+	get() =
+		when (this) {
+			LatticeDepth.Flat -> true
+			is LatticeDepth.PerPoint -> values.all { value -> value == 0f }
+		}
+
 /**
  * The depths of [pointCount] control points as a fresh array, a flat lattice's all 0.
  *

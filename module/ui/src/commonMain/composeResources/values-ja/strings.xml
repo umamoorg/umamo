@@ -165,6 +165,7 @@
 	<!-- エクスポート通知の理由（ExportNoticeReason の各ケースに対応）。形式名は見出しが示すため理由には含めない。
 	     まず両方のエクスポートで共通のもの: -->
 	<string name="export_reason_drawable_has_no_mesh">メッシュのないドローアブルは書き出せません。</string>
+	<string name="export_reason_lattice_depth_flattened">%1$s のワープ格子には Y 軸の奥行きの編集データがあります。このファイル形式は Y 軸の奥行きを扱えないため、奥行きは書き出されません。デフォーマは引き続き 2D 空間で変形します。</string>
 	<!-- MOC3 エクスポート。%1$s はチャンネル名（channel_*）、キーフォームの行の %1$s は export_bundle_* の文、変換の行の %1$d/%2$d は返された座標数と本来の座標数、
 	     マスクの行の %1$s はマスク元の名前、ID の行の %1$d/%2$s はレコード長（バイト）と実際に書き出した ID。 -->
 	<string name="export_reason_channel_demoted_to_static">%1$s はオブジェクトのグリッドより狭い範囲にしかキーがないため、定数として書き出しました。MOC3 はオブジェクトごとに 1 つのグリッドしか保持できません。</string>

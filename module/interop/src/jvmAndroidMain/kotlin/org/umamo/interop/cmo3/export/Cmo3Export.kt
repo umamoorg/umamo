@@ -78,13 +78,14 @@ object Cmo3Export {
 			remove(DeformerField.BASE_ANGLE)
 		}
 
-	/** Every rotation field except KIND (fixed at synthesis) and the warp-only lattice pair. */
+	/** Every rotation field except KIND (fixed at synthesis) and the warp-only lattice pair and depth. */
 	private val ALL_ROTATION_FIELDS =
 		buildSet {
 			addAll(DeformerField.entries.toSet())
 			remove(DeformerField.KIND)
 			remove(DeformerField.LATTICE)
 			remove(DeformerField.QUAD_TRANSFORM)
+			remove(DeformerField.DEPTH)
 		}
 
 	/** Every field of a synthesized glue. */

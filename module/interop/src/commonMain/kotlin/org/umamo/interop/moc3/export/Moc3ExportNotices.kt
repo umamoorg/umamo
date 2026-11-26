@@ -42,6 +42,15 @@ internal class Moc3ExportNotices {
 	}
 
 	/**
+	 * Records a finding built whole, such as a document-level one.
+	 *
+	 * @param ExportNotice notice The finding.
+	 */
+	fun add(notice: ExportNotice) {
+		collected.add(notice)
+	}
+
+	/**
 	 * Records a notice for something the lowering could not express.
 	 *
 	 * @param ExportEntityCategory category The entity category.
