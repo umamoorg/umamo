@@ -96,6 +96,7 @@
 	* Show the red/green/blue coordinate help in the top right corner.
 	* Overlay text to show current rotation.
 	* Lattice vertices should be colored by their current Y+/- position.
+	* Option to show drawable meshes in 3D shape with a header control to toggle it.
 
 ## Outliner
 * Expand/Collapse Hierarchy (May apply to other list based areas as well.)
