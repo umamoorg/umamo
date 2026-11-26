@@ -180,8 +180,8 @@ fun EditorSession.handDepthRotationTheShape(piece: ShapePiece, settings: ToShape
  *
  * @param List<ModalCaptureSource> sources The owners offered, their positions in world space.
  * @param TransformPivotMode pivotMode The active pivot mode.
- * @param Pair<Float, Float>? activeAnchor The Active-Element anchor the caller resolved, or null for the median.
- * @param Pair<Float, Float>? cursorAnchor The Cursor anchor the caller resolved, or null for the median.
+ * @param Pair<Float, Float>? activeAnchor The Active-Element anchor the caller resolved, world (x, z), or null for the median.
+ * @param Pair<Float, Float>? cursorAnchor The Cursor anchor the caller resolved, world (x, z), or null for the median.
  * @return List<ShapePiece> The pieces; empty when nothing is covered.
  */
 fun shapePiecesOf(

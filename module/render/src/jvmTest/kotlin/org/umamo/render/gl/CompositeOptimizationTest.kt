@@ -48,7 +48,7 @@ class CompositeOptimizationTest {
 	// where the geometry actually rasterizes, Y-negation and all.
 	private val bandQuad = floatArrayOf(-16f, 8f, 16f, 8f, -16f, 30f, 16f, 30f)
 
-	// Rows (top-first) inside and outside the rendered quad band.  Mesh y [8, 30] -> rendered-world y
+	// Rows (top-first) inside and outside the rendered quad band.  Mesh y [8, 30] -> rendered-world Z
 	// [-30, -8] -> top-first rows ~[40, 62]; row 50 is inside, row 12 is well above (outside).
 	private val insideRow = 50
 	private val outsideRow = 12

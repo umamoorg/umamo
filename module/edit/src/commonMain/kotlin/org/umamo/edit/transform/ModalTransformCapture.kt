@@ -179,10 +179,10 @@ class PivotResolution internal constructor(
  * @param List<ModalCaptureSource> sources The meshes offered, their positions in one shared space.
  * @param TransformPivotMode pivotMode The active pivot mode (which anchor, and single vs per-island groups).
  * @param IndividualOriginScope individualOriginScope How Individual Origins partitions a mesh.
- * @param Pair<Float, Float>? activeAnchor The Active-Element anchor the caller resolved, or null to fall
- *   back to the median.
- * @param Pair<Float, Float>? cursorAnchor The Cursor anchor the caller resolved, or null to fall back to
- *   the median.
+ * @param Pair<Float, Float>? activeAnchor The Active-Element anchor the caller resolved, (x, y) in the sources' space, or
+ *   null to fall back to the median.
+ * @param Pair<Float, Float>? cursorAnchor The Cursor anchor the caller resolved, (x, y) in the sources' space, or null to
+ *   fall back to the median.
  * @return PivotResolution? The anchor and groups, or null when no source had covered vertices.
  */
 fun resolvePivotGroups(
@@ -254,10 +254,10 @@ fun resolvePivotGroups(
  * @param TransformPivotMode pivotMode The active pivot mode (which anchor, and single vs per-island groups).
  * @param IndividualOriginScope individualOriginScope How Individual Origins partitions a mesh.
  * @param MeshOperatorKind operatorKind The operator that latched (frozen onto the capture).
- * @param Pair<Float, Float>? activeAnchor The Active-Element anchor the caller resolved, or null to fall
- *   back to the median.
- * @param Pair<Float, Float>? cursorAnchor The Cursor anchor the caller resolved, or null to fall back to
- *   the median.
+ * @param Pair<Float, Float>? activeAnchor The Active-Element anchor the caller resolved, (x, y) in the sources' space, or
+ *   null to fall back to the median.
+ * @param Pair<Float, Float>? cursorAnchor The Cursor anchor the caller resolved, (x, y) in the sources' space, or null to
+ *   fall back to the median.
  * @return ModalTransformCapture? The capture, or null when no source had covered vertices (no gesture runs).
  */
 fun buildModalTransformCapture(

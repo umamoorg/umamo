@@ -11,48 +11,50 @@ import org.umamo.runtime.model.translationAffine
  * application half of the Vertex Slide, shared by the drag (whose factor is the pointer projected onto the
  * edge) and the operation settings strip's Factor row.
  *
- * @param FloatArray originalWorld The captured world positions.
+ * @param FloatArray originalPositions The captured interleaved (x, y) positions, in the gesture's space: world in the 2D
+ *   viewport (y world Z, up), display texels in the UV editor.
  * @param Int vertexIndex The sliding vertex.
  * @param Int neighborIndex The edge's far endpoint.
  * @param Float factor How far along the edge the vertex lands, clamped to [0, 1].
  * @return FloatArray A new positions array with the vertex slid.
  */
 fun slideVertexByFactor(
-	originalWorld: FloatArray,
+	originalPositions: FloatArray,
 	vertexIndex: Int,
 	neighborIndex: Int,
 	factor: Float,
 ): FloatArray {
 	val clampedFactor = factor.coerceIn(0f, 1f)
 
-	return originalWorld.copyOf().also { positions ->
-		positions[vertexIndex * 2] = originalWorld[vertexIndex * 2] + (originalWorld[neighborIndex * 2] - originalWorld[vertexIndex * 2]) * clampedFactor
+	return originalPositions.copyOf().also { positions ->
+		positions[vertexIndex * 2] = originalPositions[vertexIndex * 2] + (originalPositions[neighborIndex * 2] - originalPositions[vertexIndex * 2]) * clampedFactor
 		positions[vertexIndex * 2 + 1] =
-			originalWorld[vertexIndex * 2 + 1] + (originalWorld[neighborIndex * 2 + 1] - originalWorld[vertexIndex * 2 + 1]) * clampedFactor
+			originalPositions[vertexIndex * 2 + 1] + (originalPositions[neighborIndex * 2 + 1] - originalPositions[vertexIndex * 2 + 1]) * clampedFactor
 	}
 }
 
 /**
- * Applies the active modal operator to [originalWorld] by the resolved [parameters], producing a new
- * world-posed array.  The parameters come from a pointer frame during the drag or from the operation
- * settings strip's rows after it, so an adjustment runs the very same math.
+ * Applies the active modal operator to [originalPositions] by the resolved [parameters], producing a new array in the
+ * same space.  The parameters come from a pointer frame during the drag or from the operation settings strip's rows
+ * after it, so an adjustment runs the very same math.
  *
  * Each proportionally influenced vertex takes the same gesture scaled by its falloff weight, anchored on
  * the pivot of the group owning its nearest covered vertex, so with Individual Origins the halo turns with
  * its island.
  *
  * @param MeshOperatorKind operator The active operator.
- * @param FloatArray originalWorld The world posed positions captured at gesture start.
+ * @param FloatArray originalPositions The interleaved (x, y) positions captured at gesture start, in the gesture's space:
+ *   world posed positions in the 2D viewport (y world Z, up), display texels in the UV editor.
  * @param List<TransformPivotGroup> groups The pivot groups covering the selected vertices.
- * @param TransformGestureParameters parameters The delta / factors / angle to apply - shared by every
- *   mesh in the capture.
+ * @param TransformGestureParameters parameters The delta / factors / angle to apply, in the same space - shared by
+ *   every mesh in the capture.
  * @param Map<Int, ProportionalInfluence> proportionalInfluences The influenced unselected vertices, each
- *   with the pivot it anchors on (empty when proportional editing is off).
- * @return FloatArray The transformed world positions.
+ *   with the pivot it anchors on, in the same space (empty when proportional editing is off).
+ * @return FloatArray The transformed positions, in the gesture's space.
  */
 fun applyOperator(
 	operator: MeshOperatorKind,
-	originalWorld: FloatArray,
+	originalPositions: FloatArray,
 	groups: List<TransformPivotGroup>,
 	parameters: TransformGestureParameters,
 	proportionalInfluences: Map<Int, ProportionalInfluence>,
@@ -62,7 +64,7 @@ fun applyOperator(
 			val deltaX = parameters.deltaX
 			val deltaY = parameters.deltaY
 			val moved =
-				groups.fold(originalWorld) { positions, group ->
+				groups.fold(originalPositions) { positions, group ->
 					MeshTransforms.translateVertices(positions, group.vertexIndices, deltaX, deltaY)
 				}
 			MeshTransforms.translateVerticesWeighted(moved, proportionalInfluences, deltaX, deltaY)
@@ -74,7 +76,7 @@ fun applyOperator(
 			val factorX = parameters.factorX
 			val factorY = parameters.factorY
 			val moved =
-				groups.fold(originalWorld) { positions, group ->
+				groups.fold(originalPositions) { positions, group ->
 					MeshTransforms.scaleVerticesAxis(positions, group.vertexIndices, factorX, factorY, group.pivotX, group.pivotY)
 				}
 			MeshTransforms.scaleVerticesWeighted(moved, proportionalInfluences, factorX, factorY)
@@ -89,7 +91,7 @@ fun applyOperator(
 			val depth = parameters.pivotDepth
 			val surface = parameters.depthSurface
 			val moved =
-				groups.fold(originalWorld) { positions, group ->
+				groups.fold(originalPositions) { positions, group ->
 					MeshTransforms.rotateVerticesInDepth(positions, group.vertexIndices, axis, rotation, depth, surface, group.pivotX, group.pivotY)
 				}
 			MeshTransforms.rotateVerticesInDepthWeighted(moved, proportionalInfluences, axis, rotation, depth, surface)
@@ -97,18 +99,18 @@ fun applyOperator(
 
 		// Vertex Slide never reaches here: the drive loop handles it with its own edge projection.
 		MeshOperatorKind.VertexSlide -> {
-			originalWorld
+			originalPositions
 		}
 	}
 
 /**
  * The world transform [applyOperator] applies to a whole object in pivot group [group], as a 2x3 row-major affine
- * `[a, b, c, d, e, f]` (x' = a x + b y + c, y' = d x + e y + f).  An object moved whole takes no proportional
+ * `[a, b, c, d, e, f]` (x' = a x + b y + c, y' = d x + e y + f, where x is world X and y world Z).  An object moved whole takes no proportional
  * halo, so the affine is the operator exactly - what a warp moved as an object maps every one of its forms through.
  *
  * @param MeshOperatorKind operator The active operator.
- * @param TransformGestureParameters parameters The delta / factors / angle to apply.
- * @param TransformPivotGroup group The pivot group the object turns and scales about.
+ * @param TransformGestureParameters parameters The delta / factors / angle to apply, in world space.
+ * @param TransformPivotGroup group The pivot group the object turns and scales about, its pivot in world space.
  * @return FloatArray The affine; the identity for a Vertex Slide, which never moves a whole object.
  */
 fun gestureAffine(operator: MeshOperatorKind, parameters: TransformGestureParameters, group: TransformPivotGroup): FloatArray =

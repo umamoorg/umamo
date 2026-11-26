@@ -97,7 +97,7 @@ internal fun drawableWorldTransform(model: PuppetModel, pose: Pose, id: Drawable
 		// No world mapping (a hidden ancestor).  The posed local shape is still worth showing, so resolve it
 		// directly rather than going through the capture, which requires a mapping.
 		val displayed = drawableLocalPosed(model, pose, id) ?: base
-		// The center's y is negated first: localToWorld flips y (world y grows upward), so reporting local y
+		// The center's y is negated first: localToWorld flips y (world Z grows upward), so reporting local y
 		// raw would make the Position Z row jump sign purely because an ancestor was toggled invisible.
 		// Extents are unsigned and carry over as-is.  Not editable: without a mapping there is nothing to
 		// invert through.  For a root drawable local space IS canvas space, so this is its true world center
@@ -231,7 +231,7 @@ internal fun EditorSession.previewDrawableWorldCenter(id: DrawableId, centerX: F
  *
  * @param DrawableId id The drawable to resize.
  * @param Float width The target world x extent.
- * @param Float height The target world y extent.
+ * @param Float height The target world Z (vertical) extent.
  * @return DrawableWorldGeometry? The geometry the resize was planned against, or null when it was refused.
  */
 internal fun EditorSession.setDrawableWorldSize(id: DrawableId, width: Float, height: Float): DrawableWorldGeometry? =
@@ -246,7 +246,7 @@ internal fun EditorSession.setDrawableWorldSize(id: DrawableId, width: Float, he
  *
  * @param DrawableId id The drawable to resize.
  * @param Float width The target world x extent.
- * @param Float height The target world y extent.
+ * @param Float height The target world Z (vertical) extent.
  * @return PuppetModel? The previewed model, or null when the resize would record nothing.
  */
 internal fun EditorSession.previewDrawableWorldSize(id: DrawableId, width: Float, height: Float): PuppetModel? =

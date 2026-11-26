@@ -30,7 +30,7 @@ class ScissorRectsTest {
 	/** Bounds inside the viewport map to their pixel rectangle, rows counted from the top, plus the pad. */
 	@Test
 	fun boundsMapToTheirPaddedPixelRectangle() {
-		// World x in [-16, 16] is columns 16 to 48; world y in [8, 30] is up, so rows 2 to 24 from the top.
+		// World x in [-16, 16] is columns 16 to 48; world Z in [8, 30] is up, so rows 2 to 24 from the top.
 		val rect = scissorRectOf(PosedAabb(-16f, 8f, 16f, 30f), affineOf(zoom = 1f, viewportSize = 64), 64, 64, pixelScale = 1f)
 
 		assertEquals(ScissorRect(x = 14, y = 0, width = 36, height = 26), rect)
