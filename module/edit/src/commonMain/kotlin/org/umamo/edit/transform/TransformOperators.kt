@@ -1,7 +1,10 @@
 package org.umamo.edit.transform
 
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.runtime.model.LatticeDepth
+import org.umamo.runtime.model.depthAt
 import org.umamo.runtime.model.identityAffine
+import org.umamo.runtime.model.latticeDepthOf
 import org.umamo.runtime.model.rotationAboutAffine
 import org.umamo.runtime.model.scaleAboutAffine
 import org.umamo.runtime.model.translationAffine
@@ -31,6 +34,36 @@ fun slideVertexByFactor(
 		positions[vertexIndex * 2 + 1] =
 			originalPositions[vertexIndex * 2 + 1] + (originalPositions[neighborIndex * 2 + 1] - originalPositions[vertexIndex * 2 + 1]) * clampedFactor
 	}
+}
+
+/**
+ * The depth half of [slideVertexByFactor] for a lattice: the sliding point's depth moved toward its neighbor's by the
+ * same factor, so a point slid along an edge stays on it in 3D too.
+ *
+ * @param LatticeDepth depth The lattice's captured depth.
+ * @param Int vertexIndex The sliding point.
+ * @param Int neighborIndex The edge's far endpoint.
+ * @param Float factor How far along the edge the point lands, clamped to [0, 1].
+ * @return LatticeDepth The depth with the point slid; flat stays flat.
+ */
+fun slideDepthByFactor(
+	depth: LatticeDepth,
+	vertexIndex: Int,
+	neighborIndex: Int,
+	factor: Float,
+): LatticeDepth {
+	if (depth !is LatticeDepth.PerPoint) {
+		return depth
+	}
+
+	val ownDepth = depth.depthAt(vertexIndex)
+	val values = depth.values.copyOf()
+
+	if (vertexIndex in values.indices) {
+		values[vertexIndex] = ownDepth + (depth.depthAt(neighborIndex) - ownDepth) * factor.coerceIn(0f, 1f)
+	}
+
+	return latticeDepthOf(values)
 }
 
 /**

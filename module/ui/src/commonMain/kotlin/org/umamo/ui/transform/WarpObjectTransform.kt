@@ -74,8 +74,8 @@ internal fun PuppetModel.withWarpsReplaced(landedById: Map<DeformerId, Deformer.
 }
 
 /**
- * What a drag shows of a moved warp before it lands: its grid lattice at the default pose, in its parent's space -
- * what the renderer's lattice override stands in for.  Read off the moved warp itself, so the preview is exactly what
+ * What a drag shows of a moved warp before it lands: its grid lattice at the default pose, in its parent's space and
+ * with its depth - what the renderer's lattice override stands in for.  Read off the moved warp itself, so the preview is exactly what
  * the confirm commits, a default lying between two keys included.
  *
  * @param PuppetModel model The model the warp moves in.
@@ -83,7 +83,7 @@ internal fun PuppetModel.withWarpsReplaced(landedById: Map<DeformerId, Deformer.
  * @return WarpLatticeForm? The lattice, or null when the rest pose does not draw it.
  */
 internal fun warpPreviewOf(model: PuppetModel, landed: Deformer.Warp): WarpLatticeForm? =
-	warpLatticeAt(model.withWarpsReplaced(mapOf(landed.id to landed)), emptyMap(), landed.id)?.let { lattice -> WarpLatticeForm(lattice.gridLocal) }
+	warpLatticeAt(model.withWarpsReplaced(mapOf(landed.id to landed)), emptyMap(), landed.id)?.let { lattice -> WarpLatticeForm(lattice.gridLocal, lattice.gridDepth) }
 
 /**
  * [points] in a parent's space, moved by [worldAffine] in world space and brought back through [mapping].
