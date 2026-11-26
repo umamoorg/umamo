@@ -16,6 +16,9 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.resources.getString
+import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.overlay_row_dim_back_facing
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.SpaceKind
@@ -97,6 +100,8 @@ class OverlaysHeaderControlTest {
 			assertFalse(overlays.showSelectionTint, "the selection tint row starts on and switches off")
 			clickMenuEntry(CULL_HIDDEN_ROW)
 			assertFalse(overlays.cullHiddenWireframe, "the cull hidden row starts on and switches off")
+			clickMenuEntry(getString(Res.string.overlay_row_dim_back_facing))
+			assertFalse(overlays.dimBackFacing, "the dim back-facing row starts on and switches off")
 		}
 
 	/** The UV editor's popover offers the grid row but no axis row and no Geometry section, since its surface has neither. */

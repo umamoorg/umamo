@@ -18,6 +18,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
@@ -28,6 +29,8 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.backFacingOf
+import org.umamo.runtime.model.latticeLayout
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -257,6 +260,24 @@ class WarpCreationTest {
 		assertSamePlace(worldAt(before, "right"), worldAt(creation.model, "right"), "right at rest")
 		assertSamePlace(worldAt(before, "right", swung), worldAt(creation.model, "right", swung), "right swung")
 		assertEquals(0, creation.rehome.unconvertedCount)
+	}
+
+	/**
+	 * A warp as the editor creates it lays its grid in the order the back-facing rule calls front: given depth, none of
+	 * it faces away, and drawn mirrored all of it does.
+	 */
+	@Test
+	fun aCreatedWarpFacesTheViewer() {
+		val creation = assertNotNull(warpCreationOf(model(), setOf(SelectionTarget.Drawable(DrawableId("left"))), SelectionTarget.Drawable(DrawableId("left")), WarpBirth()))
+		val warp = warpOf(creation.model)
+		val layout = warp.latticeLayout
+		val world = latticeAt(creation.model)
+		val depth = LatticeDepth.PerPoint(FloatArray(layout.pointCount) { 10f })
+
+		assertNull(layout.backFacingOf(world, depth), "the created grid faces the viewer")
+
+		val mirrored = FloatArray(world.size) { componentIndex -> if (componentIndex % 2 == 0) -world[componentIndex] else world[componentIndex] }
+		assertTrue(assertNotNull(layout.backFacingOf(mirrored, depth)).cells.all { cellBack -> cellBack }, "and mirrored, faces away")
 	}
 
 	@Test

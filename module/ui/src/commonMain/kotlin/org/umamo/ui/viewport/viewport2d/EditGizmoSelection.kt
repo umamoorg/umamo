@@ -31,16 +31,21 @@ internal fun editMarquee(session: EditorSession, geometries: State<List<EditOwne
  * @param EditorSession session The session owning the mesh selection and the cursor.
  * @param MarqueeSelectController<MeshSelection> marquee The area's marquee.
  * @param State<List<EditOwnerGeometry>> geometries The session owners' live geometry.
+ * @param Function dimsBackFacing Whether the area dims what faces away, read when a press lands.
  * @return MeshPickController The controller.
  */
 internal fun editMeshPick(
 	session: EditorSession,
 	marquee: MarqueeSelectController<MeshSelection>,
 	geometries: State<List<EditOwnerGeometry>>,
+	dimsBackFacing: () -> Boolean,
 ): MeshPickController =
 	MeshPickController(
 		session = session,
 		marquee = marquee,
-		geometries = { geometries.value.map { it.gizmo } },
+		geometries = {
+			val frontFirst = dimsBackFacing()
+			geometries.value.map { geometry -> if (frontFirst) geometry.frontFirstGizmo else geometry.gizmo }
+		},
 		placeCursor = session::setCursor2d,
 	)

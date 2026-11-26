@@ -86,7 +86,17 @@ class AreaOverlaysPublisherTest {
 			state.showOverlays = false
 			waitForIdle()
 			assertEquals(
-				FrameOverlays(gridLines = false, axes = false, meshOverlay = false, wireframe = false, selectionTint = false, wireframeOpacity = 0.25f, wireframeCulling = false, allLattices = false),
+				FrameOverlays(
+					gridLines = false,
+					axes = false,
+					meshOverlay = false,
+					wireframe = false,
+					selectionTint = false,
+					wireframeOpacity = 0.25f,
+					wireframeCulling = false,
+					allLattices = false,
+					dimBackFacing = false,
+				),
 				service.areaOverlays("area")?.frame,
 				"the master off hides every frame flag",
 			)
@@ -178,7 +188,7 @@ class AreaOverlaysPublisherTest {
 			}
 			waitForIdle()
 
-			assertEquals(FrameOverlays(gridLines = true, axes = false, meshOverlay = true, wireframe = false, allLattices = false), service.areaOverlays("uv")?.frame)
+			assertEquals(FrameOverlays(gridLines = true, axes = false, meshOverlay = true, wireframe = false, allLattices = false, dimBackFacing = false), service.areaOverlays("uv")?.frame)
 		}
 
 	/** A pick that takes a deformer draws every lattice in a 2D area while it is armed; the area's own value returns after. */

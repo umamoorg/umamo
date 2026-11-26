@@ -238,7 +238,8 @@ public data class AxisLineUniforms(
  * primitive, the one at the active indices (a vertex dot uses A, an edge A and B, a face dot all three),
  * in the active color, ignoring the instance buffers.  The face fill has no active draw.  An edge draw
  * with a cull order at or above zero reads the frame's draw-order texture and leaves out every fragment
- * under a drawable drawn in front of its own; -1 culls nothing, the other domains never read it.
+ * under a drawable drawn in front of its own; -1 culls nothing, the other domains never read it.  A batched primitive
+ * whose flag carries the back-facing bit draws at its color's alpha times the back alpha; 1 draws it as the others.
  */
 public class OverlayDrawUniforms {
 	var baseOffset: Int = 0
@@ -254,4 +255,5 @@ public class OverlayDrawUniforms {
 	var activeIndexB: Int = -1
 	var activeIndexC: Int = -1
 	var cullOrder: Int = -1
+	var backAlpha: Float = 1f
 }

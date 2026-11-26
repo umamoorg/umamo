@@ -49,6 +49,9 @@ class AreaOverlaysTest {
 		state.cullHiddenWireframe = true
 		state.deformerOpacity = 0.4f
 		assertEquals(viewportDefaults.copy(latticeOpacity = 0.4f), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
+		state.deformerOpacity = 1f
+		state.dimBackFacing = false
+		assertEquals(viewportDefaults.copy(dimBackFacing = false), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
 	}
 
 	/** An area with a grid of its own asks for that grid, whatever the application's is. */
@@ -74,7 +77,17 @@ class AreaOverlaysTest {
 		assertEquals(
 			AreaOverlays(
 				GridConfig(25f, 5),
-				FrameOverlays(gridLines = false, axes = false, meshOverlay = false, wireframe = false, selectionTint = false, wireframeOpacity = 0.5f, wireframeCulling = false, allLattices = false),
+				FrameOverlays(
+					gridLines = false,
+					axes = false,
+					meshOverlay = false,
+					wireframe = false,
+					selectionTint = false,
+					wireframeOpacity = 0.5f,
+					wireframeCulling = false,
+					allLattices = false,
+					dimBackFacing = false,
+				),
 			),
 			areaOverlaysFor(state, GridConfig(25f, 5)),
 		)
@@ -94,7 +107,17 @@ class AreaOverlaysTest {
 		state.wireframeOpacity = 0.3f
 		state.deformerOpacity = 0.4f
 		assertEquals(
-			FrameOverlays(gridLines = true, axes = false, meshOverlay = true, wireframe = false, selectionTint = true, wireframeOpacity = 0.3f, wireframeCulling = true, allLattices = false),
+			FrameOverlays(
+				gridLines = true,
+				axes = false,
+				meshOverlay = true,
+				wireframe = false,
+				selectionTint = true,
+				wireframeOpacity = 0.3f,
+				wireframeCulling = true,
+				allLattices = false,
+				dimBackFacing = false,
+			),
 			areaOverlaysFor(state, applicationGrid).frame,
 			"its own opacity rides along, while the lattices it never draws stay whole",
 		)

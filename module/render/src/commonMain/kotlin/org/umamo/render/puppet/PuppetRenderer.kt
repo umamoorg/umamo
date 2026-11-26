@@ -836,7 +836,7 @@ class PuppetRenderer(
 			}
 
 			if (drawEditDirect) {
-				overlayEncoder.encodeEditDirectDraws(pass, editDirectResidency, inputs)
+				overlayEncoder.encodeEditDirectDraws(pass, editDirectResidency, inputs, overlays)
 			}
 
 			// Over the mesh overlay: a lattice is what a click in Object or Pose mode takes first.

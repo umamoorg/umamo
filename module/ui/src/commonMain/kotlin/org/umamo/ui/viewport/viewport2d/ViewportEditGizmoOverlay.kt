@@ -160,7 +160,8 @@ fun ViewportEditGizmoOverlay(
 	val marquee = remember(areaId) { editMarquee(session, liveGeometryState) }
 
 	// The element pick and box select, armed or not, one per area (see MeshPickController).
-	val meshPick = remember(areaId) { editMeshPick(session, marquee, liveGeometryState) }
+	val liveOverlays = rememberUpdatedState(overlays)
+	val meshPick = remember(areaId) { editMeshPick(session, marquee, liveGeometryState) { liveOverlays.value?.effectiveDimBackFacing ?: true } }
 
 	// The idle lattice the pointer is over in Pose mode, drawn in the hover color in this area alone, one per area
 	// (see LatticeHover).

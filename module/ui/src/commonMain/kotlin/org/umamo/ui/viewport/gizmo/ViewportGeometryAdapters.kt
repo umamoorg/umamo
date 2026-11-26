@@ -74,10 +74,11 @@ private fun edgeEndpointsOf(edges: List<MeshElement.Edge>): IntArray {
  * @param Offset pointer The cursor in screen pixels.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The vertices that cannot be hit, by index, or null for none.
  * @return Int? The hit vertex index, or null.
  */
-internal fun hitTestVertex(positions: FloatArray, pointer: Offset, camera: ViewportCamera, size: IntSize): Int? =
-	org.umamo.render.pick.hitTestVertex(positions, pointer.x, pointer.y, HIT_RADIUS_PX, camera, size.width, size.height)
+internal fun hitTestVertex(positions: FloatArray, pointer: Offset, camera: ViewportCamera, size: IntSize, excluded: BooleanArray? = null): Int? =
+	org.umamo.render.pick.hitTestVertex(positions, pointer.x, pointer.y, HIT_RADIUS_PX, camera, size.width, size.height, excluded)
 
 /**
  * The edge under [pointer] within [HIT_RADIUS_PX], or null.  Picks the nearest by point-to-segment
@@ -88,6 +89,7 @@ internal fun hitTestVertex(positions: FloatArray, pointer: Offset, camera: Viewp
  * @param Offset pointer The cursor in screen pixels.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The edges that cannot be hit, by ordinal in [edges], or null for none.
  * @return MeshElement.Edge? The hit edge, or null.
  */
 internal fun hitTestEdge(
@@ -96,9 +98,10 @@ internal fun hitTestEdge(
 	pointer: Offset,
 	camera: ViewportCamera,
 	size: IntSize,
+	excluded: BooleanArray? = null,
 ): MeshElement.Edge? =
 	org.umamo.render.pick
-		.hitTestEdge(positions, edgeEndpointsOf(edges), pointer.x, pointer.y, HIT_RADIUS_PX, camera, size.width, size.height)
+		.hitTestEdge(positions, edgeEndpointsOf(edges), pointer.x, pointer.y, HIT_RADIUS_PX, camera, size.width, size.height, excluded)
 		?.let { edgeOrdinal -> edges[edgeOrdinal] }
 
 /**
@@ -110,6 +113,7 @@ internal fun hitTestEdge(
  * @param Offset pointer The cursor in screen pixels.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The faces that cannot be hit, by ordinal, or null for none.
  * @return MeshElement.Face? The hit face, or null.
  */
 internal fun hitTestFace(
@@ -118,9 +122,10 @@ internal fun hitTestFace(
 	pointer: Offset,
 	camera: ViewportCamera,
 	size: IntSize,
+	excluded: BooleanArray? = null,
 ): MeshElement.Face? =
 	org.umamo.render.pick
-		.hitTestFace(positions, topology.faceCorners, topology.cornersPerFace, pointer.x, pointer.y, camera, size.width, size.height)
+		.hitTestFace(positions, topology.faceCorners, topology.cornersPerFace, pointer.x, pointer.y, camera, size.width, size.height, excluded)
 		?.let { faceOrdinal -> MeshElement.Face(faceOrdinal) }
 
 /**

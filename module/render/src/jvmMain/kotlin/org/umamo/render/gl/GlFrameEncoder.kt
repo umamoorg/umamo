@@ -353,6 +353,7 @@ internal class GlRenderPassEncoder(private val emptyVao: Int, private val target
 		setOverlayColor(locations.idleColor, uniforms.idleColor)
 		setOverlayColor(locations.selectedColor, uniforms.selectedColor)
 		setOverlayColor(locations.activeColor, uniforms.activeColor)
+		GL20.glUniform1f(locations.backAlpha, uniforms.backAlpha)
 		// The edge program alone declares these; the others resolve -1, a no-op.
 		GL20.glUniform1i(locations.cullOrder, uniforms.cullOrder)
 

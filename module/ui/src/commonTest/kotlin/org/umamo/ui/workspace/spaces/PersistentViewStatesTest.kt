@@ -187,7 +187,7 @@ class PersistentViewStatesTest {
 		val tree = saved.toJson()
 		val overlays = tree["overlays"] as JsonObject
 		assertEquals(
-			listOf("all", "grid", "axes", "cursor", "info", "wireframe", "selectionTint", "deformers", "wireframeCulling", "deformerOpacity", "wireframeOpacity", "gridGeometry"),
+			listOf("all", "grid", "axes", "cursor", "info", "wireframe", "selectionTint", "deformers", "wireframeCulling", "dimBackFacing", "deformerOpacity", "wireframeOpacity", "gridGeometry"),
 			overlays.keys.toList(),
 			"every key is named, so a merge can take a deviation back out",
 		)
@@ -195,7 +195,7 @@ class PersistentViewStatesTest {
 		assertEquals(JsonPrimitive(false), overlays["cursor"])
 		assertEquals(JsonPrimitive(true), overlays["deformers"])
 		assertTrue(
-			listOf("grid", "axes", "info", "wireframe", "selectionTint", "wireframeCulling", "deformerOpacity", "wireframeOpacity", "gridGeometry").all { key -> overlays[key] is JsonNull },
+			listOf("grid", "axes", "info", "wireframe", "selectionTint", "wireframeCulling", "dimBackFacing", "deformerOpacity", "wireframeOpacity", "gridGeometry").all { key -> overlays[key] is JsonNull },
 			"a flag at its default, an opacity that is whole, and a grid that follows, is a null",
 		)
 
@@ -369,21 +369,25 @@ class PersistentViewStatesTest {
 		val saved = Viewport2DViewState()
 		saved.overlays.showSelectionTint = false
 		saved.overlays.cullHiddenWireframe = false
+		saved.overlays.dimBackFacing = false
 		saved.overlays.wireframeOpacity = 0.3f
 
 		val tree = saved.toJson()
 		val overlays = tree["overlays"] as JsonObject
 		assertEquals(JsonPrimitive(false), overlays["selectionTint"])
 		assertEquals(JsonPrimitive(false), overlays["wireframeCulling"])
+		assertEquals(JsonPrimitive(false), overlays["dimBackFacing"])
 		assertEquals(JsonPrimitive(0.3f), overlays["wireframeOpacity"])
 		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
 		assertFalse(reopened.overlays.showSelectionTint)
 		assertFalse(reopened.overlays.cullHiddenWireframe)
+		assertFalse(reopened.overlays.dimBackFacing)
 		assertEquals(0.3f, reopened.overlays.wireframeOpacity)
 		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
 
 		saved.overlays.showSelectionTint = true
 		saved.overlays.cullHiddenWireframe = true
+		saved.overlays.dimBackFacing = true
 		saved.overlays.wireframeOpacity = 1f
 		assertEquals(JsonNull, saved.toJson()["overlays"], "back at their defaults the member is a null")
 

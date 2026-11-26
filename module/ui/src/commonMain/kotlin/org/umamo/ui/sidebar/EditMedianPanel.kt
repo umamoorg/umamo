@@ -132,7 +132,7 @@ internal fun EditMedianPanel(context: SidebarContext) {
 				capture.associate { geometry -> geometry.owner to geometry.topology },
 			)
 		}
-	
+
 	// Snapshot reads, so a running transform recomposes the panel with each frame it publishes.
 	val livePreview = LocalLiveMeshPreview.current
 	val live = livePreview?.restByDrawable
@@ -141,7 +141,7 @@ internal fun EditMedianPanel(context: SidebarContext) {
 	val median = remember(covered, live, liveLattices, liveDepths) { coveredMedian(covered, live.orEmpty(), liveLattices.orEmpty(), liveDepths.orEmpty()) }
 	val renderSync = rememberUpdatedState(LocalPuppetRenderSync.current)
 	val latticeScrub = remember(livePreview) { LatticeScrubPreview(livePreview) { renderSync.value } }
-	
+
 	DisposableEffect(latticeScrub) {
 		onDispose {
 			latticeScrub.end()
@@ -176,12 +176,12 @@ internal fun EditMedianPanel(context: SidebarContext) {
 			scrub.preview(previewed?.folded)
 		}
 	}
-	
+
 	val cancel = {
 		scrub.end()
 		latticeScrub.end()
 	}
-	
+
 	val depth = median.depth
 	// Only a lattice's points carry depth, measured from the art plane rather than the world axes.
 	val depthRows: List<@Composable (StackPosition) -> Unit> =
@@ -203,13 +203,13 @@ internal fun EditMedianPanel(context: SidebarContext) {
 				}
 			}
 		}
-	
+
 	Text(
 		text = stringResource(if (median.vertexCount == 1) Res.string.sidebar_edit_vertex else Res.string.sidebar_edit_median),
 		style = LocalUmamoTypography.current.labelMedium,
 		color = LocalUmamoColors.current.text,
 	)
-	
+
 	WorldPositionFields(
 		puppet = puppet,
 		worldX = median.worldX,

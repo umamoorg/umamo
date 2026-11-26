@@ -22,9 +22,13 @@ import org.umamo.render.puppet.MeshStyle
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.LatticeBackFacing
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.backFacingOf
+import org.umamo.runtime.model.latticeDepthsEqual
 import org.umamo.runtime.model.latticeLayout
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.gizmo.EditCageEntries
@@ -40,20 +44,25 @@ import org.umamo.ui.viewport.gizmo.reusedOverlay
  * pending forms instead, and every posed warp is evaluated through them, so a child warp's cage follows a moved parent
  * as its art does.  The flags come from the same derive as a mesh's cage (gizmo/EditMeshOverlayProducer.kt), so a
  * lattice lights up by the rules a click selects by, and a warp holding an unkeyed Pose-mode shape is marked pending.
+ * The parts of a deep lattice that face away from the viewer carry the back-facing bit, read off the depth the
+ * lattice shows (a drag's, at rest), and each area's frame decides whether they dim.
  * A cell is a quad: it fills as its two triangles, and its one face dot sits on an anchor vertex appended past the
  * lattice's own points, at the cell's center.
  */
 
 /**
- * What an element drag is previewing on the lattices it moves: at rest their moved world points, at the pose their
- * pending forms.
+ * What an element drag is previewing on the lattices it moves: at rest their moved world points and depths, at the
+ * pose their pending forms.
  *
  * @property Map<DeformerId, FloatArray>? world A rest drag's moved world points per lattice, or null.
  * @property Map<DeformerId, WarpLatticeForm>? forms A posed drag's pending forms per lattice, or null.
+ * @property Map<DeformerId, LatticeDepth>? depth A drag's depth per moved lattice, or null; a rest drag's cage reads its
+ *   back-facing parts at it.
  */
 internal class LatticeDragPreview(
 	val world: Map<DeformerId, FloatArray>?,
 	val forms: Map<DeformerId, WarpLatticeForm>?,
+	val depth: Map<DeformerId, LatticeDepth>? = null,
 )
 
 /**
@@ -87,16 +96,21 @@ internal class LatticeCageProducer {
 	}
 
 	/**
-	 * One lattice's cage positions and the world points they were built from.
+	 * One lattice's cage positions, the world points and depth they were built from, and the parts that face away
+	 * there.
 	 *
 	 * @property EvaluationSource? source What an evaluated lattice was read off, or null for a drag's points.
 	 * @property FloatArray world The lattice's world points, interleaved x, y.
+	 * @property LatticeDepth depth How deep each point sits.
 	 * @property FloatArray cage The points with the cell centers appended.
+	 * @property LatticeBackFacing? backFacing The lattice's back-facing parts, or null for none.
 	 */
 	private class CagePositions(
 		val source: EvaluationSource?,
 		val world: FloatArray,
+		val depth: LatticeDepth,
 		val cage: FloatArray,
+		val backFacing: LatticeBackFacing?,
 	)
 
 	private val topologyById = HashMap<DeformerId, CageTopology>()
@@ -165,11 +179,15 @@ internal class LatticeCageProducer {
 		for (deformerId in latticeIds) {
 			val warp = warpById[deformerId] ?: continue
 			val topology = topologyOf(deformerId, warp)
-			val positions = livePositionsOf(deformerId, topology, liveWorldById?.get(deformerId)) ?: evaluatedPositionsOf(deformerId, source, resolver, topology) ?: continue
+			val positions =
+				livePositionsOf(deformerId, topology, liveWorldById?.get(deformerId), drag?.depth?.get(deformerId))
+					?: evaluatedPositionsOf(deformerId, source, resolver, topology)
+					?: continue
 			val owner = ElementOwner.Deformer(deformerId)
 			val style = if (deformerId in pending) MeshStyle.PendingCage else MeshStyle.Plain
-			entries.add(cageEntries.entryOf(owner, topology, selection, style) { elements, active, selectMode -> cageEntryOf(owner, topology, elements, active, selectMode, style) })
-			positionsById[owner] = positions
+			val backFacing = positions.backFacing
+			entries.add(cageEntries.entryOf(owner, topology, selection, style, backFacing) { elements, active, selectMode -> cageEntryOf(owner, topology, elements, active, selectMode, style, backFacing) })
+			positionsById[owner] = positions.cage
 			trianglesById[owner] = topology.triangleIndices
 		}
 
@@ -233,30 +251,33 @@ internal class LatticeCageProducer {
 	}
 
 	/**
-	 * A lattice's cage positions at a drag's moved points, kept while the drag hands over the same array.
+	 * A lattice's cage positions at a drag's moved points and depth, kept while the drag hands over the same arrays.
+	 * A drag that names no depth for it keeps the depth the lattice was last evaluated at.
 	 *
 	 * @param DeformerId deformerId The warp.
 	 * @param CageTopology topology Its topology.
 	 * @param FloatArray? world The drag's world points for it, or null when the drag has not moved it.
-	 * @return FloatArray? The cage positions, or null when there is no drag for it (or one of another grid size).
+	 * @param LatticeDepth? depth The drag's depth for it, or null.
+	 * @return CagePositions? The cage positions, or null when there is no drag for it (or one of another grid size).
 	 */
-	private fun livePositionsOf(deformerId: DeformerId, topology: CageTopology, world: FloatArray?): FloatArray? {
+	private fun livePositionsOf(deformerId: DeformerId, topology: CageTopology, world: FloatArray?, depth: LatticeDepth?): CagePositions? {
 		if (world == null || world.size != topology.pointCount * 2) {
 			liveById.remove(deformerId)
 
 			return null
 		}
 
+		val shownDepth = depth ?: evaluatedById[deformerId]?.depth ?: LatticeDepth.Flat
 		val cached = liveById[deformerId]
 
-		if (cached != null && cached.world === world && cached.cage.size == topology.vertexCount * 2) {
-			return cached.cage
+		if (cached != null && cached.world === world && cached.depth === shownDepth && cached.cage.size == topology.vertexCount * 2) {
+			return cached
 		}
 
-		val cage = cagePositionsOf(world, topology)
-		liveById[deformerId] = CagePositions(null, world, cage)
+		val positions = CagePositions(null, world, shownDepth, cagePositionsOf(world, topology), topology.layout.backFacingOf(world, shownDepth))
+		liveById[deformerId] = positions
 
-		return cage
+		return positions
 	}
 
 	/**
@@ -268,17 +289,18 @@ internal class LatticeCageProducer {
 	 * @param EvaluationSource source The model, pose, and lattices to read it off.
 	 * @param Lazy<WarpLatticeResolver> resolver The source's lattice resolver, baked on first use.
 	 * @param CageTopology topology Its topology.
-	 * @return FloatArray? The cage positions, or null when the pose does not draw the warp.
+	 * @return CagePositions? The cage positions, or null when the pose does not draw the warp.
 	 */
-	private fun evaluatedPositionsOf(deformerId: DeformerId, source: EvaluationSource, resolver: Lazy<WarpLatticeResolver>, topology: CageTopology): FloatArray? {
+	private fun evaluatedPositionsOf(deformerId: DeformerId, source: EvaluationSource, resolver: Lazy<WarpLatticeResolver>, topology: CageTopology): CagePositions? {
 		val cached = evaluatedById[deformerId]
 		val fits = cached != null && cached.cage.size == topology.vertexCount * 2
 
 		if (cached != null && fits && cached.source?.sameAs(source) == true) {
-			return cached.cage
+			return cached
 		}
 
-		val world = resolver.value.lattice(deformerId)?.world
+		val lattice = resolver.value.lattice(deformerId)
+		val world = lattice?.world
 
 		if (world == null || world.size != topology.pointCount * 2) {
 			evaluatedById.remove(deformerId)
@@ -286,16 +308,18 @@ internal class LatticeCageProducer {
 			return null
 		}
 
-		if (cached != null && fits && cached.world.contentEquals(world)) {
-			evaluatedById[deformerId] = CagePositions(source, cached.world, cached.cage)
+		val depth = lattice.gridDepth
+		// A depth-only change keeps the cage's arrays, so the renderer re-uploads nothing but the flags it marks.
+		val positions =
+			if (cached != null && fits && cached.world.contentEquals(world)) {
+				val backFacing = if (latticeDepthsEqual(cached.depth, depth, topology.pointCount)) cached.backFacing else topology.layout.backFacingOf(cached.world, depth)
+				CagePositions(source, cached.world, depth, cached.cage, backFacing)
+			} else {
+				CagePositions(source, world, depth, cagePositionsOf(world, topology), topology.layout.backFacingOf(world, depth))
+			}
+		evaluatedById[deformerId] = positions
 
-			return cached.cage
-		}
-
-		val cage = cagePositionsOf(world, topology)
-		evaluatedById[deformerId] = CagePositions(source, world, cage)
-
-		return cage
+		return positions
 	}
 
 	/**

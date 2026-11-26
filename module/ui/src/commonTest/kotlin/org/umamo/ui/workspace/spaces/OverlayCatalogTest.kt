@@ -29,6 +29,7 @@ class OverlayCatalogTest {
 				OverlayToggle.Cursor,
 				OverlayToggle.Info,
 				OverlayToggle.SelectionTint,
+				OverlayToggle.DimBackFacing,
 				OverlayToggle.Deformers,
 				OverlayToggle.Wireframe,
 				OverlayToggle.CullHidden,
@@ -41,6 +42,7 @@ class OverlayCatalogTest {
 		assertEquals(OverlaySection.Guides, OverlayToggle.Cursor.section)
 		assertEquals(OverlaySection.Text, OverlayToggle.Info.section)
 		assertEquals(OverlaySection.Objects, OverlayToggle.SelectionTint.section)
+		assertEquals(OverlaySection.Objects, OverlayToggle.DimBackFacing.section, "above the Deformers row, so their Opacity stays under it")
 		assertEquals(OverlaySection.Objects, OverlayToggle.Deformers.section)
 		assertEquals(OverlaySection.Geometry, OverlayToggle.Wireframe.section)
 		assertEquals(OverlaySection.Geometry, OverlayToggle.CullHidden.section)
@@ -49,6 +51,28 @@ class OverlayCatalogTest {
 		assertEquals(listOf(OverlayField.WireframeOpacity), overlayFieldsFor(OverlaySurface.UvEditor), "the UV editor's islands fade by the same field, and it draws no lattice")
 		assertEquals(OverlaySection.Geometry, OverlayField.WireframeOpacity.section)
 		assertEquals(OverlaySection.Objects, OverlayField.DeformerOpacity.section, "under the Deformers row")
+	}
+
+	/** The Dim Back-Facing row reads and writes its flag, and the master gates its effect. */
+	@Test
+	fun theDimBackFacingRowReadsAndWritesItsFlagUnderTheMaster() {
+		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
+		assertTrue(OverlayToggle.DimBackFacing.isOn(state), "it starts on")
+		assertTrue(state.effectiveDimBackFacing)
+
+		OverlayToggle.DimBackFacing.set(state, false)
+		assertFalse(state.dimBackFacing)
+		assertFalse(state.isAtDefaults, "off is a deviation the area saves")
+		assertTrue(state.showSelectionTint && state.cullHiddenWireframe, "every other row is untouched")
+
+		OverlayToggle.DimBackFacing.set(state, true)
+		state.showOverlays = false
+		assertFalse(state.effectiveDimBackFacing, "the master hides its effect")
+		assertTrue(state.dimBackFacing, "while the flag stays as set")
+
+		state.dimBackFacing = false
+		state.reset()
+		assertTrue(state.dimBackFacing, "a reset turns it back on")
 	}
 
 	/** The selection tint row reads and writes its flag and no other. */

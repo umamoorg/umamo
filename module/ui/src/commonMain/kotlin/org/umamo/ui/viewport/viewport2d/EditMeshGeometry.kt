@@ -12,6 +12,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeLayout
+import org.umamo.runtime.model.backFacingOf
 import org.umamo.runtime.model.deformerId
 import org.umamo.runtime.model.drawableId
 import org.umamo.ui.transform.DrawableWorldGeometry
@@ -20,6 +21,7 @@ import org.umamo.ui.transform.LatticeWorldGeometry
 import org.umamo.ui.transform.OwnerWorldGeometry
 import org.umamo.ui.transform.captureEditModeMeshes
 import org.umamo.ui.transform.captureLatticeWorlds
+import org.umamo.ui.viewport.gizmo.BackFacingElements
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 
 /**
@@ -41,6 +43,12 @@ internal sealed interface EditOwnerGeometry {
 
 	/** The geometry-source-agnostic view the shared element queries take. */
 	val gizmo: GizmoMeshGeometry
+
+	/**
+	 * [gizmo] marking the elements that face away from the viewer, which a click passes over for any other within
+	 * reach: a deep lattice's.  A mesh has no depth, so for it this is [gizmo].
+	 */
+	val frontFirstGizmo: GizmoMeshGeometry get() = gizmo
 }
 
 /**
@@ -100,11 +108,19 @@ internal class EditLatticeGeometry(
 ) : EditOwnerGeometry {
 	override val owner: ElementOwner get() = worldGeometry.owner
 
-	override val topology: ElementTopology = ElementTopology.ofLattice(WarpLatticeLayout(worldGeometry.lattice.rows, worldGeometry.lattice.columns))
+	/** The lattice's layout. */
+	private val layout = WarpLatticeLayout(worldGeometry.lattice.rows, worldGeometry.lattice.columns)
+
+	override val topology: ElementTopology = ElementTopology.ofLattice(layout)
 
 	override val worldPosed: FloatArray get() = worldGeometry.world
 
 	override val gizmo = GizmoMeshGeometry(owner, topology, worldGeometry.world)
+
+	override val frontFirstGizmo: GizmoMeshGeometry by lazy(LazyThreadSafetyMode.NONE) {
+		val backFacing = layout.backFacingOf(worldGeometry.world, worldGeometry.depth) ?: return@lazy gizmo
+		GizmoMeshGeometry(owner, topology, worldGeometry.world, BackFacingElements(backFacing.points, backFacing.edgesIn(layout, topology), backFacing.cells))
+	}
 }
 
 /**

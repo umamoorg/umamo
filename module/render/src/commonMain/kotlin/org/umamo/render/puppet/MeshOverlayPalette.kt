@@ -58,6 +58,8 @@ data class OverlayColor(
  *   grid lines and dots in the lattice layer, and its unselected grid lines in the Edit cage.
  * @property OverlayColor latticeHover The lattice the pointer is over, whatever its role or mark, drawn at this
  *   color's own alpha whatever the area's deformer opacity: what a click there takes.
+ * @property Float backFacingOpacity What the Edit cage's back-facing primitives' alphas are multiplied by, 0 to 1, in
+ *   an area that dims them ([org.umamo.render.FrameOverlays.dimBackFacing]).
  */
 data class MeshOverlayPalette(
 	val vertexIdle: OverlayColor,
@@ -76,8 +78,12 @@ data class MeshOverlayPalette(
 	val latticeActive: OverlayColor,
 	val latticePending: OverlayColor,
 	val latticeHover: OverlayColor,
+	val backFacingOpacity: Float = DEFAULT_BACK_FACING_OPACITY,
 ) {
 	companion object {
+		/** The back-facing opacity the settings default to. */
+		const val DEFAULT_BACK_FACING_OPACITY: Float = 0.3f
+
 		/** The settings defaults, so a renderer draws something sensible before the UI pushes a palette. */
 		val Classic: MeshOverlayPalette =
 			MeshOverlayPalette(

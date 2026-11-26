@@ -183,6 +183,7 @@ internal class GlUniformLocations(program: Int) {
 	val activeColor = GL20.glGetUniformLocation(program, "activeColor")
 	val orderTexture = GL20.glGetUniformLocation(program, "orderTexture")
 	val cullOrder = GL20.glGetUniformLocation(program, "cullOrder")
+	val backAlpha = GL20.glGetUniformLocation(program, "backAlpha")
 }
 
 /**

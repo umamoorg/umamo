@@ -39,6 +39,8 @@ import org.umamo.runtime.model.drawableId
  *   one the pointer is over in this frame's area ([org.umamo.render.FrameOverlays.hoveredLattice]), or null for none.
  * @property Float latticeOpacity The alpha scale, 0 to 1, of a lattice overlay's role colors in this frame
  *   ([org.umamo.render.FrameOverlays.latticeOpacity]); the hover color keeps its own alpha.
+ * @property Float backAlpha What a back-facing primitive's alpha ([OVERLAY_FLAG_BACK]) is multiplied by in this frame:
+ *   the palette's back-facing opacity where the area dims them, else 1.
  */
 internal class OverlayFrame(
 	val affine: WorldToNdc,
@@ -55,6 +57,7 @@ internal class OverlayFrame(
 	val latticeRoles: Set<LatticeRole> = EVERY_LATTICE_ROLE,
 	val hoveredLattice: DeformerId? = null,
 	val latticeOpacity: Float = 1f,
+	val backAlpha: Float = 1f,
 )
 
 /**
@@ -156,9 +159,11 @@ internal class MeshOverlayEncoder(
 	 * @param RenderPassEncoder pass The open, unscissored pass on the frame's target.
 	 * @param DirectOverlayResidency residency The cage's residency, already brought to its value.
 	 * @param FrameInputs inputs The frame's inputs.
+	 * @param FrameOverlays overlays The frame's overlay options: whether the cage's back-facing primitives dim.
 	 */
-	fun encodeEditDirectDraws(pass: RenderPassEncoder, residency: DirectOverlayResidency, inputs: FrameInputs) {
-		encodeDirectDraws(pass, residency, overlayFrameOf(inputs))
+	fun encodeEditDirectDraws(pass: RenderPassEncoder, residency: DirectOverlayResidency, inputs: FrameInputs, overlays: FrameOverlays) {
+		val backAlpha = if (overlays.dimBackFacing) inputs.overlayPalette.backFacingOpacity.coerceIn(0f, 1f) else 1f
+		encodeDirectDraws(pass, residency, overlayFrameOf(inputs, backAlpha = backAlpha))
 	}
 
 	/**
@@ -169,6 +174,7 @@ internal class MeshOverlayEncoder(
 	 * @param Set<LatticeRole> latticeRoles The roles a lattice layer draws.
 	 * @param DeformerId? hoveredLattice The lattice a lattice layer draws in the hover color, or null.
 	 * @param Float latticeOpacity The alpha scale of a lattice layer's role colors.
+	 * @param Float backAlpha The alpha scale of a back-facing primitive.
 	 * @return OverlayFrame The frame.
 	 */
 	private fun overlayFrameOf(
@@ -176,6 +182,7 @@ internal class MeshOverlayEncoder(
 		latticeRoles: Set<LatticeRole> = EVERY_LATTICE_ROLE,
 		hoveredLattice: DeformerId? = null,
 		latticeOpacity: Float = 1f,
+		backAlpha: Float = 1f,
 	): OverlayFrame =
 		OverlayFrame(
 			inputs.affine,
@@ -192,6 +199,7 @@ internal class MeshOverlayEncoder(
 			latticeRoles,
 			hoveredLattice,
 			latticeOpacity,
+			backAlpha,
 		)
 
 	/**
@@ -225,6 +233,8 @@ internal class MeshOverlayEncoder(
 		if (entries.isEmpty()) {
 			return
 		}
+
+		uniformsScratch.backAlpha = frame.backAlpha
 
 		if (overlay.kind == MeshOverlayKind.Islands) {
 			drawIslands(pass, overlay, entries, store, frame)
@@ -291,6 +301,7 @@ internal class MeshOverlayEncoder(
 			forEachCageEntry(entries) { entry ->
 				if (entry.activeEdgeA >= 0) {
 					active(entry, entry.activeEdgeA, entry.activeEdgeB, -1)
+					writeColor(uniformsScratch.activeColor, palette.edgeActive, opaque = false, alphaScale = backScaleOf(entry.activeEdgeBack, frame))
 					pass.drawOverlayEdges(entry.buffers, store, uniformsScratch)
 				}
 			}
@@ -307,6 +318,7 @@ internal class MeshOverlayEncoder(
 			forEachCageEntry(entries) { entry ->
 				if (entry.activeVertex >= 0) {
 					active(entry, entry.activeVertex, -1, -1)
+					writeColor(uniformsScratch.activeColor, palette.vertexActive, opaque = false, alphaScale = backScaleOf(entry.activeVertexBack, frame))
 					pass.drawOverlayVertexDots(entry.buffers, store, uniformsScratch)
 				}
 			}
@@ -324,6 +336,7 @@ internal class MeshOverlayEncoder(
 			forEachCageEntry(entries) { entry ->
 				if (entry.activeFaceA >= 0) {
 					active(entry, entry.activeFaceA, entry.activeFaceB, entry.activeFaceC)
+					writeColor(uniformsScratch.activeColor, palette.faceActive, opaque = true, alphaScale = backScaleOf(entry.activeFaceBack, frame))
 					pass.drawOverlayFaceDots(entry.buffers, store, uniformsScratch)
 				}
 			}
@@ -556,12 +569,22 @@ internal class MeshOverlayEncoder(
 	private fun idleEdgeColorOf(entry: OverlayDrawEntry, palette: MeshOverlayPalette): OverlayColor = if (entry.style == MeshStyle.PendingCage) palette.latticePending else palette.edgeIdle
 
 	/**
+	 * The alpha scale of an active primitive, which its own draw paints without reading its flag: the frame's back
+	 * alpha when it faces away, else 1.
+	 *
+	 * @param Boolean back Whether the active primitive faces away.
+	 * @param OverlayFrame frame The pass's frame.
+	 * @return Float The scale.
+	 */
+	private fun backScaleOf(back: Boolean, frame: OverlayFrame): Float = if (back) frame.backAlpha else 1f
+
+	/**
 	 * Writes one domain's three colors into the scratch uniforms.
 	 *
 	 * @param OverlayColor idle The idle color.
 	 * @param OverlayColor selected The selected color.
 	 * @param OverlayColor active The active color.
-	 * @param Boolean opaque True to force every alpha to 1 (the face dots).
+	 * @param Boolean opaque True to start every alpha from 1 instead of the color's (the face dots).
 	 * @param Float alphaScale What each color's alpha is multiplied by (the wireframe's or the lattice's opacity); 1
 	 *   writes it as is.
 	 */
@@ -576,13 +599,13 @@ internal class MeshOverlayEncoder(
 	 *
 	 * @param FloatArray slot The slot.
 	 * @param OverlayColor color The color.
-	 * @param Boolean opaque True to write alpha 1 instead of the color's.
-	 * @param Float alphaScale What the color's alpha is multiplied by when it is written.
+	 * @param Boolean opaque True to start from alpha 1 instead of the color's.
+	 * @param Float alphaScale What the alpha is multiplied by when it is written.
 	 */
 	private fun writeColor(slot: FloatArray, color: OverlayColor, opaque: Boolean, alphaScale: Float) {
 		slot[0] = color.red
 		slot[1] = color.green
 		slot[2] = color.blue
-		slot[3] = if (opaque) 1f else color.alpha * alphaScale
+		slot[3] = (if (opaque) 1f else color.alpha) * alphaScale
 	}
 }

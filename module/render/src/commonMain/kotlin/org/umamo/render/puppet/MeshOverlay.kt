@@ -14,6 +14,21 @@ const val OVERLAY_FLAG_SELECTED: Byte = 1
 const val OVERLAY_FLAG_ACTIVE: Byte = 2
 
 /**
+ * A bit ORed onto any of the three flags above: the primitive faces away from the viewer (a lattice folded round
+ * behind itself), so it draws at its color's alpha times the frame's back-facing alpha.  The low two bits stay the
+ * primitive's role.
+ */
+const val OVERLAY_FLAG_BACK: Byte = 4
+
+/**
+ * Whether [flag] carries [OVERLAY_FLAG_BACK].
+ *
+ * @param Byte flag The flag.
+ * @return Boolean True when the primitive faces away.
+ */
+fun overlayFlagIsBack(flag: Byte): Boolean = flag.toInt() and OVERLAY_FLAG_BACK.toInt() != 0
+
+/**
  * What a mesh overlay is for, which decides what it draws: the Edit-mode wireframe with its per-element
  * flags; the plain object wireframe of every listed mesh's edges in the idle color, with no fills and no
  * dots; a UV area's Object-mode islands, each mesh filled and outlined whole in the colors of its own

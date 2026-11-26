@@ -332,7 +332,7 @@ fun rememberPuppetViewportHost(
 			service,
 			session,
 			snapshotFlow { meshOverlaySizes.value },
-			snapshotFlow { livePreviewLink.value?.let { preview -> LatticeDragPreview(preview.latticeWorldByDeformer, preview.latticeFormsByDeformer) } },
+			snapshotFlow { livePreviewLink.value?.let { preview -> LatticeDragPreview(preview.latticeWorldByDeformer, preview.latticeFormsByDeformer, preview.latticeDepthByDeformer) } },
 			snapshotFlow { liveParams.observed },
 		)
 	}

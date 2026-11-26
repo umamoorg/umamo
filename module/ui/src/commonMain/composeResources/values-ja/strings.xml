@@ -802,6 +802,7 @@
 	<string name="overlay_grid_follow_application">アプリケーションのグリッドに従う</string>
 	<string name="overlay_section_objects">オブジェクト</string>
 	<string name="overlay_row_selection_tint">選択のハイライト</string>
+	<string name="overlay_row_dim_back_facing">裏面を薄く表示</string>
 	<string name="overlay_row_deformers">デフォーマ</string>
 	<string name="overlay_row_cull_hidden">隠れた部分を省略</string>
 	<string name="overlay_wireframe_opacity">不透明度</string>
@@ -819,6 +820,7 @@
 	<string name="overlay_grid_subdivisions_description">主グリッドの各マスを分ける補助線の数。</string>
 	<string name="overlay_section_objects_description">選択中・アクティブなドローアブルの視覚的な補助。</string>
 	<string name="overlay_row_selection_tint_description">選択中・アクティブなドローアブルに色を重ねて、アート上で目立たせます。</string>
+	<string name="overlay_row_dim_back_facing_description">ワープデフォーマの格子の裏面を薄く表示して、見分けやすくします。</string>
 	<string name="overlay_row_deformers_description">選択中のものだけでなく、すべてのワープデフォーマの格子を表示して、どれでもビューポートで選択できるようにします。</string>
 	<string name="overlay_row_cull_hidden_description">他のドローアブルに覆われたワイヤーフレームの部分を非表示にします。</string>
 	<string name="overlay_wireframe_opacity_description">ビューポートに描くワイヤーフレームの不透明度。</string>
@@ -1141,7 +1143,7 @@
 	<string name="transform_options_move_x_description">選択が右に移動した距離（ピクセル）。負の値は左です。</string>
 	<string name="transform_options_move_y_description">選択がテクスチャ上で下に移動した距離（ピクセル）。負の値は上です。</string>
 	<string name="transform_options_move_z_description">選択が上に移動した距離（ピクセル）。負の値は下です。</string>
-	<string name="transform_options_move_depth_description">選択が奥へ移動した距離（ピクセル）。負の値は手前への移動です。</string>
+	<string name="transform_options_move_depth_description">選択が視点から遠ざかった距離（ピクセル）。負の値では視点に近づきます。</string>
 	<string name="transform_options_angle_description">選択が回転した角度（度）。</string>
 	<string name="transform_options_scale_x_description">選択を横方向に拡大縮小した倍率。1 では変化しません。</string>
 	<string name="transform_options_scale_y_description">選択をテクスチャ上で縦方向に拡大縮小した倍率。1 では変化しません。</string>
@@ -1377,6 +1379,8 @@
 	<string name="settings_colors_warning_description">隣のタイルと重なる、またはアトラスページからはみ出したタイルの輪郭。</string>
 	<string name="settings_colors_pinned_placement">ピン留めした配置</string>
 	<string name="settings_colors_pinned_placement_description">「UV エディター」エリアで、アトラスページ上のピン留めしたタイルのメッシュの辺の色。</string>
+	<string name="settings_colors_lattice_back_facing_opacity">裏面の不透明度</string>
+	<string name="settings_colors_lattice_back_facing_opacity_description">裏面を薄く表示する領域で、編集中の格子のうち視点から背を向けている部分をどれだけ見せるか（パーセント）。0 で非表示、100 で他の部分と同じに描きます。</string>
 	<string name="settings_colors_mesh_edit">メッシュ編集</string>
 	<string name="settings_colors_group_vertex">頂点</string>
 	<string name="settings_colors_group_edge">辺</string>

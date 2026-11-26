@@ -39,11 +39,14 @@ import org.umamo.runtime.model.drawableId
  * @property ElementTopology topology The vertices, edges, and faces.
  * @property FloatArray positions The interleaved (x, y) vertex positions in the hosting space's
  *   world units (what the area camera projects).
+ * @property BackFacingElements? backFacing The elements that face away from the viewer, which a click passes over
+ *   for any other within reach, or null when none do or the surface does not prefer the front.
  */
 internal class GizmoMeshGeometry(
 	val owner: ElementOwner,
 	val topology: ElementTopology,
 	val positions: FloatArray,
+	val backFacing: BackFacingElements? = null,
 ) {
 	/** The unique edges, in the topology's order. */
 	val edges: List<MeshElement.Edge> get() = topology.edges
@@ -51,6 +54,19 @@ internal class GizmoMeshGeometry(
 	/** The drawable whose mesh this is, or null for a lattice; a UV editor's geometry is always a drawable's. */
 	val drawableId: DrawableId? get() = owner.drawableId
 }
+
+/**
+ * The elements of a mesh that face away from the viewer, each indexed as its [GizmoMeshGeometry.topology] orders them.
+ *
+ * @property BooleanArray vertices One per vertex.
+ * @property BooleanArray edges One per edge, in the topology's edge order.
+ * @property BooleanArray faces One per face.
+ */
+internal class BackFacingElements(
+	val vertices: BooleanArray,
+	val edges: BooleanArray,
+	val faces: BooleanArray,
+)
 
 /**
  * The active element's own covered median: the median of the vertices the active element covers, in the
@@ -76,7 +92,8 @@ internal fun activeElementMedian(selection: MeshSelection, geometries: List<Gizm
 /**
  * The nearest element of the given domain under the pointer across every mesh, or null.  Each mesh's
  * own nearest candidate is compared across meshes by its domain's screen-space metric, so overlapping
- * meshes resolve to the visually closest element.
+ * meshes resolve to the visually closest element.  An element that faces away loses to any element within reach that
+ * does not, in its own mesh and across meshes, so a click over a folded lattice takes its front.
  *
  * @param MeshSelectMode selectMode The element domain to pick in.
  * @param List<GizmoMeshGeometry> geometries The meshes' gizmo geometry.
@@ -92,48 +109,88 @@ internal fun hitTestMeshes(
 	camera: ViewportCamera,
 	size: IntSize,
 ): ActiveMeshElement? {
-	var best: ActiveMeshElement? = null
-	var bestMetric = Float.MAX_VALUE
+	var best: ElementHit? = null
+	var bestOwner: ElementOwner? = null
 
 	for (geometry in geometries) {
-		when (selectMode) {
-			MeshSelectMode.Vertex -> {
-				val vertexIndex = hitTestVertex(geometry.positions, pointer, camera, size) ?: continue
-				val screen = worldToScreen(geometry.positions[vertexIndex * 2], geometry.positions[vertexIndex * 2 + 1], camera, size)
-				val metric = (screen - pointer).getDistance()
-
-				if (metric < bestMetric) {
-					bestMetric = metric
-					best = ActiveMeshElement(geometry.owner, MeshElement.Vertex(vertexIndex))
+		val excluded =
+			geometry.backFacing?.let { back ->
+				when (selectMode) {
+					MeshSelectMode.Vertex -> back.vertices
+					MeshSelectMode.Edge -> back.edges
+					MeshSelectMode.Face -> back.faces
 				}
 			}
+		// The front first; an element that faces away only when nothing else of the mesh is within reach.
+		val hit =
+			elementHitIn(selectMode, geometry, pointer, camera, size, excluded, back = false)
+				?: excluded?.let { elementHitIn(selectMode, geometry, pointer, camera, size, null, back = true) }
+				?: continue
+		val current = best
 
-			MeshSelectMode.Edge -> {
-				val edge = hitTestEdge(geometry.positions, geometry.edges, pointer, camera, size) ?: continue
-				val start = worldToScreen(geometry.positions[edge.endpointLow * 2], geometry.positions[edge.endpointLow * 2 + 1], camera, size)
-				val end = worldToScreen(geometry.positions[edge.endpointHigh * 2], geometry.positions[edge.endpointHigh * 2 + 1], camera, size)
-				val metric = distanceToSegment(pointer.x, pointer.y, start.x, start.y, end.x, end.y)
-
-				if (metric < bestMetric) {
-					bestMetric = metric
-					best = ActiveMeshElement(geometry.owner, edge)
-				}
-			}
-
-			MeshSelectMode.Face -> {
-				val face = hitTestFace(geometry.positions, geometry.topology, pointer, camera, size) ?: continue
-				val metric = (faceCentroidOnScreen(geometry, face.index, camera, size) - pointer).getDistance()
-
-				if (metric < bestMetric) {
-					bestMetric = metric
-					best = ActiveMeshElement(geometry.owner, face)
-				}
-			}
+		if (current == null || (current.back && !hit.back) || (current.back == hit.back && hit.metric < current.metric)) {
+			best = hit
+			bestOwner = geometry.owner
 		}
 	}
 
-	return best
+	val owner = bestOwner ?: return null
+
+	return best?.let { hit -> ActiveMeshElement(owner, hit.element) }
 }
+
+/**
+ * One mesh's nearest element under the pointer, its domain's screen-space metric, and whether it faces away.
+ *
+ * @property MeshElement element The element.
+ * @property Float metric Its distance from the pointer by its domain's metric, in screen pixels.
+ * @property Boolean back Whether it faces away.
+ */
+private class ElementHit(val element: MeshElement, val metric: Float, val back: Boolean)
+
+/**
+ * The nearest element of [selectMode]'s domain in one mesh under the pointer, leaving out [excluded].
+ *
+ * @param MeshSelectMode selectMode The element domain to pick in.
+ * @param GizmoMeshGeometry geometry The mesh.
+ * @param Offset pointer The cursor in screen pixels.
+ * @param ViewportCamera camera The area camera.
+ * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The domain's elements that cannot be hit, or null for none.
+ * @param Boolean back Whether a hit here counts as facing away.
+ * @return ElementHit? The hit, or null.
+ */
+private fun elementHitIn(
+	selectMode: MeshSelectMode,
+	geometry: GizmoMeshGeometry,
+	pointer: Offset,
+	camera: ViewportCamera,
+	size: IntSize,
+	excluded: BooleanArray?,
+	back: Boolean,
+): ElementHit? =
+	when (selectMode) {
+		MeshSelectMode.Vertex -> {
+			hitTestVertex(geometry.positions, pointer, camera, size, excluded)?.let { vertexIndex ->
+				val screen = worldToScreen(geometry.positions[vertexIndex * 2], geometry.positions[vertexIndex * 2 + 1], camera, size)
+				ElementHit(MeshElement.Vertex(vertexIndex), (screen - pointer).getDistance(), back)
+			}
+		}
+
+		MeshSelectMode.Edge -> {
+			hitTestEdge(geometry.positions, geometry.edges, pointer, camera, size, excluded)?.let { edge ->
+				val start = worldToScreen(geometry.positions[edge.endpointLow * 2], geometry.positions[edge.endpointLow * 2 + 1], camera, size)
+				val end = worldToScreen(geometry.positions[edge.endpointHigh * 2], geometry.positions[edge.endpointHigh * 2 + 1], camera, size)
+				ElementHit(edge, distanceToSegment(pointer.x, pointer.y, start.x, start.y, end.x, end.y), back)
+			}
+		}
+
+		MeshSelectMode.Face -> {
+			hitTestFace(geometry.positions, geometry.topology, pointer, camera, size, excluded)?.let { face ->
+				ElementHit(face, (faceCentroidOnScreen(geometry, face.index, camera, size) - pointer).getDistance(), back)
+			}
+		}
+	}
 
 /**
  * One face's centroid on screen: its world center ([ElementTopology.faceCenterInto]) projected - the projection is

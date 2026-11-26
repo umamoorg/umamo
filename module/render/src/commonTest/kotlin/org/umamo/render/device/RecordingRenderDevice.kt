@@ -352,6 +352,7 @@ internal class RecordedQuadDraw(
  * @property List<Float> activeColor The active color.
  * @property Int cullOrder The edge draw's own draw order it culls by, or -1 for no culling.
  * @property RecordedTexture? orderTexture The draw-order texture a culling edge draw reads, or null.
+ * @property Float backAlpha What a back-facing primitive's alpha is multiplied by.
  */
 internal class RecordedOverlayDraw(
 	override val pipeline: RenderPipelineSpec,
@@ -370,6 +371,7 @@ internal class RecordedOverlayDraw(
 	val activeColor: List<Float>,
 	val cullOrder: Int = -1,
 	val orderTexture: RecordedTexture? = null,
+	val backAlpha: Float = 1f,
 ) : RecordedDraw
 
 /** One resource operation, in the order the renderer issued it. */
@@ -1150,6 +1152,7 @@ internal class RecordingRenderDevice(private val maxTextureEdge: Int = RECORDED_
 					activeColor = uniforms.activeColor.toList(),
 					cullOrder = uniforms.cullOrder,
 					orderTexture = sampledTexture(orderTexture, pass, operation),
+					backAlpha = uniforms.backAlpha,
 				),
 			)
 		}

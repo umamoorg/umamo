@@ -872,6 +872,7 @@
 	<string name="overlay_grid_follow_application">Follow Application Grid</string>
 	<string name="overlay_section_objects">Objects</string>
 	<string name="overlay_row_selection_tint">Selection Tint</string>
+	<string name="overlay_row_dim_back_facing">Dim Back-Facing</string>
 	<string name="overlay_row_deformers">Deformers</string>
 	<string name="overlay_row_cull_hidden">Cull Hidden</string>
 	<string name="overlay_wireframe_opacity">Opacity</string>
@@ -890,6 +891,7 @@
 	<string name="overlay_grid_subdivisions_description">How many minor lines divide each major grid cell.</string>
 	<string name="overlay_section_objects_description">The visual helpers for selected and active drawables.</string>
 	<string name="overlay_row_selection_tint_description">Tints selected and active drawables so they stand out.</string>
+	<string name="overlay_row_dim_back_facing_description">The back sides of a warp lattice will be dimmed make them easier to identifier.</string>
 	<string name="overlay_row_deformers_description">Shows the lattice of every warp deformer, not only the selected ones, so you can select any of them in the viewport.</string>
 	<string name="overlay_row_cull_hidden_description">Hides parts of the wireframe that are covered by other drawables.</string>
 	<string name="overlay_wireframe_opacity_description">The opacity of the wireframe drawn in the viewport.</string>
@@ -1477,6 +1479,8 @@
 	<string name="settings_colors_warning_description">The outline of a tile that overlaps a neighbor or spills off the atlas page.</string>
 	<string name="settings_colors_pinned_placement">Pinned Placement</string>
 	<string name="settings_colors_pinned_placement_description">The mesh edge color of a pinned tile on an atlas page in the UV Editor area.</string>
+	<string name="settings_colors_lattice_back_facing_opacity">Back-Facing Opacity</string>
+	<string name="settings_colors_lattice_back_facing_opacity_description">How visible the parts of a lattice being edited that face away from you stay in an area that dims them, as a percent.  0 hides them, and 100 draws them as the rest.</string>
 	<string name="settings_colors_mesh_edit">Mesh Editing</string>
 	<string name="settings_colors_group_vertex">Vertex</string>
 	<string name="settings_colors_group_edge">Edge</string>

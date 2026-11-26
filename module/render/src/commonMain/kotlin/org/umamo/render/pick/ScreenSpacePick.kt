@@ -118,6 +118,7 @@ class ScreenHit(val index: Int, val distancePx: Float)
  * @param ViewportCamera camera The projecting camera.
  * @param Int viewportWidth The viewport width in pixels.
  * @param Int viewportHeight The viewport height in pixels.
+ * @param BooleanArray? excluded The vertices that cannot be hit, by index, or null for none.
  * @return Int? The hit vertex index, or null.
  */
 fun hitTestVertex(
@@ -128,7 +129,8 @@ fun hitTestVertex(
 	camera: ViewportCamera,
 	viewportWidth: Int,
 	viewportHeight: Int,
-): Int? = nearestVertex(positions, pointerX, pointerY, hitRadiusPx, camera, viewportWidth, viewportHeight)?.index
+	excluded: BooleanArray? = null,
+): Int? = nearestVertex(positions, pointerX, pointerY, hitRadiusPx, camera, viewportWidth, viewportHeight, excluded = excluded)?.index
 
 /**
  * The vertex nearest the pointer within [hitRadiusPx], with its distance, or null: the one hit-test a vertex and a
@@ -143,6 +145,7 @@ fun hitTestVertex(
  * @param Int viewportHeight The viewport height in pixels.
  * @param Int vertexCount How many of the vertices, from the first, can be hit: every one by default, fewer when only
  *   the first are drawn as dots (a slim lattice's corners).
+ * @param BooleanArray? excluded The vertices that cannot be hit, by index, or null for none.
  * @return ScreenHit? The nearest vertex and its distance, or null.
  */
 fun nearestVertex(
@@ -154,11 +157,16 @@ fun nearestVertex(
 	viewportWidth: Int,
 	viewportHeight: Int,
 	vertexCount: Int = positions.size / 2,
+	excluded: BooleanArray? = null,
 ): ScreenHit? {
 	var best = -1
 	var bestDistance = hitRadiusPx
 
 	for (vertexIndex in 0 until vertexCount) {
+		if (excluded?.getOrNull(vertexIndex) == true) {
+			continue
+		}
+
 		val screenX = worldToScreenX(positions[vertexIndex * 2], camera, viewportWidth)
 		val screenY = worldToScreenY(positions[vertexIndex * 2 + 1], camera, viewportHeight)
 		val deltaX = screenX - pointerX
@@ -186,6 +194,7 @@ fun nearestVertex(
  * @param ViewportCamera camera The projecting camera.
  * @param Int viewportWidth The viewport width in pixels.
  * @param Int viewportHeight The viewport height in pixels.
+ * @param BooleanArray? excluded The edges that cannot be hit, by ordinal, or null for none.
  * @return Int? The hit edge's ordinal (its pair index within [edgeEndpoints]), or null.
  */
 fun hitTestEdge(
@@ -197,7 +206,8 @@ fun hitTestEdge(
 	camera: ViewportCamera,
 	viewportWidth: Int,
 	viewportHeight: Int,
-): Int? = nearestEdge(positions, edgeEndpoints, pointerX, pointerY, hitRadiusPx, camera, viewportWidth, viewportHeight)?.index
+	excluded: BooleanArray? = null,
+): Int? = nearestEdge(positions, edgeEndpoints, pointerX, pointerY, hitRadiusPx, camera, viewportWidth, viewportHeight, excluded)?.index
 
 /**
  * The edge nearest the pointer within [hitRadiusPx] by point-to-segment distance, with its distance, or null: the one
@@ -211,6 +221,7 @@ fun hitTestEdge(
  * @param ViewportCamera camera The projecting camera.
  * @param Int viewportWidth The viewport width in pixels.
  * @param Int viewportHeight The viewport height in pixels.
+ * @param BooleanArray? excluded The edges that cannot be hit, by ordinal, or null for none.
  * @return ScreenHit? The nearest edge's ordinal and its distance, or null.
  */
 fun nearestEdge(
@@ -222,6 +233,7 @@ fun nearestEdge(
 	camera: ViewportCamera,
 	viewportWidth: Int,
 	viewportHeight: Int,
+	excluded: BooleanArray? = null,
 ): ScreenHit? {
 	var best = -1
 	var bestDistance = hitRadiusPx
@@ -232,7 +244,7 @@ fun nearestEdge(
 		val endpointA = edgeEndpoints[edgeOrdinal * 2]
 		val endpointB = edgeEndpoints[edgeOrdinal * 2 + 1]
 
-		if (endpointA >= vertexCount || endpointB >= vertexCount) {
+		if (endpointA >= vertexCount || endpointB >= vertexCount || excluded?.getOrNull(edgeOrdinal) == true) {
 			continue
 		}
 
@@ -264,6 +276,7 @@ fun nearestEdge(
  * @param ViewportCamera camera The projecting camera.
  * @param Int viewportWidth The viewport width in pixels.
  * @param Int viewportHeight The viewport height in pixels.
+ * @param BooleanArray? excluded The faces that cannot be hit, by ordinal, or null for none.
  * @return Int? The hit face's ordinal, or null.
  */
 fun hitTestFace(
@@ -275,12 +288,17 @@ fun hitTestFace(
 	camera: ViewportCamera,
 	viewportWidth: Int,
 	viewportHeight: Int,
+	excluded: BooleanArray? = null,
 ): Int? {
 	var best = -1
 	var bestCentroidDistance = Float.MAX_VALUE
 	val screen = FloatArray(cornersPerFace * 2)
 
 	for (faceOrdinal in 0 until faceCorners.size / cornersPerFace) {
+		if (excluded?.getOrNull(faceOrdinal) == true) {
+			continue
+		}
+
 		if (!projectFace(positions, faceCorners, cornersPerFace, faceOrdinal, camera, viewportWidth, viewportHeight, screen)) {
 			continue
 		}

@@ -55,6 +55,7 @@ internal fun ViewportOverlayState.overlaysJsonOrNull(): JsonElement {
 			put("selectionTint", flagOrNull(showSelectionTint, defaultValue = true))
 			put("deformers", flagOrNull(showDeformers, defaultValue = false))
 			put("wireframeCulling", flagOrNull(cullHiddenWireframe, defaultValue = true))
+			put("dimBackFacing", flagOrNull(dimBackFacing, defaultValue = true))
 			// UMA § 7.3 `deformerOpacity`: the warp lattices' alpha scale, 0 to 1 (`viewport` only).
 			put("deformerOpacity", if (deformerOpacity == 1f) JsonNull else JsonPrimitive(deformerOpacity))
 		}
@@ -100,6 +101,7 @@ internal fun ViewportOverlayState.restoreOverlays(tree: JsonObject?) {
 		showSelectionTint = booleanOf(tree, "selectionTint") ?: true
 		showDeformers = booleanOf(tree, "deformers") ?: false
 		cullHiddenWireframe = booleanOf(tree, "wireframeCulling") ?: true
+		dimBackFacing = booleanOf(tree, "dimBackFacing") ?: true
 		deformerOpacity = finiteFloatOf(tree["deformerOpacity"])?.takeIf { value -> value in 0f..1f } ?: 1f
 	}
 
