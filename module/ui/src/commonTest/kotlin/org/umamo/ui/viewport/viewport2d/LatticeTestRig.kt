@@ -17,6 +17,7 @@ import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -132,6 +133,32 @@ internal fun latticeRigModel(): PuppetModel {
 		drawables = listOf(art),
 		rootChildren = listOf(OrgChild.Part(LATTICE_RIG_BODY_PART), OrgChild.Part(LATTICE_RIG_GUIDE_PART), OrgChild.Drawable(LATTICE_RIG_ART)),
 		rootPartId = null,
+	)
+}
+
+/** The body warp's depth at the rig parameter's first key (-1) in [latticeRigModelWithBodyDepth]. */
+internal val LATTICE_RIG_LOW_DEPTH = floatArrayOf(0f, 4f, 8f, 12f)
+
+/** The body warp's depth at the second key (1); the rest pose (0) blends the two half and half. */
+internal val LATTICE_RIG_HIGH_DEPTH = floatArrayOf(10f, 20f, 30f, 40f)
+
+/**
+ * The rig's model with the body warp deep: its keys hold [LATTICE_RIG_LOW_DEPTH] and [LATTICE_RIG_HIGH_DEPTH] beside
+ * their unchanged points.
+ *
+ * @return PuppetModel The model.
+ */
+internal fun latticeRigModelWithBodyDepth(): PuppetModel {
+	val rig = latticeRigModel()
+	val depths = listOf(LATTICE_RIG_LOW_DEPTH, LATTICE_RIG_HIGH_DEPTH)
+
+	return rig.copy(
+		deformers =
+			rig.deformers.map { deformer ->
+				val grid = (deformer as? Deformer.Warp)?.takeIf { warp -> warp.id == LATTICE_RIG_BODY }?.geometryGrid ?: return@map deformer
+				val cells = grid.cells.mapIndexed { keyIndex, cell -> KeyformCell(cell.coordinate, WarpLatticeForm(cell.form.controlPoints.copyOf(), LatticeDepth.PerPoint(depths[keyIndex].copyOf()))) }
+				(deformer as Deformer.Warp).copy(geometryGrid = KeyformGrid(grid.axes, cells))
+			},
 	)
 }
 

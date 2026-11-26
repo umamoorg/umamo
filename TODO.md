@@ -48,6 +48,9 @@
 * Hire artist to make the DMG background art.
 	* Chibi Tamamo carrying the icon to the application folder.
 
+## Colors
+* Change viewport.deformer.latticePending to not be so close to the selection orange.
+
 ## Documentation
 * Add a note somewhere in the repository and the web site asking game developers to please credit Umamo in the game credits if they used it as part of the development.
 

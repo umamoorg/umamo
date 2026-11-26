@@ -486,7 +486,7 @@ internal class EditModalTransform(
 		publishedResult = result
 		gesture.preview = result.preview
 		livePreview.restByDrawable = result.preview
-		livePreview.showLattices(result.latticeWorld, result.latticeForms)
+		livePreview.showLattices(result.latticeWorld, result.latticeForms, result.latticeDepth)
 
 		if (result.latticeForms.isNotEmpty()) {
 			pushLatticePreview(result.latticeForms)

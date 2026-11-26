@@ -52,6 +52,8 @@ import kotlin.math.PI
  * @property RotationAxis rotationAxis    The axis the Rotate turns about (Y, the in-plane turn, for the others).
  * @property Float        pivotDepth      The pivot's depth along world Y, positive into the screen, in world px.
  * @property DepthSurface depthSurface    How deep the points sit before a turn about X or Z.
+ * @property Float        deltaDepth      The Grab's move along world Y, positive into the screen, in world px (identity 0;
+ *   read only for points that carry depth, a lattice's).
  */
 class TransformGestureParameters(
 	val deltaX: Float,
@@ -62,6 +64,7 @@ class TransformGestureParameters(
 	val rotationAxis: RotationAxis = RotationAxis.Y,
 	val pivotDepth: Float = 0f,
 	val depthSurface: DepthSurface = DepthSurface.Unchanged,
+	val deltaDepth: Float = 0f,
 ) {
 	companion object {
 		/** The parameters that move nothing. */
@@ -74,6 +77,7 @@ object TransformParameterKeys {
 	const val MOVE_X = "transform.moveX"
 	const val MOVE_Y = "transform.moveY"
 	const val MOVE_Z = "transform.moveZ"
+	const val MOVE_DEPTH = "transform.moveDepth"
 	const val ANGLE = "transform.angle"
 	const val SCALE_X = "transform.scaleX"
 	const val SCALE_Y = "transform.scaleY"
@@ -207,6 +211,8 @@ class ProportionalRows(
  *   weights (Object mode, a suppressed auto-grab).
  * @param Boolean                    rotatesInDepth True when the gesture could rotate in depth (a Pose-mode Rotate);
  *   read only for a Rotate.
+ * @param Boolean                    movesInDepth True when the gesture moved points that carry depth (a lattice's);
+ *   read only for a Grab.
  * @return List The rows, empty for an operator that has none.
  */
 fun transformParameters(
@@ -215,6 +221,7 @@ fun transformParameters(
 	space: TransformRowSpace,
 	proportional: ProportionalRows?,
 	rotatesInDepth: Boolean = false,
+	movesInDepth: Boolean = false,
 ): List<OperatorParameter> {
 	val rows = ArrayList<OperatorParameter>()
 
@@ -222,6 +229,10 @@ fun transformParameters(
 		MeshOperatorKind.Grab -> {
 			rows.add(moveRow(TransformParameterKeys.MOVE_X, parameters.deltaX))
 			rows.add(moveRow(space.verticalMoveKey, space.rowVertical(parameters.deltaY)))
+
+			if (movesInDepth) {
+				rows.add(moveRow(TransformParameterKeys.MOVE_DEPTH, parameters.deltaDepth))
+			}
 		}
 
 		MeshOperatorKind.Rotate -> {
@@ -281,6 +292,7 @@ fun transformGestureParametersOf(
 				factorX = 1f,
 				factorY = 1f,
 				rotationRadians = 0f,
+				deltaDepth = parameters.floatValue(TransformParameterKeys.MOVE_DEPTH, 0f),
 			)
 		}
 

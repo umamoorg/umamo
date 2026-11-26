@@ -874,6 +874,7 @@
 	<string name="sidebar_edit_median">中点:</string>
 	<string name="sidebar_median_x_description">選択した頂点の水平方向の位置（複数のときはその中点、ワールド軸からの距離）。</string>
 	<string name="sidebar_median_z_description">選択した頂点の垂直方向の位置（複数のときはその中点、ワールド軸から上が正）。</string>
+	<string name="sidebar_median_depth_description">選択した格子の点の奥行き（複数のときはその平均、アートの面からのピクセル数）。</string>
 	<string name="sidebar_uv_cursor_x_description">表示中のページまたはアートワーク上のUVカーソルの水平方向の位置（左端からのピクセル数）。</string>
 	<string name="sidebar_uv_cursor_y_description">表示中のページまたはアートワーク上のUVカーソルの垂直方向の位置（上端から下へのピクセル数）。</string>
 	<string name="sidebar_uv_median_x_description">選択したテクスチャ座標の水平方向の位置（複数のときはその中点、表示中のページまたはアートワークの左端からのピクセル数）。</string>
@@ -953,6 +954,7 @@
 	<string name="properties_field_position_x">位置 X</string>
 	<string name="properties_field_position_z">位置 Z</string>
 	<string name="properties_field_position_y">位置 Y</string>
+	<string name="properties_field_depth">奥行き</string>
 	<string name="properties_field_size_x">サイズ X</string>
 	<string name="properties_field_size_z">サイズ Z</string>
 	<string name="common_lock_aspect_ratio">縦横比を固定</string>
@@ -999,6 +1001,7 @@
 	<string name="placement_options_scale_y">拡大縮小 Y</string>
 	<!-- The mesh / object / UV transform rows of the operation settings strip. -->
 	<string name="transform_options_move_z">移動 Z</string>
+	<string name="transform_options_move_depth">移動 奥行き</string>
 	<string name="transform_options_scale_z">拡大縮小 Z</string>
 	<string name="transform_options_proportional">プロポーショナル編集</string>
 	<string name="transform_options_falloff">減衰</string>
@@ -1138,6 +1141,7 @@
 	<string name="transform_options_move_x_description">選択が右に移動した距離（ピクセル）。負の値は左です。</string>
 	<string name="transform_options_move_y_description">選択がテクスチャ上で下に移動した距離（ピクセル）。負の値は上です。</string>
 	<string name="transform_options_move_z_description">選択が上に移動した距離（ピクセル）。負の値は下です。</string>
+	<string name="transform_options_move_depth_description">選択が奥へ移動した距離（ピクセル）。負の値は手前への移動です。</string>
 	<string name="transform_options_angle_description">選択が回転した角度（度）。</string>
 	<string name="transform_options_scale_x_description">選択を横方向に拡大縮小した倍率。1 では変化しません。</string>
 	<string name="transform_options_scale_y_description">選択をテクスチャ上で縦方向に拡大縮小した倍率。1 では変化しません。</string>

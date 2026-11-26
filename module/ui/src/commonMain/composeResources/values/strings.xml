@@ -951,6 +951,7 @@
 	<string name="sidebar_edit_median">Median:</string>
 	<string name="sidebar_median_x_description">The horizontal position of the selected vertices(their median if several), measured from the world axes.</string>
 	<string name="sidebar_median_z_description">The vertical position of the selected vertices(their median if several), measured up from the world axes.</string>
+	<string name="sidebar_median_depth_description">The depth of the selected lattice points(their mean if several), in pixels from the art plane.</string>
 	<string name="sidebar_uv_cursor_x_description">The UV cursor's horizontal position on the shown page or artwork, in pixels from its left edge.</string>
 	<string name="sidebar_uv_cursor_y_description">The UV cursor's vertical position on the shown page or artwork, in pixels down from its top edge.</string>
 	<string name="sidebar_uv_median_x_description">The horizontal position of the selected texture coordinates(their median if several), in pixels from the left edge of the shown page or artwork.</string>
@@ -1034,6 +1035,7 @@
 	<string name="properties_field_position_x">Position X</string>
 	<string name="properties_field_position_z">Position Z</string>
 	<string name="properties_field_position_y">Position Y</string>
+	<string name="properties_field_depth">Depth</string>
 	<string name="properties_field_size_x">Size X</string>
 	<string name="properties_field_size_z">Size Z</string>
 	<string name="common_lock_aspect_ratio">Lock Aspect Ratio</string>
@@ -1082,6 +1084,7 @@
 	     labels are the placement rows' above, and the viewport's vertical axis reads as Z (Blender's axes: Y into
 	     the screen, Z up). -->
 	<string name="transform_options_move_z">Move Z</string>
+	<string name="transform_options_move_depth">Move Depth</string>
 	<string name="transform_options_scale_z">Scale Z</string>
 	<string name="transform_options_proportional">Proportional Editing</string>
 	<string name="transform_options_falloff">Falloff</string>
@@ -1226,6 +1229,7 @@
 	<string name="transform_options_move_x_description">How far the selection moved right, in pixels.  Negative moves it left.</string>
 	<string name="transform_options_move_y_description">How far the selection moved down the texture, in pixels.  Negative moves it up.</string>
 	<string name="transform_options_move_z_description">How far the selection moved up, in pixels.  Negative moves it down.</string>
+	<string name="transform_options_move_depth_description">How far the selection moved away from the viewer, in pixels.  Negative moves it closer.</string>
 	<string name="transform_options_angle_description">How far the selection turned, in degrees.</string>
 	<string name="transform_options_scale_x_description">How much the selection was scaled horizontally.  1 leaves it unchanged.</string>
 	<string name="transform_options_scale_y_description">How much the selection was scaled vertically on the texture.  1 leaves it unchanged.</string>

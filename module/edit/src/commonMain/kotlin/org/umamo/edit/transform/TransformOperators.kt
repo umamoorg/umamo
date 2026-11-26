@@ -138,7 +138,8 @@ fun applyOperator(
 
 /**
  * [applyOperator] over points that carry depth, a lattice's: a Rotate about X or Z turns each point at its depth and
- * hands the turned depth back, and every other operator moves the points in the plane and keeps their depths.
+ * hands the turned depth back, a Grab also moves the points by its depth delta, and every other operator moves the
+ * points in the plane and keeps their depths.
  *
  * @param MeshOperatorKind operator The active operator.
  * @param PointsInDepth original The world positions (the second component is world Z, up) and depths captured at
@@ -156,6 +157,16 @@ fun applyOperatorInDepth(
 	parameters: TransformGestureParameters,
 	proportionalInfluences: Map<Int, ProportionalInfluence>,
 ): PointsInDepth {
+	if (operator == MeshOperatorKind.Grab && parameters.deltaDepth != 0f) {
+		val delta = parameters.deltaDepth
+		val moved = groups.fold(original.depths) { depths, group -> MeshTransforms.translateDepths(depths, group.vertexIndices, delta) }
+
+		return PointsInDepth(
+			applyOperator(operator, original.positions, groups, parameters, proportionalInfluences),
+			MeshTransforms.translateDepthsWeighted(moved, proportionalInfluences, delta),
+		)
+	}
+
 	if (operator != MeshOperatorKind.Rotate) {
 		return PointsInDepth(applyOperator(operator, original.positions, groups, parameters, proportionalInfluences), original.depths)
 	}

@@ -86,7 +86,7 @@ class EditMedianMoveTest {
 		assertEquals(20f, move.median.worldX)
 		assertEquals(3, move.median.vertexCount)
 
-		session.moveCoveredMedianAdjustable(move, WorldAxis.X, 50f, STRIP_AREA)
+		session.moveCoveredMedianAdjustable(move, MedianCoordinate.X, 50f, STRIP_AREA)
 
 		assertEquals(listOf(30f, 0f, 50f, 0f, 20f, 20f, 0f, 20f), rigPositionsOf(session, RIG_QUAD))
 		assertEquals(listOf(70f, 0f, 60f, 0f, 40f, 20f), rigPositionsOf(session, RIG_OTHER))
@@ -98,7 +98,7 @@ class EditMedianMoveTest {
 		val session = session()
 		val stepsBefore = session.historyView.value.steps.size
 
-		session.moveCoveredMedianAdjustable(moveOf(session), WorldAxis.Z, 10f, STRIP_AREA)
+		session.moveCoveredMedianAdjustable(moveOf(session), MedianCoordinate.Z, 10f, STRIP_AREA)
 
 		val steps = session.historyView.value.steps
 		assertEquals(stepsBefore + 1, steps.size)
@@ -114,7 +114,7 @@ class EditMedianMoveTest {
 		val before = session.model.value
 		val stepsBefore = session.historyView.value.steps.size
 
-		session.moveCoveredMedianAdjustable(moveOf(session), WorldAxis.X, 20f, STRIP_AREA)
+		session.moveCoveredMedianAdjustable(moveOf(session), MedianCoordinate.X, 20f, STRIP_AREA)
 
 		assertSame(before, session.model.value)
 		assertEquals(stepsBefore, session.historyView.value.steps.size)
@@ -127,7 +127,7 @@ class EditMedianMoveTest {
 		val session = session()
 		session.setPivotMode(TransformPivotMode.IndividualOrigins)
 
-		session.moveCoveredMedianAdjustable(moveOf(session), WorldAxis.Z, 10f, STRIP_AREA)
+		session.moveCoveredMedianAdjustable(moveOf(session), MedianCoordinate.Z, 10f, STRIP_AREA)
 
 		// World z up is local y down, so the covered vertices' y drops by 10.
 		assertEquals(listOf(0f, -10f, 20f, -10f, 20f, 20f, 0f, 20f), rigPositionsOf(session, RIG_QUAD))
@@ -139,7 +139,7 @@ class EditMedianMoveTest {
 	fun theStripReplaysTheMoveFromTheBase() {
 		val session = session()
 
-		session.moveCoveredMedianAdjustable(moveOf(session), WorldAxis.X, 50f, STRIP_AREA)
+		session.moveCoveredMedianAdjustable(moveOf(session), MedianCoordinate.X, 50f, STRIP_AREA)
 
 		val record = assertNotNull(session.adjustableOperation.value)
 		assertEquals(STRIP_AREA, record.areaId)
@@ -165,7 +165,7 @@ class EditMedianMoveTest {
 		session.toggleProportionalEdit()
 		val proportional = assertNotNull(session.proportionalEdit.value)
 
-		session.moveCoveredMedianAdjustable(moveOf(session), WorldAxis.X, 50f, STRIP_AREA)
+		session.moveCoveredMedianAdjustable(moveOf(session), MedianCoordinate.X, 50f, STRIP_AREA)
 		assertEquals(listOf(30f, 0f, 50f, 0f, 20f, 20f, 0f, 20f), rigPositionsOf(session, RIG_QUAD), "the uncovered vertices took no falloff")
 		adjustFloat(session, TransformParameterKeys.MOVE_X, 5f)
 
@@ -180,7 +180,7 @@ class EditMedianMoveTest {
 		session.toggleProportionalConnected()
 		assertNull(session.proportionalEdit.value, "precondition: proportional editing is off")
 
-		session.moveCoveredMedianAdjustable(moveOf(session), WorldAxis.X, 50f, STRIP_AREA)
+		session.moveCoveredMedianAdjustable(moveOf(session), MedianCoordinate.X, 50f, STRIP_AREA)
 		val record = assertNotNull(session.adjustableOperation.value)
 		val toggle = record.parameters.first { parameter -> parameter.key == TransformParameterKeys.PROPORTIONAL } as OperatorParameter.BooleanParameter
 		session.adjustLastOperation(record.parameters.withParameter(TransformParameterKeys.PROPORTIONAL, toggle.copy(value = true)), adjustedKey = TransformParameterKeys.PROPORTIONAL)
@@ -202,7 +202,7 @@ class EditMedianMoveTest {
 		session.setProportionalFalloff(ProportionalFalloff.Linear)
 		session.setProportionalRadius(30f)
 
-		session.moveCoveredMedianAdjustable(moveOf(session), WorldAxis.X, 30f, STRIP_AREA)
+		session.moveCoveredMedianAdjustable(moveOf(session), MedianCoordinate.X, 30f, STRIP_AREA)
 		assertEquals(listOf(40f, 0f, 60f, 0f, 40f, 20f), rigPositionsOf(session, RIG_OTHER), "the typed move takes no falloff")
 		val record = assertNotNull(session.adjustableOperation.value)
 		val toggle = record.parameters.first { parameter -> parameter.key == TransformParameterKeys.PROPORTIONAL } as OperatorParameter.BooleanParameter
@@ -220,7 +220,7 @@ class EditMedianMoveTest {
 		val before = session.model.value
 		val stepsBefore = session.historyView.value.steps.size
 
-		val preview = assertNotNull(session.previewCoveredMedianMove(moveOf(session), WorldAxis.X, 50f)).folded
+		val preview = assertNotNull(session.previewCoveredMedianMove(moveOf(session), MedianCoordinate.X, 50f)).folded
 
 		assertEquals(30f, preview.drawables.first { drawable -> drawable.id == RIG_QUAD }.mesh!!.positions[0])
 		assertSame(before, session.model.value)
@@ -236,8 +236,8 @@ class EditMedianMoveTest {
 		assertNotNull(session.activeMeshOperator.value, "precondition: the operator latched")
 		val before = session.model.value
 
-		assertNull(session.previewCoveredMedianMove(move, WorldAxis.X, 50f))
-		session.moveCoveredMedianAdjustable(move, WorldAxis.X, 50f, STRIP_AREA)
+		assertNull(session.previewCoveredMedianMove(move, MedianCoordinate.X, 50f))
+		session.moveCoveredMedianAdjustable(move, MedianCoordinate.X, 50f, STRIP_AREA)
 
 		assertSame(before, session.model.value)
 	}
