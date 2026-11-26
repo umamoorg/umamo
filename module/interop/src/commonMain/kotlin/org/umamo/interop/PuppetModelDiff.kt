@@ -1115,8 +1115,8 @@ private fun <TForm : Any> blendShapesEqual(
 }
 
 /**
- * Tells whether two warp lattice forms hold the same control points.
- * Does not check the depth component of the WarpLatticeForm.
+ * Tells whether two warp lattice forms hold the same control points; their depth is its own field, compared by
+ * [gridDepthsEqual].
  *
  * @param WarpLatticeForm baseline The form before the edit.
  * @param WarpLatticeForm edited The form after it.
@@ -1126,7 +1126,7 @@ private fun warpLatticeFormEqual(baseline: WarpLatticeForm, edited: WarpLatticeF
 	baseline === edited || baseline.controlPoints.contentEquals(edited.controlPoints)
 
 /**
- * Compared two KeyformGrids and determines if the depth components of their WarpLatticeForms are equal.
+ * Whether two warp grids hold the same depth at every keyform, a flat lattice reading as all 0.
  *
  * @param KeyformGrid? baseline The grid before the edit.
  * @param KeyformGrid? edited The grid after it.

@@ -11,8 +11,8 @@ import org.umamo.edit.floatValue
  * To Shape's face on the operation settings strip: one strip for both of its commands, so a To Shape (Cylinder) can
  * become a sphere after the fact and the other way round.  The Shape row names the surface, the Axis row the axis a
  * cylinder runs along (a sphere reads none, and keeps the row so switching back finds it), the Degrees row how far
- * round the shape the sheet wraps, and the Factor row how far the points go toward the shape.  The keys are declared here, beside the math, so the UI's label table names
- * constants rather than repeating strings.
+ * round the shape the sheet wraps, and the Factor row how far the points go toward the shape.  The keys are declared
+ * here, beside the math, so the UI's label table names constants rather than repeating strings.
  */
 
 /** The parameter keys and choice label-key prefixes To Shape's rows carry. */

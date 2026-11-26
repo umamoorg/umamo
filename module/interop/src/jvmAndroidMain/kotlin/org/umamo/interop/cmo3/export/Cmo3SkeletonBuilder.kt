@@ -105,7 +105,7 @@ internal object Cmo3SkeletonBuilder {
 				guid = freshGuid("CModelGuid")
 				name = modelName
 
-				// CMO3: CModelSource field editorEdition - 15 is likely an enterprise license so we'll just write that out.
+				// CMO3: CModelSource field editorEdition - 15 is likely an enterprise license so we'll just write that out.(CMO3.md § Editor Edition)
 				editorEdition = EditorEdition().apply { edition = 15 }
 
 				canvas =

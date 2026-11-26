@@ -70,9 +70,9 @@ private val SHAPE_HALF_TURN_QUARTER_OUT = SHAPE_HALF_TURN_RADIUS * sin(20f / SHA
 /**
  * To Shape as a Pose-mode lattice edit ([handleToShapeRequest]): it holds the bent lattice pending under its own history
  * label with the depths the bend gave, leaves the model alone, and hands the depth rotation the radius it bent round
- * and the Unchanged surface; its strip switches
- * the shape, the axis, and the factor over the one step; Edit and Object mode refuse it; a selection that would not
- * move answers with the notice; and Individual Origins bends each warp round its own center.
+ * and the Unchanged surface; its strip switches the shape, the axis, the degrees, and the factor over the one step;
+ * Edit and Object mode refuse it; a selection that would not move answers with the notice; and Individual Origins
+ * bends each warp round its own center.
  */
 class ToShapeEditTest {
 	/**
@@ -247,10 +247,15 @@ class ToShapeEditTest {
 		assertEquals(DepthSurface.Unchanged, session.depthSurface.value, "at the depths the bend gave")
 	}
 
-	/** The strip switches to a sphere, about X, a half turn, and no factor, each over the same one step; undo clears it. */
+	/**
+	 * The strip switches to a sphere, about X, a half turn, and no factor, each over the same one step, no factor putting
+	 * back the depth rotation the To Shape found; undo clears it.
+	 */
 	@Test
 	fun theStripSwitchesShapeAxisDegreesAndFactorOverTheSameStep() {
 		val session = session()
+		session.setPivotDepth(7f)
+		session.setDepthSurface(DepthSurface.Flat)
 		assertNotNull(toShape(session, TargetShape.Cylinder))
 		val stepsAfterCommit = session.historyView.value.steps.size
 
@@ -275,13 +280,15 @@ class ToShapeEditTest {
 		adjust(session, ToShapeParameterKeys.FACTOR) { row -> (row as OperatorParameter.FloatParameter).copy(value = 0f) }
 		assertEquals(20f to 20f, pendingPoint(session, SHAPE_FACE, 1, 1), "no factor lands every point where it was")
 		assertEquals(0f, pendingDepth(session, SHAPE_FACE, 1, 1), "and as deep as it was")
+		assertEquals(7f, session.pivotDepth.value, "a factor that bends nothing puts back the depth the To Shape found")
+		assertEquals(DepthSurface.Flat, session.depthSurface.value, "and the surface")
 		assertEquals(stepsAfterCommit, session.historyView.value.steps.size, "every adjustment amends the one step")
 
 		session.undo()
 		assertTrue(session.pendingLatticeEdits.value.isEmpty(), "undo drops the shaped lattice")
 	}
 
-	/** Edit and Object mode refuse To Shape for now: no step, no pending lattice, the model untouched. */
+	/** Edit and Object mode refuse To Shape: no step, no pending lattice, the model untouched. */
 	@Test
 	fun editAndObjectModeRefuse() {
 		for (mode in listOf(EditorMode.Edit, EditorMode.Object)) {

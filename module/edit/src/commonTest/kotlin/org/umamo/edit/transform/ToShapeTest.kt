@@ -3,6 +3,7 @@ package org.umamo.edit.transform
 import org.umamo.edit.DepthSurface
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ElementTopology
+import org.umamo.edit.PIVOT_DEPTH_LIMIT
 import org.umamo.edit.SessionTestModels.meshModel
 import org.umamo.edit.TargetShape
 import org.umamo.edit.TransformPivotMode
@@ -15,6 +16,8 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -23,8 +26,9 @@ import kotlin.test.assertTrue
  * the back, 0 stays flat), a cylinder about either axis leaves the other axis alone, a half sphere rounds every way
  * without folding a cell, the factor blends, an off-center pivot bends round its farther reach, a selection with no
  * reach stays put, Individual Origins bends each lattice round its own center, each bent point lands at the depth the
- * shape puts it at (blended by the factor), the session's depth rotation takes the radius and the Unchanged surface, and
- * a depth rotation with the radius as its depth turns a half cylinder, and over Unchanged a whole one, exactly.
+ * shape puts it at (blended by the factor), the session's depth rotation takes the radius scaled by the factor and the
+ * Unchanged surface, a flat shape puts its setup back, a center past the Depth row's reach hands over no pivot, and a
+ * depth rotation with the radius as its depth turns a half cylinder, and over Unchanged a whole one, exactly.
  */
 class ToShapeTest {
 	private val quarterTurn = (PI / 2.0).toFloat()
@@ -293,22 +297,46 @@ class ToShapeTest {
 		assertEquals(rimRadius * sqrt(2f), shapeRadiusOf(piece, ToShapeSettings(TargetShape.Sphere, degrees = halfTurn)), 1e-3f)
 	}
 
-	/** The session's depth rotation takes the radius laid down and the Unchanged surface; a wrap of 0 degrees hands over nothing. */
+	/**
+	 * The session's depth rotation takes the radius laid down, scaled by the factor, and the Unchanged surface; a shape
+	 * with nothing to hand over puts back the setup the To Shape found.
+	 */
 	@Test
 	fun theDepthRotationTakesTheShapeLaidDown() {
 		val piece = shapePiecesOf(listOf(source(warp, grid(4, 100f), 4)), TransformPivotMode.MedianPoint, null, null).single()
 		val session = EditorSession(meshModel())
+		val before = DepthRotationSetup(12f, DepthSurface.Flat)
 
-		session.handDepthRotationTheShape(piece, ToShapeSettings(TargetShape.Sphere, degrees = halfTurn))
+		session.handDepthRotationTheShape(piece, ToShapeSettings(TargetShape.Sphere, degrees = halfTurn), before)
 
 		assertEquals(rimRadius * sqrt(2f), session.pivotDepth.value, 1e-3f)
 		assertEquals(DepthSurface.Unchanged, session.depthSurface.value, "the turn reads the depths the bend gave")
 
-		session.setDepthSurface(DepthSurface.Flat)
-		session.handDepthRotationTheShape(piece, ToShapeSettings(TargetShape.Cylinder, degrees = 0f))
+		session.handDepthRotationTheShape(piece, ToShapeSettings(TargetShape.Cylinder, factor = 0.5f, degrees = halfTurn), before)
 
-		assertEquals(rimRadius * sqrt(2f), session.pivotDepth.value, 1e-3f, "a wrap that bends nothing leaves the depth")
-		assertEquals(DepthSurface.Flat, session.depthSurface.value, "and the surface")
+		assertEquals(rimRadius * 0.5f, session.pivotDepth.value, 1e-3f, "half the factor takes the center half as deep")
+
+		for (flat in listOf(ToShapeSettings(TargetShape.Cylinder, degrees = 0f), ToShapeSettings(TargetShape.Cylinder, factor = 0f))) {
+			session.handDepthRotationTheShape(piece, ToShapeSettings(TargetShape.Sphere, degrees = halfTurn), before)
+			session.handDepthRotationTheShape(piece, flat, before)
+
+			assertEquals(before, session.depthRotationSetup, "$flat bends nothing, so the setup goes back")
+		}
+	}
+
+	/**
+	 * A wrap so slight its center sits past the Depth row's reach hands over no pivot rather than a clamped one, and a
+	 * factor that brings the center within reach hands it over.
+	 */
+	@Test
+	fun aCenterPastTheDepthLimitHandsOverNothing() {
+		val piece = shapePiecesOf(listOf(source(warp, grid(4, 100f), 4)), TransformPivotMode.MedianPoint, null, null).single()
+		val slight = ToShapeSettings(TargetShape.Cylinder, degrees = 0.1f)
+
+		assertTrue(shapeRadiusOf(piece, slight) > PIVOT_DEPTH_LIMIT, "the radius passes the limit")
+		assertNull(handedPivotDepthOf(piece, slight))
+		val withinReach = slight.copy(factor = PIVOT_DEPTH_LIMIT * 0.5f / shapeRadiusOf(piece, slight))
+		assertEquals(PIVOT_DEPTH_LIMIT * 0.5f, assertNotNull(handedPivotDepthOf(piece, withinReach)), 1f, "a factor that brings the center within reach hands it over")
 	}
 
 	/** A whole turn bends round half the radius: the farthest columns meet behind the pivot, the halfway ones sit on the rim. */

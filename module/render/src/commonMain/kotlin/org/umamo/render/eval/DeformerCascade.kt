@@ -6,6 +6,7 @@ import org.umamo.runtime.eval.colorAt
 import org.umamo.runtime.eval.flagAt
 import org.umamo.runtime.eval.gridCorners
 import org.umamo.runtime.eval.scalarAt
+import org.umamo.runtime.eval.warpDepthOver
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
@@ -14,6 +15,7 @@ import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.WarpLatticeForm
@@ -284,6 +286,42 @@ private fun buildDeformerWorld(
 internal fun warpGridLattice(warp: Deformer.Warp, paramValue: (ParameterId) -> Float, override: WarpLatticeForm?): FloatArray? {
 	val grid = warp.geometryGrid ?: return null
 	val corners = gridCorners(grid, paramValue) ?: return null
+
+	return blendedWarpGrid(warp, grid, corners, override)
+}
+
+/**
+ * [warpGridLattice] with how deep each point sits, from one walk of the pose's corners: [override]'s depth, or the
+ * cells' depths blended with the points' own weights.
+ *
+ * @param Deformer.Warp     warp       The warp deformer.
+ * @param Function          paramValue Current value for a given parameter id.
+ * @param WarpLatticeForm?  override   A pending lattice standing in for the grid blend, or null.
+ * @return WarpLatticeForm? The control points and their depth, or null when hidden.
+ */
+internal fun warpGridForm(warp: Deformer.Warp, paramValue: (ParameterId) -> Float, override: WarpLatticeForm?): WarpLatticeForm? {
+	val grid = warp.geometryGrid ?: return null
+	val corners = gridCorners(grid, paramValue) ?: return null
+	val controlPoints = blendedWarpGrid(warp, grid, corners, override)
+
+	return WarpLatticeForm(controlPoints, override?.depth ?: warpDepthOver(grid, corners) ?: LatticeDepth.Flat)
+}
+
+/**
+ * The grid blend of [warpGridLattice] over corners already walked.
+ *
+ * @param Deformer.Warp                warp     The warp deformer.
+ * @param KeyformGrid<WarpLatticeForm> grid     Its geometry grid.
+ * @param List<WeightedCell>           corners  The pose's weighted corners in [grid].
+ * @param WarpLatticeForm?             override A pending lattice standing in for the grid blend, or null.
+ * @return FloatArray The interleaved control points.
+ */
+private fun blendedWarpGrid(
+	warp: Deformer.Warp,
+	grid: KeyformGrid<WarpLatticeForm>,
+	corners: List<WeightedCell>,
+	override: WarpLatticeForm?,
+): FloatArray {
 	val cp = FloatArray(warp.latticeLayout.pointCount * 2)
 
 	if (override != null) {

@@ -7,7 +7,8 @@ package org.umamo.runtime.model
  * track can never be handed to the delta-texture bake by mistake, because it would not type-check.
  *
  * These mirror the bundled MeshForm / WarpForm / RotationForm minus their scalar and color channels, which
- * moved to ChannelGrids.  The bundled classes stay as the import intermediate and the blend-shape payload.
+ * moved to ChannelGrids, and WarpLatticeForm adds the lattice's editing depth.  The bundled classes stay as the
+ * import intermediate and the blend-shape payload.
  */
 
 /**
@@ -28,8 +29,9 @@ class MeshDeltaForm(val positionDeltas: FloatArray)
  * are the only place the lattice geometry exists, and a warp with no keyforms has no lattice at all - the
  * evaluator gives it no world, so nothing under it is placed.
  *
- * The depth is editing data only: the deformation is 2D, so nothing that evaluates or exports the lattice reads it.
- * It lets the editing tools that bend and turn the lattice in 3D carry the third axis from one operation to the next.
+ * The depth is editing data: the deformation is 2D and never reads it.  It lets the editing tools that bend and turn
+ * the lattice in 3D carry the third axis from one operation to the next.  UMA stores it; CMO3 and MOC3 cannot, so
+ * their exports report a lattice that carries depth as flattened.
  *
  * @property FloatArray controlPoints The control points, interleaved x, y, in the warp's parent space.
  * @property LatticeDepth depth How deep each control point sits; flat unless a 3D edit gave it depth.

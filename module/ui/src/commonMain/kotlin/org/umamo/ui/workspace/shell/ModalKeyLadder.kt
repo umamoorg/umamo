@@ -236,7 +236,7 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 
 			// A bare T during a Pose-mode Rotate cycles the depth surface, locked or not, so the next rotation
 			// never needs the strip to change it.  It is taken here, ahead of the keymap, for the rotation's
-			// length only: Everywhere else T reaches its binding (the toolbar toggle), and so does a T with a
+			// length only: everywhere else T reaches its binding (the toolbar toggle), and so does a T with a
 			// modifier held.  With no axis locked the depth inset is not showing the surface, so a notice names
 			// it instead.
 			stroke.isDown &&

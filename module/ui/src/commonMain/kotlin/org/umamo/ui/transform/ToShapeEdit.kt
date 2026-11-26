@@ -1,15 +1,18 @@
-package org.umamo.ui.viewport.viewport2d
+package org.umamo.ui.transform
 
 import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ElementEditKind
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.TargetShape
+import org.umamo.edit.transform.DepthRotationSetup
 import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.edit.transform.PointsInDepth
 import org.umamo.edit.transform.ShapePiece
 import org.umamo.edit.transform.ToShapeSettings
+import org.umamo.edit.transform.depthRotationSetup
 import org.umamo.edit.transform.handDepthRotationTheShape
 import org.umamo.edit.transform.shapePiecesOf
 import org.umamo.edit.transform.shapedOwnerPoints
@@ -22,26 +25,14 @@ import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.latticeDepthOf
 import org.umamo.runtime.model.valuesFor
-import org.umamo.ui.transform.DrawableWorldGeometry
-import org.umamo.ui.transform.ElementEditStage
-import org.umamo.ui.transform.LatticeWorldGeometry
-import org.umamo.ui.transform.MeshDriveResult
-import org.umamo.ui.transform.MeshJobOutcome
-import org.umamo.ui.transform.OwnerWorldGeometry
-import org.umamo.ui.transform.amendDrive
-import org.umamo.ui.transform.commitDrive
-import org.umamo.ui.transform.coveredVerticesOf
-import org.umamo.ui.transform.foldDrive
-import org.umamo.ui.transform.outcomeOf
-import org.umamo.ui.viewport.gizmo.activeElementMedian
 
 /*
  * To Shape as a Pose-mode lattice edit: the selected points captured in world space at the pose, bent round a cylinder
  * or a sphere (the :edit math), and landed the way a snap lands - each owner's outcome folded by the drive's own fold,
  * the lattices held pending at the pose with the depth the bend gave them.  The step registers on the operation strip
- * with its Shape, Axis, Factor, and Degrees rows, whose reruns rebend the same frozen capture, so either command can become the
- * other after the fact.  Each run hands the depth rotation the radius it laid down and the Unchanged surface, so the
- * next R about the same pivot turns that shape.
+ * with its Shape, Axis, Degrees, and Factor rows, whose reruns rebend the same frozen capture, so either command can
+ * become the other after the fact.  Each run hands the depth rotation the depth of the shape's center and the Unchanged
+ * surface, so the next R about the same pivot turns that shape.
  */
 
 /**
@@ -158,18 +149,22 @@ internal class ToShapeCapture(
  * session's pivot mode as a Rotate would turn them.
  *
  * @param EditorSession session The session: its selection, pivot mode, and 2D cursor.
- * @param List<EditOwnerGeometry> geometries Every owner in the edit, as captured from the committed model.
+ * @param List<OwnerWorldGeometry> geometries Every owner in the edit, as captured from the committed model.
+ * @param Map<ElementOwner, ElementTopology> topologyByOwner Each owner's vertices, edges, and faces.
+ * @param Pair<Float, Float>? activeAnchor The active element's own median, world (x, z), or null with nothing active.
  * @param ElementEditStage stage Where they were captured.
  * @return ToShapeCapture? The capture, or null when nothing is covered.
  */
 internal fun toShapeCaptureOf(
 	session: EditorSession,
-	geometries: List<EditOwnerGeometry>,
+	geometries: List<OwnerWorldGeometry>,
+	topologyByOwner: Map<ElementOwner, ElementTopology>,
+	activeAnchor: Pair<Float, Float>?,
 	stage: ElementEditStage,
 ): ToShapeCapture? {
 	val selection = session.meshSelection.value
 	// The covered set Shift+S and the sidebar's Vertex / Median panel read too, so the three cannot disagree.
-	val covered = coveredVerticesOf(selection, geometries.map { geometry -> geometry.worldGeometry }, geometries.associate { geometry -> geometry.owner to geometry.topology })
+	val covered = coveredVerticesOf(selection, geometries, topologyByOwner)
 
 	if (covered.isEmpty()) {
 		return null
@@ -177,12 +172,11 @@ internal fun toShapeCaptureOf(
 
 	val geometryByOwner = LinkedHashMap<ElementOwner, OwnerWorldGeometry>(covered.size)
 	val sources =
-		covered.map { owner ->
-			val frozen = owner.geometry.frozen()
+		covered.map { coveredOwner ->
+			val frozen = coveredOwner.geometry.frozen()
 			geometryByOwner[frozen.owner] = frozen
-			ModalCaptureSource(frozen.owner, frozen.world, owner.topology, owner.indices)
+			ModalCaptureSource(frozen.owner, frozen.world, coveredOwner.topology, coveredOwner.indices)
 		}
-	val activeAnchor = activeElementMedian(selection, geometries.map { geometry -> geometry.gizmo })
 	val cursor = session.cursor2dOrWorldOrigin()
 	val pieces = shapePiecesOf(sources, session.pivotMode.value, activeAnchor, cursor.worldX to cursor.worldZ)
 
@@ -198,19 +192,24 @@ internal fun toShapeCaptureOf(
 
 /**
  * Runs a To Shape over the selected points as one undo step, registered on the operation strip in [areaId] with its
- * Shape, Axis, Factor, and Degrees rows, and hands the depth rotation the shape's radius and surface.  Pose mode only for now,
- * the one gate: a selection that covers nothing or would not move posts a near-cursor notice and records nothing.
+ * Shape, Axis, Degrees, and Factor rows, and hands the depth rotation the depth of the shape's center over the
+ * Unchanged surface.  It runs in Pose mode alone, never while a modal operator holds the session; a selection that
+ * covers nothing or would not move posts a near-cursor notice and records nothing.
  *
  * @param EditorSession session The session owning the selection and the commits.
- * @param List<EditOwnerGeometry> geometries The session owners' live geometry.
+ * @param List<OwnerWorldGeometry> geometries The session owners' live world geometry.
+ * @param Map<ElementOwner, ElementTopology> topologyByOwner Each owner's vertices, edges, and faces.
+ * @param Pair<Float, Float>? activeAnchor The active element's own median, world (x, z), or null with nothing active.
  * @param ElementEditStage stage Where [geometries] were captured.
  * @param TargetShape shape The surface the command named.
  * @param String areaId The viewport that executes, where the strip shows.
  * @return AdjustableOperation? The registered record, or null when nothing was recorded.
  */
-internal fun handleToShapeRequest(
+internal fun runToShape(
 	session: EditorSession,
-	geometries: List<EditOwnerGeometry>,
+	geometries: List<OwnerWorldGeometry>,
+	topologyByOwner: Map<ElementOwner, ElementTopology>,
+	activeAnchor: Pair<Float, Float>?,
 	stage: ElementEditStage,
 	shape: TargetShape,
 	areaId: String,
@@ -220,7 +219,7 @@ internal fun handleToShapeRequest(
 	}
 
 	val settings = ToShapeSettings(shape)
-	val capture = toShapeCaptureOf(session, geometries, stage)?.takeIf { captured -> captured.moves(settings) }
+	val capture = toShapeCaptureOf(session, geometries, topologyByOwner, activeAnchor, stage)?.takeIf { captured -> captured.moves(settings) }
 
 	if (capture == null) {
 		session.emitNotice("notice.toShape.nothing", NoticePlacement.NearCursor)
@@ -228,13 +227,15 @@ internal fun handleToShapeRequest(
 		return null
 	}
 
+	val depthRotationBefore = session.depthRotationSetup
+
 	if (!session.commitDrive(capture.drive(settings, session.model.value), capture.stage, ElementEditKind.ToShape, capture.movedIndicesByDrawable)) {
 		return null
 	}
 
-	session.handDepthRotationTheShape(capture.depthPiece, settings)
+	session.handDepthRotationTheShape(capture.depthPiece, settings, depthRotationBefore)
 
-	return registerToShapeAdjustment(session, areaId, capture, settings)
+	return registerToShapeAdjustment(session, areaId, capture, settings, depthRotationBefore)
 }
 
 /**
@@ -246,6 +247,8 @@ internal fun handleToShapeRequest(
  * @param String areaId The viewport it ran in (where the strip shows).
  * @param ToShapeCapture capture The frozen capture.
  * @param ToShapeSettings settings The shape it landed with.
+ * @param DepthRotationSetup depthRotationBefore The depth rotation's setup before the To Shape ran, which an adjustment
+ *   that bends nothing puts back.
  * @return AdjustableOperation? The record, or null when the session refused the registration.
  */
 internal fun registerToShapeAdjustment(
@@ -253,11 +256,12 @@ internal fun registerToShapeAdjustment(
 	areaId: String,
 	capture: ToShapeCapture,
 	settings: ToShapeSettings,
+	depthRotationBefore: DepthRotationSetup,
 ): AdjustableOperation? =
 	session.registerAdjustableOperation(session.model.value, areaId, toShapeParameters(settings)) { record ->
 		val adjusted = toShapeSettingsOf(record.parameters)
 
 		if (session.amendDrive(record, capture.drive(adjusted, record.baseSnapshot.model), capture.stage)) {
-			session.handDepthRotationTheShape(capture.depthPiece, adjusted)
+			session.handDepthRotationTheShape(capture.depthPiece, adjusted, depthRotationBefore)
 		}
 	}
