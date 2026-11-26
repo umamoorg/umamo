@@ -87,6 +87,15 @@
 ## Keyform Sheet
 * Option to isolate a single track of the keyform sheet to allow scrubbing only that track.  This would allow debugging an individual keyform to determine if the problem is coming from the entire parameter or just that keyform.
 
+## Depth Inspector
+* A new area, "3D" Viewport that allows inspecting how a lattice and mesh are deforming.
+	* Drawable meshes are in 2D, but the optical illusion of them getting squished may not be obvious to some.
+	* Meshes would show as flat on their 2D plane.
+	* Lattices would show in 3D lifted from the depth information.
+	* Pan, zoom, and orbit around.
+	* Show the red/green/blue coordinate help in the top right corner.
+	* Overlay text to show current rotation.
+
 ## Outliner
 * Expand/Collapse Hierarchy (May apply to other list based areas as well.)
 
