@@ -26,7 +26,7 @@
 
 ### 0.8.0 Goals - February
 1.) (Tentative) Brush/Tool Backend Machinery.  See: https://github.com/umamoorg/umamo/pull/376
-2.) Polish UMA.md format document and publish it.
+2.) Physics
 3.) Automatic File Backup
 4.) Pen Input Work
 
@@ -34,7 +34,8 @@
 1.) Android Tablet Work - I expect that this will take up a good portion of time since it needs the build system, render layer, UI adjustments, and pen input work.
 
 ### 1.0.0 Goals - June/July
-1.) Big release!~
+1.) Polish UMA.md format document and publish it.
+2.) Big release!~
 
 ## VERY IMPORTANT
 * Hire translators for localization.
