@@ -95,6 +95,7 @@
 	* Pan, zoom, and orbit around.
 	* Show the red/green/blue coordinate help in the top right corner.
 	* Overlay text to show current rotation.
+	* Lattice vertices should be colored by their current Y+/- position.
 
 ## Outliner
 * Expand/Collapse Hierarchy (May apply to other list based areas as well.)
