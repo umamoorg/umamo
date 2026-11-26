@@ -10,6 +10,7 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.WarpLatticeLayout
 import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.test.Test
@@ -21,8 +22,9 @@ import kotlin.test.assertTrue
  * foreshortened), the degrees set how far round it wraps (180 puts the farthest point on the rim, 360 meets the ends at
  * the back, 0 stays flat), a cylinder about either axis leaves the other axis alone, a half sphere rounds every way
  * without folding a cell, the factor blends, an off-center pivot bends round its farther reach, a selection with no
- * reach stays put, Individual Origins bends each lattice round its own center, the session's depth rotation takes the
- * radius and surface laid down, and a depth rotation with the radius as its depth turns a half cylinder exactly.
+ * reach stays put, Individual Origins bends each lattice round its own center, each bent point lands at the depth the
+ * shape puts it at (blended by the factor), the session's depth rotation takes the radius and the Unchanged surface, and
+ * a depth rotation with the radius as its depth turns a half cylinder, and over Unchanged a whole one, exactly.
  */
 class ToShapeTest {
 	private val quarterTurn = (PI / 2.0).toFloat()
@@ -104,6 +106,26 @@ class ToShapeTest {
 		val pieces = shapePiecesOf(listOf(source(warp, positions, divisions, topology)), TransformPivotMode.MedianPoint, null, null)
 
 		return shapedOwnerPositions(warp, positions, pieces, settings)
+	}
+
+	/**
+	 * One lattice shaped about its median with its depths.
+	 *
+	 * @param FloatArray positions Its points.
+	 * @param FloatArray depths Its depths, one per point.
+	 * @param Int divisions The cells along each side.
+	 * @param ToShapeSettings settings The shape.
+	 * @return PointsInDepth The shaped points and depths.
+	 */
+	private fun shapedInDepth(
+		positions: FloatArray,
+		depths: FloatArray,
+		divisions: Int,
+		settings: ToShapeSettings,
+	): PointsInDepth {
+		val pieces = shapePiecesOf(listOf(source(warp, positions, divisions)), TransformPivotMode.MedianPoint, null, null)
+
+		return shapedOwnerPoints(warp, PointsInDepth(positions, depths), pieces, settings)
 	}
 
 	/** About Z every column lands at R sin(s / R) and no point moves vertically; the middle column stays exactly. */
@@ -260,20 +282,18 @@ class ToShapeTest {
 		assertEquals(togetherRadius * sin(-200f / togetherRadius), leftTogether[pointAt(0, 4, 4) * 2], 1e-3f, "one piece bends round the shared median")
 	}
 
-	/** The radius fits the reach across the cylinder's axis, or out from the pivot for a sphere; the surface follows the shape. */
+	/** The radius fits the reach across the cylinder's axis, or out from the pivot for a sphere. */
 	@Test
-	fun theRadiusAndSurfaceFitTheShape() {
+	fun theRadiusFitsTheShape() {
 		val positions = grid(4, 100f)
 		val piece = shapePiecesOf(listOf(source(warp, positions, 4)), TransformPivotMode.MedianPoint, null, null).single()
 
 		assertEquals(rimRadius, shapeRadiusOf(piece, ToShapeSettings(TargetShape.Cylinder, CylinderAxis.Z, degrees = halfTurn)), 1e-3f)
 		assertEquals(rimRadius, shapeRadiusOf(piece, ToShapeSettings(TargetShape.Cylinder, CylinderAxis.X, degrees = halfTurn)), 1e-3f)
 		assertEquals(rimRadius * sqrt(2f), shapeRadiusOf(piece, ToShapeSettings(TargetShape.Sphere, degrees = halfTurn)), 1e-3f)
-		assertEquals(DepthSurface.Cylinder, TargetShape.Cylinder.depthSurface)
-		assertEquals(DepthSurface.Sphere, TargetShape.Sphere.depthSurface)
 	}
 
-	/** The session's depth rotation takes the radius and surface laid down; a wrap of 0 degrees hands over nothing. */
+	/** The session's depth rotation takes the radius laid down and the Unchanged surface; a wrap of 0 degrees hands over nothing. */
 	@Test
 	fun theDepthRotationTakesTheShapeLaidDown() {
 		val piece = shapePiecesOf(listOf(source(warp, grid(4, 100f), 4)), TransformPivotMode.MedianPoint, null, null).single()
@@ -282,12 +302,13 @@ class ToShapeTest {
 		session.handDepthRotationTheShape(piece, ToShapeSettings(TargetShape.Sphere, degrees = halfTurn))
 
 		assertEquals(rimRadius * sqrt(2f), session.pivotDepth.value, 1e-3f)
-		assertEquals(DepthSurface.Sphere, session.depthSurface.value)
+		assertEquals(DepthSurface.Unchanged, session.depthSurface.value, "the turn reads the depths the bend gave")
 
+		session.setDepthSurface(DepthSurface.Flat)
 		session.handDepthRotationTheShape(piece, ToShapeSettings(TargetShape.Cylinder, degrees = 0f))
 
 		assertEquals(rimRadius * sqrt(2f), session.pivotDepth.value, 1e-3f, "a wrap that bends nothing leaves the depth")
-		assertEquals(DepthSurface.Sphere, session.depthSurface.value, "and the surface")
+		assertEquals(DepthSurface.Flat, session.depthSurface.value, "and the surface")
 	}
 
 	/** A whole turn bends round half the radius: the farthest columns meet behind the pivot, the halfway ones sit on the rim. */
@@ -328,6 +349,85 @@ class ToShapeTest {
 		for (column in 0..4) {
 			val columnAngle = (-1f + column / 2f) * quarterTurn
 			assertEquals(rimRadius * sin(columnAngle + sixthTurn), turned[pointAt(2, column, 4) * 2], 1e-2f, "column $column")
+		}
+	}
+
+	/** A whole turn's depths: R (1 - cos phi) round the cylinder, 0 at the front, R on the rim, 2R at the back; rows alike. */
+	@Test
+	fun aWholeTurnSaysHowDeepEachColumnLands() {
+		val bent = shapedInDepth(grid(4, 100f), FloatArray(25), 4, ToShapeSettings(TargetShape.Cylinder, CylinderAxis.Z))
+		val wholeTurnRadius = (100.0 / PI).toFloat()
+
+		for (row in 0..4) {
+			assertEquals(0f, bent.depths[pointAt(row, 2, 4)], 1e-4f, "the front column touches the art plane")
+			assertEquals(wholeTurnRadius, bent.depths[pointAt(row, 1, 4)], 1e-3f, "the rim sits at the center's depth")
+			assertEquals(wholeTurnRadius, bent.depths[pointAt(row, 3, 4)], 1e-3f)
+			assertEquals(2f * wholeTurnRadius, bent.depths[pointAt(row, 0, 4)], 1e-3f, "the ends meet at the back")
+			assertEquals(2f * wholeTurnRadius, bent.depths[pointAt(row, 4, 4)], 1e-3f)
+		}
+	}
+
+	/** A sphere's depth grows with the distance from the pivot, the same every way round. */
+	@Test
+	fun aSphereSaysHowDeepEachPointLandsByItsDistance() {
+		val bent = shapedInDepth(grid(4, 100f), FloatArray(25), 4, ToShapeSettings(TargetShape.Sphere, degrees = halfTurn))
+		val radius = rimRadius * sqrt(2f)
+		val sideDepth = radius * (1f - cos(100f / radius))
+
+		assertEquals(0f, bent.depths[pointAt(2, 2, 4)], 0f, "the pivot touches the art plane")
+		assertEquals(sideDepth, bent.depths[pointAt(2, 4, 4)], 1e-3f)
+		assertEquals(sideDepth, bent.depths[pointAt(4, 2, 4)], 1e-3f, "a point above sits as deep as one beside")
+		assertEquals(radius, bent.depths[pointAt(4, 4, 4)], 1e-3f, "the corners, farthest out, land on the rim")
+	}
+
+	/** The factor blends each depth from where it was; a point outside the selection keeps its own, and 0 degrees lays the sheet flat. */
+	@Test
+	fun theFactorBlendsTheDepthFromWhereItWas() {
+		val positions = grid(4, 100f)
+		val depths = FloatArray(25) { 40f }
+		val wholeTurnRadius = (100.0 / PI).toFloat()
+		val half = shapedInDepth(positions, depths, 4, ToShapeSettings(TargetShape.Cylinder, CylinderAxis.Z, factor = 0.5f))
+		val pieces = listOf(ShapePiece(ShapeExtent(0f, 0f, 100f, 100f, 100f * sqrt(2f)), mapOf(warp to setOf(pointAt(2, 0, 4)))))
+		val one = shapedOwnerPoints(warp, PointsInDepth(positions, depths), pieces, ToShapeSettings(TargetShape.Cylinder, CylinderAxis.Z))
+		val flattened = shapedInDepth(positions, depths, 4, ToShapeSettings(TargetShape.Cylinder, CylinderAxis.Z, degrees = 0f))
+
+		assertEquals(20f, half.depths[pointAt(2, 2, 4)], 1e-4f, "halfway from 40 to the front's 0")
+		assertEquals(20f + wholeTurnRadius, half.depths[pointAt(2, 0, 4)], 1e-3f, "halfway from 40 to the back's 2R")
+		assertEquals(40f, one.depths[pointAt(2, 1, 4)], 0f, "a point outside the selection keeps its depth")
+		assertEquals(positions.toList(), flattened.positions.toList(), "0 degrees bends nothing")
+		assertTrue(flattened.depths.all { depth -> depth == 0f }, "and lays the sheet on the art plane")
+	}
+
+	/**
+	 * The primary case: a whole-turn cylinder turned about its center over Unchanged puts every column, the back half
+	 * included, at R sin(phi + theta) and R (1 - cos(phi + theta)) deep, and two turns are one turn by their sum.
+	 */
+	@Test
+	fun aWholeTurnCylinderTurnsRoundItsCenterOverUnchanged() {
+		val bent = shapedInDepth(grid(4, 100f), FloatArray(25), 4, ToShapeSettings(TargetShape.Cylinder, CylinderAxis.Z))
+		val radius = (100.0 / PI).toFloat()
+		val every = allPointIndices(bent.positions)
+		val turned = MeshTransforms.rotateVerticesInDepth(bent, every, RotationAxis.Z, sixthTurn, radius, DepthSurface.Unchanged, 0f, 0f)
+		val twice =
+			MeshTransforms.rotateVerticesInDepth(
+				MeshTransforms.rotateVerticesInDepth(bent, every, RotationAxis.Z, sixthTurn, radius, DepthSurface.Unchanged, 0f, 0f),
+				every,
+				RotationAxis.Z,
+				quarterTurn,
+				radius,
+				DepthSurface.Unchanged,
+				0f,
+				0f,
+			)
+		val once = MeshTransforms.rotateVerticesInDepth(bent, every, RotationAxis.Z, sixthTurn + quarterTurn, radius, DepthSurface.Unchanged, 0f, 0f)
+
+		for (column in 0..4) {
+			val columnAngle = (-2f + column) * quarterTurn
+			val pointIndex = pointAt(2, column, 4)
+			assertEquals(radius * sin(columnAngle + sixthTurn), turned.positions[pointIndex * 2], 1e-3f, "column $column")
+			assertEquals(radius * (1f - cos(columnAngle + sixthTurn)), turned.depths[pointIndex], 1e-3f, "column $column's depth")
+			assertEquals(once.positions[pointIndex * 2], twice.positions[pointIndex * 2], 1e-3f, "two turns are one by the sum")
+			assertEquals(once.depths[pointIndex], twice.depths[pointIndex], 1e-3f)
 		}
 	}
 }

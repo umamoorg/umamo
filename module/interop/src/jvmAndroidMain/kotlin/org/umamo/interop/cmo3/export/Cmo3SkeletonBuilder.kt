@@ -104,8 +104,10 @@ internal object Cmo3SkeletonBuilder {
 			CModelSource().apply {
 				guid = freshGuid("CModelGuid")
 				name = modelName
-				// CMO3: CModelSource field editorEdition (BareMinimum writes edition 11).
-				editorEdition = EditorEdition().apply { edition = 11 }
+
+				// CMO3: CModelSource field editorEdition - 15 is likely an enterprise license so we'll just write that out.
+				editorEdition = EditorEdition().apply { edition = 15 }
+
 				canvas =
 					CImageCanvas().apply {
 						// CMO3: CImageCanvas fields pixelWidth/pixelHeight + empty CColor background.
@@ -113,7 +115,9 @@ internal object Cmo3SkeletonBuilder {
 						pixelHeight = canvasHeight
 						background = CColor()
 					}
+
 				parameterSourceSet = CParameterSourceSet().apply { _sources = CArrayList<Any?>() }
+
 				textureManager =
 					CTextureManager().apply {
 						// CMO3: CTextureManager - mandatory even when empty (BareMinimum).
@@ -128,20 +132,26 @@ internal object Cmo3SkeletonBuilder {
 						previewReductionRatio = 1
 						artPathBrushUsingLayeredImageIds = CArrayList<Any?>()
 					}
+
 				useLegacyDrawOrder__testImpl = false
+
 				drawableSourceSet = CDrawableSourceSet().apply { _sources = CArrayList<Any?>() }
 				deformerSourceSet = CDeformerSourceSet().apply { _sources = CArrayList<Any?>() }
 				affecterSourceSet = CAffecterSourceSet().apply { _sources = CArrayList<Any?>() }
+
 				partSourceSet = CPartSourceSet().apply { _sources = CArrayList<Any?>(mutableListOf(rootPart)) }
+
 				physicsSettingsSourceSet =
 					CPhysicsSettingsSourceSet().apply {
 						_sourceCubismPhysics = CArrayList<Any?>()
 						// CMO3: CPhysicsSettingsSourceSet field settingFPS (BareMinimum writes 120).
 						settingFPS = 120
 					}
+
 				this.rootPart = rootPart
 				parameterGroupSet = CParameterGroupSet().apply { _groups = CArrayList<Any?>(mutableListOf(rootGroup)) }
 				rootParameterGroup = rootGroup
+
 				modelInfo =
 					CModelInfo().apply {
 						pixelsPerUnit = 1f
@@ -152,20 +162,26 @@ internal object Cmo3SkeletonBuilder {
 						_effectParameterGroups = CEffectParameterGroups().apply { _parameterGroups = CHashMap<Any?, Any?>() }
 					}
 				modelOptions = CHashMap<String, Any?>()
+
 				_icon64 = Cmo3Icons.iconReferencing(64, icons[0].path)
 				_icon32 = Cmo3Icons.iconReferencing(32, icons[1].path)
 				_icon16 = Cmo3Icons.iconReferencing(16, icons[2].path)
+
 				gameMotionSet =
 					CGameMotionSet().apply {
 						gameMotions = CArrayList<Any?>()
 						gameMotionGroups = CArrayList<Any?>()
 					}
+
 				modelViewerSetting = ModelViewerSetting().apply { trackCursorSettings = ArrayList<Any?>() }
 				guides = CGuidesSetting().apply { guidesModeling = CArrayList<Any?>() }
+
 				this.targetVersionNo = targetVersionNo
+
 				// CMO3: CModelSource field latestVersionOfLastModelerNo (BareMinimum writes 5030000).
 				latestVersionOfLastModelerNo = 5030000
 				artPathBrushesSetting = CArtPathBrushSetting().apply { brushes = CArrayList<Any?>() }
+
 				// CMO3: CModelSource fields randomPoseSetting / motionSyncSettingsSet /
 				// modelStateSetSet - every 5.4 corpus file writes all three (empty when the
 				// features are unused), modelStateSetSet as the root's last child; its presence
@@ -176,10 +192,12 @@ internal object Cmo3SkeletonBuilder {
 						// carray_list sibling collections.
 						_settings = ArrayList<Any?>()
 					}
+
 				motionSyncSettingsSet =
 					CMotionSyncSettingSourceSet().apply {
 						_settingSourceSetMotionSync = LinkedHashSet<Any?>()
 					}
+
 				modelStateSetSet =
 					CModelStateSetSet().apply {
 						_modelStateSets = CArrayList<Any?>()

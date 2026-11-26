@@ -61,7 +61,7 @@ class TransformGestureParameters(
 	val rotationRadians: Float,
 	val rotationAxis: RotationAxis = RotationAxis.Y,
 	val pivotDepth: Float = 0f,
-	val depthSurface: DepthSurface = DepthSurface.Flat,
+	val depthSurface: DepthSurface = DepthSurface.Unchanged,
 ) {
 	companion object {
 		/** The parameters that move nothing. */
@@ -293,7 +293,7 @@ fun transformGestureParametersOf(
 				rotationRadians = space.radiansOfRow(parameters.floatValue(TransformParameterKeys.ANGLE, 0f)),
 				rotationAxis = rotationAxisOf(parameters.choiceValue(TransformParameterKeys.AXIS, RotationAxis.Y.choiceKey)),
 				pivotDepth = parameters.floatValue(TransformParameterKeys.PIVOT_DEPTH, 0f),
-				depthSurface = depthSurfaceOf(parameters.choiceValue(TransformParameterKeys.DEPTH_SURFACE, DepthSurface.Flat.choiceKey)),
+				depthSurface = depthSurfaceOf(parameters.choiceValue(TransformParameterKeys.DEPTH_SURFACE, DepthSurface.Unchanged.choiceKey)),
 			)
 		}
 
@@ -377,12 +377,12 @@ val ProportionalFalloff.choiceKey: String
 fun rotationAxisOf(key: String): RotationAxis = RotationAxis.entries.firstOrNull { axis -> axis.choiceKey == key } ?: RotationAxis.Y
 
 /**
- * The depth surface a stored key names, falling back to Flat for a key no surface has.
+ * The depth surface a stored key names, falling back to Unchanged, the default, for a key no surface has.
  *
  * @param String key The surface's [DepthSurface.choiceKey].
  * @return DepthSurface The surface.
  */
-fun depthSurfaceOf(key: String): DepthSurface = DepthSurface.entries.firstOrNull { surface -> surface.choiceKey == key } ?: DepthSurface.Flat
+fun depthSurfaceOf(key: String): DepthSurface = DepthSurface.entries.firstOrNull { surface -> surface.choiceKey == key } ?: DepthSurface.Unchanged
 
 /**
  * A depth rotation's rows: the axis it turned about, the pivot's depth, and the surface.

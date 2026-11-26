@@ -1,6 +1,8 @@
 package org.umamo.ui.transform
 
+import org.umamo.edit.DepthSurface
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.transform.RotationAxis
 import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.edit.transform.TransformPivotGroup
 import org.umamo.render.eval.warpLatticeAt
@@ -17,15 +19,18 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.valuesFor
 import org.umamo.ui.assertArrayNear
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 
 /**
  * Pins how the 2D drive carries a lattice's depth: a posed Grab lands the depth the lattice has at the pose (the
- * grid's blend, or the pending form's), a Vertex Slide moves the slid point's depth along the edge, and at rest the
- * reshape keeps every keyform's depth or shifts them all alike.
+ * grid's blend, or the pending form's), a posed depth rotation turns it and lands the turned depth, a Vertex Slide moves
+ * the slid point's depth along the edge, and at rest the reshape keeps every keyform's depth or shifts them all alike.
  */
 class LatticeDepthDriveTest {
 	private val angle = ParameterId("ParamAngleX")
@@ -132,6 +137,31 @@ class LatticeDepthDriveTest {
 		val result = drive(model, stage, MeshOperatorKind.Grab, TransformGestureParameters(1f, 1f, 1f, 1f, 0f))
 
 		assertContentEquals(floatArrayOf(-7f, 0f, 7f, 14f), assertIs<LatticeDepth.PerPoint>(assertNotNull(result.latticeForms[warpId]).depth).values)
+	}
+
+	/**
+	 * A posed turn about Z over Unchanged turns each point at the depth it has at the pose and lands the turned depth:
+	 * x' = pivot + x cos - d sin, d' = pivot depth + x sin + d cos, offsets from the pivot.
+	 */
+	@Test
+	fun aPosedDepthRotationTurnsAndLandsTheDepth() {
+		val model = model()
+		val stage = ElementEditStage.Posed(mapOf(angle to 0f), emptyMap())
+		val before = assertNotNull(warpLatticeAt(model, stage.pose, warpId)).world
+		val radians = 0.4f
+		val pivotDepth = 10f
+
+		val result = drive(model, stage, MeshOperatorKind.Rotate, TransformGestureParameters(0f, 0f, 1f, 1f, radians, RotationAxis.Z, pivotDepth, DepthSurface.Unchanged))
+		val form = assertNotNull(result.latticeForms[warpId])
+		val after = assertNotNull(warpLatticeAt(model, stage.pose, warpId, result.latticeForms)).world
+		val landedDepth = assertIs<LatticeDepth.PerPoint>(form.depth).values
+
+		for (pointIndex in 0 until 4) {
+			val offsetX = before[pointIndex * 2] - 5f
+			val offsetDepth = blendedDepth[pointIndex] - pivotDepth
+			assertEquals(5f + offsetX * cos(radians) - offsetDepth * sin(radians), after[pointIndex * 2], 1e-3f, "point $pointIndex")
+			assertEquals(pivotDepth + offsetX * sin(radians) + offsetDepth * cos(radians), landedDepth[pointIndex], 1e-3f, "point $pointIndex's depth")
+		}
 	}
 
 	/** A Vertex Slide moves the slid point's depth toward its neighbor's by the factor, and no other point's. */

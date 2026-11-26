@@ -137,6 +137,42 @@ fun applyOperator(
 	}
 
 /**
+ * [applyOperator] over points that carry depth, a lattice's: a Rotate about X or Z turns each point at its depth and
+ * hands the turned depth back, and every other operator moves the points in the plane and keeps their depths.
+ *
+ * @param MeshOperatorKind operator The active operator.
+ * @param PointsInDepth original The world positions (the second component is world Z, up) and depths captured at
+ *   gesture start.
+ * @param List<TransformPivotGroup> groups The pivot groups covering the selected vertices.
+ * @param TransformGestureParameters parameters The delta / factors / angle to apply, in world space.
+ * @param Map<Int, ProportionalInfluence> proportionalInfluences The influenced unselected vertices, each with the pivot
+ *   it anchors on (empty when proportional editing is off).
+ * @return PointsInDepth The transformed points.
+ */
+fun applyOperatorInDepth(
+	operator: MeshOperatorKind,
+	original: PointsInDepth,
+	groups: List<TransformPivotGroup>,
+	parameters: TransformGestureParameters,
+	proportionalInfluences: Map<Int, ProportionalInfluence>,
+): PointsInDepth {
+	if (operator != MeshOperatorKind.Rotate) {
+		return PointsInDepth(applyOperator(operator, original.positions, groups, parameters, proportionalInfluences), original.depths)
+	}
+
+	val axis = parameters.rotationAxis
+	val rotation = parameters.rotationRadians
+	val depth = parameters.pivotDepth
+	val surface = parameters.depthSurface
+	val moved =
+		groups.fold(original) { points, group ->
+			MeshTransforms.rotateVerticesInDepth(points, group.vertexIndices, axis, rotation, depth, surface, group.pivotX, group.pivotY)
+		}
+
+	return MeshTransforms.rotateVerticesInDepthWeighted(moved, proportionalInfluences, axis, rotation, depth, surface)
+}
+
+/**
  * The world transform [applyOperator] applies to a whole object in pivot group [group], as a 2x3 row-major affine
  * `[a, b, c, d, e, f]` (x' = a x + b y + c, y' = d x + e y + f, where x is world X and y world Z).  An object moved whole takes no proportional
  * halo, so the affine is the operator exactly - what a warp moved as an object maps every one of its forms through.

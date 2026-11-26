@@ -94,7 +94,7 @@ class SessionStateJsonTest {
 		val depthOnly = sessionStateJson(SessionViewState(pivotDepth = -40f), defaultPose, model)["depthRotation"] as JsonObject
 
 		assertEquals(-40f, depthOnly["depth"]?.jsonPrimitive?.content?.toFloat())
-		assertTrue(depthOnly["surface"] is JsonNull, "a Flat surface writes nothing")
+		assertTrue(depthOnly["surface"] is JsonNull, "the default Unchanged surface writes nothing")
 		assertEquals(SessionViewState(pivotDepth = -40f), sessionViewStateOf(sessionStateJson(SessionViewState(pivotDepth = -40f), defaultPose, model)))
 
 		val surfaceOnly = sessionStateJson(SessionViewState(depthSurface = DepthSurface.Cylinder), defaultPose, model)["depthRotation"] as JsonObject
@@ -109,6 +109,10 @@ class SessionStateJsonTest {
 
 		val sphere = sessionStateJson(SessionViewState(depthSurface = DepthSurface.Sphere), defaultPose, model)["depthRotation"] as JsonObject
 		assertEquals("sphere", sphere["surface"]?.jsonPrimitive?.content)
+		val flat = sessionStateJson(SessionViewState(depthSurface = DepthSurface.Flat), defaultPose, model)["depthRotation"] as JsonObject
+		assertEquals("flat", flat["surface"]?.jsonPrimitive?.content, "Flat is away from the default, so it is named")
+		assertTrue(sessionStateJson(SessionViewState(), defaultPose, model)["depthRotation"] is JsonNull, "at the defaults the block is left out")
+		assertEquals(DepthSurface.Unchanged, sessionViewStateOf(sessionStateJson(SessionViewState(), defaultPose, model))?.depthSurface)
 	}
 
 	/** An id holding a colon survives: the reference splits on its FIRST colon only. */

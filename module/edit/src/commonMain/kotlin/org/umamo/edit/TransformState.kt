@@ -50,20 +50,24 @@ enum class TransformAxisConstraint {
 }
 
 /**
- * How deep each point sits before a depth rotation, each surface's radius the pivot's depth.  Flat keeps the art a
- * plane, so the turn squashes it and slides it by the pivot's depth; Cylinder bends it around a cylinder through the
- * pivot along the rotation axis, so every row of a turn about Z (every column of a tilt about X) curves alike; Sphere
- * lays it over a sphere around the pivot, so its middle moves furthest - the look of a head turning.  The three agree
- * at depth 0.  The declaration order is the order T cycles them in during a rotation ([next]).
+ * How deep each point sits before a depth rotation, each curved surface's radius the pivot's depth.  Unchanged turns a
+ * lattice's points at the depth they already have, so a shape To Shape laid down, or an earlier turn left, turns as
+ * that shape; a mesh carries no depth, so for it Unchanged is Flat.  Flat lays the art on the plane first, so the turn
+ * squashes it and slides it by the pivot's depth; Cylinder bends it around a cylinder through the pivot along the
+ * rotation axis, so every row of a turn about Z (every column of a tilt about X) curves alike; Sphere lays it over a
+ * sphere around the pivot, so its middle moves furthest - the look of a head turning.  Every surface hands the turned
+ * depth back, and on flat art at depth 0 all four agree.  The declaration order is the order T cycles them in during a
+ * rotation ([next]).
  */
 enum class DepthSurface {
+	Unchanged,
 	Flat,
 	Cylinder,
 	Sphere,
 }
 
 /**
- * The surface after this one in T's cycle: Flat, Cylinder, Sphere, then Flat again.
+ * The surface after this one in T's cycle: Unchanged, Flat, Cylinder, Sphere, then Unchanged again.
  *
  * @return DepthSurface The next surface.
  */

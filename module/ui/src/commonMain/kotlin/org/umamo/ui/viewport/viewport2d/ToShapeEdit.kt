@@ -7,10 +7,12 @@ import org.umamo.edit.ElementEditKind
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.TargetShape
 import org.umamo.edit.transform.ModalCaptureSource
+import org.umamo.edit.transform.PointsInDepth
 import org.umamo.edit.transform.ShapePiece
 import org.umamo.edit.transform.ToShapeSettings
 import org.umamo.edit.transform.handDepthRotationTheShape
 import org.umamo.edit.transform.shapePiecesOf
+import org.umamo.edit.transform.shapedOwnerPoints
 import org.umamo.edit.transform.shapedOwnerPositions
 import org.umamo.edit.transform.toShapeParameters
 import org.umamo.edit.transform.toShapeSettingsOf
@@ -18,6 +20,8 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.latticeDepthOf
+import org.umamo.runtime.model.valuesFor
 import org.umamo.ui.transform.DrawableWorldGeometry
 import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.LatticeWorldGeometry
@@ -34,9 +38,10 @@ import org.umamo.ui.viewport.gizmo.activeElementMedian
 /*
  * To Shape as a Pose-mode lattice edit: the selected points captured in world space at the pose, bent round a cylinder
  * or a sphere (the :edit math), and landed the way a snap lands - each owner's outcome folded by the drive's own fold,
- * the lattices held pending at the pose.  The step registers on the operation strip with its Shape, Axis, and Factor
- * rows, whose reruns rebend the same frozen capture, so either command can become the other after the fact.  Each run
- * hands the depth rotation the radius and surface it laid down, so the next R about the same pivot turns that shape.
+ * the lattices held pending at the pose with the depth the bend gave them.  The step registers on the operation strip
+ * with its Shape, Axis, Factor, and Degrees rows, whose reruns rebend the same frozen capture, so either command can become the
+ * other after the fact.  Each run hands the depth rotation the radius it laid down and the Unchanged surface, so the
+ * next R about the same pivot turns that shape.
  */
 
 /**
@@ -64,13 +69,61 @@ internal class ToShapeCapture(
 				.associate { geometry -> geometry.drawableId to coveredByOwner[geometry.owner].orEmpty().toList() }
 
 	/**
-	 * Whether [settings] would move any point at all: a selection with no reach, or a factor of 0, bends nothing.
+	 * Whether [settings] would move any point at all, in the plane or in depth: a flat selection with no reach, or a
+	 * factor of 0, bends nothing.
 	 *
 	 * @param ToShapeSettings settings The shape to wrap onto.
 	 * @return Boolean True when some point lands somewhere new.
 	 */
 	fun moves(settings: ToShapeSettings): Boolean =
-		geometryByOwner.any { (owner, geometry) -> !shapedOwnerPositions(owner, geometry.world, pieces, settings).contentEquals(geometry.world) }
+		geometryByOwner.any { (owner, geometry) ->
+			when (geometry) {
+				is DrawableWorldGeometry -> {
+					!shapedOwnerPositions(owner, geometry.world, pieces, settings).contentEquals(geometry.world)
+				}
+
+				is LatticeWorldGeometry -> {
+					val original = pointsOf(geometry)
+					val shaped = shapedOwnerPoints(owner, original, pieces, settings)
+					!shaped.positions.contentEquals(original.positions) || !shaped.depths.contentEquals(original.depths)
+				}
+			}
+		}
+
+	/**
+	 * A lattice's captured points with their depths, one per point.
+	 *
+	 * @param LatticeWorldGeometry geometry The lattice.
+	 * @return PointsInDepth The points.
+	 */
+	private fun pointsOf(geometry: LatticeWorldGeometry): PointsInDepth = PointsInDepth(geometry.world, geometry.depth.valuesFor(geometry.world.size / 2))
+
+	/**
+	 * One owner bent onto [settings]' shape: a mesh's new rest shape, or a lattice's points with their new depths.
+	 *
+	 * @param ElementOwner owner The owner.
+	 * @param OwnerWorldGeometry geometry Its frozen geometry.
+	 * @param ToShapeSettings settings The shape to wrap onto.
+	 * @return MeshJobOutcome The outcome.
+	 */
+	private fun shapedOutcome(
+		owner: ElementOwner,
+		geometry: OwnerWorldGeometry,
+		settings: ToShapeSettings,
+	): MeshJobOutcome {
+		val covered = coveredByOwner[owner].orEmpty()
+
+		return when (geometry) {
+			is DrawableWorldGeometry -> {
+				geometry.outcomeOf(shapedOwnerPositions(owner, geometry.world, pieces, settings), covered)
+			}
+
+			is LatticeWorldGeometry -> {
+				val shaped = shapedOwnerPoints(owner, pointsOf(geometry), pieces, settings)
+				geometry.outcomeOf(shaped.positions, covered, latticeDepthOf(shaped.depths))
+			}
+		}
+	}
 
 	/**
 	 * Bends the capture onto [settings]' shape and folds it onto [baseModel]: each mesh's new rest shape, and each
@@ -85,14 +138,13 @@ internal class ToShapeCapture(
 		val latticeMoved = LinkedHashMap<DeformerId, Set<Int>>()
 
 		for ((owner, geometry) in geometryByOwner) {
-			val covered = coveredByOwner[owner].orEmpty()
-			outcomes.add(geometry.outcomeOf(shapedOwnerPositions(owner, geometry.world, pieces, settings), covered))
+			outcomes.add(shapedOutcome(owner, geometry, settings))
 
 			when (geometry) {
 				is DrawableWorldGeometry -> {}
 
 				is LatticeWorldGeometry -> {
-					latticeMoved[geometry.deformerId] = covered
+					latticeMoved[geometry.deformerId] = coveredByOwner[owner].orEmpty()
 				}
 			}
 		}
@@ -146,7 +198,7 @@ internal fun toShapeCaptureOf(
 
 /**
  * Runs a To Shape over the selected points as one undo step, registered on the operation strip in [areaId] with its
- * Shape, Axis, and Factor rows, and hands the depth rotation the shape's radius and surface.  Pose mode only for now,
+ * Shape, Axis, Factor, and Degrees rows, and hands the depth rotation the shape's radius and surface.  Pose mode only for now,
  * the one gate: a selection that covers nothing or would not move posts a near-cursor notice and records nothing.
  *
  * @param EditorSession session The session owning the selection and the commits.

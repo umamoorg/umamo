@@ -103,6 +103,7 @@ fun noticeText(messageKey: String, arguments: List<String> = emptyList()): Strin
 		"notice.proportional.off" -> stringResource(Res.string.notice_proportional_off)
 		"notice.proportional.connected.on" -> stringResource(Res.string.notice_proportional_connected_on)
 		"notice.proportional.connected.off" -> stringResource(Res.string.notice_proportional_connected_off)
+		"notice.depthSurface.unchanged" -> stringResource(Res.string.notice_depth_surface_unchanged)
 		"notice.depthSurface.flat" -> stringResource(Res.string.notice_depth_surface_flat)
 		"notice.depthSurface.cylinder" -> stringResource(Res.string.notice_depth_surface_cylinder)
 		"notice.depthSurface.sphere" -> stringResource(Res.string.notice_depth_surface_sphere)

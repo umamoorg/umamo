@@ -26,7 +26,7 @@
 
 ### 0.8.0 Goals - February
 1.) (Tentative) Brush/Tool Backend Machinery.  See: https://github.com/umamoorg/umamo/pull/376
-2.) Polish UMA.md format document and publish it.
+2.) Physics
 3.) Automatic File Backup
 4.) Pen Input Work
 
@@ -34,7 +34,8 @@
 1.) Android Tablet Work - I expect that this will take up a good portion of time since it needs the build system, render layer, UI adjustments, and pen input work.
 
 ### 1.0.0 Goals - June/July
-1.) Big release!~
+1.) Polish UMA.md format document and publish it.
+2.) Big release!~
 
 ## VERY IMPORTANT
 * Hire translators for localization.
@@ -86,6 +87,16 @@
 ## Keyform Sheet
 * Option to isolate a single track of the keyform sheet to allow scrubbing only that track.  This would allow debugging an individual keyform to determine if the problem is coming from the entire parameter or just that keyform.
 
+## Depth Inspector
+* A new area, "3D" Viewport that allows inspecting how a lattice and mesh are deforming.
+	* Drawable meshes are in 2D, but the optical illusion of them getting squished may not be obvious to some.
+	* Meshes would show as flat on their 2D plane.
+	* Lattices would show in 3D lifted from the depth information.
+	* Pan, zoom, and orbit around.
+	* Show the red/green/blue coordinate help in the top right corner.
+	* Overlay text to show current rotation.
+	* Lattice vertices should be colored by their current Y+/- position.
+
 ## Outliner
 * Expand/Collapse Hierarchy (May apply to other list based areas as well.)
 
@@ -96,6 +107,13 @@
 	* Replace magnet from the cursor/selection menu.
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.
 * Toolbar - Needs a pull tab.
+
+## Mesh and Lattice
+* Mint a default form on creation/generation.
+* Command to set the current form as the default.  For meshes, possibily an additional option to reset to the UV shape.
+* Command to reset to default.
+* I encountered an issue when working on the 3D barrel demonstration.  After I keyed off the default warp pose I had no way to reset it back to default and with it bent in a circle that would be a pain in the ass to fix manually.
+* CMO3/MOC3 import - Mint the default form from the default pose.  This won't be accurate since some poses will be off default, but the escape hatch is the command to set the default form.
 
 ## Overlay Toggles
 * When entering pose or edit mode with both a mesh and deformer selected it shows only the type of the active selection.  Having the other types show as a wireframe by default would be useful for visual inspection.

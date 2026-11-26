@@ -9,10 +9,12 @@ import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.edit.mesh.withMeshPositions
 import org.umamo.edit.transform.ModalTransformCapture
+import org.umamo.edit.transform.PointsInDepth
 import org.umamo.edit.transform.ProportionalInfluence
 import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.edit.transform.TransformPivotGroup
 import org.umamo.edit.transform.applyOperator
+import org.umamo.edit.transform.applyOperatorInDepth
 import org.umamo.edit.transform.slideDepthByFactor
 import org.umamo.edit.transform.slideVertexByFactor
 import org.umamo.runtime.model.DeformerId
@@ -23,6 +25,8 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.deformerId
 import org.umamo.runtime.model.drawableId
+import org.umamo.runtime.model.latticeDepthOf
+import org.umamo.runtime.model.valuesFor
 
 /*
  * The 2D modal drive's compute, shared by the Edit, Pose, and Object transforms and the operation settings strip's
@@ -233,8 +237,8 @@ internal fun meshDriveJobs(
 /**
  * One owner's outcome under a request: its frozen world shape through the operator (a Vertex Slide moves only the
  * slide owner's vertex, and nothing when the pointer landed on no edge), then for a mesh inverted back onto the rest
- * arrays over its moved vertices, and for a lattice left in world space.  Pure; the parallel compute runs it per
- * owner on any thread.
+ * arrays over its moved vertices, and for a lattice left in world space with its depth, which a turn about X or Z
+ * turns too.  Pure; the parallel compute runs it per owner on any thread.
  *
  * @param MeshDriveJob job The owner.
  * @param MeshDriveRequest request The request.
@@ -242,7 +246,11 @@ internal fun meshDriveJobs(
  */
 internal fun meshJobOutcome(job: MeshDriveJob, request: MeshDriveRequest): MeshJobOutcome {
 	if (request.operator != MeshOperatorKind.VertexSlide) {
-		return job.geometry.outcomeOf(applyOperator(request.operator, job.positions, job.groups, request.parameters, job.influence), job.movedIndices)
+		val lattice = job.geometry as? LatticeWorldGeometry ?: return job.geometry.outcomeOf(applyOperator(request.operator, job.positions, job.groups, request.parameters, job.influence), job.movedIndices)
+		val original = PointsInDepth(job.positions, lattice.depth.valuesFor(job.positions.size / 2))
+		val moved = applyOperatorInDepth(request.operator, original, job.groups, request.parameters, job.influence)
+
+		return lattice.outcomeOf(moved.positions, job.movedIndices, latticeDepthOf(moved.depths))
 	}
 
 	val slide = request.slide?.takeIf { slide -> slide.owner == job.owner } ?: return job.geometry.outcomeOf(job.positions, job.movedIndices)

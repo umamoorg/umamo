@@ -46,7 +46,7 @@ data class SessionViewState(
 	val uvCursor: UvCursor? = null,
 	val pivotMode: TransformPivotMode = TransformPivotMode.MedianPoint,
 	val pivotDepth: Float = 0f,
-	val depthSurface: DepthSurface = DepthSurface.Flat,
+	val depthSurface: DepthSurface = DepthSurface.Unchanged,
 	val proportionalEnabled: Boolean = false,
 	val proportionalSettings: ProportionalEditState? = null,
 	val parameterControls: Map<ParameterId, ParameterControl> = emptyMap(),

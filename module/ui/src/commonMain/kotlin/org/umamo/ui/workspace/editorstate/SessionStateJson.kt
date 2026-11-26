@@ -98,12 +98,12 @@ fun sessionStateJson(viewState: SessionViewState, pose: Pose, model: PuppetModel
 		// UMA §7.4: `depthRotation` - the depth rotation's pivot depth and surface, left out at the defaults.
 		put(
 			"depthRotation",
-			if (viewState.pivotDepth == 0f && viewState.depthSurface == DepthSurface.Flat) {
+			if (viewState.pivotDepth == 0f && viewState.depthSurface == DepthSurface.Unchanged) {
 				JsonNull
 			} else {
 				buildJsonObject {
 					put("depth", if (viewState.pivotDepth == 0f) JsonNull else JsonPrimitive(viewState.pivotDepth))
-					put("surface", if (viewState.depthSurface == DepthSurface.Flat) JsonNull else JsonPrimitive(depthSurfaceWireName(viewState.depthSurface)))
+					put("surface", if (viewState.depthSurface == DepthSurface.Unchanged) JsonNull else JsonPrimitive(depthSurfaceWireName(viewState.depthSurface)))
 				}
 			},
 		)
@@ -149,7 +149,7 @@ fun sessionViewStateOf(tree: JsonObject?): SessionViewState? {
 		pivotDepth = depthRotation?.let { block -> finiteFloatOf(block["depth"]) } ?: 0f,
 		depthSurface =
 			depthRotation?.let { block -> stringOf(block, "surface") }?.let { wireName -> DepthSurface.entries.firstOrNull { surface -> depthSurfaceWireName(surface) == wireName } }
-				?: DepthSurface.Flat,
+				?: DepthSurface.Unchanged,
 		proportionalEnabled = proportional?.let { block -> booleanOf(block, "enabled") } ?: false,
 		proportionalSettings =
 			proportional?.let { block ->
@@ -317,6 +317,7 @@ private fun falloffWireName(falloff: ProportionalFalloff): String =
 private fun depthSurfaceWireName(surface: DepthSurface): String =
 	// UMA §7.4: `depthRotation.surface`.
 	when (surface) {
+		DepthSurface.Unchanged -> "unchanged"
 		DepthSurface.Flat -> "flat"
 		DepthSurface.Cylinder -> "cylinder"
 		DepthSurface.Sphere -> "sphere"

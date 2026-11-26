@@ -100,8 +100,8 @@ interface SessionToolSettings {
 	fun setDepthSurface(surface: DepthSurface)
 
 	/**
-	 * Moves the depth surface to the next one in T's cycle (Flat, Cylinder, Sphere), naming the new surface in a
-	 * near-cursor notice when [announce] - a rotation with no axis locked, whose depth inset is not showing it.
+	 * Moves the depth surface to the next one in T's cycle (Unchanged, Flat, Cylinder, Sphere), naming the new surface
+	 * in a near-cursor notice when [announce] - a rotation with no axis locked, whose depth inset is not showing it.
 	 *
 	 * @param Boolean announce True to post the notice.
 	 */

@@ -7,6 +7,7 @@ import org.umamo.edit.TransformPivotMode
 import org.umamo.runtime.model.ElementOwner
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -19,9 +20,10 @@ import kotlin.math.sqrt
  * selection so the sheet wraps the chosen number of degrees round the shape: at 180 its farthest point lands on the rim
  * and it covers the front half, at 360 its two ends meet at the back, and toward 0 it relaxes back to flat.
  *
- * A depth rotation about the same pivot with that radius as its depth and the matching surface turns the bent points
- * exactly as the shape would turn - a point at angle phi goes to R sin(phi + theta) - while they stay on the front half.
- * It reads every point as sitting in front, so the part of a wrap past 180 degrees turns as if it were in front too.
+ * The bend also says how deep each point lands: at angle phi = s / R round the shape, R (1 - cos phi) behind the art
+ * plane - 0 at the front, R on the rim, 2R at the back - with the shape's center line or point at depth R.  A lattice
+ * keeps that depth, so a depth rotation with the pivot pushed to R over the Unchanged surface turns the bent points
+ * exactly as the shape would turn, the back half included: a point at phi goes to R sin(phi + theta).
  */
 
 /** A whole turn in degrees, the most the sheet wraps round the shape and where a run starts. */
@@ -50,14 +52,6 @@ val CylinderAxis.choiceKey: String
 /** The stable key of a target shape: its name in lower camel case (cylinder, sphere), the one spelling the Shape row stores. */
 val TargetShape.choiceKey: String
 	get() = name.replaceFirstChar { first -> first.lowercaseChar() }
-
-/** The depth rotation's surface for a target shape, so a turn after To Shape goes round the shape it laid down. */
-val TargetShape.depthSurface: DepthSurface
-	get() =
-		when (this) {
-			TargetShape.Cylinder -> DepthSurface.Cylinder
-			TargetShape.Sphere -> DepthSurface.Sphere
-		}
 
 /**
  * The cylinder axis a stored key names, falling back to Z (the head turn left and right) for a key no axis has.
@@ -155,9 +149,9 @@ fun shapeRadiusOf(piece: ShapePiece, settings: ToShapeSettings): Float {
 }
 
 /**
- * Sets the depth rotation's depth and surface to the shape [settings] laid down, so an R about the same pivot turns the
- * bent points round the very cylinder or sphere they sit on.  A wrap that bends nothing (0 degrees) has no radius to
- * hand over and leaves them as they are.
+ * Sets the depth rotation's depth to the radius of the shape [settings] laid down and its surface to Unchanged, so an R
+ * about the same pivot turns the bent points at the depths the bend gave them, round the very cylinder or sphere they
+ * sit on.  A wrap that bends nothing (0 degrees) has no radius to hand over and leaves them as they are.
  *
  * @param ShapePiece piece The piece whose radius the depth rotation takes.
  * @param ToShapeSettings settings The shape laid down.
@@ -170,7 +164,7 @@ fun EditorSession.handDepthRotationTheShape(piece: ShapePiece, settings: ToShape
 	}
 
 	setPivotDepth(radius)
-	setDepthSurface(settings.shape.depthSurface)
+	setDepthSurface(DepthSurface.Unchanged)
 }
 
 /**
@@ -239,7 +233,28 @@ private fun pieceOf(
 }
 
 /**
- * One owner's positions with every piece it belongs to bent onto the shape, a fresh array.
+ * One owner's points with every piece it belongs to bent onto the shape, fresh arrays: the shaped positions and how
+ * deep each lands.
+ *
+ * @param ElementOwner owner The owner.
+ * @param PointsInDepth points Its world positions and depths (never mutated).
+ * @param List<ShapePiece> pieces The pieces of the selection.
+ * @param ToShapeSettings settings The shape to bend onto.
+ * @return PointsInDepth The shaped points; copies of [points] when no piece holds the owner.
+ */
+fun shapedOwnerPoints(
+	owner: ElementOwner,
+	points: PointsInDepth,
+	pieces: List<ShapePiece>,
+	settings: ToShapeSettings,
+): PointsInDepth =
+	pieces.fold(PointsInDepth(points.positions.copyOf(), points.depths.copyOf())) { shaped, piece ->
+		piece.members[owner]?.let { indices -> shapeVerticesInPlace(shaped, indices, piece.extent, shapeRadiusOf(piece, settings), settings) }
+		shaped
+	}
+
+/**
+ * [shapedOwnerPoints] for points on the art plane, a mesh's, whose depth nothing keeps.
  *
  * @param ElementOwner owner The owner.
  * @param FloatArray positions Its interleaved world positions (never mutated).
@@ -252,98 +267,92 @@ fun shapedOwnerPositions(
 	positions: FloatArray,
 	pieces: List<ShapePiece>,
 	settings: ToShapeSettings,
-): FloatArray =
-	pieces.fold(positions.copyOf()) { shaped, piece ->
-		piece.members[owner]?.let { indices -> shapeVerticesInPlace(shaped, indices, piece.extent, shapeRadiusOf(piece, settings), settings) }
-		shaped
-	}
+): FloatArray = shapedOwnerPoints(owner, PointsInDepth(positions, FloatArray(positions.size / 2)), pieces, settings).positions
 
 /**
- * Bends the given vertices onto the shape round [radius], a fresh array: each moves [ToShapeSettings.factor] of the way
- * to where the bent sheet shows it.
+ * Bends the given vertices of [points] onto the shape in place, each moving [ToShapeSettings.factor] of the way to where
+ * the bent sheet shows it and how deep it sits there.  Each vertex reads only its own point, so the pieces of a
+ * selection can be bent one after another into the same arrays.  A coordinate the bend leaves where it was - the axis a
+ * cylinder runs along, the pivot itself - keeps its value exactly.
  *
- * @param FloatArray positions The interleaved world positions (never mutated).
+ * @param PointsInDepth points The world positions and depths, written in place.
  * @param Set<Int> indices The vertices to bend.
  * @param ShapeExtent extent The piece's pivot.
- * @param Float radius The radius of the cylinder or sphere.
- * @param ToShapeSettings settings The shape to bend onto.
- * @return FloatArray A new positions array with the vertices bent.
- */
-fun shapedVertices(
-	positions: FloatArray,
-	indices: Set<Int>,
-	extent: ShapeExtent,
-	radius: Float,
-	settings: ToShapeSettings,
-): FloatArray = positions.copyOf().also { shaped -> shapeVerticesInPlace(shaped, indices, extent, radius, settings) }
-
-/**
- * Bends the given vertices of [positions] onto the shape in place; each vertex reads only its own position, so the
- * pieces of a selection can be bent one after another into the same array.  A coordinate the bend leaves where it was -
- * the axis a cylinder runs along, the pivot itself - keeps its value exactly.
- *
- * @param FloatArray positions The interleaved world positions, written in place.
- * @param Set<Int> indices The vertices to bend.
- * @param ShapeExtent extent The piece's pivot.
- * @param Float radius The radius of the cylinder or sphere; nothing bends round a radius of 0.
+ * @param Float radius The radius of the cylinder or sphere; round a radius of 0 the sheet stays flat, on the art plane.
  * @param ToShapeSettings settings The shape to bend onto.
  */
 private fun shapeVerticesInPlace(
-	positions: FloatArray,
+	points: PointsInDepth,
 	indices: Set<Int>,
 	extent: ShapeExtent,
 	radius: Float,
 	settings: ToShapeSettings,
 ) {
-	if (radius <= 0f) {
-		return
-	}
+	val positions = points.positions
+	val depths = points.depths
 
 	for (vertexIndex in indices) {
 		val offsetX = positions[vertexIndex * 2] - extent.pivotX
 		val offsetZ = positions[vertexIndex * 2 + 1] - extent.pivotZ
+		// The flat sheet's own depth: a radius of 0 bends nothing, so the sheet lies on the art plane.
+		var shapedDepth = 0f
 
-		when (settings.shape) {
-			TargetShape.Cylinder -> {
-				when (settings.axis) {
-					CylinderAxis.Z -> {
-						positions[vertexIndex * 2] = landedCoordinate(positions[vertexIndex * 2], extent.pivotX, offsetX, bentAcross(offsetX, radius), settings.factor)
-					}
+		if (radius > 0f) {
+			when (settings.shape) {
+				TargetShape.Cylinder -> {
+					when (settings.axis) {
+						CylinderAxis.Z -> {
+							val angle = angleRoundShape(offsetX, radius)
+							positions[vertexIndex * 2] = landedCoordinate(positions[vertexIndex * 2], extent.pivotX, offsetX, radius * sin(angle), settings.factor)
+							shapedDepth = depthRoundShape(angle, radius)
+						}
 
-					CylinderAxis.X -> {
-						positions[vertexIndex * 2 + 1] = landedCoordinate(positions[vertexIndex * 2 + 1], extent.pivotZ, offsetZ, bentAcross(offsetZ, radius), settings.factor)
+						CylinderAxis.X -> {
+							val angle = angleRoundShape(offsetZ, radius)
+							positions[vertexIndex * 2 + 1] = landedCoordinate(positions[vertexIndex * 2 + 1], extent.pivotZ, offsetZ, radius * sin(angle), settings.factor)
+							shapedDepth = depthRoundShape(angle, radius)
+						}
 					}
 				}
-			}
 
-			TargetShape.Sphere -> {
-				// The sheet bent over the sphere along each line out from the pivot, the arc length kept on that line.
-				val distance = sqrt(offsetX * offsetX + offsetZ * offsetZ)
+				TargetShape.Sphere -> {
+					// The sheet bent over the sphere along each line out from the pivot, the arc length kept on that line.
+					val distance = sqrt(offsetX * offsetX + offsetZ * offsetZ)
 
-				if (distance > 0f) {
-					val stretch = bentAcross(distance, radius) / distance
-					positions[vertexIndex * 2] = landedCoordinate(positions[vertexIndex * 2], extent.pivotX, offsetX, offsetX * stretch, settings.factor)
-					positions[vertexIndex * 2 + 1] = landedCoordinate(positions[vertexIndex * 2 + 1], extent.pivotZ, offsetZ, offsetZ * stretch, settings.factor)
+					if (distance > 0f) {
+						val angle = angleRoundShape(distance, radius)
+						val stretch = radius * sin(angle) / distance
+						positions[vertexIndex * 2] = landedCoordinate(positions[vertexIndex * 2], extent.pivotX, offsetX, offsetX * stretch, settings.factor)
+						positions[vertexIndex * 2 + 1] = landedCoordinate(positions[vertexIndex * 2 + 1], extent.pivotZ, offsetZ, offsetZ * stretch, settings.factor)
+						shapedDepth = depthRoundShape(angle, radius)
+					}
 				}
 			}
 		}
+
+		depths[vertexIndex] += (shapedDepth - depths[vertexIndex]) * settings.factor
 	}
 }
 
 /**
- * Where a point an arc length [arcLength] from the pivot shows once the sheet bends round [radius], seen from the front:
- * R sin(s / R), the middle at full scale, the rim at the radius a quarter turn round, and the back of the shape behind
- * the pivot again half a turn round.  An arc past half a turn stays at the back.
+ * How far round the shape a point an arc length [arcLength] from the pivot sits once the sheet bends round [radius]: 0
+ * at the front, a quarter turn on the rim, half a turn at the back.  An arc past half a turn stays at the back.
  *
  * @param Float arcLength The point's offset from the pivot on the flat sheet, signed.
  * @param Float radius The radius it bends round, above 0.
- * @return Float Its offset from the pivot seen from the front, signed.
+ * @return Float The angle in radians, signed like [arcLength].
  */
-private fun bentAcross(arcLength: Float, radius: Float): Float {
-	val angle = (arcLength / radius).coerceIn(-HALF_TURN, HALF_TURN)
+private fun angleRoundShape(arcLength: Float, radius: Float): Float = (arcLength / radius).coerceIn(-HALF_TURN, HALF_TURN)
 
-	return radius * sin(angle)
-}
+/**
+ * How deep a point [angle] round a shape of [radius] sits behind the art plane, which touches the shape at its front:
+ * R (1 - cos phi).
+ *
+ * @param Float angle The angle round the shape from its front, in radians.
+ * @param Float radius The shape's radius.
+ * @return Float The depth along world Y, in world px.
+ */
+private fun depthRoundShape(angle: Float, radius: Float): Float = radius * (1f - cos(angle))
 
 /**
  * Where one coordinate of a bent point lands: [factor] of the way from where it was to its place on the shape, or exactly
