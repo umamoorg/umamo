@@ -88,6 +88,7 @@ fun inversePlacementAffine(placement: AtlasPlacement): FloatArray? {
 	if (placement.scaleX == 0f || placement.scaleY == 0f) {
 		return null
 	}
+
 	val radians = placement.rotationDegrees.toDouble() * PI / 180.0
 	val cosine = cos(radians)
 	val sine = sin(radians)
@@ -96,6 +97,7 @@ fun inversePlacementAffine(placement: AtlasPlacement): FloatArray? {
 	val m01 = (sine / placement.scaleX).toFloat()
 	val m10 = (-sine / placement.scaleY).toFloat()
 	val m11 = (cosine / placement.scaleY).toFloat()
+
 	return floatArrayOf(
 		m00,
 		m01,
@@ -118,6 +120,7 @@ fun placementAffine(placement: AtlasPlacement): FloatArray {
 	val radians = placement.rotationDegrees.toDouble() * PI / 180.0
 	val cosine = cos(radians)
 	val sine = sin(radians)
+
 	return floatArrayOf(
 		(cosine * placement.scaleX).toFloat(),
 		(-sine * placement.scaleY).toFloat(),
@@ -127,23 +130,6 @@ fun placementAffine(placement: AtlasPlacement): FloatArray {
 		placement.positionY,
 	)
 }
-
-/**
- * Composes two 2x3 affines: the result applies [inner] first, then [outer].
- *
- * @param FloatArray outer The affine applied second.
- * @param FloatArray inner The affine applied first.
- * @return FloatArray The composition, a fresh array.
- */
-fun composeAffine(outer: FloatArray, inner: FloatArray): FloatArray =
-	floatArrayOf(
-		outer[0] * inner[0] + outer[1] * inner[3],
-		outer[0] * inner[1] + outer[1] * inner[4],
-		outer[0] * inner[2] + outer[1] * inner[5] + outer[2],
-		outer[3] * inner[0] + outer[4] * inner[3],
-		outer[3] * inner[1] + outer[4] * inner[4],
-		outer[3] * inner[2] + outer[4] * inner[5] + outer[5],
-	)
 
 /**
  * The atlas-page pixel a layer pixel packs to (the forward transform).
@@ -159,6 +145,7 @@ fun atlasPixelOf(placement: AtlasPlacement, layerX: Float, layerY: Float): Float
 	val sine = sin(radians)
 	val scaledX = layerX * placement.scaleX
 	val scaledY = layerY * placement.scaleY
+
 	return floatArrayOf(
 		(cosine * scaledX - sine * scaledY).toFloat() + placement.positionX,
 		(sine * scaledX + cosine * scaledY).toFloat() + placement.positionY,
@@ -175,6 +162,7 @@ fun atlasPixelOf(placement: AtlasPlacement, layerX: Float, layerY: Float): Float
  */
 fun layerPixelOf(placement: AtlasPlacement, atlasX: Float, atlasY: Float): FloatArray? {
 	val inverse = inversePlacementAffine(placement) ?: return null
+
 	return floatArrayOf(
 		inverse[0] * atlasX + inverse[1] * atlasY + inverse[2],
 		inverse[3] * atlasX + inverse[4] * atlasY + inverse[5],
@@ -187,9 +175,7 @@ fun layerPixelOf(placement: AtlasPlacement, atlasX: Float, atlasY: Float): Float
  *
  * The per-vertex chain is uv times the page size, through the placement inverse, divided by the layer's
  * size - all affine, so it folds into a single matrix that any consumer can apply in either direction
- * (see [invertUvAffine]).  A drawable sampling its art directly has stored uvs that already address the
- * tile image, so its mapping is the identity rather than a placement inverse; applying a placement
- * there would be a double transform.
+ * (see [invertAffine]).  A binding with no placement maps by the identity (see [DrawableLayerBinding]).
  *
  * @param DrawableLayerBinding binding The drawable's binding.
  * @param Int layerWidth The source tile's width in pixels.
@@ -197,11 +183,14 @@ fun layerPixelOf(placement: AtlasPlacement, atlasX: Float, atlasY: Float): Float
  * @return FloatArray? The atlas-uv to layer-uv affine, or null when it cannot be formed.
  */
 fun layerUvAffineOf(binding: DrawableLayerBinding, layerWidth: Int, layerHeight: Int): FloatArray? {
-	val placement = binding.placement ?: return identityUvAffine()
+	val placement = binding.placement ?: return identityAffine()
+
 	if (layerWidth <= 0 || layerHeight <= 0) {
 		return null
 	}
+
 	val inverse = inversePlacementAffine(placement) ?: return null
+
 	return floatArrayOf(
 		inverse[0] * binding.pageWidth / layerWidth,
 		inverse[1] * binding.pageHeight / layerWidth,
@@ -210,57 +199,6 @@ fun layerUvAffineOf(binding: DrawableLayerBinding, layerWidth: Int, layerHeight:
 		inverse[4] * binding.pageHeight / layerHeight,
 		inverse[5] / layerHeight,
 	)
-}
-
-/** The uv affine that changes nothing - the mapping of a drawable whose uvs already address its art. */
-fun identityUvAffine(): FloatArray = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f)
-
-/**
- * Inverts a 2x3 uv affine, turning a mapping INTO a frame into the mapping back OUT of it.
- *
- * @param FloatArray affine The affine to invert (m00, m01, m02, m10, m11, m12).
- * @return FloatArray? The inverse, or null when the affine is degenerate (a zero determinant).
- */
-fun invertUvAffine(affine: FloatArray): FloatArray? {
-	if (affine.size < 6) {
-		return null
-	}
-	val determinant = affine[0] * affine[4] - affine[1] * affine[3]
-	if (determinant == 0f) {
-		return null
-	}
-	val m00 = affine[4] / determinant
-	val m01 = -affine[1] / determinant
-	val m10 = -affine[3] / determinant
-	val m11 = affine[0] / determinant
-	return floatArrayOf(
-		m00,
-		m01,
-		-(m00 * affine[2] + m01 * affine[5]),
-		m10,
-		m11,
-		-(m10 * affine[2] + m11 * affine[5]),
-	)
-}
-
-/**
- * Applies a 2x3 uv affine to a whole interleaved (u, v) array.
- *
- * @param FloatArray uvs The coordinates to map.
- * @param FloatArray affine The affine to apply.
- * @return FloatArray The mapped coordinates, a fresh array.
- */
-fun applyUvAffine(uvs: FloatArray, affine: FloatArray): FloatArray {
-	val mapped = FloatArray(uvs.size)
-	var componentIndex = 0
-	while (componentIndex + 1 < uvs.size) {
-		val u = uvs[componentIndex]
-		val v = uvs[componentIndex + 1]
-		mapped[componentIndex] = affine[0] * u + affine[1] * v + affine[2]
-		mapped[componentIndex + 1] = affine[3] * u + affine[4] * v + affine[5]
-		componentIndex += 2
-	}
-	return mapped
 }
 
 /**
@@ -280,5 +218,6 @@ fun layerUvsFromAtlasUvs(
 	layerHeight: Int,
 ): FloatArray? {
 	val affine = layerUvAffineOf(binding, layerWidth, layerHeight) ?: return null
-	return applyUvAffine(atlasUvs, affine)
+
+	return applyAffine(atlasUvs, affine)
 }

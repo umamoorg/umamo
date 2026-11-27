@@ -1,12 +1,13 @@
 package org.umamo.render.eval
 
-import org.junit.Assume
+import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.PuppetModel
 import java.io.File
 import kotlin.math.abs
 
 /*
  * Shared helpers for differential-oracle tests that shell out to the rebuilt dump_model tool
- * (the Umamo C++ Runtime harness's dump_model.c). Mirrors DeformationOracleTest's hashing/comparison exactly -
+ * (the Umamo C++ Runtime harness's dump_model.c).  Mirrors DeformationOracleTest's hashing/comparison exactly -
  * that test's default-pose gate is deliberately left textually untouched (see its 156 re-pin
  * note), so the shared pieces live here for the posed tests instead of being extracted from it.
  */
@@ -26,9 +27,9 @@ internal data class OracleEntry(
 	val opacity: Float,
 	val multiplyRgba: List<Float>,
 	val screenRgba: List<Float>,
-	/** The core's post-update draw order (its rounded integer form of the blended float). */
+	/** The runtime's post-update draw order (its rounded integer form of the blended float). */
 	val drawOrder: Int = 0,
-	/** The core's post-update RENDER order - the drawable's slot after draw-group depth sorting. */
+	/** The runtime's post-update RENDER order - the drawable's slot after draw-group depth sorting. */
 	val renderOrder: Int = 0,
 )
 
@@ -66,28 +67,30 @@ internal data class OracleDump(
 )
 
 /**
- * Runs dump_model against [coreLib] and [moc3] at [pose] (empty = default pose) and parses the
+ * Runs dump_model against [runtimeLib] and [moc3] at [pose] (empty = default pose) and parses the
  * canvas header plus the `T` (part), `O` (offscreen), and `D` (drawable) lines.
  *
- * @param File dumpModel The dump_model binary.
- * @param File coreLib   .so to dlopen - Must be compatible with the official Cubism API.
- * @param File moc3      The model to dump.
- * @param Map  pose      Parameter id -> value written before csmUpdateModel.
+ * @param File dumpModel  The dump_model binary.
+ * @param File runtimeLib .so to dlopen - Must be compatible with the official Cubism API.
+ * @param File moc3       The model to dump.
+ * @param Map  pose       Parameter id -> value written before csmUpdateModel.
  * @return OracleDump The parsed dump.
  */
-internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map<String, Float>): OracleDump {
+internal fun runOracleDump(dumpModel: File, runtimeLib: File, moc3: File, pose: Map<String, Float>): OracleDump {
 	val command = ArrayList<String>()
 	command.add(dumpModel.absolutePath)
-	command.add(coreLib.absolutePath)
+	command.add(runtimeLib.absolutePath)
 	command.add(moc3.absolutePath)
 	command.add("--update")
-	// Adds mul=/scr= to each D line. Always on: the extra columns cost nothing to parse and the
+	// Adds mul=/scr= to each D line.  Always on: the extra columns cost nothing to parse and the
 	// alternative is two dump invocations for tests that want geometry AND color.
 	command.add("--channels")
+
 	for ((parameterId, value) in pose) {
 		command.add("--param")
 		command.add("$parameterId=$value")
 	}
+
 	val process = ProcessBuilder(command).redirectErrorStream(true).start()
 	val output = process.inputStream.bufferedReader().readText()
 	val exit = process.waitFor()
@@ -101,7 +104,7 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 	val vtxRegex = Regex("""vtx=(\d+)""")
 	val vposRegex = Regex("""vpos_h=(\S+)""")
 	val vuvRegex = Regex("""vuv_h=(\S+)""")
-	// D-line channels: op= comes from --update, mul=/scr= from --channels. Anchored to ` op=` with a
+	// D-line channels: op= comes from --update, mul=/scr= from --channels.  Anchored to ` op=` with a
 	// leading space so it cannot match the `vpos_h=`/`vuv_h=` suffixes or an id containing "op=".
 	val opacityRegex = Regex(""" op=(\S+)""")
 	val drawOrderRegex = Regex(""" draw=(-?\d+)""")
@@ -117,11 +120,14 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 	val drawableIds = ArrayList<String>()
 	// T <index> id=<partId> parent=<index>
 	val partRegex = Regex("""T \d+ id=(\S+)""")
+
 	for (line in output.lineSequence()) {
 		if (line.startsWith("T ")) {
 			partRegex.find(line)?.let { partIds.add(it.groupValues[1]) }
+
 			continue
 		}
+
 		if (line.startsWith("O ")) {
 			val match = offscreenRegex.find(line) ?: continue
 			offscreens.add(
@@ -135,11 +141,14 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 					screenRgba = match.groupValues[7].split(',').map { it.toFloat() },
 				),
 			)
+
 			continue
 		}
+
 		if (!line.startsWith("D ")) {
 			continue
 		}
+
 		val id = idRegex.find(line)?.groupValues?.get(1) ?: continue
 		// Recorded before the geometry parse: the id list is the file's INDEX ordering, so a line this
 		// parser gives up on would silently shift every later index.
@@ -150,7 +159,7 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 		val vposH = vposRegex.find(line)?.let { it.groupValues[1].toDoubleOrNull() ?: Double.NaN } ?: continue
 		val vuvH = vuvRegex.find(line)?.let { it.groupValues[1].toDoubleOrNull() ?: Double.NaN } ?: continue
 		val opacity = opacityRegex.find(line)?.groupValues?.get(1)?.toFloatOrNull() ?: Float.NaN
-		// A non-finite channel is DATA, not a parse error: the core prints "-nan" for a drawable whose
+		// A non-finite channel is DATA, not a parse error: the runtime prints "-nan" for a drawable whose
 		// inputs went bad, and that is exactly the kind of thing a differential gate exists to catch.
 		// Throwing here would turn a reportable mismatch into an unattributable test crash.
 		val multiplyRgba =
@@ -163,6 +172,7 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 		val renderOrder = renderOrderRegex.find(line)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 		entries[id] = OracleEntry(vtx, vposH, vuvH, opacity, multiplyRgba, screenRgba, drawOrder, renderOrder)
 	}
+
 	return OracleDump(
 		pixelsPerUnit = canvas.groupValues[5].toFloat(),
 		originX = canvas.groupValues[3].toFloat(),
@@ -178,40 +188,27 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 internal fun oracleTransformedHash(world: FloatArray, offsetX: Float, offsetY: Float, scale: Float): Double {
 	var hash = 0.0
 	var index = 0
+
 	while (index < world.size) {
 		hash = hash * 1.0000001 + (world[index] - offsetX) / scale
 		hash = hash * 1.0000001 + (world[index + 1] - offsetY) / scale
 		index += 2
 	}
+
 	return hash
 }
 
 /** Relative/absolute closeness at the oracle's 1e-5 tolerance (mirrors DeformationOracleTest). */
-internal fun oracleCloseEnough(a: Double, b: Double): Boolean {
-	val scale = maxOf(1.0, abs(a), abs(b))
-	return abs(a - b) <= 1e-5 * scale
-}
+internal fun oracleCloseEnough(first: Double, second: Double): Boolean {
+	val scale = maxOf(1.0, abs(first), abs(second))
 
-/**
- * Resolves a `-D`-supplied oracle input, skipping the calling test when it is absent.
- *
- * Every oracle gate needs the same two inputs and each had grown its own private copy of this; one
- * definition keeps the skip MESSAGE identical too, which is what makes an absent harness legible in
- * the test log rather than looking like a silent pass.
- *
- * @param String property The system property naming the file.
- * @return File The existing file (the test is skipped before this returns otherwise).
- */
-internal fun requireOracleInput(property: String): File {
-	val file = System.getProperty(property)?.let(::File)?.takeIf { it.exists() }
-	Assume.assumeTrue("[oracle] absent -D$property", file != null)
-	return file!!
+	return abs(first - second) <= 1e-5 * scale
 }
 
 /**
  * Whether the oracle never evaluated [entry] - an all-zero row rather than a real result.
  *
- * The core leaves a drawable untouched when nothing drives it at this pose, and the zeroed row is
+ * The runtime leaves a drawable untouched when nothing drives it at this pose, and the zeroed row is
  * indistinguishable from a legitimately transparent one by value alone; the combination of a zero
  * position hash AND zero opacity AND a zero (not white) multiply is what separates them, since an
  * evaluated drawable still reports real geometry and a white multiply.
@@ -226,3 +223,78 @@ internal fun oracleNeverEvaluated(entry: OracleEntry): Boolean =
 		entry.multiplyRgba[0] == 0f &&
 		entry.multiplyRgba[1] == 0f &&
 		entry.multiplyRgba[2] == 0f
+
+/**
+ * How our CPU eval of a puppet lines up with the runtime's dump of a moc at one pose, drawable by drawable.
+ *
+ * @property Int compared Drawables the dump lists that our eval draws.
+ * @property Int positionMatched Of [compared], those whose position hash matches the dump's.
+ * @property Double worstPositionError The worst relative position-hash error among the rest of [compared], 0 when none.
+ * @property Set<String> agreed Drawables both sides agree on: hidden on both, or drawn on both with a matching position
+ *   hash and opacity.
+ */
+internal class OraclePoseComparison(
+	val compared: Int,
+	val positionMatched: Int,
+	val worstPositionError: Double,
+	val agreed: Set<String>,
+)
+
+/**
+ * Evaluates [puppet] at [pose] on the CPU and compares each drawable against the runtime's dump of [moc3] at the same pose.
+ *
+ * The positions go through the moc's own canvas transform, `(x - ox) / ppu, (y + oy) / ppu` (our eval has already negated
+ * y), so [puppet] must be canvas-space: a `.cmo3` import, or a moc import passed through `restMeshesToCanvasSpace`.
+ *
+ * @param PuppetModel puppet The rig to evaluate.
+ * @param File dumpModel The dump_model binary.
+ * @param File runtimeLib The runtime to dlopen.
+ * @param File moc3 The model the runtime dumps.
+ * @param Map<String, Float> pose Parameter id -> value, handed to both sides unchanged.
+ * @return OraclePoseComparison The comparison.
+ */
+internal fun compareWithOracle(
+	puppet: PuppetModel,
+	dumpModel: File,
+	runtimeLib: File,
+	moc3: File,
+	pose: Map<String, Float>,
+): OraclePoseComparison {
+	val geometry = CpuDeformationEvaluator().evaluate(puppet, pose.mapKeys { (parameterId, _) -> ParameterId(parameterId) })
+	val dump = runOracleDump(dumpModel, runtimeLib, moc3, pose)
+	var compared = 0
+	var positionMatched = 0
+	var worst = 0.0
+	val agreed = HashSet<String>()
+
+	for (drawable in puppet.drawables) {
+		val entry = dump.entries[drawable.id.raw] ?: continue
+		val world = geometry.worldPositions[drawable.id]
+
+		if (world == null) {
+			if (oracleNeverEvaluated(entry)) {
+				agreed.add(drawable.id.raw)
+			}
+
+			continue
+		}
+
+		compared++
+		val hash = oracleTransformedHash(world, dump.originX, -dump.originY, dump.pixelsPerUnit)
+		val positionMatches = oracleCloseEnough(hash, entry.vposH)
+
+		if (positionMatches) {
+			positionMatched++
+		} else {
+			worst = maxOf(worst, abs(hash - entry.vposH) / maxOf(1.0, abs(entry.vposH)))
+		}
+
+		val opacity = geometry.opacity[drawable.id]
+
+		if (positionMatches && opacity != null && !oracleNeverEvaluated(entry) && oracleCloseEnough(opacity.toDouble(), entry.opacity.toDouble())) {
+			agreed.add(drawable.id.raw)
+		}
+	}
+
+	return OraclePoseComparison(compared, positionMatched, worst, agreed)
+}

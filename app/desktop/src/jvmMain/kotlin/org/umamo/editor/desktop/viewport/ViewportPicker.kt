@@ -1,35 +1,38 @@
 package org.umamo.editor.desktop.viewport
 
 import androidx.compose.ui.graphics.ImageBitmap
+import org.umamo.render.ContentBounds
+import org.umamo.render.FrameOverlays
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
-import org.umamo.render.pick.drawableCentroids
+import org.umamo.render.pick.centroidsOf
+import org.umamo.render.pick.latticeCenters
+import org.umamo.render.pick.latticeHitsAt
 import org.umamo.render.pick.pickAllDrawables
 import org.umamo.render.pick.pickDrawable
 import org.umamo.render.pick.screenToWorldX
-import org.umamo.render.pick.screenToWorldY
+import org.umamo.render.pick.screenToWorldZ
+import org.umamo.render.puppet.LatticeOverlay
 import org.umamo.render.puppet.PuppetRenderer
+import org.umamo.render.puppet.latticeShapesDrawnIn
+import org.umamo.render.puppet.latticesDrawnIn
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.atlasKeyByDrawable
+import org.umamo.runtime.model.drawableNameByDrawable
 import org.umamo.runtime.model.partNameByDrawable
 import org.umamo.runtime.model.pickableIndicesByDrawable
 import org.umamo.runtime.model.pickableUvsByDrawable
 import org.umamo.ui.model.DrawableThumbnailProvider
-import org.umamo.ui.model.DrawableThumbnailer
+import org.umamo.ui.model.thumbnails.DrawableThumbnailer
 
 /**
- * CPU-side hit-testing and art previews for the viewport, over the current deformed pose. Runs entirely on
+ * CPU-side hit-testing and art previews for the viewport, over the current deformed pose.  Runs entirely on
  * the UI thread and never touches GL: it reuses the renderer's pure-CPU pick geometry (a snapshot the render
- * thread produces) and its resolved draw order, and the retained CPU atlas pixels for the alpha gate. The
+ * thread produces) and its resolved draw order, and the retained CPU atlas pixels for the alpha gate.  The
  * facade resolves each area's camera and size and forwards them here, so this class is area-agnostic.
- *
- * The model-derived lookup maps (pick indices / UVs, atlas keys, part labels) and the thumbnail provider are
- * rebuilt by [updateModel] so session-created drawables (a duplicate's fresh ".001" id) and visibility edits
- * stay pickable, sampleable, and labeled - maps frozen at construction would leave a duplicate unpickable.
- *
- * ビューポートの CPU ヒットテストとアートプレビュー。UI スレッドのみ、GL 不使用。
  *
  * @property PuppetRenderer renderer The renderer, for its pure-CPU pickGeometry() and drawnOrder().
  * @property PuppetTextures textures The atlas pages, for the alpha gate and page sizes.
@@ -42,7 +45,7 @@ internal class ViewportPicker(
 	model: PuppetModel,
 ) {
 	// Per-drawable triangle indices for hit-testing, restricted to the drawables actually shown (the
-	// Parts-panel eyeball cascade) and to those carrying a triangle mesh. Picking iterates the pose's
+	// Parts-panel eyeball cascade) and to those carrying a triangle mesh.  Picking iterates the pose's
 	// deformed positions and looks indices up here, so unshown / mesh-less drawables are never hit.
 	private var pickableIndices: Map<DrawableId, IntArray> = model.pickableIndicesByDrawable()
 
@@ -53,11 +56,14 @@ internal class ViewportPicker(
 	// Drawable id -> owning part name, for the overlap-picker row labels.
 	private var partNameByDrawableId: Map<DrawableId, String> = model.partNameByDrawable()
 
+	// Drawable id -> its own name, the other half of an overlap-picker row label.
+	private var drawableNameByDrawableId: Map<DrawableId, String> = model.drawableNameByDrawable()
+
 	// Drawable id -> atlas lookup key: the source-format id the atlas map is keyed by, resolved through
 	// textureSourceId so a duplicate samples its SOURCE's texels for the pick alpha gate.
 	private var atlasKeyByDrawableId: Map<DrawableId, String> = model.atlasKeyByDrawable()
 
-	// Art-mesh previews for the overlap picker (the same provider the Outliner hover uses). Pure CPU over
+	// Art-mesh previews for the overlap picker (the same provider the Outliner hover uses).  Pure CPU over
 	// the immutable atlas bytes, so it is built once and shared - a single cache across both consumers.
 	private val thumbnailer = DrawableThumbnailer(model, textures)
 
@@ -71,27 +77,36 @@ internal class ViewportPicker(
 		if (next === textures) {
 			return
 		}
+
 		textures = next
 		thumbnailer.setTextures(next)
 	}
 
 	/**
-	 * Rebuilds the model-derived lookup maps and the thumbnail provider after a committed edit or undo, so
-	 * session-created drawables and visibility edits stay pickable, sampleable, and labeled.
+	 * Rebuilds the model-derived state after a committed edit, an undo, or a preview push, so
+	 * session-created drawables and visibility edits stay pickable, sampleable, and labeled.  The lookup
+	 * maps read visibility, topology, names, and texture sources, never positions, so a positions-only
+	 * push keeps them; the thumbnailer always takes the model, because its bounds and part caches key on
+	 * positions, and the commit after a gesture is itself positions-only relative to the last preview.
 	 *
 	 * @param PuppetModel model The current model.
+	 * @param Boolean positionsOnly True when only mesh positions changed since the last update.
 	 */
-	fun updateModel(model: PuppetModel) {
-		pickableIndices = model.pickableIndicesByDrawable()
-		pickableUvs = model.pickableUvsByDrawable()
-		partNameByDrawableId = model.partNameByDrawable()
-		atlasKeyByDrawableId = model.atlasKeyByDrawable()
+	fun updateModel(model: PuppetModel, positionsOnly: Boolean = false) {
+		if (!positionsOnly) {
+			pickableIndices = model.pickableIndicesByDrawable()
+			pickableUvs = model.pickableUvsByDrawable()
+			partNameByDrawableId = model.partNameByDrawable()
+			drawableNameByDrawableId = model.drawableNameByDrawable()
+			atlasKeyByDrawableId = model.atlasKeyByDrawable()
+		}
+
 		thumbnailer.updateModel(model)
 	}
 
 	/**
 	 * Hit-tests a viewport pixel against the current deformed pose and returns the FRONT-MOST opaque drawable
-	 * under it, or null when the click misses or no pose is ready yet. Restricted to shown, meshed drawables;
+	 * under it, or null when the click misses or no pose is ready yet.  Restricted to shown, meshed drawables;
 	 * front/back uses the renderer's resolved draw order, and the transparent triangle overhang is rejected
 	 * by the atlas-alpha gate.
 	 *
@@ -106,13 +121,15 @@ internal class ViewportPicker(
 		if (width <= 0 || height <= 0) {
 			return null
 		}
+
 		val geometry = renderer.pickGeometry() ?: return null
 		// Screen (y-down) to world (y-up), the inverse of the camera's worldToNdc - see ScreenSpacePick.
 		val worldX = screenToWorldX(cursorXpx, camera, width)
-		val worldY = screenToWorldY(cursorYpx, camera, height)
+		val worldZ = screenToWorldZ(cursorYpx, camera, height)
+
 		return pickDrawable(
 			worldX,
-			worldY,
+			worldZ,
 			geometry.worldPositions,
 			pickableIndices,
 			pickableUvs,
@@ -123,7 +140,7 @@ internal class ViewportPicker(
 
 	/**
 	 * All opaque drawables under a viewport pixel, FRONT-TO-BACK with each one's centrality - for the
-	 * Alt-click overlap-picker popup. Same screen-to-world, hit, and alpha gate as [pickAt].
+	 * Alt-click overlap-picker popup.  Same screen-to-world, hit, and alpha gate as [pickAt].
 	 *
 	 * @param ViewportCamera camera The area's camera.
 	 * @param Int width The area width in pixels.
@@ -142,12 +159,14 @@ internal class ViewportPicker(
 		if (width <= 0 || height <= 0) {
 			return emptyList()
 		}
+
 		val geometry = renderer.pickGeometry() ?: return emptyList()
 		val worldX = screenToWorldX(cursorXpx, camera, width)
-		val worldY = screenToWorldY(cursorYpx, camera, height)
+		val worldZ = screenToWorldZ(cursorYpx, camera, height)
+
 		return pickAllDrawables(
 			worldX,
-			worldY,
+			worldZ,
 			geometry.worldPositions,
 			pickableIndices,
 			pickableUvs,
@@ -158,16 +177,67 @@ internal class ViewportPicker(
 	}
 
 	/**
-	 * Every visible drawable's world-space centroid at the current pose, for Object-mode region select. Reads
+	 * Every visible drawable's world-space centroid at the current pose, for Object-mode region select.  Reads
 	 * the same posed pick geometry as [pickAt] and reduces each drawable to its centroid; empty before the
-	 * first frame's geometry lands. Area-independent - the caller projects with its camera.
+	 * first frame's geometry lands.  Area-independent - the caller projects with its camera.
 	 *
 	 * @return Map The per-drawable [x, y] world centroid.
 	 */
 	fun drawableWorldCentroids(): Map<DrawableId, FloatArray> {
 		val geometry = renderer.pickGeometry() ?: return emptyMap()
-		return drawableCentroids(geometry.worldPositions)
+
+		return centroidsOf(geometry.worldPositions)
 	}
+
+	/**
+	 * The warps whose lattice a frame drawing with [overlays] shows under the cursor, best first, over the same
+	 * lattice points the renderer draws ([PuppetRenderer.latticeWorldPoints]) in the shapes it draws them
+	 * ([latticeShapesDrawnIn]): a slim lattice by its corners and outer edges, any other by its whole grid.
+	 *
+	 * @param LatticeOverlay? overlay The lattices the renderer holds, or null.
+	 * @param FrameOverlays overlays The area's frame options, which decide which lattices it draws.
+	 * @param ViewportCamera camera The area's camera.
+	 * @param Int width The area's width in pixels.
+	 * @param Int height The area's height in pixels.
+	 * @param Float cursorXpx The cursor x in viewport pixels.
+	 * @param Float cursorYpx The cursor y in viewport pixels.
+	 * @param Float pointRadiusPx How near a control point must be.
+	 * @param Float lineRadiusPx How near a grid line must be.
+	 * @return List<DeformerId> The hit warps, best first.
+	 */
+	fun latticePicksAt(
+		overlay: LatticeOverlay?,
+		overlays: FrameOverlays,
+		camera: ViewportCamera,
+		width: Int,
+		height: Int,
+		cursorXpx: Float,
+		cursorYpx: Float,
+		pointRadiusPx: Float,
+		lineRadiusPx: Float,
+	): List<DeformerId> {
+		val drawn = latticeShapesDrawnIn(overlay, renderer.latticeWorldPoints(), overlays)
+
+		return latticeHitsAt(drawn, cursorXpx, cursorYpx, pointRadiusPx, lineRadiusPx, camera, width, height)
+	}
+
+	/**
+	 * The world-space center of each lattice a frame drawing with [overlays] shows, for box and circle select.
+	 *
+	 * @param LatticeOverlay? overlay The lattices the renderer holds, or null.
+	 * @param FrameOverlays overlays The area's frame options.
+	 * @return Map<DeformerId, FloatArray> The [x, y] world center per drawn warp, in model order.
+	 */
+	fun latticeWorldCenters(overlay: LatticeOverlay?, overlays: FrameOverlays): Map<DeformerId, FloatArray> =
+		latticeCenters(latticesDrawnIn(overlay, renderer.latticeWorldPoints(), overlays))
+
+	/**
+	 * The world-space extent of the given warps' lattices at the current pose.
+	 *
+	 * @param Set<DeformerId> ids The warps.
+	 * @return ContentBounds? The extent, or null when none of them is drawn at this pose.
+	 */
+	fun latticeWorldExtent(ids: Set<DeformerId>): ContentBounds? = renderer.latticeWorldExtent(ids)
 
 	/**
 	 * A small preview of a drawable's art for the overlap-picker popup, delegated to the shared thumbnailer
@@ -178,7 +248,11 @@ internal class ViewportPicker(
 	 */
 	fun thumbnailFor(id: DrawableId): ImageBitmap? = thumbnailer.thumbnailFor(id)
 
-	/** The shared art-mesh thumbnail provider, exposed so the host can wire it to the Outliner hover preview. */
+	/**
+	 * The shared art-mesh thumbnail provider, exposed so the host can wire it to the Outliner hover preview.
+	 *
+	 * @return DrawableThumbnailProvider The shared provider.
+	 */
 	fun thumbnails(): DrawableThumbnailProvider = thumbnailer
 
 	/**
@@ -190,11 +264,29 @@ internal class ViewportPicker(
 	 */
 	fun partNameFor(id: DrawableId): String? = partNameByDrawableId[id]
 
-	/** The renderer's resolved back-to-front draw list as a front-rank map (higher index = more front). */
+	/**
+	 * A drawable's own display name, for the overlap-picker row labels, or null when it is not pickable
+	 * in the current model.
+	 *
+	 * @param DrawableId id The drawable to look up.
+	 * @return String The drawable's name, or null.
+	 */
+	fun drawableNameFor(id: DrawableId): String? = drawableNameByDrawableId[id]
+
+	/**
+	 * The renderer's resolved back-to-front draw list as a front-rank map (higher index = more front).
+	 *
+	 * @return Map<DrawableId, Float> Each drawn drawable's rank, higher being nearer the front.
+	 */
 	private fun frontRankMap(): Map<DrawableId, Float> =
 		renderer.drawnOrder().withIndex().associate { (index, id) -> id to index.toFloat() }
 
-	/** The drawable's atlas page size (width, height) in texels, or null when it is untextured. */
+	/**
+	 * The drawable's atlas page size (width, height) in texels, or null when it is untextured.
+	 *
+	 * @param DrawableId id The drawable.
+	 * @return Pair<Int, Int>? The page's width and height in texels, or null.
+	 */
 	private fun atlasSizeOf(id: DrawableId): Pair<Int, Int>? =
 		textures.atlasIndexByDrawableId[atlasKeyByDrawableId[id] ?: id.raw]?.let { atlasIndex ->
 			textures.atlases.getOrNull(atlasIndex)?.let { image -> image.width to image.height }
@@ -202,8 +294,10 @@ internal class ViewportPicker(
 
 	/**
 	 * The atlas-texel alpha (0..1) for a drawable at a full-atlas (u, v), or 1f when the drawable is
-	 * untextured (a flat draw color, treated as fully opaque). Reads the retained CPU atlas pixels; the
+	 * untextured (a flat draw color, treated as fully opaque).  Reads the retained CPU atlas pixels; the
 	 * alpha byte is the coverage whether or not the atlas is premultiplied, so no un-premultiply is needed.
+	 * A point off the page is transparent, as the renderer draws it: a mesh overhangs its art, and when the
+	 * page is a single model image that overhang runs past the page itself.
 	 *
 	 * @param DrawableId id The drawable.
 	 * @param Float u The full-atlas U.
@@ -213,9 +307,15 @@ internal class ViewportPicker(
 	private fun sampleTexelAlpha(id: DrawableId, u: Float, v: Float): Float {
 		val atlasIndex = textures.atlasIndexByDrawableId[atlasKeyByDrawableId[id] ?: id.raw] ?: return 1f
 		val image = textures.atlases.getOrNull(atlasIndex) ?: return 1f
-		val px = (u * image.width).toInt().coerceIn(0, image.width - 1)
-		val py = (v * image.height).toInt().coerceIn(0, image.height - 1)
+
+		if (!(u >= 0f && u < 1f && v >= 0f && v < 1f)) {
+			return 0f
+		}
+
+		val px = (u * image.width).toInt().coerceAtMost(image.width - 1)
+		val py = (v * image.height).toInt().coerceAtMost(image.height - 1)
 		val alpha = image.rgba[(py * image.width + px) * 4 + 3].toInt() and 0xFF
+
 		return alpha / 255f
 	}
 }

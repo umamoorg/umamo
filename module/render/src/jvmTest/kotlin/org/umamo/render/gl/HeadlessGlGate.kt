@@ -34,40 +34,29 @@ private var lastGlfwErrorText: String? = null
 /**
  * Prepares the shared headless GL context for a test, skipping the test when there is none.
  *
- * One context serves the whole module, created once and never terminated - the same lifetime the desktop
- * app gives its own offscreen context.  That is deliberate: context creation under CI's Xvfb + Mesa
- * software GL fails often enough per attempt that a context per test would put three dozen independent
- * chances to fail in a single run, and most runs would lose at least one.  Acquiring once holds the
- * exposure to one attempt, retried up to [ACQUIRE_ATTEMPT_LIMIT] times.
- *
- * Reuse costs the one thing a fresh context supplies for free - a clean GL state vector - so each caller
- * gets [resetSharedGlState] before its body runs, leaving bindings, capabilities, and the viewport exactly
- * as a new context would have them.
- *
- * Two behaviors on a missing context, and the difference is the whole point.  On a developer machine with
- * no display the test SKIPS - via a JUnit assumption, so the run reports it as skipped rather than passing
- * green having asserted nothing.  Under `-Dumamo.requireGl=true` (CI passes it) it is instead a hard
- * FAILURE.
- *
- * Why both: these tests are the only thing pinning the GL renderer's behavior, and they assert on
- * read-back pixels, so a context-less run covers exactly nothing.  A plain skip is right locally (not
- * every machine has a display) but wrong in CI, where a silent skip is indistinguishable from a pass and
- * would let the entire GL suite quietly stop covering anything.  CI asserts the context exists;
- * developers get the skip.
+ * One context serves the whole module, created once and never terminated: context creation under CI's
+ * Xvfb + Mesa software GL fails often enough per attempt that a context per test would lose most runs.
+ * A missing context skips the test through a JUnit assumption, so the run reports it as skipped rather
+ * than passing green, except under `-Dumamo.requireGl=true` (CI passes it), where it is a hard failure.
  *
  * @param String tag The test's log tag, e.g. "[world-axis-lines]".
  */
 internal fun requireHeadlessGl(tag: String) {
 	val window = acquireSharedGlWindow()
+
 	if (window == MemoryUtil.NULL) {
 		val message = "$tag no GL context (${acquireFailureReason ?: "cause not reported"})"
+
 		if (System.getProperty(REQUIRE_GL_PROPERTY).toBoolean()) {
 			// CI opted in: a missing context means the GL suite would cover nothing, so fail loudly.
 			throw AssertionError("$message, and -D$REQUIRE_GL_PROPERTY=true requires one")
 		}
+
 		Assume.assumeTrue(message, false)
+
 		return
 	}
+
 	resetSharedGlState()
 }
 
@@ -83,19 +72,25 @@ private fun acquireSharedGlWindow(): Long {
 	if (sharedGlAttempted) {
 		return sharedGlWindow
 	}
+
 	sharedGlAttempted = true
 	installGlfwErrorReporting()
+
 	for (attempt in 1..ACQUIRE_ATTEMPT_LIMIT) {
 		lastGlfwErrorText = null
 		val window = createHeadlessGlWindow()
+
 		if (window != MemoryUtil.NULL) {
 			sharedGlWindow = window
 			GLFW.glfwMakeContextCurrent(window)
 			GL.createCapabilities()
+
 			return sharedGlWindow
 		}
+
 		System.err.println("[headless-gl] attempt $attempt/$ACQUIRE_ATTEMPT_LIMIT failed: $acquireFailureReason")
 	}
+
 	return MemoryUtil.NULL
 }
 
@@ -111,20 +106,25 @@ private fun acquireSharedGlWindow(): Long {
 private fun createHeadlessGlWindow(): Long {
 	if (!GLFW.glfwInit()) {
 		acquireFailureReason = describeAcquireFailure("glfwInit() returned false")
+
 		return MemoryUtil.NULL
 	}
+
 	GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
 	GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
 	GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
 	GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
 	GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
 	val window = GLFW.glfwCreateWindow(HIDDEN_WINDOW_SIZE, HIDDEN_WINDOW_SIZE, "umamo-headless", MemoryUtil.NULL, MemoryUtil.NULL)
+
 	if (window == MemoryUtil.NULL) {
 		acquireFailureReason = describeAcquireFailure("glfwCreateWindow() returned NULL")
 		// glfwInit succeeded, so the platform layer is up and owes a matching terminate before a retry.
 		GLFW.glfwTerminate()
+
 		return MemoryUtil.NULL
 	}
+
 	return window
 }
 

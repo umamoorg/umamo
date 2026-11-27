@@ -6,6 +6,7 @@ import org.umamo.format.cmo3.serialize.annotations.DontSerializeIfDefault
 import org.umamo.format.cmo3.serialize.annotations.SerialAttribute
 import org.umamo.format.cmo3.serialize.annotations.SerialName
 import org.umamo.format.cmo3.serialize.annotations.SuppressSerializeSuperClass
+import java.lang.reflect.InvocationTargetException
 import kotlin.reflect.KClass
 import kotlin.reflect.KMutableProperty1
 import kotlin.reflect.full.declaredMemberProperties
@@ -50,7 +51,7 @@ internal interface XmlSerializer {
 	fun createInstance(element: Element, ctx: ReadContext): Any?
 
 	/**
-	 * Populates a class instance's fields from [element]. No-op for leaf values.
+	 * Populates a class instance's fields from [element].  No-op for leaf values.
 	 *
 	 * @param Element     element  The source element.
 	 * @param Any         instance The instance created by [createInstance].
@@ -59,9 +60,15 @@ internal interface XmlSerializer {
 	fun setupInstance(element: Element, instance: Any, ctx: ReadContext) {}
 }
 
-/** Sets the xs.n attribute when [name] is non-null (collection items omit it). */
+/**
+ * Sets the xs.n attribute when [name] is non-null (collection items omit it).
+ *
+ * @param String? name The field name, or null for a collection item.
+ */
 internal fun Element.setFieldName(name: String?) {
-	if (name != null) setAttribute(ATTR_NAME, name)
+	if (name != null) {
+		setAttribute(ATTR_NAME, name)
+	}
 }
 
 /**
@@ -76,6 +83,7 @@ internal class PrimitiveSerializer(
 		val element = Element(tag)
 		element.setFieldName(name)
 		element.text = value.toString()
+
 		return element
 	}
 
@@ -84,7 +92,7 @@ internal class PrimitiveSerializer(
 
 /**
  * Serializer for ordered collections: `<tag count="n" xs.n="field">` with positional item children
- * (items carry no xs.n). Covers ArrayList ("array_list") and CArrayList ("carray_list"); [factory]
+ * (items carry no xs.n).  Covers ArrayList ("array_list") and CArrayList ("carray_list"); [factory]
  * builds the concrete list type so the tag round-trips (read tag -> type -> same tag on write).
  */
 internal class ListSerializer(
@@ -97,6 +105,7 @@ internal class ListSerializer(
 		element.setFieldName(name)
 		element.setAttribute(ATTR_COUNT, list.size.toString())
 		for (item in list) element.addContent(ctx.createElementFromObject(null, item))
+
 		return element
 	}
 
@@ -104,6 +113,7 @@ internal class ListSerializer(
 		val out = factory()
 		@Suppress("UNCHECKED_CAST")
 		for (child in element.children as List<Element>) out.add(ctx.createObjectFromElement(child))
+
 		return out
 	}
 }
@@ -138,10 +148,21 @@ internal class ReflectiveClassSerializer(
 	private val childPropertiesByPropName: Map<String, KMutableProperty1<Any, Any?>> =
 		childProperties.associateBy { it.name }
 
+	/**
+	 * The serialized attribute name: the annotation's name, else the Kotlin property name.
+	 *
+	 * @param KMutableProperty1<Any, Any?> property The attribute property.
+	 * @return String The attribute name.
+	 */
 	private fun attributeNameOf(property: KMutableProperty1<Any, Any?>): String =
 		property.findAnnotation<SerialAttribute>()!!.name.ifEmpty { property.name }
 
-	/** The serialized child name (xs.n): an explicit @SerialName, else the Kotlin property name. */
+	/**
+	 * The serialized child name (xs.n): an explicit @SerialName, else the Kotlin property name.
+	 *
+	 * @param KMutableProperty1<Any, Any?> property The property to name.
+	 * @return String The child name.
+	 */
 	private fun childNameOf(property: KMutableProperty1<Any, Any?>): String =
 		property.findAnnotation<SerialName>()?.name ?: property.name
 
@@ -151,8 +172,21 @@ internal class ReflectiveClassSerializer(
 		properties
 			.filter { classDefaultIfDefault || it.findAnnotation<DontSerializeIfDefault>() != null }
 			.map { it.name }.toSet()
+
+	// A class that will not instantiate has no default to compare against, so its fields are all written.  An
+	// Error is not that case: [newInstance] rethrows one unwrapped, so an OutOfMemoryError fails the write rather
+	// than being remembered as "no default" and leaving a finished file carrying every default-valued field it
+	// should skip.
 	private val defaultInstance: Any? by lazy {
-		if (skipIfDefault.isEmpty()) null else runCatching { newInstance() }.getOrNull()
+		if (skipIfDefault.isEmpty()) {
+			null
+		} else {
+			try {
+				newInstance()
+			} catch (_: Exception) {
+				null
+			}
+		}
 	}
 
 	// Serializer for the (serializable, non-Object) superclass, if any.
@@ -163,15 +197,35 @@ internal class ReflectiveClassSerializer(
 		)
 	}
 
+	/**
+	 * A fresh instance of [kClass] from its no-argument constructor.
+	 *
+	 * An Error the constructor throws is unwrapped from its InvocationTargetException (JDK 18+, JEP 416, wraps
+	 * Errors too), so no caller that recovers from an Exception can mistake running out of memory for a class
+	 * that will not instantiate.
+	 *
+	 * @return Any The new instance.
+	 */
 	private fun newInstance(): Any {
 		val constructor = kClass.java.getDeclaredConstructor()
 		constructor.isAccessible = true
-		return constructor.newInstance()
+
+		try {
+			return constructor.newInstance()
+		} catch (wrapped: InvocationTargetException) {
+			throw (wrapped.cause as? Error) ?: wrapped
+		}
 	}
 
+	/**
+	 * Lists the class's serializable properties in field declaration order, each made accessible.
+	 *
+	 * @return List<KMutableProperty1<Any, Any?>> The properties, in declaration order.
+	 */
 	@Suppress("UNCHECKED_CAST")
 	private fun buildProperties(): List<KMutableProperty1<Any, Any?>> {
 		val fieldOrder = kClass.java.declaredFields.map { it.name }
+
 		return kClass.declaredMemberProperties
 			.filterIsInstance<KMutableProperty1<Any, Any?>>()
 			.filter { it.findAnnotation<DontSerialize>() == null }
@@ -189,6 +243,7 @@ internal class ReflectiveClassSerializer(
 		// Attributes (on the tag): when this object was read, keep exactly the attributes it had; for a
 		// freshly built object fall back to dropping @DontSerializeIfDefault defaults.
 		val presentAttrs = ctx.presentAttrsFor(value, tag)
+
 		for (property in attributeProperties) {
 			val propertyValue = property.get(value)
 			val omit =
@@ -197,16 +252,24 @@ internal class ReflectiveClassSerializer(
 				} else {
 					property.name in skipIfDefault && isDefaultValue(property, propertyValue)
 				}
-			if (omit) continue
-			if (propertyValue != null) element.setAttribute(attributeNameOf(property), propertyValue.toString())
+
+			if (omit) {
+				continue
+			}
+
+			if (propertyValue != null) {
+				element.setAttribute(attributeNameOf(property), propertyValue.toString())
+			}
 		}
+
 		// Child elements: replay the exact sequence read (order, presence and unknown children all
 		// preserved across schema versions); otherwise emit super + own fields in declaration order.
 		val order = ctx.childOrderFor(value, tag)
+
 		if (order != null) {
 			for (slot in order) {
 				when (slot) {
-					is ChildSlot.Super ->
+					is ChildSlot.Super -> {
 						superSerializer?.let {
 							element.addContent(
 								it.createElement(
@@ -216,27 +279,46 @@ internal class ReflectiveClassSerializer(
 								),
 							)
 						}
+					}
 
-					is ChildSlot.VerbatimChild -> element.addContent(slot.element.clone() as Element)
-					is ChildSlot.KnownField ->
+					is ChildSlot.VerbatimChild -> {
+						element.addContent(slot.element.clone() as Element)
+					}
+
+					is ChildSlot.KnownField -> {
 						childPropertiesByPropName[slot.propertyName]?.let { property ->
 							element.addContent(ctx.createElementFromObject(childNameOf(property), property.get(value)))
 						}
+					}
 				}
 			}
 		} else {
 			superSerializer?.let { element.addContent(it.createElement(NAME_SUPER, value, ctx)) }
+
 			for (property in childProperties) {
 				val propertyValue = property.get(value)
-				if (property.name in skipIfDefault && isDefaultValue(property, propertyValue)) continue
+
+				if (property.name in skipIfDefault && isDefaultValue(property, propertyValue)) {
+					continue
+				}
+
 				element.addContent(ctx.createElementFromObject(childNameOf(property), propertyValue))
 			}
 		}
+
 		return element
 	}
 
+	/**
+	 * Tells whether a value equals what a default instance holds for the property.
+	 *
+	 * @param KMutableProperty1<Any, Any?> property The property.
+	 * @param Any? propertyValue The value about to be written.
+	 * @return Boolean True when it matches the default; false when the class has no default instance.
+	 */
 	private fun isDefaultValue(property: KMutableProperty1<Any, Any?>, propertyValue: Any?): Boolean {
 		val default = defaultInstance ?: return false
+
 		return propertyValue == property.get(default)
 	}
 
@@ -248,29 +330,44 @@ internal class ReflectiveClassSerializer(
 			ctx.recordPresentAttr(instance, tag, property.name)
 			property.set(instance, parseScalar(raw, property))
 		}
+
 		@Suppress("UNCHECKED_CAST")
 		for (child in element.children as List<Element>) {
 			val fieldName = child.getAttributeValue(ATTR_NAME)
+
 			if (fieldName == NAME_SUPER) {
 				val superSerializer = this.superSerializer
+
 				if (superSerializer != null) {
 					superSerializer.setupInstance(child, instance, ctx)
 					ctx.recordSuperChild(instance, tag)
 				} else {
 					ctx.recordVerbatimChild(instance, tag, child) // unmodeled superclass - keep verbatim
 				}
+
 				continue
 			}
+
 			val property = childPropertiesByName[fieldName]
+
 			if (property == null) {
 				ctx.recordVerbatimChild(instance, tag, child) // a field newer than our schema - keep it
+
 				continue
 			}
+
 			ctx.recordKnownChild(instance, tag, property.name)
 			property.set(instance, ctx.createObjectFromElement(child))
 		}
 	}
 
+	/**
+	 * Parses an attribute's text into the property's scalar type.
+	 *
+	 * @param String raw The attribute text.
+	 * @param KMutableProperty1<Any, Any?> property The property the value is for.
+	 * @return Any The parsed value, or the text itself for any other type.
+	 */
 	private fun parseScalar(raw: String, property: KMutableProperty1<Any, Any?>): Any =
 		when (property.returnType.classifier) {
 			Int::class -> raw.toInt()

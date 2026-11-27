@@ -16,6 +16,7 @@ internal object GuidSerializer : XmlSerializer {
 		element.setFieldName(name)
 		element.setAttribute("uuid", guid.uuid)
 		element.setAttribute("note", guid.note)
+
 		return element
 	}
 
@@ -37,6 +38,7 @@ internal object IdSerializer : XmlSerializer {
 		val element = Element(id.kind)
 		element.setFieldName(name)
 		element.setAttribute("idstr", id.idstr)
+
 		return element
 	}
 
@@ -45,7 +47,7 @@ internal object IdSerializer : XmlSerializer {
 }
 
 /**
- * The `*Guid` tags emitted by the editor. One [Guid] type, many tags.
+ * The `*Guid` tags emitted by the editor.  One [Guid] type, many tags.
  */
 internal val GUID_TAGS: List<String> =
 	listOf(
@@ -77,7 +79,7 @@ internal val GUID_TAGS: List<String> =
 		"SyncCubismParamGuid",
 	)
 
-/** The `*Id` tags emitted by the editor. One [Id] type, many tags. */
+/** The `*Id` tags emitted by the editor.  One [Id] type, many tags. */
 internal val ID_TAGS: List<String> =
 	listOf(
 		"CAffecterId",

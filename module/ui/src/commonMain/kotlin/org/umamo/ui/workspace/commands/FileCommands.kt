@@ -5,44 +5,130 @@ import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
+import org.umamo.ui.action.CommandChoice
+import org.umamo.ui.action.CommandChoices
+import org.umamo.ui.action.CommandSection
+import org.umamo.ui.action.CommandTable
+import org.umamo.ui.action.KeymapCategory
+import org.umamo.ui.document.fileDisplayName
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoIcons
 
 /*
  * The document import / export commands.
  *
- * These are the one group the app registers rather than the shell, because their work needs the file
- * picker, the document loader, and the CMO3 codec - all of which sit above the shell (and, for the codec,
- * off commonMain entirely).  Only the TABLE lives here: each builder takes the action as a plain lambda,
- * so the ids, titles, and availability tiers sit with every other command table while the app keeps the
- * document logic.  Registering them here instead would drag the whole document layer into the shell's
- * package and invert the dependency.  The artwork table ([fileArtworkCommands]) is the exception: the
- * shell registers it (with the app's closures injected) because its operation strip needs the hovered
- * area at dispatch.
+ * These are the one group the app registers rather than the shell, because their work needs the document
+ * loader and the CMO3 codec, which sit above the shell (and, for the codec, off commonMain entirely).  The
+ * file picker alone is no reason: the workspace layout's file commands and the log export need one too,
+ * and the shell registers those, since nothing about them is a document.  Only the TABLE lives here: each
+ * builder takes the action as a plain lambda, so the ids, titles, and availability tiers sit with every
+ * other command table while the app keeps the document logic.  Registering them here instead would drag
+ * the whole document layer into the shell's package and invert the dependency.  The artwork table
+ * ([fileArtworkCommands]) is the exception: the shell registers it (with the app's closures injected)
+ * because its operation strip needs the hovered area at dispatch.
  *
- * Import / Export rather than Open / Save is deliberate: CMO3 and MOC3 are interop boundaries, and
- * Open / Save is reserved for the native UMA format.
+ * Open / Save mean the native UMA document and nothing else; CMO3 and MOC3 are interop boundaries, so they
+ * come and go through Import / Export.
+ *
+ * Together the tables here are the File menu.  Each command names the block of it, or of its Import or Export
+ * submenu, that it is a row of, under the short label the menu's heading leaves room for ("New" under File, "CMO3…"
+ * under Import); the palette, which has no heading over it, keeps the full title.
  */
 
 /**
- * The import commands, one per source format.
+ * The commands that make, open, save, or replace the whole document - New, Open, Save, Save As, one import
+ * per interop format, and a file opened by its path - and the one that ends the session altogether, Exit.
+ * What they share is the unsaved-changes gate: each would discard the editing session.
  *
- * Split from [fileExportCommands] because the two register on different triggers: an import handler
- * depends on nothing that changes while the app runs, while export closes over the open document.
+ * Split from [fileExportCommands] because the two register on different triggers: these handlers read
+ * the document live through the app's holders, while export closes over the open document.  The artwork
+ * import is NOT here - it adds to the open document rather than replacing it, so it registers with the
+ * other artwork operations ([fileArtworkCommands]).
  *
- * @param Function onImportArtwork Runs the artwork import (layered art or a flat raster: picker, dirty-confirm, load).
+ * @param Function onNew Starts a new, empty document (dirty-confirm first).
+ * @param Function onOpen Opens a `.uma` (picker, dirty-confirm, load).
+ * @param Function onSave Saves to the document's `.uma`, asking where on the first save.
+ * @param Function onSaveAs Asks where to save.
+ * @param Function canSave Whether the open document can be saved, queried live (gates Save and Save As).
  * @param Function onImportCmo3 Runs the CMO3 import (picker, dirty-confirm, load).
  * @param Function onImportMoc3 Runs the MOC3 import.
+ * @param Function onOpenPath Opens the file at a stored path or uri, by what the file is (dirty-confirm, load).
+ * @param Function recentFiles Reads the recent files' paths, most recent first, queried live: Open Recent's rows.
+ * @param Function onExit Closes the application (dirty-confirm first).
  * @return List<Command> The commands to register.
  */
-internal fun fileCommands(onImportArtwork: () -> Unit, onImportCmo3: () -> Unit, onImportMoc3: () -> Unit): List<Command> =
-	listOf(
-		// Artwork is the headline entry: draw in the art program, import, rig.  Every layered and flat
-		// raster format the registry reads comes in through this one row.
-		Command("file.importArtwork", title = Res.string.cmd_import_artwork) { onImportArtwork() },
-		Command("file.importCmo3", title = Res.string.cmd_import_cmo3) { onImportCmo3() },
+internal fun fileCommands(
+	onNew: () -> Unit,
+	onOpen: () -> Unit,
+	onSave: () -> Unit,
+	onSaveAs: () -> Unit,
+	canSave: () -> Boolean,
+	onImportCmo3: () -> Unit,
+	onImportMoc3: () -> Unit,
+	onOpenPath: (path: String) -> Unit,
+	recentFiles: () -> List<String>,
+	onExit: () -> Unit,
+): List<Command> =
+	commandTable(
+		CommandTable.File,
+		Command(
+			"file.new",
+			title = Res.string.cmd_file_new,
+			group = CommandSection.FileDocument,
+			groupLabel = Res.string.menu_file_new,
+		) { onNew() },
+		Command(
+			"file.open",
+			title = Res.string.cmd_file_open,
+			group = CommandSection.FileDocument,
+			groupLabel = Res.string.menu_file_open,
+		) { onOpen() },
+		// No title, like the other argument-only commands: the palette has nothing to offer without a path.  In
+		// the File menu it is Open Recent, a row per recent file, each handing over its own path.  Anything that
+		// opens a file it was handed belongs on this id, since the way in is what carries the unsaved-changes gate.
+		Command(
+			"file.openPath",
+			title = null,
+			group = CommandSection.FileDocument,
+			groupLabel = Res.string.menu_open_recent,
+			choices = CommandChoices { recentFiles().map { path -> CommandChoice(fileDisplayName(path), path) } },
+		) { argument ->
+			val path = argument as? String ?: return@Command
+			onOpenPath(path)
+		},
+		Command(
+			"file.save",
+			title = Res.string.cmd_file_save,
+			availability = CommandAvailability { canSave() },
+			group = CommandSection.FileDocument,
+			groupLabel = Res.string.menu_file_save,
+		) { onSave() },
+		Command(
+			"file.saveAs",
+			title = Res.string.cmd_file_save_as,
+			availability = CommandAvailability { canSave() },
+			group = CommandSection.FileDocument,
+			groupLabel = Res.string.menu_file_save_as,
+		) { onSaveAs() },
+		Command(
+			"file.importCmo3",
+			title = Res.string.cmd_import_cmo3,
+			group = CommandSection.ImportPuppet,
+			groupLabel = Res.string.menu_import_cmo3,
+		) { onImportCmo3() },
 		// MOC3 comes in through its own row rather than one merged "import" filter, keeping the
 		// source-project / baked-runtime distinction visible in the UI.
-		Command("file.importMoc3", title = Res.string.cmd_import_moc3) { onImportMoc3() },
+		Command(
+			"file.importMoc3",
+			title = Res.string.cmd_import_moc3,
+			group = CommandSection.ImportPuppet,
+			groupLabel = Res.string.menu_import_moc3,
+		) { onImportMoc3() },
+		Command(
+			"file.exit",
+			title = Res.string.menu_exit,
+			group = CommandSection.FileSession,
+		) { onExit() },
 	)
 
 /**
@@ -70,6 +156,17 @@ class RelinkRequest(
 }
 
 /**
+ * A request to add named artwork files to the open document, the optional payload of the
+ * file.importArtwork command: the files a drop handed over, in the order they were dropped.  Invoked
+ * without one, the command asks for a file instead.
+ *
+ * @property List<String> paths The artwork files' stored paths.
+ */
+class ImportArtworkRequest(
+	val paths: List<String>,
+)
+
+/**
  * A request to remove one piece of source art from the atlas, the payload of the sources.deleteArt
  * command: a tile no drawable samples, which otherwise lingers on a page and in the Sources table.
  *
@@ -90,6 +187,18 @@ class ReplaceRequest(
 )
 
 /**
+ * A request to mark or clear the ignore on one layer of a listed artwork file, the payload of the
+ * sources.ignoreLayer command: while marked, a reload leaves the layer out of the rig.
+ *
+ * @property SourceLayerRef ref     The file and layer key.
+ * @property Boolean        ignored True to mark, false to clear.
+ */
+class IgnoreLayerRequest(
+	val ref: SourceLayerRef,
+	val ignored: Boolean,
+)
+
+/**
  * Which listed files a reload covers, the optional payload of the document.reloadArtwork command: the
  * watcher names the files that changed, so the rest are not re-read; a press of Reload passes none
  * and covers every present file.
@@ -105,60 +214,80 @@ class ReloadScope(
  * app can (the picker, a path on the platform's file system) and lands the result on the session.
  * Every one takes the area its operation strip shows in, resolved by the shell at dispatch.
  *
- * @property Function addArtwork    Picks a file and adds it to the open document.
+ * @property Function importArtwork Adds the named artwork files to the open document, or picks one when
+ *   handed no request.
  * @property Function reloadArtwork Re-reads the listed files that are present - those the scope names,
  *   or every one when it is null - and reloads the document from them.
  * @property Function relinkArtwork  Rebinds a tile, pulling the layer's art in when its file can be read.
  * @property Function matchArtwork   Reads every file it can and rebinds the unresolved bindings the matcher is confident about.
  * @property Function replaceArtwork Picks a file and repoints the named record at it.
- * @property Function deleteArt      Removes a tile no drawable samples from the atlas.
+ * @property Function deleteArt      Removes a tile no drawable samples from the atlas (and, under the import
+ *   setting, marks its layer ignored with it).
+ * @property Function ignoreLayer    Marks or clears the ignore on one layer, so a reload leaves it out or mints it again.
  * @property Function canReload      Whether any listed file could be re-read, queried live.
+ * @property Function canAddArtwork  Whether the open document can take added artwork, queried live: one whose
+ *   drawables render from baked atlas pages, as a puppet made from a MOC3 does, cannot.
  */
 class ArtworkOperations(
-	val addArtwork: (areaId: String?) -> Unit,
+	val importArtwork: (request: ImportArtworkRequest?, areaId: String?) -> Unit,
 	val reloadArtwork: (areaId: String?, scope: ReloadScope?) -> Unit,
 	val relinkArtwork: (request: RelinkRequest, areaId: String?) -> Unit,
 	val matchArtwork: (areaId: String?) -> Unit,
 	val replaceArtwork: (request: ReplaceRequest, areaId: String?) -> Unit,
 	val deleteArt: (request: DeleteArtRequest) -> Unit,
+	val ignoreLayer: (request: IgnoreLayerRequest) -> Unit,
 	val canReload: () -> Boolean,
+	val canAddArtwork: () -> Boolean,
 )
 
 /**
- * The artwork commands over the OPEN document: Add Artwork (a second file joins the document), Reload
- * (every present file is re-read and the changed layers land), the Sources space's relink (a tile
- * rebound, with the layer's art pulled in), Match Automatically (the bindings the files no longer
- * resolve rebound to their confident matches), and Replace Artwork (one record repointed at another
- * file).  Each is an undoable edit and lands on the operation settings strip.
+ * The artwork commands over the OPEN document, each an undoable edit; the file-reading ones land on the
+ * operation settings strip.
  *
  * Unlike the other file commands these are registered by the SHELL, not the app, with the app's
- * file-reading closures injected as a collaborator: the strip's area (the hovered work surface, else
- * the last one the pointer touched - the Sources header is the usual origin, and a panel hosts no
- * strip) is a question only the shell's routing can answer.  An app-registered handler would have no
- * area to give and the strip would fall to the shell's bottom edge.  The collaborator is read at
- * dispatch, so the table survives a document swap without re-registration, and a null one (no puppet
- * document) hides the commands.
+ * file-reading closures injected as a collaborator: the strip's area is a question only the shell's
+ * routing can answer, since the Sources header is the usual origin and a panel hosts no strip.  The
+ * collaborator is read at dispatch, so the table survives a document swap without re-registration, and a
+ * null one (no puppet document) hides the commands.
  *
  * @param CommandRouting routing The hovered-area resolver, read at dispatch.
  * @param Function       artwork Supplies the current orchestrations, or null when no document can take artwork.
  * @return List<Command> The commands to register.
  */
 internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> ArtworkOperations?): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.File,
+		// The one way artwork enters a document, from the File menu's Import row, the Sources space, and a
+		// drop on the window alike: a file's layers are ADDED to the open document as one undoable edit, the
+		// way importing an object into a Blender scene adds to it rather than replacing the scene.  With no
+		// payload it asks for a file; with one it takes the files it was handed, which is how a drop arrives on
+		// the same id - and so under the same availability gate and the same operation strip.  It applies only
+		// to a document that can take artwork, which a puppet made from a MOC3 cannot.
 		Command(
-			"file.addArtwork",
-			title = Res.string.cmd_file_add_artwork,
-			availability = CommandAvailability { artwork() != null },
-		) { artwork()?.addArtwork?.invoke(routing.operationStripArea()) },
+			"file.importArtwork",
+			title = Res.string.cmd_import_artwork,
+			keymapCategory = KeymapCategory.Artwork,
+			availability = CommandAvailability { artwork()?.canAddArtwork?.invoke() == true },
+			group = CommandSection.ImportArtwork,
+			groupLabel = Res.string.menu_import_artwork,
+			icon = LocalUmamoIcons.addFile,
+		) { argument -> artwork()?.importArtwork?.invoke(argument as? ImportArtworkRequest, routing.operationStripArea()) },
 		Command(
 			"document.reloadArtwork",
 			title = Res.string.cmd_document_reload_artwork,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork()?.canReload?.invoke() == true },
+			icon = LocalUmamoIcons.refresh,
 		) { argument -> artwork()?.reloadArtwork?.invoke(routing.operationStripArea(), argument as? ReloadScope) },
+		// Run only with a request: it pairs particular tiles with a particular layer, which a tile chip, a review row,
+		// or a drop names and a chord cannot.  needsArgument keeps it off the keybindings page and the palette, where
+		// it could only ever do nothing.
 		Command(
 			"sources.relink",
 			title = Res.string.cmd_sources_relink,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
+			needsArgument = true,
 		) { argument ->
 			val request = argument as? RelinkRequest ?: return@Command
 			artwork()?.relinkArtwork?.invoke(request, routing.operationStripArea())
@@ -166,24 +295,70 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 		Command(
 			"sources.matchAutomatically",
 			title = Res.string.cmd_sources_match_automatically,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
+			icon = LocalUmamoIcons.wand,
 		) { artwork()?.matchArtwork?.invoke(routing.operationStripArea()) },
+		// Run only with the file record a Sources row's menu names.  The space keeps no selected or hovered row for a
+		// chord to act on, so needsArgument keeps it off the keybindings page and the palette, where it could only ever
+		// do nothing.
 		Command(
 			"sources.replaceArtwork",
 			title = Res.string.cmd_sources_replace_artwork,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
+			needsArgument = true,
 		) { argument ->
 			val request = argument as? ReplaceRequest ?: return@Command
 			artwork()?.replaceArtwork?.invoke(request, routing.operationStripArea())
 		},
+		// Run only with the tile a Sources row names, for the same reason as Replace Artwork: no selected or hovered
+		// row gives a chord a tile to act on.
 		Command(
 			"sources.deleteArt",
 			title = Res.string.cmd_sources_delete_art,
+			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
+			needsArgument = true,
 		) { argument ->
 			val request = argument as? DeleteArtRequest ?: return@Command
 			artwork()?.deleteArt?.invoke(request)
 		},
+		// No title, like the other argument-only commands: a row supplies the layer, and the palette has
+		// nothing to offer without one.
+		Command(
+			"sources.ignoreLayer",
+			title = null,
+			availability = CommandAvailability { artwork() != null },
+		) { argument ->
+			val request = argument as? IgnoreLayerRequest ?: return@Command
+			artwork()?.ignoreLayer?.invoke(request)
+		},
+	)
+
+/**
+ * Export Image: a capture of the posed puppet, straight from the viewport renderer, saved as a PNG.
+ *
+ * Registered by the SHELL for the same reason the artwork commands are: the capture can frame exactly what a
+ * 2D viewport shows, and which viewport the rigger means is a question only the shell's routing answers.  The
+ * collaborator is read at dispatch, and a null one - no puppet document, or no puppet renderer on this
+ * platform - hides the command.
+ *
+ * @param CommandRouting routing     The hovered-area resolver, read at dispatch.
+ * @param Function       exportImage Supplies the export, handed the 2D viewport area to frame (or null), or
+ *   null when nothing can be captured.
+ * @return List<Command> The commands to register.
+ */
+internal fun fileImageExportCommands(routing: CommandRouting, exportImage: () -> ((viewportAreaId: String?) -> Unit)?): List<Command> =
+	commandTable(
+		CommandTable.File,
+		Command(
+			"file.exportImage",
+			title = Res.string.cmd_export_image,
+			availability = CommandAvailability { exportImage() != null },
+			group = CommandSection.ExportImage,
+			groupLabel = Res.string.menu_export_image,
+		) { exportImage()?.invoke(routing.framedViewportArea()) },
 	)
 
 /**
@@ -191,7 +366,7 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
  *
  * Neither carries a default chord.  With two formats there is no honest meaning for one "export"
  * accelerator, and the pair is one keystroke away in the palette and one row apart in the File menu -
- * a shortcut that silently favours whichever format was implemented first is worse than none.
+ * a shortcut that silently favors whichever format was implemented first is worse than none.
  *
  * @param Function canExport      Whether the open document can be exported, queried live.
  * @param Function onExportCmo3   Runs the CMO3 export (picker, reconcile, write, report).
@@ -206,15 +381,20 @@ internal fun fileExportCommands(
 	onExportCmo3: () -> Unit,
 	onExportMoc3: () -> Unit,
 ): List<Command> =
-	listOf(
+	commandTable(
+		CommandTable.File,
 		Command(
 			"file.exportCmo3",
 			title = Res.string.cmd_export_cmo3,
 			availability = CommandAvailability { canExport() },
+			group = CommandSection.ExportPuppet,
+			groupLabel = Res.string.menu_export_cmo3,
 		) { onExportCmo3() },
 		Command(
 			"file.exportMoc3",
 			title = Res.string.cmd_export_moc3,
 			availability = CommandAvailability { canExport() },
+			group = CommandSection.ExportPuppet,
+			groupLabel = Res.string.menu_export_moc3,
 		) { onExportMoc3() },
 	)

@@ -1,0 +1,380 @@
+package org.umamo.ui.workspace.shell
+
+import androidx.compose.ui.input.key.Key
+import org.umamo.edit.SelectionOps
+import org.umamo.edit.TransformAxisConstraint
+import org.umamo.edit.editsElements
+import org.umamo.ui.action.CommandRegistry
+import org.umamo.ui.action.KeyChord
+import org.umamo.ui.action.Keymap
+import org.umamo.ui.action.keyName
+import org.umamo.ui.workspace.commands.pieMenuEntriesFor
+
+/*
+ * The shell's modal key ladder: the ordered Escape/Enter (and modal-only key) precedence that runs in
+ * the root's onPreviewKeyEvent BEFORE the keymap.  Modal chrome and in-flight gestures must pre-empt
+ * bound commands (Escape closes the topmost overlay before any drag beneath it), and modal operators
+ * swallow keys the keymap would otherwise claim - so this is the documented exception to "all input
+ * dispatches through the action registry": the ladder decides WHO owns the key, and everything it
+ * does not consume falls through to the keymap dispatch at the bottom.  Order is the contract; add
+ * new modal states at the precedence their UI stacking implies, and pin the new arm in
+ * ModalKeyLadderTest - which asserts this order arm by arm, and for the combinations where two
+ * modals are open at once.
+ */
+
+/**
+ * Routes one key press through the shell's modal precedence, falling through to the keymap dispatch
+ * when no modal state owns it.
+ *
+ * @param ShellKeyStroke stroke The decoded key press.
+ * @param ShellModalState state Everything the precedence consults.
+ * @return Boolean True when the event was consumed.
+ */
+internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState): Boolean =
+	with(state) {
+		val closeOpenMenu = menuBarController.closeOpenMenu
+		val cancelInlineEdit = inlineEditController.cancel
+		val cancelScrub = scrubCancel.cancel
+		val isEscapeDown = stroke.isDown && stroke.key == Key.Escape
+		val isEnter = stroke.key == Key.Enter || stroke.key == Key.NumPadEnter
+		val isEnterDown = stroke.isDown && isEnter
+
+		// Every Enter stroke is noted before any arm runs, up or down.  This preview handler sees the key-down
+		// before the palette's own handler dispatches the command on it, so a confirm that command raises
+		// lands with the key already known to be held - and stays unarmed until the release.
+		if (isEnter) {
+			overlays.noteEnterStroke(stroke.isDown)
+		}
+
+		// The five modal alert arms below run in the order ShellOverlayState.topmostModalAlert names, and
+		// ShellModalOverlays paints them in reverse, so the dialog taking a key is always the one drawn on top.  Each
+		// acts on the head of its kind's queue; the next of that kind shows once that one is answered.  They
+		// act on Enter only while it is armed: an Enter already down when the topmost modal took over - the
+		// palette's Enter that raised it, or the Enter that answered the modal queued ahead of it -
+		// auto-repeats, and the repeat would answer a dialog before it is seen, so the arm waits for a fresh
+		// press.  Escape is never gated.
+		val isArmedEnterDown = isEnterDown && overlays.enterArmed
+
+		when {
+			// A confirm dialog is the topmost modal: it owns the keyboard entirely.  Enter confirms (like its
+			// confirm button, the dialog's default) and Escape cancels (like its cancel button); every other key
+			// is swallowed so no shortcut fires behind it - notably Space, which would otherwise open the palette
+			// over the dialog, since the dialog reclaims root focus.  It outranks the self-focused overlays
+			// below, so a confirm raised over Preferences takes its own Enter and Escape without closing them.
+			overlays.pendingConfirm != null -> {
+				if (isArmedEnterDown) {
+					overlays.confirmPending()
+				} else if (isEscapeDown) {
+					overlays.cancelPending()
+				}
+
+				true
+			}
+
+			// The file-open alert is modal like the confirm dialog: Escape or Enter dismisses it
+			// (like its OK button); every other key is swallowed so no shortcut fires behind it - except the
+			// copy chord, which goes on to the alert's selectable text (a message is often worth copying).
+			overlays.openFailure != null -> {
+				if (isEscapeDown || isArmedEnterDown) {
+					overlays.dismissOpenFailure()
+				}
+
+				!isCopyChord(stroke)
+			}
+
+			// A message from the app layer (a read-only open, a failed save) dismisses the same way.
+			overlays.pendingAlert != null -> {
+				if (isEscapeDown || isArmedEnterDown) {
+					overlays.dismissAlert()
+				}
+
+				!isCopyChord(stroke)
+			}
+
+			// The export-report alert is modal the same way: Escape or Enter dismisses it (the export
+			// itself already happened; this only acknowledges the notices).
+			overlays.exportReport != null -> {
+				if (isEscapeDown || isArmedEnterDown) {
+					overlays.dismissExportReport()
+				}
+
+				!isCopyChord(stroke)
+			}
+
+			// The repack refusal report dismisses the same way: it only acknowledges why nothing happened.
+			overlays.repackReport != null -> {
+				if (isEscapeDown || isArmedEnterDown) {
+					overlays.dismissRepackReport()
+				}
+
+				!isCopyChord(stroke)
+			}
+
+			// An open menu owns the keyboard like the overlays below it: Escape closes it, every other key
+			// is inert.  It has to claim the rest rather than pass them on - the bar's dropdowns open
+			// non-focusable so its labels keep receiving hover for the sweep-to-switch, which leaves the
+			// host window focused and this ladder seeing every key first, ahead of the bar's own handler
+			// (which claims only Escape).  Passing them on would fire shortcuts behind the open menu.
+			closeOpenMenu != null -> {
+				if (isEscapeDown) {
+					closeOpenMenu()
+					true
+				} else {
+					false
+				}
+			}
+
+			// A control capturing the next key press (the keybindings editor's chord chip) owns the WHOLE keyboard:
+			// any key may be the one being bound, and Escape cancels the capture - not the Preferences overlay the
+			// control sits in, which the arm below would close.  The ladder previews every key before the control
+			// sees it, so it stands aside here and the control's own handler decides.  Below the confirm and the
+			// alerts, which paint over everything and can arrive unasked while a capture is live.
+			keyCapture.active -> {
+				false
+			}
+
+			// A number field being drag-scrubbed claims Escape: the field never takes focus, so the key would
+			// otherwise fall to the arms below, which close the overlay the field sits in (Preferences, the
+			// export options) or clear the selection that put its row on screen - and either unmounts the
+			// field mid-drag.  Escape alone: every other key is still the overlay's or the keymap's.
+			isEscapeDown && cancelScrub != null -> {
+				cancelScrub()
+				true
+			}
+
+			// The overlays that hold their own focus - preferences, the two Help dialogs, the palette -
+			// are one family: Escape closes the topmost (instead of falling through to the drag cancels)
+			// and every other key yields to that overlay's own content, exactly as an open inline editor
+			// does.  Preferences yields to its dropdown popups, which are focusable and so claim their own
+			// Escape before a key ever reaches here; the Help dialogs to the credits scroll and the about
+			// links; the palette to its search field.
+			overlays.selfFocusedOverlayOpen -> {
+				if (isEscapeDown) {
+					overlays.closeTopmostSelfFocused()
+					true
+				} else {
+					false
+				}
+			}
+
+			// An inline editor (workspace rename) owns the keyboard while open: Escape cancels it,
+			// and every other key falls through to the field - otherwise the shell's shortcuts
+			// (Space → palette, letters → file commands) would fire while the user types a name.
+			cancelInlineEdit != null -> {
+				if (isEscapeDown) {
+					cancelInlineEdit()
+					true
+				} else {
+					false
+				}
+			}
+
+			// An in-flight modal operator (G/S/R over mesh vertices, whole drawables, or texture
+			// coordinates) owns Escape: cancel it before any selection clear, so cancelling a grab does
+			// not also wipe the selection.  The overlay observes its latch going null and discards its
+			// preview.  One arm for all three families - they are mutually exclusive, and clearing
+			// dispatches to the family that is actually running.
+			isEscapeDown && editorSession?.activeOperator != null -> {
+				editorSession.clearActiveOperator()
+				true
+			}
+
+			// Enter confirms an in-flight modal gesture (mirroring a primary click); the driving overlay
+			// holds the working positions and commits on this shared signal, whichever family latched.
+			isEnterDown && editorSession?.activeOperator != null -> {
+				editorSession.requestMeshConfirm()
+				true
+			}
+
+			// An open pie menu owns the keyboard: Escape closes it, 1..N instantly picks the
+			// matching entry (the ordinal each chip draws - the shared entry order), and
+			// everything else is swallowed so shortcuts cannot fire under the ring.
+			editorSession?.activePieMenu?.value != null && stroke.isDown -> {
+				val openPie = editorSession.activePieMenu.value
+
+				if (stroke.key == Key.Escape) {
+					editorSession.closePieMenu()
+				} else if (openPie != null) {
+					val digit =
+						when (stroke.key) {
+							Key.One, Key.NumPad1 -> 1
+							Key.Two, Key.NumPad2 -> 2
+							Key.Three, Key.NumPad3 -> 3
+							Key.Four, Key.NumPad4 -> 4
+							Key.Five, Key.NumPad5 -> 5
+							Key.Six, Key.NumPad6 -> 6
+							Key.Seven, Key.NumPad7 -> 7
+							Key.Eight, Key.NumPad8 -> 8
+							else -> 0
+						}
+					val entry = if (digit > 0) pieMenuEntriesFor(openPie, commandRegistry).getOrNull(digit - 1) else null
+
+					if (entry != null && entry.enabled) {
+						// Invoke-then-close, matching the pointer pick's order.
+						commandRegistry.invoke(entry.commandId, entry.argument)
+						editorSession.closePieMenu()
+					}
+				}
+
+				true
+			}
+
+			// X / Z during a modal Grab / Scale toggle the axis lock (Blender's axis constraint), and
+			// during a Pose-mode Rotate the axis it turns about in depth.  This has to live in the
+			// ladder: the modal operator swallows pointer input in the overlay and every other key
+			// here, so the keymap never sees these presses.  The session no-ops for any other Rotate
+			// (only the view axis - nothing to lock).
+			stroke.isDown && stroke.key == Key.X && editorSession?.activeOperator != null -> {
+				editorSession.toggleAxisConstraint(TransformAxisConstraint.AxisX)
+				true
+			}
+
+			stroke.isDown && stroke.key == Key.Z && editorSession?.activeOperator != null -> {
+				editorSession.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+				true
+			}
+
+			// A bare T during a Pose-mode Rotate cycles the depth surface, locked or not, so the next rotation
+			// never needs the strip to change it.  It is taken here, ahead of the keymap, for the rotation's
+			// length only: everywhere else T reaches its binding (the toolbar toggle), and so does a T with a
+			// modifier held.  With no axis locked the depth inset is not showing the surface, so a notice names
+			// it instead.
+			stroke.isDown &&
+				stroke.key == Key.T &&
+				!stroke.hasModifier &&
+				editorSession?.activeMeshOperator?.value?.let { operator -> editorSession.meshOperatorRotatesInDepth(operator.kind) } == true -> {
+				editorSession.cycleDepthSurface(announce = editorSession.axisConstraint.value == null)
+				true
+			}
+
+			// An armed Box / Circle select tool owns Escape and Enter: both leave the tool, before the
+			// selection-clear branch below.  Resolve any in-flight gesture on the fast cancel signal FIRST
+			// (a circle stroke keeps its paint, a box rubber-band is discarded), then disarm: clearSelectTool
+			// alone routes the cleanup through a recomposition-gated effect that can lose the race to a mouse
+			// release still in flight, letting a cancelled armed box commit through the idle Release path.
+			(isEscapeDown || isEnterDown) && editorSession?.activeSelectTool?.value != null -> {
+				editorSession.requestMeshGestureCancel()
+				editorSession.clearSelectTool()
+				true
+			}
+
+			// An armed keyform-sheet marquee owns Escape, before the clear-selection branch below.  It hides
+			// the OS cursor while armed, so a mode with no way out leaves the pointer invisible over the
+			// sheet until the user happens to press and release somewhere.
+			isEscapeDown && keyformSheets.armedBoxSelect() != null -> {
+				keyformSheets.armedBoxSelect()?.disarmBoxSelect?.invoke()
+				true
+			}
+
+			// An armed relation pick should end on end input.
+			stroke.isDown && relationPick.request != null && keyName(stroke.key) != null -> {
+				relationPick.cancel()
+				true
+			}
+
+			// An armed Zoom Region gesture owns Escape: disarm it (mode-agnostic, so it precedes the
+			// Object-only clear below).
+			isEscapeDown && editorSession?.zoomRegionArmedArea?.value != null -> {
+				editorSession.disarmZoomRegion()
+				true
+			}
+
+			// An in-flight drag of a panel or tab owns Escape.
+			isEscapeDown && rowDragCancel.cancel != null -> {
+				commandRegistry.invoke("row.dragCancel")
+				true
+			}
+
+			// An in-flight divider (splitter) drag owns Escape, before the clear-selection arm below.
+			// It needs its own arm because it is NOT the area corner drag the three arms below gate on:
+			// its session lives in the dragged SplitContainer, never touches AreaDragController, and so
+			// leaves isDragging false - without this arm Escape would fall through and clear the object
+			// selection while the user is only resizing a panel.  Routed through the registry like the
+			// row-drag cancel.
+			isEscapeDown && splitterDragCancel.cancel != null -> {
+				commandRegistry.invoke("area.dragCancel")
+				true
+			}
+
+			// An in-flight area CORNER drag (a split or a join) owns Escape the same way, through the same command,
+			// ahead of the viewport arms below: a corner drag is not a viewport gesture, and Escape cancels it
+			// rather than a selection.
+			isEscapeDown && dragController.isDragging -> {
+				commandRegistry.invoke("area.dragCancel")
+				true
+			}
+
+			// An in-flight select drag owns Escape in any mode (every box and circle stroke publishes the
+			// flag): abandon the rubber-band WITHOUT falling through to the Object-mode clear-selection
+			// branch below, so cancelling a drag never also wipes the selection.
+			isEscapeDown && editorSession?.viewportGestureActive?.value == true -> {
+				editorSession.requestMeshGestureCancel()
+				true
+			}
+
+			// In Edit and Pose mode, Escape abandons an in-flight non-armed box drag (armed tools and the
+			// zoom region are handled above); the overlay clears its rubber-band on the signal.
+			// Blender-parity: with nothing in flight this is a harmless no-op that consumes Escape and
+			// never clears selection.
+			isEscapeDown && editorSession?.mode?.value?.editsElements == true -> {
+				editorSession.requestMeshGestureCancel()
+				true
+			}
+
+			// With no modal open and no drag in flight, Escape clears a non-empty OBJECT selection.  Gated
+			// to Object mode (a null session counts as Object): in Edit and Pose mode the object selection
+			// holds the item being edited, so clearing it here would strand the session on an item nothing
+			// points at, and Blender's Edit mode leaves the selection untouched on Escape.
+			isEscapeDown &&
+				editorSession?.mode?.value?.editsElements != true &&
+				selection?.selection?.isEmpty == false -> {
+				selection.set(SelectionOps.clear())
+				true
+			}
+
+			else -> {
+				handleShellKey(stroke, keymap, commandRegistry)
+			}
+		}
+	}
+
+/**
+ * Translates a key press into a [KeyChord] and, if the keymap binds it, invokes the bound command
+ * through the registry - the live keybinding-lookup path.  The position→name mapping is the shared
+ * [keyName] table, the same one the rebindings editor captures with, so any chord a user can bind there
+ * also dispatches here.
+ *
+ * @param ShellKeyStroke stroke The decoded key press.
+ * @param Keymap keymap The active keymap.
+ * @param CommandRegistry registry The command registry to dispatch into.
+ * @return Boolean true if a bound command ran (event consumed); false otherwise.
+ */
+private fun handleShellKey(stroke: ShellKeyStroke, keymap: Keymap, registry: CommandRegistry): Boolean {
+	if (!stroke.isDown) {
+		return false
+	}
+
+	val pressedKeyName = keyName(stroke.key) ?: return false
+	val chord =
+		KeyChord(
+			keyName = pressedKeyName,
+			primaryModifier = stroke.primaryModifier,
+			shift = stroke.shift,
+			alt = stroke.alt,
+			controlKey = stroke.controlKey,
+		)
+	val commandId = keymap.commandForPress(chord) ?: return false
+
+	return registry.invoke(commandId)
+}
+
+/**
+ * Whether a stroke is the platform copy chord, the one key an alert lets through to its selectable text: the
+ * primary modifier with C, or a dedicated Copy key.  A literal Control counts too, so Control+C passes through
+ * on macOS exactly as it does where Control is the primary modifier.
+ *
+ * @param ShellKeyStroke stroke The stroke.
+ * @return Boolean Whether it copies.
+ */
+private fun isCopyChord(stroke: ShellKeyStroke): Boolean =
+	stroke.key == Key.Copy || (stroke.key == Key.C && (stroke.primaryModifier || stroke.controlKey))

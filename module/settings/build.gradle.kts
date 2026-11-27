@@ -1,6 +1,5 @@
 // :settings — JSON settings engine over :storage: bundled defaults ← user overrides (← vendor later),
 // dotted-key get/set, persistence, and a change-event Flow. → :storage, kotlinx-serialization, coroutines.
-// :settings — :storage 上の JSON 設定エンジン。デフォルト←ユーザー設定の重ね合わせ、ドットキー get/set、変更通知。
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)

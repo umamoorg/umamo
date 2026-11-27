@@ -3,6 +3,7 @@ package org.umamo.format.moc3
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.MocModel
 import org.umamo.format.moc3.moc.Section
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -43,9 +44,11 @@ class OffscreenSectionAliasProbeTest {
 	private fun perPartInts(model: MocModel, section: Section, count: Int): List<Int>? {
 		val index = section.indexIn(model.version).takeIf { it >= 0 } ?: return null
 		val bytes = model.section(index) ?: return null
+
 		if (bytes.size < count * 4) {
 			return null
 		}
+
 		return (0 until count).map { slot ->
 			(bytes[slot * 4].toInt() and 0xFF) or
 				((bytes[slot * 4 + 1].toInt() and 0xFF) shl 8) or
@@ -57,21 +60,26 @@ class OffscreenSectionAliasProbeTest {
 	@Test
 	fun sections152And160DivergeOnAMultiOffscreenModel() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping offscreen alias probe")
-			return
+			skipTest("moc3.samples not present; skipping offscreen alias probe")
 		}
+
 		var identical = 0
 		var divergent = 0
 		var largestDivergence: String? = null
+
 		for (file in files) {
 			val model = MocCodec.read(file.readBytes())
+
 			if (model.version.byteValue < 6) {
 				continue
 			}
+
 			val partCount = model.countInfo.getOrElse(0) { 0 }
 			val byPart = perPartInts(model, Section.OFFSCREEN_BY_PART, partCount) ?: continue
 			val alias = perPartInts(model, Section.OFFSCREEN_BY_PART_ALIAS, partCount) ?: continue
+
 			if (byPart == alias) {
 				identical++
 			} else {
@@ -81,6 +89,7 @@ class OffscreenSectionAliasProbeTest {
 				largestDivergence = "${file.name}: 152 names $offscreens offscreens, 160 names $aliased"
 			}
 		}
+
 		println("[section-probe] s152 vs s160: $identical identical, $divergent divergent ($largestDivergence)")
 		assertTrue(
 			divergent > 0,

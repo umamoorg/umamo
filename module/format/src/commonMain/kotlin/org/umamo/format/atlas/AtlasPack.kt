@@ -114,7 +114,7 @@ public class AtlasPackItem(
  *
  * @property Int     maxPageSize         The square page side pages are packed against, in pixels.
  * @property Int     gutter              Transparent spacing reserved around every tile and at the page border.
- * @property Int     extrude             How many pixels of each tile's edge color are replicated into the gutter.
+ * @property Int     extrude             How many pixels of gutter around each tile carry its edge color, at zero alpha.
  * @property Boolean allowRotation       Whether a tile may be quarter-turned to pack tighter.
  * @property Boolean powerOfTwoPages     Whether final page dimensions round up to a power of two.
  * @property Boolean squarePages         Whether final pages are square, as every corpus atlas is.
@@ -205,7 +205,8 @@ public data class AtlasPackSkip(
 
 /**
  * One fixed tile the pack kept where it was: the page it stayed on, the trim it painted there, and
- * the affine it painted through.
+ * the affine it painted through.  A tile with nothing opaque is kept too, with an empty trim: it
+ * painted nothing, and its reserve held its spot.
  *
  * A plain class: [tileToPage] is an array.
  *
@@ -257,11 +258,13 @@ public class AtlasPackResult(
 	public fun pageOccupancy(pageIndex: Int): Float {
 		val page = pages[pageIndex]
 		var covered = 0.0
+
 		for (placement in placements) {
 			if (placement.pageIndex == pageIndex) {
 				covered += placement.trimWidth.toDouble() * placement.trimHeight.toDouble()
 			}
 		}
+
 		for (kept in fixed) {
 			if (kept.pageIndex == pageIndex) {
 				val affine = kept.tileToPage
@@ -269,6 +272,7 @@ public class AtlasPackResult(
 				covered += kept.trimWidth.toDouble() * kept.trimHeight.toDouble() * areaScale
 			}
 		}
+
 		return (covered / (page.width.toDouble() * page.height.toDouble())).toFloat()
 	}
 }
@@ -296,30 +300,28 @@ private class FixedFootprint(
 	val artRight: Int,
 	val artBottom: Int,
 ) {
-	/** The footprint as the rect packer's seed. */
+	/**
+	 * The footprint as the rect packer's seed.
+	 *
+	 * @return RectPackSeed The seed: the page and the footprint's rectangle.
+	 */
 	fun toSeed(): RectPackSeed = RectPackSeed(pageIndex, left, top, right - left, bottom - top)
 }
 
 /**
  * Packs tiles into atlas pages and composes the page pixels.
  *
- * Each tile is trimmed to its opaque bounds (lossless at the default threshold - no antialiased edge
- * pixel is cut), reserved with a gutter on every side, placed by the MaxRects packer, blitted, and
- * extruded into its gutter.  Pages are packed against [AtlasPackOptions.maxPageSize] and then cropped
- * to what was used, so a document that needs a 512 page gets one rather than a mostly-empty 4096.
+ * Pages are packed against [AtlasPackOptions.maxPageSize] and then cropped to what was used, so a
+ * document that needs a 512 page gets one rather than a mostly-empty 4096.
  *
  * The result is DETERMINISTIC: tiles are ordered by descending max side, then descending area, then
  * key, so the caller's input order cannot change the packing.  Repacking an unchanged set therefore
  * reproduces it exactly, which is what makes a repack a safe operation rather than a churn source.
  *
- * A tile with an [AtlasPackItem.fixed] placement is not packed at all: its footprint (trim, reserve,
- * and gutter, through its affine) seeds its page before any free tile is placed, so the free tiles
- * pack around it, and it is painted through its own affine after them.  Its page index is kept as
- * given, so every page up to it exists even if nothing else lands there (an empty page crops to its
- * used extent like any other).  A fixed tile whose art does not fit inside [AtlasPackOptions.maxPageSize]
- * is reported as [AtlasPackSkipReason.FixedOutsidePage] rather than moved - the caller decided to
- * keep it, so the packer never second-guesses where; reserve and gutter that spill past the edge are
- * clamped to it, not refused.
+ * A tile with an [AtlasPackItem.fixed] placement is not packed: it stays exactly where it is, on its
+ * given page index (every page up to it exists even if nothing else lands there), and the free tiles
+ * pack around it.  One whose art does not fit inside [AtlasPackOptions.maxPageSize] is reported as
+ * [AtlasPackSkipReason.FixedOutsidePage] rather than moved, because the caller decided to keep it.
  *
  * @param List             items   The tiles to pack; keys must be unique.
  * @param AtlasPackOptions options The packing policy.
@@ -351,16 +353,52 @@ public fun packAtlas(
 	val skipped = ArrayList<AtlasPackSkip>()
 	val requests = ArrayList<RectPackRequest>(items.size)
 	val fixedFootprints = ArrayList<FixedFootprint>()
+
 	for ((itemIndex, item) in items.withIndex()) {
 		val analysis = analyzeAlpha(item.width, item.height, item.rgba, options.alphaThreshold)
+		val heldFixed = item.fixed
+
+		// A fixed tile stays where it is whatever its art holds.  With nothing opaque it paints nothing,
+		// but its reserve (its meshes' reach), or with none its whole raster, still keeps every other tile
+		// off the spot its drawables sample.
+		if (heldFixed != null && (analysis == null || analysis.opaquePixelCount < options.minimumOpaquePixels)) {
+			val reach = item.reserve
+			val bounds =
+				affineBounds(
+					heldFixed.tileToPage,
+					(reach?.left ?: 0).toFloat(),
+					(reach?.top ?: 0).toFloat(),
+					(reach?.right ?: item.width).toFloat(),
+					(reach?.bottom ?: item.height).toFloat(),
+				)
+			fixedFootprints.add(
+				FixedFootprint(
+					itemIndex = itemIndex,
+					pageIndex = heldFixed.pageIndex,
+					left = floor(bounds[0] - options.gutter).toInt().coerceAtLeast(0),
+					top = floor(bounds[1] - options.gutter).toInt().coerceAtLeast(0),
+					right = ceil(bounds[2] + options.gutter).toInt().coerceIn(0, options.maxPageSize),
+					bottom = ceil(bounds[3] + options.gutter).toInt().coerceIn(0, options.maxPageSize),
+					artRight = 0,
+					artBottom = 0,
+				),
+			)
+
+			continue
+		}
+
 		if (analysis == null) {
 			skipped.add(AtlasPackSkip(item.key, AtlasPackSkipReason.NoOpaquePixels))
+
 			continue
 		}
+
 		if (analysis.opaquePixelCount < options.minimumOpaquePixels) {
 			skipped.add(AtlasPackSkip(item.key, AtlasPackSkipReason.BelowMinimumCoverage))
+
 			continue
 		}
+
 		val trim = analysis.opaqueBounds
 		val reserveLeft = minOf(trim.left, item.reserve?.left ?: trim.left)
 		val reserveTop = minOf(trim.top, item.reserve?.top ?: trim.top)
@@ -369,6 +407,7 @@ public fun packAtlas(
 		trims[itemIndex] = trim
 		reserves[itemIndex] = LayerBounds(reserveLeft, reserveTop, reserveRight - reserveLeft, reserveBottom - reserveTop)
 		val fixed = item.fixed
+
 		if (fixed != null) {
 			val bounds = affineBounds(fixed.tileToPage, reserveLeft.toFloat(), reserveTop.toFloat(), reserveRight.toFloat(), reserveBottom.toFloat())
 			val artBounds =
@@ -391,8 +430,10 @@ public fun packAtlas(
 					artBottom = ceil(artBounds[3]).toInt().coerceAtLeast(0),
 				),
 			)
+
 			continue
 		}
+
 		requests.add(
 			RectPackRequest(
 				itemIndex = itemIndex,
@@ -411,6 +452,7 @@ public fun packAtlas(
 	// A fixed tile whose ART runs past the largest page can never be kept; every other one seeds each
 	// trial pack, so the side the pack settles on always holds them all.
 	val keptFootprints = ArrayList<FixedFootprint>(fixedFootprints.size)
+
 	for (footprint in fixedFootprints) {
 		if (footprint.artRight > options.maxPageSize || footprint.artBottom > options.maxPageSize) {
 			skipped.add(AtlasPackSkip(items[footprint.itemIndex].key, AtlasPackSkipReason.FixedOutsidePage))
@@ -418,15 +460,18 @@ public fun packAtlas(
 			keptFootprints.add(footprint)
 		}
 	}
+
 	val seeds = keptFootprints.map { footprint -> footprint.toSeed() }
 	val packingSide = choosePackingSide(requests, seeds, options)
 	val layout = packRects(requests, packingSide, options.allowRotation, seeds)
+
 	for (itemIndex in layout.oversizedItemIndices) {
 		skipped.add(AtlasPackSkip(items[itemIndex].key, AtlasPackSkipReason.LargerThanPage))
 	}
 
 	val pageWidths = IntArray(layout.usedWidths.size)
 	val pageHeights = IntArray(layout.usedHeights.size)
+
 	for (pageIndex in layout.usedWidths.indices) {
 		val sizes = finalPageSize(layout.usedWidths[pageIndex], layout.usedHeights[pageIndex], packingSide, options)
 		pageWidths[pageIndex] = sizes.first
@@ -434,6 +479,7 @@ public fun packAtlas(
 	}
 
 	val placementByItemIndex = arrayOfNulls<AtlasPackPlacement>(items.size)
+
 	for (slot in layout.slots) {
 		val item = items[slot.itemIndex]
 		val trim = checkNotNull(trims[slot.itemIndex]) { "packed tile '${item.key}' has no trim" }
@@ -461,22 +507,33 @@ public fun packAtlas(
 				quarterTurns = if (slot.rotated) 1 else 0,
 			)
 	}
+
 	val placements = placementByItemIndex.filterNotNull()
 
 	// The free tiles compose through the packer's blit; the fixed tiles then paint over the same
 	// buffers in input order through the affine painter, exactly as a derivation paints them.
 	val pages = composeAtlasPages(pageWidths, pageHeights, items, placements, options.extrude)
 	val fixedPlacements = ArrayList<AtlasPackFixedPlacement>(keptFootprints.size)
+
 	for (footprint in keptFootprints) {
 		val item = items[footprint.itemIndex]
 		val fixed = checkNotNull(item.fixed) { "fixed tile '${item.key}' lost its placement" }
-		val trim = checkNotNull(trims[footprint.itemIndex]) { "fixed tile '${item.key}' has no trim" }
+		val trim = trims[footprint.itemIndex]
+
+		// A fixed tile with nothing opaque has no trim and paints nothing; it is still kept.
+		if (trim == null) {
+			fixedPlacements.add(AtlasPackFixedPlacement(item.key, footprint.pageIndex, 0, 0, 0, 0, fixed.tileToPage))
+
+			continue
+		}
+
 		val page = pages[footprint.pageIndex]
 		paintTilePlacement(page.rgba, page.width, page.height, item, trim, fixed.tileToPage, options.extrude)
 		fixedPlacements.add(AtlasPackFixedPlacement(item.key, footprint.pageIndex, trim.left, trim.top, trim.width, trim.height, fixed.tileToPage))
 	}
 
 	val inputOrderByKey = items.withIndex().associate { (itemIndex, item) -> item.key to itemIndex }
+
 	return AtlasPackResult(
 		pages = pages,
 		placements = placements,
@@ -488,9 +545,8 @@ public fun packAtlas(
 /**
  * Builds pack items from this document's layers, one per layer, keyed by its stable layer id.
  *
- * Layer kind, visibility, and sliver policy are deliberately the caller's: alpha-shape analysis never
- * drops a real art layer and leaves the consumer to decide what to ingest, and the same rule applies
- * here.  Pass [include] to apply a policy; the default packs every layer.
+ * Layer kind, visibility, and sliver policy are the caller's to apply through [include], as with
+ * alpha analysis; the default packs every layer.
  *
  * A duplicate layer id (possible from the PSD name-and-order fallback, where no lyid is written) is
  * disambiguated with the layer's draw order rather than rejected, since the collision is an artifact
@@ -501,12 +557,15 @@ public fun packAtlas(
  */
 public fun SourceArt.atlasPackItems(include: (SourceLayer) -> Boolean = { true }): List<AtlasPackItem> {
 	val usedKeys = HashSet<String>()
+
 	return layers.filter(include).map { layer ->
 		var key = layer.id.raw
+
 		if (!usedKeys.add(key)) {
 			key = "${layer.id.raw}#${layer.order}"
 			usedKeys.add(key)
 		}
+
 		AtlasPackItem(key, layer.raster.width, layer.raster.height, layer.raster.rgba)
 	}
 }
@@ -520,12 +579,8 @@ public fun SourceArt.atlasPackItems(include: (SourceLayer) -> Boolean = { true }
  * roughly fills instead makes it stack, and the page count is the thing worth protecting: a smaller
  * page that costs an extra texture bind is a worse trade than a slightly emptier one.
  *
- * Only the rectangle geometry runs here - no pixels are touched - so the handful of trial packs is
- * cheap next to a single page composition.
- *
- * The seeds bound the side from below: a trial smaller than a seed's far edge could not keep it, so
- * the first trial is already large enough for every seed, and each trial seeds the same footprints
- * the final pack will.
+ * The trials touch no pixels, so they are cheap next to one page composition.  Each seeds the same
+ * fixed footprints the final pack will, and the first is already large enough to keep every seed.
  *
  * @param List             requests The footprints to be packed.
  * @param List             seeds    The fixed footprints every trial must keep.
@@ -540,23 +595,30 @@ private fun choosePackingSide(
 	if (!options.shrinkPages || (requests.isEmpty() && seeds.isEmpty())) {
 		return options.maxPageSize
 	}
+
 	val baseline = packRects(requests, options.maxPageSize, options.allowRotation, seeds)
 	val fitting = requests.filter { request -> request.width <= options.maxPageSize && request.height <= options.maxPageSize }
+
 	if (fitting.isEmpty() && seeds.isEmpty()) {
 		return options.maxPageSize
 	}
+
 	val largestRequest = fitting.maxOfOrNull { request -> maxOf(request.width, request.height) } ?: 1
 	val farthestSeed = seeds.maxOfOrNull { seed -> maxOf(seed.x + seed.width, seed.y + seed.height) } ?: 1
 	var side = roundUpToPowerOfTwo(maxOf(largestRequest, farthestSeed, 1))
+
 	while (side < options.maxPageSize) {
 		val trial = packRects(requests, side, options.allowRotation, seeds)
+
 		if (trial.usedWidths.size <= baseline.usedWidths.size &&
 			trial.oversizedItemIndices.size == baseline.oversizedItemIndices.size
 		) {
 			return side
 		}
+
 		side = side shl 1
 	}
+
 	return options.maxPageSize
 }
 
@@ -573,16 +635,20 @@ private fun finalPageSize(usedWidth: Int, usedHeight: Int, packingSide: Int, opt
 	if (!options.shrinkPages) {
 		return packingSide to packingSide
 	}
+
 	var width = usedWidth
 	var height = usedHeight
+
 	if (options.squarePages) {
 		width = maxOf(width, height)
 		height = width
 	}
+
 	if (options.powerOfTwoPages) {
 		width = roundUpToPowerOfTwo(width)
 		height = roundUpToPowerOfTwo(height)
 	}
+
 	return minOf(width, packingSide) to minOf(height, packingSide)
 }
 
@@ -594,8 +660,10 @@ private fun finalPageSize(usedWidth: Int, usedHeight: Int, packingSide: Int, opt
  */
 private fun roundUpToPowerOfTwo(extent: Int): Int {
 	var size = 1
+
 	while (size < extent) {
 		size = size shl 1
 	}
+
 	return size
 }

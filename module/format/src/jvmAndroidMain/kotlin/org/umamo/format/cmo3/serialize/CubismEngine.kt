@@ -1,7 +1,7 @@
 package org.umamo.format.cmo3.serialize
 
 /**
- * Builds a [SerializeEngine] wired with every typed Cubism subsystem implemented so far. Tags not
+ * Builds a [SerializeEngine] wired with every typed Cubism subsystem implemented so far.  Tags not
  * yet modelled fall back to [VerbatimNode] (reported via [diagnostics]), so the result always reads
  * and writes a complete model losslessly - coverage simply grows over time.
  *
@@ -18,5 +18,6 @@ public fun cubismEngine(diagnostics: SerializeDiagnostics = SerializeDiagnostics
 	registerMeshSubsystem(registry) // CoordType, PointInTriangle, PointOnCurve, MeshPointRef
 	registerCustomSubsystem(registry) // <file> + attribute-serialized leaves + CModelSource root
 	org.umamo.format.cmo3.serialize.gen.registerGeneratedSubsystem(registry) // bulk reflective (generated)
+
 	return SerializeEngine(registry, diagnostics)
 }

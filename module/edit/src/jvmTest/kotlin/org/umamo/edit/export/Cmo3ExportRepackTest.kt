@@ -1,8 +1,8 @@
 package org.umamo.edit.export
 
-import org.umamo.edit.withAtlasPlacement
-import org.umamo.edit.withAtlasPlacements
-import org.umamo.edit.withAtlasRepack
+import org.umamo.edit.atlas.withAtlasPlacement
+import org.umamo.edit.atlas.withAtlasPlacements
+import org.umamo.edit.atlas.withAtlasRepack
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.custom.CImageResource
@@ -25,11 +25,13 @@ import org.umamo.format.raster.RasterImage
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
-import org.umamo.interop.cmo3.Cmo3Conversion
-import org.umamo.interop.cmo3.Cmo3Export
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.export.Cmo3PageImage
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -51,23 +53,19 @@ import kotlin.test.assertTrue
 class Cmo3ExportRepackTest {
 	private val sample: File? = System.getProperty("cmo3.sample")?.let(::File)?.takeIf { it.isFile }
 
-	private fun skipMessageOrNull(): File? {
-		val file = sample
-		if (file == null) {
-			println("cmo3.sample not present; skipping export repack test")
-		}
-		return file
-	}
+	private fun sampleOrSkip(): File = sample ?: skipTest("cmo3.sample not present; skipping export repack test")
 
 	/** A tiny valid PNG whose bytes are recognizably NOT any corpus page. */
 	private fun markerPng(): ByteArray {
 		val rgba = ByteArray(2 * 2 * 4) { pixelByte -> (pixelByte * 17 + 3).toByte() }
+
 		return PngCodec.write(RasterImage(2, 2, rgba))
 	}
 
 	/** The page resources in _textureAtlases order - the model's own page numbering. */
 	private fun pageResourcesOf(modelSource: CModelSource): List<Pair<CTextureAtlas, CImageResource>> {
 		val textureManager = modelSource.textureManager as? CTextureManager ?: return emptyList()
+
 		return elementsOf(textureManager._textureAtlases)
 			.filterIsInstance<CTextureAtlas>()
 			.mapNotNull { atlas -> (atlas.cachedAtlasImage as? CImageResource)?.let { resource -> atlas to resource } }
@@ -86,24 +84,21 @@ class Cmo3ExportRepackTest {
 			notice is ExportNotice.UnsupportedChange && notice.reason == ExportNoticeReason.AtlasPageNotRecomposed
 		}
 
-	/** Opens the sample and applies a same-page placement nudge, or null when it packs nothing. */
-	private fun nudgedSample(file: File): Triple<Cmo3Model, org.umamo.runtime.model.PuppetModel, Int>? {
+	/** Opens the sample and applies a same-page placement nudge; skips the test when it packs nothing. */
+	private fun nudgedSample(file: File): Triple<Cmo3Model, PuppetModel, Int> {
 		val cmo3 = Cmo3.read(file.readBytes())
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 		val imported = Cmo3Import.fromModelSource(modelSource)
-		val packed = imported.atlas.tiles.firstOrNull { tile -> tile.placement != null }
-		if (packed == null) {
-			println("${file.name} packs no artwork; skipping the repack export gate")
-			return null
-		}
+		val packed = imported.atlas.tiles.firstOrNull { tile -> tile.placement != null } ?: skipTest("${file.name} packs no artwork; skipping the repack export gate")
 		val moved = packed.placement!!.copy(positionX = packed.placement!!.positionX + 8f)
+
 		return Triple(cmo3, imported.withAtlasPlacement(packed.id, moved), imported.atlas.pages.size)
 	}
 
 	@Test
 	fun aSameMembershipPatchClearsTheNoticeAndLandsInTheArchive() {
-		val file = skipMessageOrNull() ?: return
-		val (cmo3, edited, _) = nudgedSample(file) ?: return
+		val file = sampleOrSkip()
+		val (cmo3, edited, _) = nudgedSample(file)
 		val modelSource = cmo3.root as CModelSource
 		val resources = pageResourcesOf(modelSource)
 		assertTrue(resources.isNotEmpty(), "the sample stores its pages")
@@ -111,7 +106,7 @@ class Cmo3ExportRepackTest {
 		// Same dimensions, so only the bytes move - the resize fields have their own gate below.
 		val pages =
 			resources.map { (_, resource) ->
-				Cmo3Conversion.AtlasPage(marker, resource.width, resource.height)
+				Cmo3PageImage(marker, resource.width, resource.height)
 			}
 
 		val report = Cmo3Export.apply(edited, cmo3, recomposedPages = pages)
@@ -119,22 +114,24 @@ class Cmo3ExportRepackTest {
 		assertFalse(hasStalePageNotice(report), "patched pages are not stale: ${report.notices}")
 		val rereadSource = Cmo3.read(Cmo3.write(cmo3)).root as? CModelSource ?: error("re-read root is not a CModelSource")
 		val rereadCmo3 = Cmo3.read(Cmo3.write(cmo3))
+
 		for ((_, resource) in pageResourcesOf(rereadCmo3.root as CModelSource)) {
 			assertContentEquals(marker, rereadCmo3.extractLayerPng(resource), "the archive serves the recomposed bytes by name")
 		}
+
 		assertNotNull(rereadSource, "the patched file still parses")
 	}
 
 	@Test
 	fun aResizedPatchUpdatesEveryDimensionField() {
-		val file = skipMessageOrNull() ?: return
-		val (cmo3, edited, _) = nudgedSample(file) ?: return
+		val file = sampleOrSkip()
+		val (cmo3, edited, _) = nudgedSample(file)
 		val modelSource = cmo3.root as CModelSource
 		val resources = pageResourcesOf(modelSource)
 		val marker = markerPng()
 		val pages =
 			resources.map { (_, resource) ->
-				Cmo3Conversion.AtlasPage(marker, resource.width / 2, resource.height / 2)
+				Cmo3PageImage(marker, resource.width / 2, resource.height / 2)
 			}
 		val expectedDims = pages.map { page -> page.width to page.height }
 
@@ -142,6 +139,7 @@ class Cmo3ExportRepackTest {
 
 		assertFalse(hasStalePageNotice(report))
 		val reread = pageResourcesOf(Cmo3.read(Cmo3.write(cmo3)).root as CModelSource)
+
 		for ((pageIndex, pair) in reread.withIndex()) {
 			val (atlas, resource) = pair
 			val (expectedWidth, expectedHeight) = expectedDims[pageIndex]
@@ -163,8 +161,8 @@ class Cmo3ExportRepackTest {
 
 	@Test
 	fun pagesDisagreeingWithTheEditedModelsPageCountDeclineWhole() {
-		val file = skipMessageOrNull() ?: return
-		val (cmo3, edited, _) = nudgedSample(file) ?: return
+		val file = sampleOrSkip()
+		val (cmo3, edited, _) = nudgedSample(file)
 		val modelSource = cmo3.root as CModelSource
 		val resources = pageResourcesOf(modelSource)
 		val originalBytes = resources.map { (_, resource) -> assertNotNull(cmo3.extractLayerPng(resource)) }
@@ -172,12 +170,13 @@ class Cmo3ExportRepackTest {
 		// One page more than the EDITED model tracks: the pages are the repack's own output, so a
 		// count disagreeing with the model is caller inconsistency and declines whole.
 		val pages =
-			List(resources.size + 1) { Cmo3Conversion.AtlasPage(marker, 64, 64) }
+			List(resources.size + 1) { Cmo3PageImage(marker, 64, 64) }
 
 		val report = Cmo3Export.apply(edited, cmo3, recomposedPages = pages)
 
 		assertTrue(hasStalePageNotice(report), "an unpatchable page set keeps the honest notice")
 		val rereadCmo3 = Cmo3.read(Cmo3.write(cmo3))
+
 		for ((pageIndex, pair) in pageResourcesOf(rereadCmo3.root as CModelSource).withIndex()) {
 			assertContentEquals(
 				originalBytes[pageIndex],
@@ -201,16 +200,17 @@ class Cmo3ExportRepackTest {
 
 	@Test
 	fun aPageCountGrowthMintsAnAtlasAndRehomesMovedEntries() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val cmo3 = Cmo3.read(file.readBytes())
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 		val imported = Cmo3Import.fromModelSource(modelSource)
 		val boundTileIds = imported.drawables.mapNotNullTo(HashSet()) { drawable -> drawable.atlasTileId }
 		val movers = imported.atlas.tiles.filter { tile -> tile.placement != null && tile.id in boundTileIds }.take(2)
+
 		if (movers.size < 2) {
-			println("${file.name} packs too little bound artwork; skipping the growth gate")
-			return
+			skipTest("${file.name} packs too little bound artwork; skipping the growth gate")
 		}
+
 		val newPages = imported.atlas.pages + AtlasPage(512, 512)
 		val mintedPageIndex = newPages.size - 1
 		val placements =
@@ -220,7 +220,7 @@ class Cmo3ExportRepackTest {
 		val edited = imported.withAtlasRepack(newPages, placements)
 		val marker = markerPng()
 		val pages =
-			newPages.map { page -> Cmo3Conversion.AtlasPage(marker, page.width, page.height) }
+			newPages.map { page -> Cmo3PageImage(marker, page.width, page.height) }
 
 		val report = Cmo3Export.apply(edited, cmo3, recomposedPages = pages)
 
@@ -252,6 +252,7 @@ class Cmo3ExportRepackTest {
 			val entry = assertNotNull(entryIn(minted, mover.id.raw), "'${mover.name}' re-homed into the minted atlas")
 			assertSame(minted, entry.atlas, "and carries the owning-page back-reference")
 			val entryHalf = assertNotNull(entry.atlasLocalToCanvasTransform as? CAffine)
+
 			for (drawable in edited.drawables.filter { candidate -> candidate.atlasTileId == mover.id }) {
 				val source = assertNotNull(drawableSourceOf(rereadSource, drawable.id.raw))
 				val texture = assertNotNull(source.texture as? GTexture2D, "the mover samples a texture")
@@ -282,6 +283,7 @@ class Cmo3ExportRepackTest {
 		val reimported = Cmo3Import.fromModelSource(rereadSource)
 		assertEquals(newPages.size, reimported.atlas.pages.size, "the reimport sees the grown page set")
 		assertTrue(reimported.atlas.storedUvsAddressPages, "the document stays page-addressed")
+
 		for (mover in movers) {
 			assertEquals(
 				placements[mover.id],
@@ -293,16 +295,17 @@ class Cmo3ExportRepackTest {
 
 	@Test
 	fun aHandPlacedRotatedAndScaledTileExportsItsTrsAndKeepsItsMapping() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val cmo3 = Cmo3.read(file.readBytes())
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 		val imported = Cmo3Import.fromModelSource(modelSource)
 		val boundTileIds = imported.drawables.mapNotNullTo(HashSet()) { drawable -> drawable.atlasTileId }
 		val tile = imported.atlas.tiles.firstOrNull { candidate -> candidate.placement != null && candidate.id in boundTileIds }
+
 		if (tile == null) {
-			println("${file.name} packs no bound artwork; skipping the hand-placement gate")
-			return
+			skipTest("${file.name} packs no bound artwork; skipping the hand-placement gate")
 		}
+
 		val original = assertNotNull(tile.placement)
 		// The gizmo's whole vocabulary on one tile: a fractional move, a turn, and a reduction.
 		val turned =
@@ -317,7 +320,7 @@ class Cmo3ExportRepackTest {
 		assertNotSame(imported, edited, "the placement moved")
 		val marker = markerPng()
 		val pages =
-			pageResourcesOf(modelSource).map { (_, resource) -> Cmo3Conversion.AtlasPage(marker, resource.width, resource.height) }
+			pageResourcesOf(modelSource).map { (_, resource) -> Cmo3PageImage(marker, resource.width, resource.height) }
 
 		val report = Cmo3Export.apply(edited, cmo3, recomposedPages = pages)
 
@@ -331,26 +334,29 @@ class Cmo3ExportRepackTest {
 		assertEquals(turned.scaleY, reread.scaleY, 1e-3f, "scale y")
 		assertEquals(turned.rotationDegrees, reread.rotationDegrees, 1e-2f, "rotation")
 		val editedUvs = edited.drawables.associate { drawable -> drawable.id to drawable.mesh?.uvs }
+
 		for (drawable in reimported.drawables) {
 			if (drawable.atlasTileId != tile.id) {
 				continue
 			}
+
 			assertContentEquals(editedUvs[drawable.id], drawable.mesh?.uvs, "'${drawable.name}' exports the re-derived coordinates verbatim")
 		}
 	}
 
 	@Test
 	fun aNeverPackedBoundTileGainsAnEntryAndARegionInput() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val cmo3 = Cmo3.read(file.readBytes())
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 		val imported = Cmo3Import.fromModelSource(modelSource)
 		val boundTileIds = imported.drawables.mapNotNullTo(HashSet()) { drawable -> drawable.atlasTileId }
 		val packIn = imported.atlas.tiles.firstOrNull { tile -> tile.placement == null && tile.id in boundTileIds }
+
 		if (packIn == null) {
-			println("${file.name} has no bound never-packed art; skipping the pack-in gate")
-			return
+			skipTest("${file.name} has no bound never-packed art; skipping the pack-in gate")
 		}
+
 		val placements =
 			imported.atlas.tiles.associateTo(HashMap()) { tile -> tile.id to tile.placement }
 		placements[packIn.id] = AtlasPlacement(0, 100f, 100f, 1f, 1f, 0f)
@@ -358,7 +364,7 @@ class Cmo3ExportRepackTest {
 		val marker = markerPng()
 		val pages =
 			imported.atlas.pages.map { page ->
-				Cmo3Conversion.AtlasPage(marker, page.width, page.height)
+				Cmo3PageImage(marker, page.width, page.height)
 			}
 
 		val report = Cmo3Export.apply(edited, cmo3, recomposedPages = pages)
@@ -376,6 +382,7 @@ class Cmo3ExportRepackTest {
 		val entry = assertNotNull(entryIn(atlasZero, packIn.id.raw), "'${packIn.name}' gained an entry on page 0")
 		assertSame(atlasZero, entry.atlas, "with the owning-page back-reference")
 		val pageResource = assertNotNull(atlasZero.cachedAtlasImage as? CImageResource)
+
 		for (drawable in edited.drawables.filter { candidate -> candidate.atlasTileId == packIn.id }) {
 			val source = assertNotNull(drawableSourceOf(rereadSource, drawable.id.raw))
 			val texture = assertNotNull(source.texture as? GTexture2D)
@@ -394,6 +401,7 @@ class Cmo3ExportRepackTest {
 			)
 			assertSame(region, extension.currentTextureInputData, "the atlas-mode document samples the region")
 		}
+
 		val reimported = Cmo3Import.fromModelSource(rereadSource)
 		assertEquals(
 			placements[packIn.id],
@@ -404,6 +412,7 @@ class Cmo3ExportRepackTest {
 		val rereadUvs =
 			reimported.drawables.first { drawable -> drawable.atlasTileId == packIn.id }.mesh!!.uvs
 		assertEquals(editedUvs.size, rereadUvs.size)
+
 		for (componentIndex in editedUvs.indices) {
 			assertEquals(
 				editedUvs[componentIndex],
@@ -416,16 +425,17 @@ class Cmo3ExportRepackTest {
 
 	@Test
 	fun anUnboundTilePacksOutByRemovingItsEntry() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val cmo3 = Cmo3.read(file.readBytes())
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 		val imported = Cmo3Import.fromModelSource(modelSource)
 		val boundTileIds = imported.drawables.mapNotNullTo(HashSet()) { drawable -> drawable.atlasTileId }
 		val packedTiles = imported.atlas.tiles.filter { tile -> tile.placement != null && tile.id in boundTileIds }
+
 		if (packedTiles.size < 2) {
-			println("${file.name} packs too little bound artwork; skipping the pack-out gate")
-			return
+			skipTest("${file.name} packs too little bound artwork; skipping the pack-out gate")
 		}
+
 		val packedOut = packedTiles[0]
 		val rebindTarget = packedTiles[1]
 		// Manufacture the unbound-placed shape the repack packs out: rebind the tile's drawables to a
@@ -443,7 +453,7 @@ class Cmo3ExportRepackTest {
 		val marker = markerPng()
 		val pages =
 			resources.map { (_, resource) ->
-				Cmo3Conversion.AtlasPage(marker, resource.width, resource.height)
+				Cmo3PageImage(marker, resource.width, resource.height)
 			}
 
 		val report = Cmo3Export.apply(edited, cmo3, recomposedPages = pages)
@@ -451,9 +461,11 @@ class Cmo3ExportRepackTest {
 		assertFalse(hasStalePageNotice(report), "the pack-out reconciled: ${report.notices}")
 		val rereadCmo3 = Cmo3.read(Cmo3.write(cmo3))
 		val rereadSource = rereadCmo3.root as CModelSource
+
 		for (atlas in pageResourcesOf(rereadSource).map { (atlas, _) -> atlas }) {
 			assertEquals(null, entryIn(atlas, packedOut.id.raw), "the packed-out entry left every page")
 		}
+
 		val reimported = Cmo3Import.fromModelSource(rereadSource)
 		assertEquals(
 			null,
@@ -464,16 +476,17 @@ class Cmo3ExportRepackTest {
 
 	@Test
 	fun aBoundTilePackedOutDeclinesWhole() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val cmo3 = Cmo3.read(file.readBytes())
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 		val imported = Cmo3Import.fromModelSource(modelSource)
 		val boundTileIds = imported.drawables.mapNotNullTo(HashSet()) { drawable -> drawable.atlasTileId }
 		val packed = imported.atlas.tiles.firstOrNull { tile -> tile.placement != null && tile.id in boundTileIds }
+
 		if (packed == null) {
-			println("${file.name} packs no bound artwork; skipping the bound pack-out gate")
-			return
+			skipTest("${file.name} packs no bound artwork; skipping the bound pack-out gate")
 		}
+
 		val resources = pageResourcesOf(modelSource)
 		val originalBytes = resources.map { (_, resource) -> assertNotNull(cmo3.extractLayerPng(resource)) }
 		// Packing a BOUND tile out would strand its drawables' page sampling - the reconcile must
@@ -482,7 +495,7 @@ class Cmo3ExportRepackTest {
 		val marker = markerPng()
 		val pages =
 			resources.map { (_, resource) ->
-				Cmo3Conversion.AtlasPage(marker, resource.width, resource.height)
+				Cmo3PageImage(marker, resource.width, resource.height)
 			}
 
 		val report = Cmo3Export.apply(edited, cmo3, recomposedPages = pages)
@@ -496,6 +509,7 @@ class Cmo3ExportRepackTest {
 			"a declined reconcile keeps the honest notice: ${report.notices}",
 		)
 		val rereadCmo3 = Cmo3.read(Cmo3.write(cmo3))
+
 		for ((pageIndex, pair) in pageResourcesOf(rereadCmo3.root as CModelSource).withIndex()) {
 			assertContentEquals(
 				originalBytes[pageIndex],

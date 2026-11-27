@@ -28,19 +28,24 @@ internal fun parseVp8lHeader(bytes: ByteArray): Vp8lHeader {
 
 	var chunkOffset = 12
 	val firstFourCC = fourCC(bytes, chunkOffset)
+
 	if (firstFourCC == "VP8X") {
 		// Extended container: skip the 10-byte VP8X chunk, then scan sub-chunks for VP8L.
 		val vp8xSize = reader.u32AsInt(chunkOffset + 4)
 		chunkOffset += 8 + vp8xSize + (vp8xSize and 1)
+
 		while (chunkOffset + 8 <= bytes.size) {
 			val subFourCC = fourCC(bytes, chunkOffset)
 			val subSize = reader.u32AsInt(chunkOffset + 4)
+
 			when (subFourCC) {
 				"VP8L" -> return readVp8lHeader(reader, chunkOffset + 8)
 				"VP8 " -> throw IllegalArgumentException("Lossy VP8 WebP is not supported (VP8L only)")
 			}
+
 			chunkOffset += 8 + subSize + (subSize and 1)
 		}
+
 		throw IllegalArgumentException("WebP VP8X container has no supported VP8L image")
 	}
 
@@ -65,6 +70,7 @@ private fun readVp8lHeader(reader: ByteReader, dataStart: Int): Vp8lHeader {
 	val packed = reader.u32(dataStart + 1)
 	val width = (packed and 0x3FFF).toInt() + 1
 	val height = ((packed shr 14) and 0x3FFF).toInt() + 1
+
 	return Vp8lHeader(width, height, dataStart + 5)
 }
 

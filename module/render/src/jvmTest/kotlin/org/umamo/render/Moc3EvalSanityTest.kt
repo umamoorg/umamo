@@ -3,6 +3,7 @@ package org.umamo.render
 import org.umamo.format.moc3.Moc3
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.eval.CpuDeformationEvaluator
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -10,7 +11,7 @@ import kotlin.test.assertTrue
 /**
  * Default-pose eval sanity over EVERY corpus moc: imports each `.moc3` found beside the
  * `-Dmoc3.sample` model and asserts the evaluated world geometry is finite and lands within a
- * generous multiple of the canvas. Models with no canvas, and models with no art meshes at all, are
+ * generous multiple of the canvas.  Models with no canvas, and models with no art meshes at all, are
  * reported and skipped rather than failed - both are shapes a real `.moc3` takes.
  */
 class Moc3EvalSanityTest {
@@ -19,27 +20,33 @@ class Moc3EvalSanityTest {
 	@Test
 	fun corpusModelsEvaluateWithinCanvasBounds() {
 		val corpusRoot = sample?.parentFile?.parentFile?.takeIf { it.isDirectory }
+
 		if (corpusRoot == null) {
-			println("moc3.sample not present; skipping eval sanity test")
-			return
+			skipTest("moc3.sample not present; skipping eval sanity test")
 		}
+
 		val mocFiles =
 			corpusRoot.listFiles { candidate -> candidate.isDirectory }.orEmpty()
 				.flatMap { modelDirectory -> modelDirectory.listFiles { candidate -> candidate.isFile && candidate.extension == "moc3" }.orEmpty().toList() }
 				.sortedBy { it.path }
 		assertTrue(mocFiles.isNotEmpty(), "expected corpus .moc3 files under ${corpusRoot.path}")
+		var checkedModelCount = 0
 
 		for (mocFile in mocFiles) {
 			val mocDocument =
 				runCatching { Moc3.read(mocFile.readBytes()) }.getOrElse {
 					println("${mocFile.name}: not decodable, skipping")
+
 					continue
 				}
 			val model = Moc3Import.fromMocDocument(mocDocument, null)
+
 			if (model.canvasWidth <= 0f || model.canvasHeight <= 0f) {
 				println("${mocFile.name}: no canvas, skipping bounds check")
+
 				continue
 			}
+
 			// A moc may legitimately carry no art at all: the offscreen enum-extraction fixtures are parts
 			// and parameters only, with offscreen flagged on a couple of parts, and the official Cubism
 			// Core reads drawables=0 for them too.  The guard is on the MODEL rather than on the eval
@@ -47,8 +54,10 @@ class Moc3EvalSanityTest {
 			// to nothing is a regression, not a fixture.
 			if (model.drawables.isEmpty()) {
 				println("${mocFile.name}: no drawables, skipping bounds check")
+
 				continue
 			}
+
 			val geometry = CpuDeformationEvaluator().evaluate(model, emptyMap())
 			assertTrue(geometry.worldPositions.isNotEmpty(), "${mocFile.name}: nothing evaluated at the default pose")
 
@@ -57,6 +66,7 @@ class Moc3EvalSanityTest {
 			// overhang, far below a ppu-scale (1000x+) unit-seam explosion.
 			val margin = 4f * maxOf(model.canvasWidth, model.canvasHeight)
 			var checkedValues = 0
+
 			for ((drawableId, positions) in geometry.worldPositions) {
 				for (value in positions) {
 					assertTrue(value.isFinite(), "${mocFile.name}: non-finite world coordinate on ${drawableId.raw}")
@@ -68,7 +78,13 @@ class Moc3EvalSanityTest {
 					checkedValues++
 				}
 			}
+
 			println("${mocFile.name}: ${geometry.worldPositions.size} drawables, $checkedValues coordinates within ±$margin")
+			checkedModelCount++
+		}
+
+		if (checkedModelCount == 0) {
+			skipTest("no corpus moc3 has drawables on a canvas; nothing was evaluated")
 		}
 	}
 }

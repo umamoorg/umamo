@@ -1,5 +1,6 @@
 package org.umamo.format.art
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -22,10 +23,11 @@ class AlphaAnalysisCorpusTest {
 	@Test
 	fun analysisInvariantsHoldOnCorpusLayers() {
 		val samples = locateLayeredCorpusSamples()
+
 		if (samples.isEmpty()) {
-			println("no test/corpus directory; skipping alpha-analysis corpus test")
-			return
+			skipTest("no test/corpus directory; skipping alpha-analysis corpus test")
 		}
+
 		for ((sample, reader) in samples) {
 			checkSample(sample, reader)
 		}
@@ -42,13 +44,16 @@ class AlphaAnalysisCorpusTest {
 		var analyzedLayerCount = 0
 		var emptyLayerCount = 0
 		val startNanos = System.nanoTime()
+
 		for (layer in art.layers) {
 			if (layer.kind != SourceLayerKind.Raster) {
 				continue
 			}
+
 			val raster = layer.raster
 			val expectedCount = countOpaquePixels(raster, DEFAULT_ALPHA_THRESHOLD)
 			val exact = raster.analyzeAlpha(contourEpsilon = 0f)
+
 			if (exact == null) {
 				assertEquals(
 					0,
@@ -56,8 +61,10 @@ class AlphaAnalysisCorpusTest {
 					"${sample.name}: '${layer.name}' null analysis only for fully-transparent rasters",
 				)
 				emptyLayerCount++
+
 				continue
 			}
+
 			analyzedLayerCount++
 			assertTrue(expectedCount > 0, "${sample.name}: '${layer.name}' non-null analysis has opaque pixels")
 			assertEquals(
@@ -87,6 +94,7 @@ class AlphaAnalysisCorpusTest {
 				simplified.contours.size,
 				"${sample.name}: '${layer.name}' simplification never adds or drops contours",
 			)
+
 			for (contourIndex in exact.contours.indices) {
 				assertSimplifiedIsVertexSubset(
 					exact.contours[contourIndex].points,
@@ -95,6 +103,7 @@ class AlphaAnalysisCorpusTest {
 				)
 			}
 		}
+
 		val elapsedMillis = (System.nanoTime() - startNanos) / 1_000_000
 		println(
 			"checked ${sample.name}: $analyzedLayerCount layers analyzed, " +

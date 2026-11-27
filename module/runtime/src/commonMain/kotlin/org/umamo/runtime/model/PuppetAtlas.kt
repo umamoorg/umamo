@@ -31,20 +31,19 @@ data class AtlasPage(
  * A tile is per ARTWORK, not per drawable - several drawables can sample one piece of art, and they all
  * move together when it is repacked, which is why the placement lives here and not on the drawable.
  *
- * A null [placement] means the art is in the document but was never packed onto a page; drawables
- * bound to it sample it directly and their uvs already address it.
- *
  * A [pinned] tile is one a rigger placed by hand and wants kept: a repack packs the other tiles
  * around it and leaves its placement - page, position, rotation, and scale - exactly as it is.
- * Editor state, not a format field: no container format encodes it (the native format will), so the
- * model diff ignores it and an export never sees it.  A tile without a placement is never pinned -
- * there is nothing to keep.
+ * Record data, not editor state: it changes what a repack produces, so it persists on the tile in a
+ * `.uma` (docs/format/UMA.md § 5.4).  CMO3 and MOC3 have nowhere to hold it, so the model diff
+ * ignores it and an export never sees it.  A tile without a placement is never pinned - there is
+ * nothing to keep.
  *
  * @property AtlasTileId     id        The tile's stable document-local identity.
  * @property String          name      The tile's display name.
  * @property Int             width     The art's width in pixels.
  * @property Int             height    The art's height in pixels.
- * @property AtlasPlacement? placement Where it sits on its page, or null when it was never packed.
+ * @property AtlasPlacement? placement Where it sits on its page, or null when it was never packed (drawables
+ *   bound to it then sample it directly, their uvs already addressing it).
  * @property SourceLayerRef? source    The source layer this tile's art came from - the artwork file
  *   and the layer key within it - or null when the document retains no binding (a MOC3-origin rig;
  *   a CMO3-origin one recovers a name-keyed ref from its image chain).  Editor and native-format
@@ -79,9 +78,11 @@ private const val TILE_REVISION_SEPARATOR = '~'
 val AtlasTileId.lineageRoot: AtlasTileId
 	get() {
 		val separator = raw.lastIndexOf(TILE_REVISION_SEPARATOR)
+
 		if (separator <= 0 || raw.substring(separator + 1).toIntOrNull() == null) {
 			return this
 		}
+
 		return AtlasTileId(raw.substring(0, separator))
 	}
 
@@ -91,9 +92,11 @@ val AtlasTileId.lineageRoot: AtlasTileId
 val AtlasTileId.revision: Int
 	get() {
 		val separator = raw.lastIndexOf(TILE_REVISION_SEPARATOR)
+
 		if (separator <= 0) {
 			return 0
 		}
+
 		return raw.substring(separator + 1).toIntOrNull() ?: 0
 	}
 
@@ -109,18 +112,22 @@ val AtlasTileId.revision: Int
 fun reloadTileId(previous: AtlasTileId, taken: Set<AtlasTileId>): AtlasTileId {
 	val root = previous.lineageRoot
 	var revision = previous.revision + 1
+
 	while (true) {
 		val candidate = AtlasTileId("${root.raw}$TILE_REVISION_SEPARATOR$revision")
+
 		if (candidate !in taken) {
 			return candidate
 		}
+
 		revision++
 	}
 }
 
 /**
  * The policy the atlas's pages are composed under: which alpha counts as opaque when a tile is
- * trimmed to its content, and how far each tile's edge color is replicated into the gutter around it.
+ * trimmed to its content, and how far each tile's edge color is bled, at zero alpha, into the gutter
+ * around it.
  *
  * Model state because the pages are DERIVED state.  A placement records only where a tile's art
  * sits, not which opaque sub-rectangle the packer trimmed it to or how wide a band it extruded, so a
@@ -133,7 +140,7 @@ fun reloadTileId(previous: AtlasTileId, taken: Set<AtlasTileId>): AtlasTileId {
  * kept equal by the derivation gate that composes a pack's pages back from a lowered model.
  *
  * @property Int alphaThreshold Minimum alpha byte (1..255) for a pixel to count as opaque when trimming.
- * @property Int extrude        How many pixels of each tile's edge color are replicated outward.
+ * @property Int extrude        How many pixels of each tile's edge color are bled outward, at zero alpha.
  */
 data class AtlasComposition(
 	val alphaThreshold: Int = 1,

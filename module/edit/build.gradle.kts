@@ -1,7 +1,7 @@
-// :edit — editing session, undo/redo history, and the pure model-mutation transforms. Depends on
-// :runtime (the immutable PuppetModel it snapshots and transforms). Holds no Compose: it is the
+// :edit — editing session, undo/redo history, and the pure model-mutation transforms.  Depends on
+// :runtime (the immutable PuppetModel it snapshots and transforms) and :geometry (the mesh
+// regeneration transfer's point location and the generated mesh type).  Holds no Compose: it is the
 // platform-neutral editing core that both :ui and the apps drive, so it stays Android-sharable.
-// :edit — 編集セッション・取り消し/やり直し履歴・純粋なモデル変換。:runtime に依存。Compose は持たない。
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
@@ -28,6 +28,9 @@ kotlin {
 				// surface (EditorSession exposes StateFlow<PuppetModel>, Change carries ids), so consumers
 				// (:ui, apps) see :runtime — and transitively :format — without re-declaring it.
 				api(project(":runtime"))
+				// `api`: the mesh regeneration builder takes a :geometry PlanarTriangleMesh (what the art
+				// mesher produces), and its point location and exact predicates come from there too.
+				api(project(":geometry"))
 				// `api`: StateFlow / SharedFlow are part of EditorSession's public surface, so a consumer
 				// that collects them needs the coroutines types visible transitively.
 				api(libs.kotlinxCoroutinesCore)
@@ -36,12 +39,17 @@ kotlin {
 		commonTest {
 			dependencies {
 				implementation(kotlin("test"))
+				// runTest + a background collector for the request-bus tests: a SharedFlow with no replay drops
+				// a tryEmit that nobody is collecting, so each test has to subscribe before it requests.
+				implementation(libs.kotlinxCoroutinesTest)
 			}
 		}
 		jvmTest {
 			dependencies {
+				// skipTest and requireSample: a gated test that cannot run ends as SKIPPED.
+				implementation(project(":testkit"))
 				// The CMO3 export round-trip gate drives real :edit session ops over a corpus model,
-				// then re-reads the re-emitted file through the JVM-only codec. The conversion entry
+				// then re-reads the re-emitted file through the JVM-only codec.  The conversion entry
 				// points (Cmo3Import / Cmo3Export) live in :interop, whose api(:format) also supplies
 				// the jvmAndroidMain codec surface transitively.
 				implementation(kotlin("test"))

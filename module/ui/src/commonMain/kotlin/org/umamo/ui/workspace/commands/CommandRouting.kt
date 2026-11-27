@@ -10,12 +10,12 @@ import org.umamo.ui.workspace.hostsOperationStrip
  * The ONE place a command asks "which area does the pointer mean".
  *
  * Blender's hovered-area routing - the key acts where the pointer is - needs the same question answered
- * by a dozen commands, and answering it inline gave a dozen slightly different answers.  Every rule that
- * reads the pointer's surface lives here, so a change to the routing model is a change to this file
+ * by a dozen commands, and answering it inline would give a dozen slightly different answers.  Every rule
+ * that reads the pointer's surface lives here, so a change to the routing model is a change to this file
  * rather than an archaeology exercise across the command tables.
  *
  * ONE resolver backs it: the hovered surface (area id + space kind), stamped by every workspace leaf, so
- * it answers "what is the pointer on" for all nine space kinds.  Exactly one, deliberately: a second
+ * it answers "what is the pointer on" for every space kind.  Exactly one, deliberately: a second
  * resolver scoped to 2D viewports could only mean "the last viewport touched, however long ago" rather
  * than "the one under the pointer", and the two would disagree the moment the pointer moved to another
  * space.  Every command resolves a surface the user is actually pointing at, or none at all.
@@ -27,7 +27,8 @@ import org.umamo.ui.workspace.hostsOperationStrip
  * places the settings strip of a document-wide operation that already ran, and the strip exists only
  * in a work surface (2D viewport or UV editor), so a command fired over a panel shows it in the last
  * work surface touched - or, when the pointer has touched none since the shell opened, in the first
- * work surface of the active workspace - rather than nowhere.
+ * work surface of the active workspace.  A workspace with no work surface at all yields null, and the
+ * strip shows nowhere.
  *
  * Every answer is resolved at DISPATCH time, inside a handler body, never latched at registration - the
  * same contract HoveredSurfaceTracker carries.  The backing read is a non-reactive var, so a value
@@ -68,6 +69,8 @@ internal sealed interface TransformTarget {
  * @param Function defaultStripHost     Resolves the active workspace's first strip-hosting area in tree
  *   order, or null when it has none; read only by [operationStripArea], and only when the pointer has
  *   touched no work surface since the shell opened.
+ * @param Function lastTouchedViewport  Resolves the 2D viewport the pointer last touched, read only by
+ *   [framedViewportArea].
  * @warning Every resolver must read LIVE state, not a value captured when the instance was built - one
  *   instance serves the whole shell for its lifetime, across document swaps, workspace switches, and
  *   area-tree edits, so a snapshot would answer with wherever the pointer was at first composition forever.
@@ -76,32 +79,31 @@ internal class CommandRouting(
 	private val hoveredSurface: () -> HoveredSurface?,
 	private val lastTouchedStripHost: () -> HoveredSurface?,
 	private val defaultStripHost: () -> String? = { null },
+	private val lastTouchedViewport: () -> HoveredSurface? = { null },
 ) {
 	/**
-	 * A routing that remembers no work surface and knows no workspace: the strip placement falls back to
-	 * the shell's own strip.  The trailing-lambda form the tables' tests build with, kept as a constructor
-	 * so that lambda stays the hovered resolver rather than silently binding to the last parameter.
+	 * A routing that remembers no work surface and knows no workspace: the strip placement yields null,
+	 * and the strip shows nowhere.  The trailing-lambda form the tables' tests build with, kept as a
+	 * constructor so that lambda stays the hovered resolver rather than silently binding to the last parameter.
 	 *
 	 * @param Function hoveredSurface Resolves the last-touched editor surface.
 	 */
 	constructor(hoveredSurface: () -> HoveredSurface?) : this(hoveredSurface, { null }, { null })
 
 	/**
-	 * Where a document-wide operation's settings strip shows: the hovered area when it is a work surface
-	 * (2D viewport or UV editor), else the last work surface the pointer touched, else the workspace's
-	 * first work surface, else null - the shell's own strip above the status bar, which only a workspace
-	 * with no work surface at all reaches.  The strip exists only in those two spaces, so a command fired
-	 * from a panel (the Sources header's Add Artwork, the palette over the outliner) still lands it
-	 * somewhere the rigger will find it, including on a freshly opened document whose viewports the
-	 * pointer has not crossed yet.
+	 * Where a document-wide operation's settings strip shows, so a command fired from a panel (the Sources
+	 * header's Add Artwork, the palette over the outliner) still lands it in a work surface the rigger will
+	 * find.
 	 *
-	 * @return String? The area to show the strip in, or null.
+	 * @return String? The area to show the strip in, or null when the workspace has no work surface.
 	 */
 	fun operationStripArea(): String? {
 		val hovered = hoveredSurface()
+
 		if (hovered != null && hovered.kind.hostsOperationStrip) {
 			return hovered.areaId
 		}
+
 		return lastTouchedStripHost()?.areaId ?: defaultStripHost()
 	}
 
@@ -151,6 +153,16 @@ internal class CommandRouting(
 	fun viewportArea(): String? = areaOf(SpaceKind.Viewport2D)
 
 	/**
+	 * The 2D viewport whose framing a capture reads: the hovered one, else the last one the pointer touched.
+	 *
+	 * @return String? The viewport's area id, or null when no viewport has been touched.
+	 * @note The fallback [viewportArea] rules out is right here, because nothing ACTS in this viewport: the
+	 *   caller only reads what it shows.  And it is needed, since Export Image is reached through the File
+	 *   menu, and the way there crosses another area in every default workspace.
+	 */
+	fun framedViewportArea(): String? = viewportArea() ?: lastTouchedViewport()?.areaId
+
+	/**
 	 * Where a modal Grab / Scale / Rotate runs.
 	 *
 	 * @return TransformTarget? The hovered surface when it can host a transform, else null - the pointer is
@@ -162,6 +174,7 @@ internal class CommandRouting(
 	 */
 	fun transformTarget(): TransformTarget? {
 		val hovered = hoveredSurface() ?: return null
+
 		return when (hovered.kind) {
 			SpaceKind.UvEditor -> TransformTarget.Uv(hovered.areaId)
 			SpaceKind.Viewport2D -> TransformTarget.Viewport(hovered.areaId)
@@ -183,6 +196,7 @@ internal class CommandRouting(
 	 */
 	fun selectToolArea(session: EditorSession?): String? {
 		val hovered = hoveredSurface() ?: return null
+
 		return when (hovered.kind) {
 			SpaceKind.Viewport2D -> hovered.areaId
 			SpaceKind.UvEditor -> hovered.areaId.takeIf { session?.mode?.value == EditorMode.Edit }

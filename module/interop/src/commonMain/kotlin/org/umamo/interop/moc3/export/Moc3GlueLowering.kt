@@ -30,32 +30,38 @@ internal fun lowerGlues(
 	noticeSink: Moc3ExportNotices,
 ): List<MocGlue> {
 	val plan = context.plan
+
 	return puppet.glues.mapIndexedNotNull { glueIndex, glue ->
 		val meshA = plan.drawableIndex(glue.meshA)
 		val meshB = plan.drawableIndex(glue.meshB)
+
 		if (meshA < 0 || meshB < 0) {
 			noticeSink.unsupported(
 				ExportEntityCategory.Glue,
 				glue.id ?: "Glue$glueIndex",
 				ExportNoticeReason.GlueNamesAnUnknownDrawable,
 			)
+
 			return@mapIndexedNotNull null
 		}
+
+		// ONE fallback, computed once: a notice naming a subject the file does not contain sends the
+		// reader searching the export for an object that was never written under that name.  The
+		// drop notice above is the exception on purpose - a dropped glue has no written id to cite,
+		// so its ordinal is the only handle left.
+		val glueId = glue.id ?: "Glue_${meshA}_${meshB}_"
 		val keyforms =
 			lowerObjectKeyforms(
 				pool,
+				noticeSink,
+				ExportEntityCategory.Glue,
+				glueId,
 				null as KeyformGrid<Unit>?,
 				UnitInterpolator,
 				glue.channelGrids.onlyChannels(FormChannel.GLUE_INTENSITY),
 				mapOf(FormChannel.GLUE_INTENSITY to ChannelValue.Scalar(glue.intensity)),
 				requireGeometry = false,
 			)
-		// ONE fallback, computed once: a notice naming a subject the file does not contain sends the
-		// reader searching the export for an object that was never written under that name.  The
-		// drop notice above is the exception on purpose - a dropped glue has no written id to cite,
-		// so its ordinal is the only handle left.
-		val glueId = glue.id ?: "Glue_${meshA}_${meshB}_"
-		noticeSink.reportDemotions(ExportEntityCategory.Glue, glueId, keyforms)
 		val bundle = keyforms?.bundle
 		val cellCount = maxOf(bundle?.cells?.size ?: 0, 1)
 		MocGlue(

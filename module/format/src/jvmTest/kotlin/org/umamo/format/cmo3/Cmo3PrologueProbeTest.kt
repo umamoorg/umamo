@@ -1,10 +1,12 @@
 package org.umamo.format.cmo3
 
+import org.jdom.Attribute
 import org.jdom.Element
 import org.jdom.ProcessingInstruction
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -58,17 +60,14 @@ class Cmo3PrologueProbeTest {
 
 	@Test
 	fun prologueInvariantsHoldAcrossTheCorpus() {
-		val spec =
-			System.getProperty("cmo3.probe")
-				?: run {
-					println("cmo3.probe not present; skipping prologue probe")
-					return
-				}
+		val spec = System.getProperty("cmo3.probe") ?: skipTest("cmo3.probe not present; skipping prologue probe")
 		val files = spec.split(',').map { File(it.trim()) }.filter { it.isFile }
 		val failures = ArrayList<String>()
+
 		for (file in files) {
 			probeFile(file, failures)
 		}
+
 		assertTrue(files.isNotEmpty(), "cmo3.probe matched no files")
 		assertTrue(failures.isEmpty(), "prologue invariants violated:\n" + failures.joinToString("\n"))
 	}
@@ -81,12 +80,15 @@ class Cmo3PrologueProbeTest {
 	 */
 	private fun probeFile(file: File, failures: ArrayList<String>) {
 		val archive = CaffCodec.read(file.readBytes())
+
 		if (archive.entries.last().tag != CaffArchive.TAG_MAIN_XML) {
 			failures.add("${file.name}: main_xml is not the last CAFF entry")
 		}
+
 		if (archive.entries.count { entry -> entry.tag == CaffArchive.TAG_MAIN_XML } != 1) {
 			failures.add("${file.name}: expected exactly one main_xml entry")
 		}
+
 		archive.entries.filterNot { entry -> entry.obfuscated }.forEach { entry ->
 			failures.add("${file.name}: entry ${entry.path} is not obfuscated")
 		}
@@ -101,16 +103,20 @@ class Cmo3PrologueProbeTest {
 		}
 		val lastVersionIndex = targets.lastIndexOf("version")
 		val firstImportIndex = targets.indexOf("import")
+
 		if (firstImportIndex >= 0 && lastVersionIndex > firstImportIndex) {
 			failures.add("${file.name}: a version PI follows an import PI")
 		}
+
 		val rootIndex = document.content.indexOf(document.rootElement)
+
 		if (instructions.isNotEmpty() && document.content.indexOf(instructions.last()) > rootIndex) {
 			failures.add("${file.name}: a PI appears after <root>")
 		}
 
 		// Root attributes: exactly fileFormatVersion.
-		val attributeNames = document.rootElement.attributes.map { attribute -> (attribute as org.jdom.Attribute).name }
+		val attributeNames = document.rootElement.attributes.map { attribute -> (attribute as Attribute).name }
+
 		if (attributeNames != listOf("fileFormatVersion")) {
 			failures.add("${file.name}: root attributes are $attributeNames")
 		}
@@ -121,6 +127,7 @@ class Cmo3PrologueProbeTest {
 		versions.filterNot { data -> data.substringAfterLast(':').toIntOrNull() != null }.forEach { data ->
 			failures.add("${file.name}: unparseable version PI <?version $data?>")
 		}
+
 		if ("SerializeFormatVersion:2" !in versions) {
 			failures.add("${file.name}: SerializeFormatVersion:2 missing from version PIs")
 		}
@@ -134,13 +141,17 @@ class Cmo3PrologueProbeTest {
 		val modelTags = tags - structuralTags
 		val imports =
 			instructions.filter { instruction -> instruction.target == "import" }.map { instruction -> instruction.data }
+
 		if (imports != imports.sorted()) {
 			failures.add("${file.name}: import PIs are not sorted")
 		}
+
 		val importedTags = imports.map { fqcn -> fqcn.substringAfterLast('$').substringAfterLast('.') }.toSet()
+
 		if (importedTags.size != imports.size) {
 			failures.add("${file.name}: two import FQCNs map to one tag")
 		}
+
 		(modelTags - importedTags).forEach { tag ->
 			failures.add("${file.name}: tag <$tag> has no import PI")
 		}
@@ -157,6 +168,7 @@ class Cmo3PrologueProbeTest {
 	 */
 	private fun collectTags(element: Element, into: HashSet<String>) {
 		into.add(element.name)
+
 		for (child in element.children) {
 			collectTags(child as Element, into)
 		}

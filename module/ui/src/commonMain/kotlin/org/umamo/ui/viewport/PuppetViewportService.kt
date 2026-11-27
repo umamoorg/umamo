@@ -2,64 +2,91 @@ package org.umamo.ui.viewport
 
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.flow.StateFlow
-import org.umamo.edit.GridConfig
+import org.umamo.format.raster.RasterImage
+import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
+import org.umamo.render.FrameBackdrop
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
+import org.umamo.render.puppet.DirectMeshOverlay
+import org.umamo.render.puppet.LatticeOverlay
+import org.umamo.render.puppet.MeshOverlay
+import org.umamo.render.puppet.MeshOverlayPalette
+import org.umamo.render.puppet.PlacementPreview
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.model.DrawableThumbnailProvider
 
 /**
- * Creates (and starts) the platform render service for one open document. Desktop supplies the
- * offscreen GLFW/LWJGL engine; Android supplies its GLES sibling. Injected into
- * rememberPuppetViewportHost so the whole viewport composable stack stays common.
+ * Creates (and starts) the platform render service for one open document.  Desktop supplies the
+ * offscreen GLFW/LWJGL engine; Android has no GLES sibling yet and passes no factory, so its viewport
+ * areas render placeholders.  Injected into rememberPuppetViewportHost so the whole viewport composable
+ * stack stays common.
  */
 typealias PuppetViewportServiceFactory = (PuppetModel, PuppetTextures, LiveParams) -> PuppetViewportService
 
 /**
- * A rendered puppet frame together with the camera AND the model it was rendered from. The engine
- * renders asynchronously, so a frame lands a few ticks behind the live state; the overlay draws itself
- * as a pure function of this frame - projecting through [camera] and posing its geometry from [model] -
- * so the vector overlay stays glued to the raster along both the navigation axis (pan/zoom, the camera)
- * and the edit axis (mesh geometry, the model) instead of racing ahead of it. Bundling all three in one
- * immutable value keeps the publish atomic, so the bitmap, its camera, and its geometry can never tear
- * apart across the frame flow.
+ * A rendered puppet frame together with the camera it was rendered with.  The engine renders
+ * asynchronously, so a frame lands a few ticks behind the live state; the gizmo overlays project their
+ * chrome through [camera] so it stays glued to the raster during pan and zoom instead of racing ahead of
+ * it, and the mesh overlay is drawn into the pixels themselves.  Bundling both in one immutable value keeps
+ * the publish atomic, so the bitmap and its camera can never tear apart across the frame flow.
  *
  * @property ImageBitmap bitmap The area's rendered pixels (already downscaled to the area size).
  * @property ViewportCamera camera The camera the pixels were rendered with.
- * @property PuppetModel model The model whose geometry the pixels reflect (the overlay poses from it so
- *           the wireframe lags with the raster during an edit instead of leading it).
  */
-data class RenderedFrame(val bitmap: ImageBitmap, val camera: ViewportCamera, val model: PuppetModel)
+data class RenderedFrame(val bitmap: ImageBitmap, val camera: ViewportCamera)
 
 /**
- * What a UV-editor area draws under its wireframe overlays.
+ * What a UV-editor area draws: its surface, and the mesh overlay over it when the area shows one.
  *
  * Two shapes rather than one nullable image because the atlas page is addressed by INDEX into the
  * document's pages (the engine resolves the pixels itself, and re-uses the textures it already
  * uploaded for the puppet) while a source layer arrives as pixels the engine has never seen.  Keeping
  * them distinct is also what lets an area switch between them without re-registering.
+ *
+ * The overlay (and over a page, the placement drag's preview) rides the content rather than a channel of
+ * its own, so a surface and what is drawn over it reach the render thread as one value and can never
+ * mismatch, and the area's freshness (the rendered content against the current one, by equality) sees a
+ * new overlay without a version of its own.  A [DirectMeshOverlay] and a [PlacementPreview] compare by
+ * identity, so only a newly published one re-renders the area.  The camera keys only the surface.
  */
 sealed interface UvSceneContent {
+	/** The area's mesh overlay, in the surface's display positions, or null for none. */
+	val overlay: DirectMeshOverlay?
+
 	/**
 	 * One of the document's packed atlas pages.
 	 *
 	 * @property Int? pageIndex The page to draw, or null for none (grid only).
+	 * @property DirectMeshOverlay? overlay The mesh overlay drawn over it, or null for none.
+	 * @property PlacementPreview? placement The placement drag's preview drawn between the page and the
+	 *   overlay, or null for none.
 	 */
-	data class AtlasPage(val pageIndex: Int?) : UvSceneContent
+	data class AtlasPage(
+		val pageIndex: Int?,
+		override val overlay: DirectMeshOverlay? = null,
+		val placement: PlacementPreview? = null,
+	) : UvSceneContent
 
 	/**
 	 * A source layer's own artwork, decoded by the caller.
 	 *
-	 * @property DecodedImage? image The layer raster to draw, or null for none (grid only).
+	 * The key is the layer's identity and the image is only its pixels: the engine remembers a view per
+	 * layer by the key, so a re-decoded image of the same layer keeps the view it had.
+	 *
+	 * @property String             layerKey The shown layer's key in the document's source-art store.
+	 * @property DecodedImage?      image    The layer raster to draw, or null for none (grid only).
+	 * @property DirectMeshOverlay? overlay  The mesh overlay drawn over it, or null for none.
 	 */
-	data class SourceLayer(val image: DecodedImage?) : UvSceneContent
+	data class SourceLayer(val layerKey: String, val image: DecodedImage?, override val overlay: DirectMeshOverlay? = null) : UvSceneContent
 }
 
 /**
@@ -82,14 +109,35 @@ class AtlasPageBinding(
 )
 
 /**
- * The platform seam between the common viewport UI and a puppet render engine. The engine owns a GPU
+ * Which surface a camera frames.  The puppet's world space and a texture's pixel space share nothing, so a view of
+ * one means nothing over the other: an area switched from the UV editor to the 2D viewport must not inherit the
+ * page's pan and zoom, and each keeps its own for the day the area switches back.
+ */
+enum class CameraSurface {
+	/** The posed puppet, in world units (the 2D viewport). */
+	Viewport,
+
+	/** A flat texture surface - an atlas page or a source layer - in its own pixels (the UV editor). */
+	Uv,
+}
+
+/**
+ * What a remembered camera belongs to: one area, showing one kind of surface.
+ *
+ * @property String        areaId  The hosting leaf's area id.
+ * @property CameraSurface surface The surface the camera frames.
+ */
+data class AreaCameraKey(val areaId: String, val surface: CameraSurface)
+
+/**
+ * The platform seam between the common viewport UI and a puppet render engine.  The engine owns a GPU
  * context on its own thread, renders the posed puppet per registered area, and publishes each frame as
  * a Compose ImageBitmap; the common `Viewport2D` composable, the navigation/pick pointer loop, and the
- * Edit-mode gizmo overlay drive it exclusively through this interface. Desktop implements it with an
+ * Edit-mode gizmo overlay drive it exclusively through this interface.  Desktop implements it with an
  * offscreen GLFW/LWJGL service; Android's GLES sibling implements the same surface when it lands.
  *
  * Threading contract: everything here is called from the UI thread; implementations publish to their
- * render thread internally (volatile swaps of immutable values). Picking is CPU-side and synchronous.
+ * render thread internally (volatile swaps of immutable values).  Picking is CPU-side and synchronous.
  */
 interface PuppetViewportService {
 	/** The fine zoom increment in percentage points (one wheel notch / key press), fed from settings. */
@@ -107,11 +155,8 @@ interface PuppetViewportService {
 	/** The grid backdrop colors (background / major / minor), fed from the editor theme; a change forces a redraw. */
 	var gridColors: GridColors
 
-	/** The per-document grid geometry (major spacing + subdivisions), fed from the session; a change forces a redraw. */
-	var gridConfig: GridConfig
-
 	/**
-	 * Registers a viewport area and returns the flow its rendered frames arrive on. Reference-counted
+	 * Registers a viewport area and returns the flow its rendered frames arrive on.  Reference-counted
 	 * per [areaId]: register/unregister pair across the area's composable life.
 	 *
 	 * @param String areaId The hosting area's stable id.
@@ -126,25 +171,53 @@ interface PuppetViewportService {
 	 * rendered image, its camera the one it was rendered at), driven by the same per-area camera surface
 	 * ([cameraFlow] / [resize] / [pan] / [zoomAtCursor] / [zoomCentered] / [fit] / [fitWorldRect] /
 	 * [actualSize] / [unregister]) - only the rendered content differs.  The engine fits that content's
-	 * rectangle rather than the puppet content bounds.
+	 * rectangle, widened to [islandExtent], rather than the puppet content bounds.
+	 *
+	 * The camera is kept per SURFACE as well as per area: each page and each layer the area shows keeps the
+	 * view it was left with for the rest of the session, and one the area has never shown is fitted.  Those
+	 * per-surface views are session state only - [cameras] reports just the view of the surface on screen,
+	 * which is the one a save writes (docs/format/UMA.md § 7.3).
 	 *
 	 * Retarget it with [setUvSceneContent] as the editor's shown content changes; do NOT re-register,
 	 * which takes a second reference-counted hold the area never releases.
 	 *
-	 * @param String        areaId  The hosting UV-editor area's stable id.
-	 * @param UvSceneContent content What to draw (an atlas page or a source layer image).
+	 * @param String         areaId       The hosting UV-editor area's stable id.
+	 * @param UvSceneContent content      What to draw (an atlas page or a source layer image).
+	 * @param ContentBounds? islandExtent The shown meshes' display-space bounds, or null for none.
 	 * @return StateFlow The frame flow (null until the first render lands).
 	 */
-	fun registerUvScene(areaId: String, content: UvSceneContent): StateFlow<RenderedFrame?>
+	fun registerUvScene(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?): StateFlow<RenderedFrame?>
 
 	/**
 	 * Retargets what an already-registered [registerUvScene] area draws, including switching between an
-	 * atlas page and a source layer.  A no-op for an unregistered area or a puppet (2D) area.
+	 * atlas page and a source layer, and updates the mesh extent its fit covers.  A switch to another
+	 * surface brings back the view the area left that surface with, or fits one it has not shown yet.  A
+	 * no-op for an unregistered area or a puppet (2D) area.
 	 *
-	 * @param String        areaId  The UV-editor area to retarget.
-	 * @param UvSceneContent content The new content to draw.
+	 * @param String         areaId       The UV-editor area to retarget.
+	 * @param UvSceneContent content      The new content to draw.
+	 * @param ContentBounds? islandExtent The shown meshes' display-space bounds, or null for none.
 	 */
-	fun setUvSceneContent(areaId: String, content: UvSceneContent)
+	fun setUvSceneContent(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?)
+
+	/**
+	 * Sets what [areaId] draws beyond its scene: its grid geometry and its frame overlays.  Compared by value
+	 * when the area's freshness is judged, so a changed value re-renders that area alone and an equal one renders
+	 * nothing.  A no-op for an unregistered area.
+	 *
+	 * @param String       areaId   The area.
+	 * @param AreaOverlays overlays The area's render options.
+	 */
+	fun setAreaOverlays(areaId: String, overlays: AreaOverlays)
+
+	/**
+	 * The render options [areaId] last pushed, or null when it is not registered: what an image capture framed
+	 * by that area takes, so the capture draws the grid and the axes the area shows.
+	 *
+	 * @param String areaId The area.
+	 * @return AreaOverlays? The area's options, or null.
+	 */
+	fun areaOverlays(areaId: String): AreaOverlays?
 
 	/**
 	 * Releases one registration of [areaId]; the engine drops the area's resources at zero.
@@ -160,6 +233,23 @@ interface PuppetViewportService {
 	 * @return StateFlow The camera flow.
 	 */
 	fun cameraFlow(areaId: String): StateFlow<ViewportCamera?>
+
+	/**
+	 * Every camera the engine remembers, by area and surface: the areas shown now and the ones a workspace tab
+	 * switch has put away.  What a save writes as each area's views (docs/format/UMA.md § 7.3).  A UV editor's
+	 * entry is the view of the page or layer it shows now; the views it keeps for the others are not here.
+	 *
+	 * @return Map The cameras.
+	 */
+	fun cameras(): Map<AreaCameraKey, ViewportCamera>
+
+	/**
+	 * Gives the engine the cameras a document was saved with, before any area registers: an area that has one for
+	 * the surface it shows opens on it instead of fitting its content.  A key no area ever takes costs nothing.
+	 *
+	 * @param Map cameras The saved cameras, by area and surface.
+	 */
+	fun seedCameras(cameras: Map<AreaCameraKey, ViewportCamera>)
 
 	/**
 	 * Reports [areaId]'s current size in pixels; the engine re-renders at the new size.
@@ -219,7 +309,8 @@ interface PuppetViewportService {
 	fun actualSize(areaId: String)
 
 	/**
-	 * Fits the puppet's content bounds inside [areaId], centerd.
+	 * Fits the area's content inside [areaId], centerd: the puppet's content bounds, or a UV editor's shown
+	 * surface widened to every shown mesh that reaches past it.
 	 *
 	 * @param String areaId The area to fit.
 	 */
@@ -231,11 +322,11 @@ interface PuppetViewportService {
 	 *
 	 * @param String areaId The area to frame in.
 	 * @param Float minX The rectangle's minimum world x.
-	 * @param Float minY The rectangle's minimum world y.
+	 * @param Float minZ The rectangle's minimum world z (up).
 	 * @param Float maxX The rectangle's maximum world x.
-	 * @param Float maxY The rectangle's maximum world y.
+	 * @param Float maxZ The rectangle's maximum world z (up).
 	 */
-	fun fitWorldRect(areaId: String, minX: Float, minY: Float, maxX: Float, maxY: Float)
+	fun fitWorldRect(areaId: String, minX: Float, minZ: Float, maxX: Float, maxZ: Float)
 
 	/**
 	 * Pushes the selected drawables; the engine re-renders their tint.
@@ -259,7 +350,7 @@ interface PuppetViewportService {
 	 * the packed atlas.
 	 *
 	 * The mapping is published whole and takes effect at once; the PIXELS follow separately and
-	 * progressively, through [sourceLayerRequests] and [deliverSourceLayerRasters].  That split is
+	 * progressively, through [deliverSourceLayerRasters].  That split is
 	 * deliberate: a document can reference hundreds of layers, and decoding them all to switch display
 	 * mode is what would stall the switch - or exhaust memory before it finished.
 	 *
@@ -295,11 +386,10 @@ interface PuppetViewportService {
 	/**
 	 * Pushes the atlas page set the current model's placements render from.
 	 *
-	 * The session owns the effective pages now - a repack composes new ones and undo brings the old
-	 * ones back - so the pages arrive through a seam like the model does, instead of being fixed at
-	 * construction.  The engine swaps GPU pages and re-stamps every resident's binding as one
-	 * operation, and applies an atlas-CHANGING model only together with the binding composed for it
-	 * (see [AtlasPageBinding]).
+	 * The session owns the effective pages - a repack composes new ones and undo brings the old ones
+	 * back - so the pages arrive through a seam like the model does.  The engine swaps GPU pages and
+	 * re-stamps every resident's binding as one operation, and applies an atlas-CHANGING model only
+	 * together with the binding composed for it (see [AtlasPageBinding]).
 	 *
 	 * @param AtlasPageBinding binding The pages plus the atlas value they belong to.
 	 */
@@ -323,6 +413,114 @@ interface PuppetViewportService {
 	 * @param Float blue The blue component.
 	 */
 	fun setActiveSelectionHighlightColor(red: Float, green: Float, blue: Float)
+
+	/**
+	 * Sets the mesh overlay every 2D area draws over the art: the Edit-mode wireframe, dots, and face fills
+	 * of the session meshes, or null for none.  The value holds no positions (the renderer reads the art's
+	 * own deformed positions), so a gesture's preview pushes leave it as it is; a new value replaces the
+	 * old by identity.
+	 *
+	 * @param MeshOverlay? overlay The overlay, or null.
+	 */
+	fun setMeshOverlay(overlay: MeshOverlay?)
+
+	/**
+	 * Sets the colors the mesh overlay draws in, the nine Edit-mode element colors and the two placement
+	 * colors (straight alpha, from settings).
+	 *
+	 * @param MeshOverlayPalette palette The palette.
+	 */
+	fun setMeshOverlayPalette(palette: MeshOverlayPalette)
+
+	/**
+	 * Sets which warps' lattices every 2D area draws over the art, and in which role, or null for none.  The value
+	 * holds no positions (the renderer reads each lattice off the pose it draws), so a pose change leaves it as it
+	 * is; a new value replaces the old by identity.  An area draws the idle lattices only while it shows every
+	 * deformer, and none of them while it hides its overlays.
+	 *
+	 * @param LatticeOverlay? overlay The lattices, or null.
+	 */
+	fun setLatticeOverlay(overlay: LatticeOverlay?)
+
+	/**
+	 * Sets the warp whose lattice [areaId] draws in the hover color because the pointer is over it there, or null
+	 * for none.  The area's frames carry it ([org.umamo.render.FrameOverlays.hoveredLattice]), so only that area
+	 * re-renders, and the other areas showing the same warp keep its role's color.  Transient view state: never
+	 * saved, and carried over every later [setAreaOverlays] of the area until it is set again.  A no-op for an
+	 * unregistered area.
+	 *
+	 * @param String areaId The area the pointer is in.
+	 * @param DeformerId? deformerId The hovered warp, or null for none.
+	 */
+	fun setLatticeHover(areaId: String, deformerId: DeformerId?)
+
+	/**
+	 * Sets the lattice cage every 2D area draws over the art from positions of its own, or null for none: the
+	 * cage of each warp an Edit- or Pose-mode session shapes.  Drawn under the Show Overlays master like the
+	 * mesh overlay; a new value replaces the old by identity, and a drag frame re-uploads only the position
+	 * arrays it replaced.
+	 *
+	 * @param DirectMeshOverlay? overlay The cage, or null.
+	 */
+	fun setEditDirectOverlay(overlay: DirectMeshOverlay?)
+
+	/**
+	 * Previews warps at new lattices in every 2D area without a model push: each entry stands in for that warp's
+	 * grid blend at the pose (its blend shapes still add on top), so the warp's art and everything nested under it
+	 * follow, and the lattice layer and the picks read the moved lattice.  An Object-mode warp drag or a Pose-mode
+	 * lattice drag publishes one per frame; a model push that changes a deformer's forms re-poses the whole rig
+	 * and rebuilds the picker, which a drag cannot afford.  An empty map clears the preview; the same instance
+	 * again is a no-op.
+	 *
+	 * @param Map<DeformerId, WarpLatticeForm> overrides Each previewed warp's lattice in its parent's space, before
+	 *   blend shapes.
+	 */
+	fun setLatticePreview(overrides: Map<DeformerId, WarpLatticeForm>)
+
+	/**
+	 * Poses warps at the session's pending Pose-mode lattices in every 2D area, each standing in for that warp's grid
+	 * blend at the pose; a [setLatticePreview] entry for the same warp wins while a gesture runs.  The viewport binding
+	 * keeps it in step with the session, and a lattice gesture's end writes it first, so the frame after the preview
+	 * clears already shows what was committed.  An empty map clears it; the same instance again is a no-op.
+	 *
+	 * @param Map<DeformerId, WarpLatticeForm> overrides Each pending warp's lattice in its parent's space, before
+	 *   blend shapes.
+	 */
+	fun setLatticeOverrides(overrides: Map<DeformerId, WarpLatticeForm>)
+
+	/**
+	 * The warps whose drawn lattice lies under the cursor in [areaId], best first: a control point within
+	 * [pointRadiusPx] ahead of a grid line within [lineRadiusPx], nearer first, and a tie to the warp later in the
+	 * model.  Only the lattices the area draws can be hit: none while it hides its overlays, and the idle ones only
+	 * while it shows every deformer.
+	 *
+	 * @param String areaId The clicked area.
+	 * @param Float cursorXpx The cursor x in viewport pixels.
+	 * @param Float cursorYpx The cursor y in viewport pixels.
+	 * @param Float pointRadiusPx How near a control point must be, in viewport pixels.
+	 * @param Float lineRadiusPx How near a grid line must be, in viewport pixels.
+	 * @return List<DeformerId> The hit warps, best first.
+	 */
+	fun latticePicksAt(areaId: String, cursorXpx: Float, cursorYpx: Float, pointRadiusPx: Float, lineRadiusPx: Float): List<DeformerId>
+
+	/**
+	 * The world-space center of every lattice [areaId] draws at the current pose - the mean of its control points,
+	 * as [x, y] - what box and circle select test a warp by, as [drawableWorldCentroids] is for art.  Empty when
+	 * the area draws none.
+	 *
+	 * @param String areaId The area.
+	 * @return Map<DeformerId, FloatArray> Per-warp [x, y] world center, in model order.
+	 */
+	fun latticeWorldCenters(areaId: String): Map<DeformerId, FloatArray>
+
+	/**
+	 * The world-space extent of the given warps' lattices at the current pose, whether or not any area draws them:
+	 * what Frame Selected fits a selected warp to.  CPU-side, on the calling thread.
+	 *
+	 * @param Set<DeformerId> ids The warps.
+	 * @return ContentBounds? The extent, or null when none of them is drawn at this pose.
+	 */
+	fun latticeWorldExtent(ids: Set<DeformerId>): ContentBounds?
 
 	/**
 	 * Hit-tests the front-most opaque drawable under the cursor, or null on empty canvas.
@@ -356,6 +554,35 @@ interface PuppetViewportService {
 	fun drawableWorldCentroids(): Map<DrawableId, FloatArray>
 
 	/**
+	 * Renders the posed puppet into an image: what the 2D viewport draws, through [frame]'s camera at its
+	 * size, over [backdrop], with no selection tint, gizmos, or other editor chrome.  The pose, the shown
+	 * drawables, and the artwork are the viewport's own at the moment the render thread takes the request.
+	 *
+	 * @param ImageFrame    frame    The camera and pixel size to render.
+	 * @param FrameBackdrop backdrop What the puppet is drawn over.
+	 * @param AreaOverlays  overlays The grid geometry, and the grid lines and axes a grid backdrop draws.
+	 * @return RasterImage? The image, straight alpha, top row first; null when the renderer cannot render
+	 *   (its context never came up, it was disposed, or the render failed).
+	 */
+	suspend fun renderImage(frame: ImageFrame, backdrop: FrameBackdrop, overlays: AreaOverlays): RasterImage?
+
+	/**
+	 * What a 2D viewport area shows right now, as a frame: its camera and its size in pixels.
+	 *
+	 * @param String areaId The area.
+	 * @return ImageFrame? The area's frame, or null when it is not registered or has not been sized and fitted yet.
+	 */
+	fun areaView(areaId: String): ImageFrame?
+
+	/**
+	 * The shown drawables' world-space extent at the current pose - what the viewport draws, measured, where
+	 * [fit] frames the rest pose.  CPU-side, on the calling thread.
+	 *
+	 * @return ContentBounds? The extent, or null before the first pose or when nothing shown has geometry.
+	 */
+	fun visibleContentBounds(): ContentBounds?
+
+	/**
 	 * A drawable's cached art thumbnail (the overlap-picker row image), or null when untextured.
 	 *
 	 * @param DrawableId id The drawable.
@@ -377,6 +604,15 @@ interface PuppetViewportService {
 	 * @return String? The part name, or null.
 	 */
 	fun partNameFor(id: DrawableId): String?
+
+	/**
+	 * A drawable's own display name (the other half of an overlap-picker row label), or null when the
+	 * model holds no such drawable.
+	 *
+	 * @param DrawableId id The drawable.
+	 * @return String? The drawable's name, or null.
+	 */
+	fun drawableNameFor(id: DrawableId): String?
 
 	/** Stops the engine and releases its GPU resources; the service is unusable afterwards. */
 	fun dispose()

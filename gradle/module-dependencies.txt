@@ -1,0 +1,24 @@
+# Which modules each module's shipping (main) source sets depend on.
+#
+# `./gradlew checkModuleBoundaries` fails when the build disagrees with this table, and `check` runs it.
+# The compiler accepts any dependency a build script declares, so this file is where a new edge between
+# modules gets noticed: it has to be added here too, as a change to the module graph that a reviewer
+# reads.  A test-only dependency is not listed, which is what keeps one from sliding into shipping code.
+#
+# The edges CLAUDE.md rules out are absent on purpose: :geometry and :runtime depend on no module, :edit
+# and :render do not see each other, :cli sees neither :ui nor :edit, and nothing depends on :testkit.
+
+:android -> :edit, :render, :runtime, :settings, :storage, :ui
+:cli -> :interop, :render
+:desktop -> :edit, :format, :interop, :render, :runtime, :settings, :storage, :ui
+:edit -> :geometry, :runtime
+:format -> :geometry
+:geometry ->
+:interop -> :format, :geometry, :runtime
+:reimport -> :format, :interop, :runtime, :storage
+:render -> :format, :runtime
+:runtime ->
+:settings -> :storage
+:storage ->
+:testkit ->
+:ui -> :edit, :format, :interop, :reimport, :render, :runtime, :settings, :storage

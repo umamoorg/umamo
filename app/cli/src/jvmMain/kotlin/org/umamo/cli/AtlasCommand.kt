@@ -22,9 +22,6 @@ import java.io.File
  * back out of the page it landed on before claiming success.
  */
 
-/** Canvas pixels past which the preview composite is skipped rather than allocated. */
-private const val PREVIEW_PIXEL_CAP = 128_000_000
-
 /**
  * Runs `atlas <file> [<directory>] [options]`.
  *
@@ -42,13 +39,16 @@ internal fun runAtlas(arguments: List<String>): Int {
 			knownFlags = setOf("--rotate", "--visible-only", "--no-shrink", "--preview"),
 			knownOptions = setOf("--page-size", "--gutter", "--extrude"),
 		)
+
 	if (parsed.positionals.isEmpty() || parsed.positionals.size > 2) {
 		throw CliUsageException(
 			"Usage: atlas <file> [<directory>] [--page-size=N] [--gutter=N] [--extrude=N] " +
 				"[--rotate] [--visible-only] [--no-shrink] [--preview]",
 		)
 	}
+
 	val loaded = loadInput(parsed.positionals[0])
+
 	if (loaded !is LoadedInput.SourceArtInput) {
 		throw CliUsageException("Atlas applies to source artwork only (psd, clip, kra, or a flat raster)")
 	}
@@ -70,10 +70,13 @@ internal fun runAtlas(arguments: List<String>): Int {
 	}
 	val includedLayers = art.layers.filter(include)
 	val items = art.atlasPackItems(include)
+
 	if (items.isEmpty()) {
 		throw CliUsageException("${loaded.file.name} has no raster layers to pack")
 	}
+
 	val nonRasterCount = art.layers.count { layer -> layer.kind != SourceLayerKind.Raster }
+
 	if (nonRasterCount > 0) {
 		System.err.println("Note: $nonRasterCount non-raster layer(s) carry no pixels and were not packed.")
 	}
@@ -86,34 +89,23 @@ internal fun runAtlas(arguments: List<String>): Int {
 	writePages(result, outputDirectory)
 	writeReport(result, includedLayers, items, options, loaded.file, outputDirectory)
 	reportSkips(result)
+
 	if ("--preview" in parsed.flags) {
 		writePreview(art, includedLayers, items, result, outputDirectory)
 	}
 
 	val mismatches = verifyTiles(items, result)
+
 	if (mismatches.isNotEmpty()) {
 		System.err.println("VERIFY FAILED: ${mismatches.size} tile(s) do not match their source pixels:")
 		mismatches.take(10).forEach { message -> System.err.println("  $message") }
+
 		return 1
 	}
-	println("Verified ${result.placements.size}/${result.placements.size} tiles byte-exact")
-	return 0
-}
 
-/**
- * Resolves the output subdirectory, named after the input file.
- *
- * @param File inputFile          The source artwork file.
- * @param String? parentDirectory The caller's directory argument, when given.
- * @return File The directory the pages and report write into.
- */
-private fun resolveOutputDirectory(inputFile: File, parentDirectory: String?): File {
-	val parent = if (parentDirectory != null) File(parentDirectory) else (inputFile.parentFile ?: File("."))
-	val directory = File(parent, inputFile.nameWithoutExtension)
-	if (directory.exists()) {
-		System.err.println("Note: ${directory.path} already exists; its matching files will be overwritten.")
-	}
-	return directory
+	println("Verified ${result.placements.size}/${result.placements.size} tiles byte-exact")
+
+	return 0
 }
 
 /**
@@ -158,12 +150,15 @@ private fun writeReport(
 		"#options pageSize=${options.maxPageSize} gutter=${options.gutter} extrude=${options.extrude} " +
 			"rotate=${options.allowRotation} shrink=${options.shrinkPages}",
 	)
+
 	for ((pageIndex, page) in result.pages.withIndex()) {
 		report.appendLine(
 			"#page $pageIndex ${page.width}x${page.height} ${(result.pageOccupancy(pageIndex) * 100f).toInt()}% occupancy",
 		)
 	}
+
 	report.appendLine("#page\tx\ty\twidth\theight\tturns\ttrimX\ttrimY\tkey\tname")
+
 	for (placement in result.placements) {
 		report.appendLine(
 			listOf(
@@ -180,9 +175,11 @@ private fun writeReport(
 			).joinToString("\t"),
 		)
 	}
+
 	for (skip in result.skipped) {
 		report.appendLine("#skipped\t${skip.reason}\t${skip.key}\t${layerNameByKey[skip.key].orEmpty()}")
 	}
+
 	target.writeText(report.toString())
 	println("Wrote ${target.path} (${result.placements.size} placements, ${result.skipped.size} skipped)")
 }
@@ -199,6 +196,7 @@ private fun reportSkips(result: AtlasPackResult) {
 	if (result.skipped.isEmpty()) {
 		return
 	}
+
 	for ((reason, skips) in result.skipped.groupBy { skip -> skip.reason }) {
 		System.err.println("Note: ${skips.size} layer(s) not packed - $reason")
 	}
@@ -219,31 +217,39 @@ private fun reportSkips(result: AtlasPackResult) {
 private fun verifyTiles(items: List<AtlasPackItem>, result: AtlasPackResult): List<String> {
 	val itemsByKey = items.associateBy { item -> item.key }
 	val mismatches = mutableListOf<String>()
+
 	for (placement in result.placements) {
 		val item = itemsByKey.getValue(placement.key)
 		val page = result.pages[placement.pageIndex]
 		var mismatch: String? = null
+
 		for (tileY in 0 until placement.trimHeight) {
 			for (tileX in 0 until placement.trimWidth) {
 				val (pageX, pageY) = pagePixelOf(placement, tileX, tileY)
 				val sourceOffset = ((placement.trimTop + tileY) * item.width + placement.trimLeft + tileX) * 4
 				val pageOffset = (pageY * page.width + pageX) * 4
+
 				for (channelIndex in 0 until 4) {
 					if (item.rgba[sourceOffset + channelIndex] != page.rgba[pageOffset + channelIndex]) {
 						mismatch = "'${placement.key}' tile pixel ($tileX, $tileY) at page ($pageX, $pageY)"
+
 						break
 					}
 				}
+
 				if (mismatch != null) {
 					break
 				}
 			}
+
 			if (mismatch != null) {
 				break
 			}
 		}
+
 		mismatch?.let { message -> mismatches.add(message) }
 	}
+
 	return mismatches
 }
 
@@ -287,15 +293,19 @@ private fun writePreview(
 ) {
 	if (art.widthPx.toLong() * art.heightPx.toLong() > PREVIEW_PIXEL_CAP) {
 		System.err.println("Note: ${art.widthPx}x${art.heightPx} canvas exceeds the preview cap; preview skipped.")
+
 		return
 	}
+
 	val placementByKey = result.placements.associateBy { placement -> placement.key }
 	val canvas = ByteArray(art.widthPx * art.heightPx * 4)
+
 	// Source-over from the bottom up: order is top-most first, so the highest order draws first.
 	for (layerIndex in layers.indices.sortedByDescending { layerIndex -> layers[layerIndex].order }) {
 		val placement = placementByKey[items[layerIndex].key] ?: continue
 		drawPlacementOntoCanvas(canvas, art.widthPx, art.heightPx, layers[layerIndex], placement, result)
 	}
+
 	val target = File(outputDirectory, "preview.png")
 	val bytes = PngCodec.write(RasterImage(art.widthPx, art.heightPx, canvas))
 	target.writeBytes(bytes)
@@ -321,25 +331,33 @@ private fun drawPlacementOntoCanvas(
 	result: AtlasPackResult,
 ) {
 	val page = result.pages[placement.pageIndex]
+
 	for (tileY in 0 until placement.trimHeight) {
 		val canvasY = layer.bounds.top + placement.trimTop + tileY
+
 		if (canvasY < 0 || canvasY >= canvasHeight) {
 			continue
 		}
+
 		for (tileX in 0 until placement.trimWidth) {
 			val canvasX = layer.bounds.left + placement.trimLeft + tileX
+
 			if (canvasX < 0 || canvasX >= canvasWidth) {
 				continue
 			}
+
 			val (pageX, pageY) = pagePixelOf(placement, tileX, tileY)
 			val pageOffset = (pageY * page.width + pageX) * 4
 			val canvasOffset = (canvasY * canvasWidth + canvasX) * 4
 			val sourceAlpha = (page.rgba[pageOffset + 3].toInt() and 0xFF) / 255f
+
 			if (sourceAlpha <= 0f) {
 				continue
 			}
+
 			val destinationAlpha = (canvas[canvasOffset + 3].toInt() and 0xFF) / 255f
 			val outAlpha = sourceAlpha + destinationAlpha * (1f - sourceAlpha)
+
 			for (channelIndex in 0 until 3) {
 				val sourceChannel = (page.rgba[pageOffset + channelIndex].toInt() and 0xFF) / 255f
 				val destinationChannel = (canvas[canvasOffset + channelIndex].toInt() and 0xFF) / 255f
@@ -347,6 +365,7 @@ private fun drawPlacementOntoCanvas(
 					(sourceChannel * sourceAlpha + destinationChannel * destinationAlpha * (1f - sourceAlpha)) / outAlpha
 				canvas[canvasOffset + channelIndex] = (blended * 255f + 0.5f).toInt().coerceIn(0, 255).toByte()
 			}
+
 			canvas[canvasOffset + 3] = (outAlpha * 255f + 0.5f).toInt().coerceIn(0, 255).toByte()
 		}
 	}

@@ -20,7 +20,7 @@ import kotlin.test.assertEquals
 
 /**
  * Assembly tests for [CpuDeformationEvaluator] on tiny synthetic models: that it routes direct vs
- * deformer-parented meshes correctly and resolves unspecified parameters to their defaults. The
+ * deformer-parented meshes correctly and resolves unspecified parameters to their defaults.  The
  * per-stage math is covered by the keyform/transform/cascade tests; this checks the wiring.
  */
 class CpuDeformationEvaluatorTest {
@@ -43,7 +43,7 @@ class CpuDeformationEvaluatorTest {
 
 	@Test
 	fun routesDirectMeshWithYFlip() {
-		val mesh = DrawableMesh(floatArrayOf(10f, 5f, 20f, 7f), FloatArray(0), IntArray(0))
+		val mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(10f, 5f, 20f, 7f), FloatArray(0), IntArray(0))
 		val drawable = Drawable(DrawableId("M"), "M", null, BlendMode.Normal, emptyList(), mesh, zeroMeshGrid(4))
 		val geo = CpuDeformationEvaluator().evaluate(model(emptyList(), drawable), emptyMap())
 		assertEquals(listOf(10f, -5f, 20f, -7f), geo.worldPositions[DrawableId("M")]!!.toList())
@@ -53,7 +53,7 @@ class CpuDeformationEvaluatorTest {
 	fun routesMeshThroughItsWarpParent() {
 		val warpCp = floatArrayOf(10f, 20f, 12f, 20f, 10f, 24f, 12f, 24f) // 2×4 rect at (10,20)
 		val warp = Deformer.Warp(DeformerId("W"), "W", null, null, 1, 1, true, KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), WarpLatticeForm(warpCp)))))
-		val mesh = DrawableMesh(floatArrayOf(0.5f, 0.5f), FloatArray(0), IntArray(0))
+		val mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0.5f, 0.5f), FloatArray(0), IntArray(0))
 		val drawable = Drawable(DrawableId("M"), "M", DeformerId("W"), BlendMode.Normal, emptyList(), mesh, zeroMeshGrid(2))
 		val geo = CpuDeformationEvaluator().evaluate(model(listOf(warp), drawable), emptyMap())
 		val world = geo.worldPositions[DrawableId("M")]!!

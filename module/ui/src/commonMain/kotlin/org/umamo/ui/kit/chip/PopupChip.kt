@@ -1,0 +1,128 @@
+package org.umamo.ui.kit.chip
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import org.umamo.ui.kit.BelowAnchorPositionProvider
+import org.umamo.ui.kit.LocalPopupDismissOwned
+import org.umamo.ui.kit.Surface
+import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoShapes
+import org.umamo.ui.theme.UmamoIcon
+
+/**
+ * A [DropdownChip] over a stay-open panel of arbitrary content: only an outside click or Esc dismisses
+ * it, so several controls can be driven in one visit.  That is why this is a raw [Popup] rather than the
+ * kit [org.umamo.ui.kit.menu.Menu], which dismisses per click.
+ *
+ * Leave [expanded] null and the chip owns its open state; hoist it with [onExpandedChange] when the caller
+ * has to force the panel shut.
+ *
+ * @param String    contentDescription The accessible label for the chip (the face is icon-only).
+ * @param Modifier  modifier           The layout modifier.
+ * @param UmamoIcon icon               The chip's leading glyph, or null for a chevron-only face.
+ * @param Boolean?  expanded           The open state when hoisted; null to let the chip own it.
+ * @param Function? onExpandedChange   Open-state sink, required when [expanded] is hoisted.
+ * @param Boolean   enabled            When false the chip dims and clicks are inert.
+ * @param DropdownChipStyle style      The face's role: Header chrome by default, Compact for a list row.
+ * @param Color?    iconTint           A status color for the glyph at rest, or null for the chip's own content color.
+ * @param ChipToggle? iconToggle       A toggle riding on the glyph, splitting the face into the glyph's own button and the
+ *   chevron that opens the panel (see [ChipToggle]).
+ * @param UmamoIcon? valueIcon         A glyph beside the chevron showing the panel's current value, or null for none.
+ * @param Color?    valueIconTint      A status color for the value glyph at rest, or null for the chip's own content color.
+ * @param Dp?       panelMinWidth      The narrowest the panel's content may be, or null for no floor; the panel
+ *   hugs its widest row above it (see [PopupPanel]).
+ * @param Function  content            The panel's rows.
+ */
+@Composable
+fun PopupChip(
+	contentDescription: String,
+	modifier: Modifier = Modifier,
+	icon: UmamoIcon? = null,
+	expanded: Boolean? = null,
+	onExpandedChange: ((Boolean) -> Unit)? = null,
+	enabled: Boolean = true,
+	style: DropdownChipStyle = DropdownChipStyle.Header,
+	iconTint: Color? = null,
+	iconToggle: ChipToggle? = null,
+	valueIcon: UmamoIcon? = null,
+	valueIconTint: Color? = null,
+	panelMinWidth: Dp? = null,
+	content: @Composable ColumnScope.() -> Unit,
+) {
+	var selfOpen by remember { mutableStateOf(false) }
+	val open = expanded ?: selfOpen
+	val setOpen: (Boolean) -> Unit = { next ->
+		if (onExpandedChange != null) {
+			onExpandedChange(next)
+		} else {
+			selfOpen = next
+		}
+	}
+	DropdownChip(
+		expanded = open,
+		onExpandRequest = { setOpen(true) },
+		contentDescription = contentDescription,
+		modifier = modifier,
+		icon = icon,
+		enabled = enabled,
+		style = style,
+		iconTint = iconTint,
+		iconToggle = iconToggle,
+		valueIcon = valueIcon,
+		valueIconTint = valueIconTint,
+	) {
+		PopupPanel(onDismissRequest = { setOpen(false) }, minContentWidth = panelMinWidth, content = content)
+	}
+}
+
+/**
+ * The stay-open panel a [PopupChip] drops: a raw [Popup] below its anchor, styled like the kit
+ * [org.umamo.ui.kit.menu.Menu] but dismissed only by an outside click or Esc.  Usable on its own inside a
+ * [DropdownChip] slot, for a chip that shows a Menu on one visit and a panel on the next.
+ *
+ * The panel provides [LocalPopupDismissOwned], so a [org.umamo.ui.kit.menu.Menu] or nested chip composed inside the content
+ * yields the dismiss to this popup instead of fighting it for focus.
+ *
+ * @param Function onDismissRequest Called on an outside click or Esc.
+ * @param Dp?      minContentWidth  The narrowest the column may be, or null for no floor; the panel otherwise
+ *   hugs its widest row, so a label that needs more still widens it rather than being cut.
+ * @param Function content          The panel's rows.
+ */
+@Composable
+fun PopupPanel(onDismissRequest: () -> Unit, minContentWidth: Dp? = null, content: @Composable ColumnScope.() -> Unit) {
+	val colors = LocalUmamoColors.current
+	// The floor raises the minimum the intrinsic width is then coerced into, so the column is the wider of the two.
+	val widthModifier =
+		if (minContentWidth != null) {
+			Modifier.widthIn(min = minContentWidth).width(IntrinsicSize.Max)
+		} else {
+			Modifier.width(IntrinsicSize.Max)
+		}
+	Popup(
+		popupPositionProvider = BelowAnchorPositionProvider,
+		onDismissRequest = onDismissRequest,
+		properties = PopupProperties(focusable = true),
+	) {
+		CompositionLocalProvider(LocalPopupDismissOwned provides true) {
+			Surface(color = colors.menuBackground, shape = LocalUmamoShapes.current.medium) {
+				Column(modifier = widthModifier.padding(vertical = 4.dp), content = content)
+			}
+		}
+	}
+}

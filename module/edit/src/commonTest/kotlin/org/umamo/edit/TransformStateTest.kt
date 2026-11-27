@@ -1,12 +1,25 @@
 package org.umamo.edit
 
+import org.umamo.edit.transform.MeshTransforms
+import org.umamo.edit.transform.RotationAngleTracker
+import org.umamo.edit.transform.TransformPivots
+import org.umamo.edit.transform.beginBoxSelect
+import org.umamo.edit.transform.beginCircleSelect
+import org.umamo.edit.transform.beginMeshOperator
+import org.umamo.edit.transform.beginObjectOperator
+import org.umamo.edit.transform.snapToGrid
+import org.umamo.edit.transform.snapToWorldGrid
+import org.umamo.edit.transform.wrapAngle
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
+import kotlin.math.PI
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -36,7 +49,7 @@ class TransformStateTest {
 		// Two disconnected triangles: vertices 0-2 at x=0..2, vertices 3-5 at x=10..12 (y = 0).
 		val positions = floatArrayOf(0f, 0f, 2f, 0f, 1f, 2f, 10f, 0f, 12f, 0f, 11f, 2f)
 		val triangles = intArrayOf(0, 1, 2, 3, 4, 5)
-		val islands = TransformPivots.islandGroups(positions, setOf(0, 1, 2, 3, 4, 5), triangles)
+		val islands = TransformPivots.islandGroups(positions, setOf(0, 1, 2, 3, 4, 5), ElementTopology.ofTriangles(6, triangles))
 		assertEquals(2, islands.size, "two components make two islands")
 		val leftIsland = islands.first { group -> 0 in group.vertexIndices }
 		assertEquals(setOf(0, 1, 2), leftIsland.vertexIndices)
@@ -44,7 +57,7 @@ class TransformStateTest {
 	}
 
 	private fun meshedSession(): EditorSession {
-		val mesh = DrawableMesh(floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f), FloatArray(6), intArrayOf(0, 1, 2))
+		val mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f), FloatArray(6), intArrayOf(0, 1, 2))
 		val drawable =
 			Drawable(
 				id = DrawableId("d"),
@@ -64,10 +77,11 @@ class TransformStateTest {
 				rootChildren = emptyList(),
 				rootPartId = null,
 			)
+
 		return EditorSession(model)
 	}
 
-	/** The axis constraint toggles only while a Grab / Scale is live, never for Rotate, and clears with the operator. */
+	/** The axis constraint toggles only while a Grab / Scale is live, never for an Object Rotate, and clears with the operator. */
 	@Test
 	fun axisConstraintTogglesOnlyDuringGrabOrScale() {
 		val session = meshedSession()
@@ -90,10 +104,110 @@ class TransformStateTest {
 		session.clearObjectOperator()
 		assertNull(session.axisConstraint.value, "clearing the operator clears the lock")
 
-		// Rotate has no 2D axis to lock.
+		// An Object Rotate has only the view axis.
 		session.beginObjectOperator(MeshOperatorKind.Rotate, "area-test")
 		session.toggleAxisConstraint(TransformAxisConstraint.AxisX)
 		assertNull(session.axisConstraint.value, "Rotate refuses the lock")
+	}
+
+	/** A Pose-mode Rotate rotates in depth: X and Z lock the axis it turns about, and the flag clears with the latch. */
+	@Test
+	fun aPoseRotateLocksTheAxisItRotatesAbout() {
+		val session = PoseLatticeTestRig.posing(listOf(SelectionTarget.Deformer(PoseLatticeTestRig.cage)))
+		session.selectAllMeshElements()
+
+		session.beginMeshOperator(MeshOperatorKind.Rotate, "area-test")
+		assertTrue(session.meshOperatorRotatesInDepth(MeshOperatorKind.Rotate), "a Pose Rotate rotates in depth")
+		session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+		assertEquals(TransformAxisConstraint.AxisZ, session.axisConstraint.value)
+		session.toggleAxisConstraint(TransformAxisConstraint.AxisX)
+		assertEquals(TransformAxisConstraint.AxisX, session.axisConstraint.value, "the other axis switches the turn")
+		session.toggleAxisConstraint(TransformAxisConstraint.AxisX)
+		assertNull(session.axisConstraint.value, "the same axis goes back to the in-plane turn")
+
+		session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+		session.clearMeshOperator()
+		assertNull(session.axisConstraint.value, "clearing the operator clears the lock")
+		assertFalse(session.activeMeshOperatorRotatesInDepth, "and the depth flag")
+
+		session.beginMeshOperator(MeshOperatorKind.Grab, "area-test")
+		assertFalse(session.meshOperatorRotatesInDepth(MeshOperatorKind.Rotate), "a Grab latch never rotates in depth")
+	}
+
+	/** An operator interrupted by another tool's latch drops its depth and suppression flags with it. */
+	@Test
+	fun anInterruptedMeshOperatorDropsItsLatchFlags() {
+		val session = PoseLatticeTestRig.posing(listOf(SelectionTarget.Deformer(PoseLatticeTestRig.cage)))
+		session.selectAllMeshElements()
+
+		session.beginMeshOperator(MeshOperatorKind.Rotate, "area-test")
+		assertTrue(session.activeMeshOperatorRotatesInDepth, "the Pose Rotate latched rotating in depth")
+		session.beginBoxSelect("area-test")
+		assertNull(session.activeMeshOperator.value, "the box select took the latch")
+		assertFalse(session.activeMeshOperatorRotatesInDepth, "the depth flag went with the operator")
+		assertFalse(session.meshOperatorRotatesInDepth(MeshOperatorKind.Rotate))
+
+		session.beginMeshOperator(MeshOperatorKind.Grab, "area-test", suppressProportional = true)
+		assertTrue(session.activeMeshOperatorSuppressesProportional, "the auto-grab latched suppressed")
+		session.beginBoxSelect("area-test")
+		assertFalse(session.activeMeshOperatorSuppressesProportional, "the suppression went with the operator")
+	}
+
+	/** An Edit-mode Rotate keeps only the view axis: X and Z stay no-ops. */
+	@Test
+	fun anEditRotateRefusesTheDepthLock() {
+		val session = meshedSession()
+		session.setMode(EditorMode.Edit)
+		session.setMeshSelection(MeshSelectionOps.add(session.meshSelection.value, DrawableId("d"), MeshElement.Vertex(0)))
+
+		session.beginMeshOperator(MeshOperatorKind.Rotate, "area-test")
+		assertFalse(session.meshOperatorRotatesInDepth(MeshOperatorKind.Rotate))
+		session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+		assertNull(session.axisConstraint.value, "the Edit Rotate refuses the lock")
+	}
+
+	/** The depth rotation's pivot depth and surface stick, clamp, gather into the view state, and seed back from it. */
+	@Test
+	fun theDepthRotationSettingsStick() {
+		val session = meshedSession()
+		assertEquals(0f, session.pivotDepth.value, "the pivot starts on the art")
+		assertEquals(DepthSurface.Unchanged, session.depthSurface.value, "the turn starts reading each point's own depth")
+
+		session.setPivotDepth(120f)
+		session.setDepthSurface(DepthSurface.Cylinder)
+		assertEquals(120f, session.viewState().pivotDepth)
+		assertEquals(DepthSurface.Cylinder, session.viewState().depthSurface)
+
+		session.setPivotDepth(-1e9f)
+		assertEquals(-PIVOT_DEPTH_LIMIT, session.pivotDepth.value, "a write clamps to the Depth row's range")
+		session.setPivotDepth(Float.POSITIVE_INFINITY)
+		assertEquals(PIVOT_DEPTH_LIMIT, session.pivotDepth.value, "an infinite write clamps too")
+		session.setPivotDepth(Float.NaN)
+		assertEquals(0f, session.pivotDepth.value, "a NaN lands on the art")
+
+		val reopened = EditorSession(session.model.value, initialViewState = SessionViewState(pivotDepth = 64f, depthSurface = DepthSurface.Cylinder))
+		assertEquals(64f, reopened.pivotDepth.value, "a saved state seeds the depth")
+		assertEquals(DepthSurface.Cylinder, reopened.depthSurface.value)
+	}
+
+	/** T's cycle walks Unchanged, Flat, Cylinder, and Sphere and wraps, and the view state carries where it stopped. */
+	@Test
+	fun theDepthSurfaceCyclesAndSticks() {
+		val session = meshedSession()
+
+		session.cycleDepthSurface(announce = false)
+		assertEquals(DepthSurface.Flat, session.depthSurface.value)
+		session.cycleDepthSurface(announce = false)
+		assertEquals(DepthSurface.Cylinder, session.viewState().depthSurface)
+		session.cycleDepthSurface(announce = false)
+		assertEquals(DepthSurface.Sphere, session.depthSurface.value)
+		session.cycleDepthSurface(announce = false)
+		assertEquals(DepthSurface.Unchanged, session.depthSurface.value, "the cycle wraps")
+		assertNull(session.notice.value, "a silent cycle posts nothing")
+
+		session.cycleDepthSurface(announce = true)
+		assertEquals("notice.depthSurface.flat", session.notice.value?.messageKey, "an announced cycle names the surface")
+		assertEquals(NoticePlacement.NearCursor, session.notice.value?.placement)
 	}
 
 	/** The cursor, pivot mode, and pie latches hold their values; undo clears the transient pie latch. */
@@ -124,7 +238,7 @@ class TransformStateTest {
 		assertTrue(session.canRedo.value)
 	}
 
-	/** Proportional editing toggles off/on remembering its configuration; falloff selection enables it. */
+	/** Proportional editing toggles off/on remembering its configuration; a setting changed while off never enables it. */
 	@Test
 	fun proportionalEditToggleAndConfiguration() {
 		val session = meshedSession()
@@ -144,18 +258,25 @@ class TransformStateTest {
 		session.toggleProportionalEdit()
 		assertEquals(ProportionalEditState(ProportionalFalloff.Sharp, 500f), session.proportionalEdit.value, "the configuration survives an off/on cycle")
 
-		// The radius clamps to its bounds; a falloff pick while off re-enables.
+		// The radius clamps to its bounds, and the settings flow tracks the live state while on.
 		session.setProportionalRadius(0f)
 		assertEquals(MIN_PROPORTIONAL_RADIUS_WORLD, session.proportionalEdit.value?.radiusWorld, "the radius clamps at the minimum")
+		assertEquals(session.proportionalEdit.value, session.proportionalSettings.value, "the settings are the live state while on")
+
+		// A falloff or radius change while off waits in the settings for the next toggle (Blender's rule).
 		session.toggleProportionalEdit()
 		session.setProportionalFalloff(ProportionalFalloff.Linear)
-		assertEquals(ProportionalFalloff.Linear, session.proportionalEdit.value?.falloff, "picking a falloff while off enables proportional editing")
+		session.setProportionalRadius(64f)
+		assertNull(session.proportionalEdit.value, "a setting changed while off leaves proportional editing off")
+		assertEquals(ProportionalEditState(ProportionalFalloff.Linear, 64f), session.proportionalSettings.value, "the settings carry the change")
+		session.toggleProportionalEdit()
+		assertEquals(ProportionalEditState(ProportionalFalloff.Linear, 64f), session.proportionalEdit.value, "the next toggle brings the change in")
 	}
 
 	/** The rotate accumulator crosses the atan2 branch cut, reverses through zero, and multi-turns. */
 	@Test
 	fun rotationAngleTrackerUnwrapsAndAccumulates() {
-		val pi = kotlin.math.PI.toFloat()
+		val pi = PI.toFloat()
 
 		// Start right AT the branch cut (a far pivot's typical start) and sweep across it: the raw
 		// difference would jump ~2*pi, the tracker advances by the small increments actually travelled.
@@ -177,13 +298,17 @@ class TransformStateTest {
 		assertEquals(-pi + 0.2f, wrapAngle(pi + 0.2f), 1e-5f, "wrapAngle folds past +pi into the negative side")
 	}
 
-	/** Connected Only toggles with a notice, enabling proportional editing when it was off. */
+	/** Connected Only toggles with a notice and never switches proportional editing itself on or off. */
 	@Test
 	fun proportionalConnectedOnlyToggle() {
 		val session = meshedSession()
 		session.toggleProportionalConnected()
-		assertEquals(true, session.proportionalEdit.value?.connectedOnly, "toggling while off enables proportional editing, connected on")
+		assertNull(session.proportionalEdit.value, "toggling while off leaves proportional editing off")
+		assertEquals(true, session.proportionalSettings.value.connectedOnly, "the flag waits in the settings")
 		assertEquals("notice.proportional.connected.on", session.notice.value?.messageKey, "the toggle confirms with a notice")
+		session.toggleProportionalEdit()
+		assertEquals(true, session.proportionalEdit.value?.connectedOnly, "the next toggle brings the flag in")
+
 		session.toggleProportionalConnected()
 		assertEquals(false, session.proportionalEdit.value?.connectedOnly, "the second toggle turns connected off")
 		assertTrue(session.proportionalEdit.value != null, "proportional editing itself stays on")
@@ -193,6 +318,21 @@ class TransformStateTest {
 		session.toggleProportionalEdit()
 		session.toggleProportionalEdit()
 		assertEquals(true, session.proportionalEdit.value?.connectedOnly, "connected only survives an off/on cycle")
+	}
+
+	/** Setting Connected Only outright is silent and never switches proportional editing on or off. */
+	@Test
+	fun proportionalConnectedSetIsSilent() {
+		val session = meshedSession()
+		session.setProportionalConnected(true)
+		assertNull(session.proportionalEdit.value, "setting the flag while off leaves proportional editing off")
+		assertEquals(true, session.proportionalSettings.value.connectedOnly, "the flag waits in the settings")
+		assertNull(session.notice.value, "the setting control is its own confirmation: no notice")
+
+		session.toggleProportionalEdit()
+		session.setProportionalConnected(false)
+		assertEquals(false, session.proportionalEdit.value?.connectedOnly, "while on, the live state takes the flag")
+		assertEquals("notice.proportional.on", session.notice.value?.messageKey, "and the toggle's own notice is the last one")
 	}
 
 	/** A suppressed latch (the duplicate / rip auto-grab) opts the gesture out of proportional editing. */
@@ -210,6 +350,47 @@ class TransformStateTest {
 		assertTrue(!session.activeMeshOperatorSuppressesProportional, "clearing the operator resets the suppression")
 		session.beginMeshOperator(MeshOperatorKind.Grab, "area-test")
 		assertTrue(!session.activeMeshOperatorSuppressesProportional, "a plain latch is never suppressed")
+	}
+
+	/** Every mesh operator takes proportional weights but Vertex Slide and a suppressed latch. */
+	@Test
+	fun meshOperatorsTakeProportionalWeightsButASlideOrASuppressedLatch() {
+		val session = meshedSession()
+		session.setMode(EditorMode.Edit)
+		session.setMeshSelection(MeshSelectionOps.add(session.meshSelection.value, DrawableId("d"), MeshElement.Vertex(0)))
+
+		session.beginMeshOperator(MeshOperatorKind.Grab, "area-test")
+		assertTrue(session.meshOperatorTakesProportional(MeshOperatorKind.Grab), "a plain Grab takes weights")
+		assertTrue(session.meshOperatorTakesProportional(MeshOperatorKind.Rotate), "and so does every other transform")
+		assertTrue(!session.meshOperatorTakesProportional(MeshOperatorKind.VertexSlide), "a slide never does")
+
+		session.beginMeshOperator(MeshOperatorKind.Grab, "area-test", suppressProportional = true)
+		assertTrue(!session.meshOperatorTakesProportional(MeshOperatorKind.Grab), "a suppressed latch takes none")
+	}
+
+	/** Undo, redo, and a history jump wait while a viewport select drag is held (Blender parity). */
+	@Test
+	fun historyWaitsForASelectDrag() {
+		val session = meshedSession()
+		val target = SelectionTarget.Drawable(DrawableId("d"))
+		session.setSelection(Selection(setOf(target), target))
+		val selected = session.historyView.value
+
+		session.setViewportGestureActive(true)
+		session.undo()
+		assertEquals(selected, session.historyView.value, "undo waits")
+		session.setViewportGestureActive(false)
+		session.undo()
+		val undone = session.historyView.value
+		assertTrue(undone.cursor < selected.cursor, "and runs once the drag is released")
+
+		session.setViewportGestureActive(true)
+		session.redo()
+		session.jumpTo(selected.cursor)
+		assertEquals(undone, session.historyView.value, "redo and a jump wait too")
+		session.setViewportGestureActive(false)
+		session.redo()
+		assertEquals(selected.cursor, session.historyView.value.cursor)
 	}
 
 	/** Operator latches record the initiating area; re-latching moves ownership atomically. */
@@ -270,6 +451,63 @@ class TransformStateTest {
 		assertNull(session.activeObjectOperator.value, "restore clears the latched operator")
 	}
 
+	/**
+	 * Zoom Region is mode-agnostic and area-keyed: arming it drops a latched tool, a latched operator drops
+	 * it, a restore leaves it armed (the gesture belongs to the area, not to the step), and disarming clears it.
+	 */
+	@Test
+	fun zoomRegionArmsPerAreaAndSurvivesARestore() {
+		val session = meshedSession()
+		val target = SelectionTarget.Drawable(DrawableId("d"))
+		session.setSelection(Selection(setOf(target), target))
+
+		session.beginCircleSelect("area-a")
+		session.armZoomRegion("area-a")
+		assertEquals("area-a", session.zoomRegionArmedArea.value, "arming the region takes the area")
+		assertNull(session.activeSelectTool.value, "arming the region drops the armed tool")
+
+		session.beginObjectOperator(MeshOperatorKind.Grab, "area-b")
+		assertNull(session.zoomRegionArmedArea.value, "latching an operator disarms the region")
+		session.clearObjectOperator()
+
+		// The undo reverts the selection step; the armed region is not part of the snapshot and stays.
+		session.armZoomRegion("area-a")
+		session.undo()
+		assertEquals("area-a", session.zoomRegionArmedArea.value, "a restore leaves the region armed")
+
+		session.disarmZoomRegion()
+		assertNull(session.zoomRegionArmedArea.value, "disarming clears it")
+	}
+
+	/**
+	 * releaseArea drops only what the dying area holds - its operator, its armed tool, its zoom region - and
+	 * reports an operator release so the 2D viewport's guard knows to resync the renderer.
+	 */
+	@Test
+	fun releaseAreaDropsOnlyThatAreasLatches() {
+		val session = meshedSession()
+		val target = SelectionTarget.Drawable(DrawableId("d"))
+		session.setSelection(Selection(setOf(target), target))
+
+		session.beginObjectOperator(MeshOperatorKind.Grab, "area-a")
+		assertFalse(session.releaseArea("area-b"), "another area's release reports nothing")
+		assertEquals("area-a", session.activeObjectOperator.value?.areaId, "and leaves the operator latched")
+		assertTrue(session.releaseArea("area-a"), "the owning area's release reports the dropped operator")
+		assertNull(session.activeObjectOperator.value)
+
+		session.beginCircleSelect("area-a")
+		session.releaseArea("area-b")
+		assertNotNull(session.activeSelectTool.value, "another area's release leaves the armed tool")
+		assertFalse(session.releaseArea("area-a"), "a released tool is not a released operator")
+		assertNull(session.activeSelectTool.value)
+
+		session.armZoomRegion("area-a")
+		session.releaseArea("area-b")
+		assertEquals("area-a", session.zoomRegionArmedArea.value, "another area's release leaves the region armed")
+		session.releaseArea("area-a")
+		assertNull(session.zoomRegionArmedArea.value)
+	}
+
 	/** snapToGrid rounds relative to the world origin, so a snap lands on the origin-anchored grid lines. */
 	@Test
 	fun snapToGridRoundsRelativeToOrigin() {
@@ -281,24 +519,50 @@ class TransformStateTest {
 		assertEquals(50f, snapToGrid(60f, origin = 50f, step = 100f), "60 snaps to the origin line at 50")
 	}
 
-	/** GridConfig.snapStep is the finest visible spacing: scale divided by the subdivision count. */
+	/** snapToWorldGrid anchors each axis on its own origin component, so both land on the drawn grid lines. */
 	@Test
-	fun gridConfigSnapStepIsScaleOverSubdivisions() {
-		assertEquals(10f, GridConfig(scale = 100f, subdivisions = 10).snapStep, "100 / 10 = 10")
-		assertEquals(25f, GridConfig(scale = 100f, subdivisions = 4).snapStep, "100 / 4 = 25")
-		// A defaulted config keeps the built-in fallbacks (SNAP_GRID_WORLD_UNITS / DEFAULT_GRID_SUBDIVISIONS).
-		assertEquals(SNAP_GRID_WORLD_UNITS / DEFAULT_GRID_SUBDIVISIONS, GridConfig().snapStep, "default step")
-		// subdivisions is clamped to at least 1, so a degenerate 0 never divides by zero.
-		assertEquals(100f, GridConfig(scale = 100f, subdivisions = 0).snapStep, "0 subdivisions clamps to 1")
+	fun snapToWorldGridAnchorsEachAxisOnTheOrigin() {
+		// The origin a 1200 x 800 canvas derives: world (600, -400).
+		val model = meshedSession().model.value.copy(worldOriginX = 600f, worldOriginZ = -400f)
+		// x 630 is 30 right of the origin line, so it rounds back onto it; z -345 is 55 above, so up to -300.
+		assertEquals(600f to -300f, model.snapToWorldGrid(630f, -345f, step = 100f))
+		// A point already on the lattice stays put.
+		assertEquals(700f to -500f, model.snapToWorldGrid(700f, -500f, step = 100f))
 	}
 
-	/** setGridConfig publishes the new geometry on the session's gridConfig flow (transient, not snapshotted). */
+	/** An unplaced cursor resolves to the world origin for every operation, without being placed. */
 	@Test
-	fun setGridConfigPublishesAndIsNotUndoable() {
+	fun unplacedCursorResolvesToTheWorldOrigin() {
+		val session = EditorSession(meshedSession().model.value.copy(worldOriginX = 600f, worldOriginZ = -600f))
+
+		assertEquals(Cursor2d(600f, -600f), session.cursor2dOrWorldOrigin(), "an unplaced cursor rests on the world axes")
+		assertNull(session.cursor2d.value, "resolving it does not place it, so it stays undrawn and unpersisted")
+
+		session.setCursor2d(12f, 34f)
+		assertEquals(Cursor2d(12f, 34f), session.cursor2dOrWorldOrigin(), "a placed cursor is its own point")
+	}
+
+	/** Clearing the cursor takes it off the canvas again: unplaced, resting on the world origin, and no undo step. */
+	@Test
+	fun clearingTheCursorUnplacesIt() {
+		val session = EditorSession(meshedSession().model.value.copy(worldOriginX = 600f, worldOriginZ = -600f))
+		val stepsBefore = session.historyView.value.steps.size
+		session.setCursor2d(12f, 34f)
+		session.clearCursor2d()
+		assertNull(session.cursor2d.value, "the cursor is unplaced again")
+		assertEquals(Cursor2d(600f, -600f), session.cursor2dOrWorldOrigin(), "and rests on the world axes")
+		assertEquals(stepsBefore, session.historyView.value.steps.size, "placing and clearing it are not undo steps")
+	}
+
+	/** Clearing the UV cursor takes it off the surface again, and neither placing nor clearing it is an undo step. */
+	@Test
+	fun clearingTheUvCursorUnplacesIt() {
 		val session = meshedSession()
-		assertEquals(GridConfig(), session.gridConfig.value, "starts at the default grid")
-		session.setGridConfig(GridConfig(scale = 50f, subdivisions = 5))
-		assertEquals(GridConfig(scale = 50f, subdivisions = 5), session.gridConfig.value, "the new config publishes")
-		assertTrue(!session.canUndo.value, "a grid-config change is transient, never an undo step")
+		val stepsBefore = session.historyView.value.steps.size
+		session.setUvCursor(0.25f, 0.75f)
+		assertEquals(UvCursor(0.25f, 0.75f), session.uvCursor.value)
+		session.clearUvCursor()
+		assertNull(session.uvCursor.value, "the cursor is unplaced again")
+		assertEquals(stepsBefore, session.historyView.value.steps.size, "placing and clearing it are not undo steps")
 	}
 }

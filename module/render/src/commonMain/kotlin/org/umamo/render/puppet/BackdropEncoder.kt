@@ -1,0 +1,178 @@
+package org.umamo.render.puppet
+
+import org.umamo.render.DecodedImage
+import org.umamo.render.WorldAxisColors
+import org.umamo.render.device.AxisLineUniforms
+import org.umamo.render.device.FragmentUniforms
+import org.umamo.render.device.GpuTexture
+import org.umamo.render.device.GridUniforms
+import org.umamo.render.device.RenderDevice
+import org.umamo.render.device.RenderPassEncoder
+import org.umamo.render.device.WorldToNdc
+
+/**
+ * How many on-demand underlay images stay uploaded at once.  Small on purpose: a UV editor shows one
+ * layer at a time, so this covers a few areas plus the layer they were just looking at, and bounds
+ * GPU memory against a document carrying hundreds of layers.
+ */
+private const val UNDERLAY_TEXTURE_CACHE_SIZE = 4
+
+/**
+ * What is drawn behind and instead of the puppet: the grid backdrop, the world-origin axis lines, the
+ * flat image underlay a UV-editor area shows, and the placement drag's preview over that underlay.
+ *
+ * It holds no view settings.  The grid's colors, spacing, and anchor arrive ready-built with each draw,
+ * so the caller that owns them stays the one place they are set.  What it does hold is the underlay
+ * texture cache.
+ *
+ * Render thread only.  Constructing it touches no device; every other call must run with the device's
+ * context current.
+ *
+ * @property RenderDevice  device    The backend to draw through.
+ * @property DrawPipelines pipelines The grid, axis, and underlay pipelines.
+ */
+internal class BackdropEncoder(
+	private val device: RenderDevice,
+	private val pipelines: DrawPipelines,
+) {
+	// Underlay images uploaded on demand (the UV editor's source-layer view), keyed by image identity and
+	// insertion-ordered so eviction drops the oldest.  Unlike the atlas pages, which upload and free as one
+	// whole page set (at init, or wholesale on a page swap), these arrive and are created or destroyed one
+	// at a time across the renderer's life - as the source-artwork textures also are.
+	private val underlayTextures = LinkedHashMap<DecodedImage, GpuTexture>()
+
+	// Reused per underlay draw rather than allocated.  Render-thread only.
+	private val fragmentScratch = FragmentUniforms()
+
+	/**
+	 * Fills an open pass with the grid backdrop.
+	 *
+	 * @param RenderPassEncoder pass The open pass.
+	 * @param GridUniforms      grid The grid's inputs.
+	 */
+	fun encodeGrid(pass: RenderPassEncoder, grid: GridUniforms) {
+		pass.setPipeline(pipelines.grid)
+		pass.drawGrid(grid)
+	}
+
+	/**
+	 * Draws the world-origin axis lines into an open pass.  The axes sit between the backdrop and the
+	 * drawables, reading as part of the canvas.
+	 *
+	 * @param RenderPassEncoder pass         The open pass.
+	 * @param WorldToNdc        affine       The camera affine.
+	 * @param Float             worldOriginX The world origin's x, where the vertical axis stands.
+	 * @param Float             worldOriginZ The world origin's z, where the horizontal axis lies.
+	 */
+	fun encodeWorldAxes(pass: RenderPassEncoder, affine: WorldToNdc, worldOriginX: Float, worldOriginZ: Float) {
+		val originNdcX = affine.scaleX * worldOriginX + affine.offsetX
+		val originNdcY = affine.scaleY * worldOriginZ + affine.offsetY
+		val axisColors = WorldAxisColors.Classic
+		pass.setPipeline(pipelines.axis)
+		pass.drawAxisLine(AxisLineUniforms(originNdcY, vertical = false, axisColors.xRed, axisColors.xGreen, axisColors.xBlue))
+		pass.drawAxisLine(AxisLineUniforms(originNdcX, vertical = true, axisColors.zRed, axisColors.zGreen, axisColors.zBlue))
+	}
+
+	/**
+	 * Draws a placement preview into an open pass over the page: every scrim as a flat quad, then every crop
+	 * sampled through its resolved texture, in the order given (the movers', then the ghost's).  All through
+	 * the underlay's quad pipeline and the page's camera.
+	 *
+	 * @param RenderPassEncoder pass      The open pass.
+	 * @param ResolvedPlacement placement The preview, its crop textures resolved.
+	 * @param GridUniforms      grid      The grid's inputs, carrying the camera affine and the viewport size.
+	 */
+	fun encodePlacement(pass: RenderPassEncoder, placement: ResolvedPlacement, grid: GridUniforms) {
+		if (placement.scrimQuads.isEmpty() && placement.crops.isEmpty()) {
+			return
+		}
+
+		pass.setPipeline(pipelines.atlasPage)
+		pass.setCamera(grid.worldToNdc, grid.viewportWidth, grid.viewportHeight)
+		val scrim = placement.scrimColor
+
+		for (quad in placement.scrimQuads) {
+			fragmentScratch.reset()
+			fragmentScratch.colorRed = scrim.red
+			fragmentScratch.colorGreen = scrim.green
+			fragmentScratch.colorBlue = scrim.blue
+			fragmentScratch.colorAlpha = scrim.alpha
+			pass.drawImageQuad(null, quad, fragmentScratch)
+		}
+
+		for (crop in placement.crops) {
+			fragmentScratch.reset()
+			fragmentScratch.useTexture = true
+			crop.sampleAffine.copyInto(fragmentScratch.uvAffine)
+			pass.drawImageQuad(crop.texture, crop.quadToWorld, fragmentScratch)
+		}
+	}
+
+	/**
+	 * Fills an open pass with the flat underlay both UV scenes share: the grid backdrop, then the image as a
+	 * single textured quad at the world origin.  The caller owns the frame and the pass, so what a scene
+	 * draws over its surface lands in the same pass.
+	 *
+	 * The quad samples through the same premultiplied fragment shader the puppet uses, so an underlay
+	 * matches the puppet's texel rendering exactly.
+	 *
+	 * @param RenderPassEncoder pass   The open pass on the area's target.
+	 * @param DecodedImage?     image  The image whose extent the quad takes, or null.
+	 * @param GpuTexture?       handle The uploaded texture for [image], or null.
+	 * @param GridUniforms      grid   The grid's inputs, carrying the camera affine and the viewport size.
+	 */
+	fun encodeUnderlay(pass: RenderPassEncoder, image: DecodedImage?, handle: GpuTexture?, grid: GridUniforms) {
+		encodeGrid(pass, grid)
+
+		if (image != null && handle != null) {
+			pass.setPipeline(pipelines.atlasPage)
+			pass.setCamera(grid.worldToNdc, grid.viewportWidth, grid.viewportHeight)
+			fragmentScratch.reset()
+			fragmentScratch.useTexture = true
+			pass.drawImageQuad(handle, floatArrayOf(image.width.toFloat(), 0f, 0f, 0f, image.height.toFloat(), 0f), fragmentScratch)
+		}
+	}
+
+	/**
+	 * The uploaded texture for an underlay image, uploading it on first sight and evicting the oldest past
+	 * [UNDERLAY_TEXTURE_CACHE_SIZE].
+	 *
+	 * Keyed on image IDENTITY, not content: the store hands out the same decoded instance for a given
+	 * layer, so identity is both correct and free.
+	 *
+	 * Render thread only: it creates GPU resources, so it must run with the context current.
+	 *
+	 * @param DecodedImage image The image to upload.
+	 * @return GpuTexture The texture handle.
+	 */
+	fun underlayTextureFor(image: DecodedImage): GpuTexture {
+		underlayTextures[image]?.let { existing ->
+			return existing
+		}
+
+		while (underlayTextures.size >= UNDERLAY_TEXTURE_CACHE_SIZE) {
+			val evicted = underlayTextures.keys.first()
+			underlayTextures.remove(evicted)?.let { handle -> device.destroyTexture(handle) }
+		}
+
+		val created = device.createArtTexture(image.width, image.height, image.rgba)
+		underlayTextures[image] = created
+
+		return created
+	}
+
+	/**
+	 * Frees every cached underlay texture.  Must run with the device's context current.
+	 *
+	 * The underlay cache is created and destroyed across the renderer's life rather than uploaded once,
+	 * so letting it die with the context is not enough: an engine that outlives one renderer would leak
+	 * everything the previous one had admitted.
+	 */
+	fun dispose() {
+		for (texture in underlayTextures.values) {
+			device.destroyTexture(texture)
+		}
+
+		underlayTextures.clear()
+	}
+}

@@ -6,7 +6,7 @@ import kotlin.test.assertTrue
 
 /**
  * Unit tests for the format-agnostic visibility cascade ([SourceArt.isEffectivelyVisible]) - the
- * single rule every source-art renderer shares for deciding whether a layer is drawn. These exercise
+ * single rule every source-art renderer shares for deciding whether a layer is drawn.  These exercise
  * the cascade purely from the neutral model, so they need no corpus file and run on every platform.
  */
 class SourceArtVisibilityTest {

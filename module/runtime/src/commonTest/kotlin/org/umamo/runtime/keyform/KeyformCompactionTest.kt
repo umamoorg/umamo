@@ -13,6 +13,7 @@ import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RotationPivotForm
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -280,6 +281,71 @@ class KeyformCompactionTest {
 		assertEquals("Glue__ArtMesh48__ArtMesh49", compacted.glues.single().id)
 	}
 
+	/**
+	 * A key closer than EPS_SPAN to a neighbor is never dropped, however redundant its value: refinement
+	 * refuses to re-create a span that narrow, so the drop could not be undone.  Each track holds a step-key
+	 * pair with a redundant half, and comes back as the same instance.
+	 */
+	@Test
+	fun aKeyTooCloseToItsNeighborIsNeverDropped() {
+		val nonSpanning: (KeyformAxis) -> Boolean = { false }
+		val tracks =
+			listOf(
+				// Ramp, then hold across the pair: the pair's upper key repeats the key above it.
+				track(floatArrayOf(0f, 1f, 1.001f, 2f), floatArrayOf(0f, 1f, 1f, 1f)),
+				// Hold across the pair, then rise: its lower key repeats the key below it.
+				track(floatArrayOf(0f, 1f, 1.001f, 2f), floatArrayOf(5f, 5f, 5f, 9f)),
+				// Constant, on an axis that cannot be dropped: both keys are redundant at once.
+				track(floatArrayOf(0f, 1f, 1.001f, 2f), floatArrayOf(1f, 1f, 1f, 1f)),
+				// A pair above the on-key snap distance and still under the resolvable span.
+				track(floatArrayOf(0f, 1f, 1.0014f, 2f), floatArrayOf(0f, 1f, 1f, 1f)),
+				// A pair under the on-key snap distance, against the axis's last key.
+				track(floatArrayOf(0f, 0.5f, 0.999f, 1f), floatArrayOf(0f, 1f, 1f, 1f)),
+			)
+
+		for (original in tracks) {
+			val result = original.compacted(ChannelValueInterpolator, axisSpansRange = nonSpanning)
+			assertSame(original, assertIs<CompactionResult.Reduced<ChannelValue>>(result).grid)
+		}
+	}
+
+	/**
+	 * A near pair holds only its own two keys back: a redundant key elsewhere on the axis still drops, and
+	 * the reduced track refines back to the original bit-for-bit.
+	 */
+	@Test
+	fun aNearKeyPairLeavesTheRestOfItsAxisCompactable() {
+		val original = track(floatArrayOf(0f, 0.02f, 0.5f, 0.999f, 1f), floatArrayOf(0f, 1f, 1f, 1f, 1f))
+		val originalKeys = original.axes.single().keys
+
+		val reduced = assertIs<CompactionResult.Reduced<ChannelValue>>(original.compacted(ChannelValueInterpolator)).grid
+		assertEquals(listOf(0f, 0.02f, 0.999f, 1f), reduced.axes.single().keys.toList(), "only the key clear of the pair drops")
+
+		val restored = reduced.refinedToUnion(mapOf(angleX to originalKeys), emptyMap(), ChannelValueInterpolator)
+		assertEquals(originalKeys.toList(), restored.axes.single().keys.toList(), "every original key is restored")
+		assertEquals(valuesInIndexOrder(original), valuesInIndexOrder(restored), "restored bit-for-bit")
+	}
+
+	/**
+	 * A reduction that cannot be verified is not taken.  A NaN pivot never compares equal to itself, so its
+	 * cell fails the restore check on every round whichever keys are held back; the grid comes back as it
+	 * was, with the key that could have dropped still in place.
+	 */
+	@Test
+	fun anUnverifiableReductionLeavesTheGridUnchanged() {
+		val angles = floatArrayOf(Float.NaN, 0f, 1f, 2f)
+		val original =
+			KeyformGrid(
+				listOf(KeyformAxis(angleX, floatArrayOf(0f, 1f, 2f, 3f))),
+				angles.mapIndexed { keyIndex, angle ->
+					KeyformCell(intArrayOf(keyIndex), RotationPivotForm(originX = 0f, originY = 0f, angle = angle, scale = 1f))
+				},
+			)
+
+		val result = original.compacted(RotationPivotInterpolator)
+		assertSame(original, assertIs<CompactionResult.Reduced<RotationPivotForm>>(result).grid)
+	}
+
 	/** A sparse grid is passed straight through - its missing cells cannot be tested, so nothing is dropped. */
 	@Test
 	fun aSparseGridIsUntouched() {
@@ -306,19 +372,22 @@ class KeyformCompactionTest {
 				// Genuinely bending, so nothing is dropped and refinement is a no-op.
 				track(floatArrayOf(0f, 5f, 10f), floatArrayOf(0f, 90f, 100f)),
 			)
+
 		for (original in originals) {
 			val originalKeys = original.axes.single().keys
 			val compacted = original.compacted(ChannelValueInterpolator)
 			val restored =
 				when (compacted) {
-					is CompactionResult.Constant ->
+					is CompactionResult.Constant -> {
 						KeyformGrid(
 							listOf(KeyformAxis(angleX, floatArrayOf(originalKeys.first(), originalKeys.last()))),
 							listOf(KeyformCell(intArrayOf(0), compacted.form), KeyformCell(intArrayOf(1), compacted.form)),
 						).refinedToUnion(mapOf(angleX to originalKeys), emptyMap(), ChannelValueInterpolator)
+					}
 
-					is CompactionResult.Reduced ->
+					is CompactionResult.Reduced -> {
 						compacted.grid.refinedToUnion(mapOf(angleX to originalKeys), emptyMap(), ChannelValueInterpolator)
+					}
 				}
 			assertEquals(originalKeys.toList(), restored.axes.single().keys.toList(), "every original key is restored")
 			assertEquals(valuesInIndexOrder(original), valuesInIndexOrder(restored), "restored bit-for-bit")

@@ -8,7 +8,10 @@ import org.umamo.format.art.SourceArt
 import org.umamo.format.art.SourceGroup
 import org.umamo.format.art.SourceLayer
 import org.umamo.format.art.SourceLayerKind
+import org.umamo.interop.art.mesh.ArtMeshPreset
+import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
+import org.umamo.runtime.model.AtlasComposition
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.DrawableId
@@ -23,6 +26,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.SourceLayerRef
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -72,6 +76,7 @@ class SourceArtImportTest {
 	/** A raster opaque inside [opaque] (raster-local) and transparent elsewhere; fully transparent when null. */
 	private fun rasterOf(width: Int, height: Int, opaque: LayerBounds? = LayerBounds(0, 0, width, height)): LayerRaster {
 		val rgba = ByteArray(width * height * 4)
+
 		if (opaque != null) {
 			for (row in opaque.top until opaque.top + opaque.height) {
 				for (column in opaque.left until opaque.left + opaque.width) {
@@ -79,6 +84,7 @@ class SourceArtImportTest {
 				}
 			}
 		}
+
 		return LayerRaster(width, height, rgba)
 	}
 
@@ -157,6 +163,33 @@ class SourceArtImportTest {
 			result.notices.toSet(),
 			"every skipped or altered layer is named, and nothing else is",
 		)
+	}
+
+	/**
+	 * A layer or a folder with no name shows its id, so its row can be read and told from its neighbours.
+	 * The inventory keeps the layer's own name: it mirrors the file, and a reload matches against it.
+	 */
+	@Test
+	fun aLayerOrFolderWithNoNameShowsItsId() {
+		val art =
+			FixtureArt(
+				widthPx = 50,
+				heightPx = 50,
+				layers =
+					listOf(
+						layer("lyid:1", "", order = 1, left = 0, top = 0, raster = rasterOf(4, 4), groupPath = "Unnamed"),
+						layer("lyid:0", "  ", order = 0, left = 10, top = 10, raster = rasterOf(4, 4)),
+					),
+				groups = listOf(FixtureGroup("Unnamed", "")),
+			)
+
+		val puppet = SourceArtImport.fromSourceArt(art, descriptor).puppet
+
+		assertEquals(2, puppet.drawables.size)
+		assertEquals(puppet.drawables.map { drawable -> drawable.id.raw }, puppet.drawables.map { drawable -> drawable.name }, "each drawable shows its id")
+		assertEquals(puppet.parts.map { part -> part.id.raw }, puppet.parts.map { part -> part.name }, "the folder's part shows its id")
+		assertEquals(1, puppet.parts.size)
+		assertEquals(setOf("", "  "), puppet.sources.single().layers.map { row -> row.name }.toSet(), "the inventory keeps the file's names")
 	}
 
 	/** The quad spans the opaque bounds plus the margin, in canvas pixels and in the art's own frame. */
@@ -285,7 +318,7 @@ class SourceArtImportTest {
 		assertEquals(200f, puppet.canvasWidth)
 		assertEquals(100f, puppet.canvasHeight)
 		assertEquals(100f, puppet.worldOriginX)
-		assertEquals(-50f, puppet.worldOriginY, "the origin is the canvas center, y negated into world space")
+		assertEquals(-50f, puppet.worldOriginZ, "the origin is the canvas center, y negated into world space")
 		assertTrue(puppet.rendersFromSourceLayers, "a fresh import shows the layers as drawn")
 		assertNull(puppet.pixelsPerUnit)
 		assertTrue(puppet.deformers.isEmpty())
@@ -410,5 +443,151 @@ class SourceArtImportTest {
 
 		assertEquals(listOf(AtlasTileId("art-0/Same#0"), AtlasTileId("art-0/Same#0#1")), puppet.atlas.tiles.map { tile -> tile.id })
 		assertEquals(2, puppet.drawables.map { drawable -> drawable.atlasTileId }.toSet().size, "each drawable samples its own tile")
+	}
+
+	/**
+	 * Placing a file shifts every layer's bounds and nothing else: the rasters are the same instances
+	 * (the decode memo and the texture cache key on them), the file's canvas and folders pass through,
+	 * and a zero offset hands the art back untouched.
+	 */
+	@Test
+	fun placingAFileShiftsItsBoundsAndKeepsItsRasters() {
+		val art = fixture()
+		assertSame(art, art.placedBy(CanvasOffset.Zero), "a zero offset places nothing")
+
+		val placed = art.placedBy(CanvasOffset(30, -10))
+		assertEquals(art.widthPx to art.heightPx, placed.widthPx to placed.heightPx, "the file's own canvas passes through")
+		assertSame(art.groups, placed.groups)
+
+		for ((original, moved) in art.layers.zip(placed.layers)) {
+			assertSame(original.raster, moved.raster, "'${original.name}' keeps its raster instance")
+			assertEquals(LayerBounds(original.bounds.left + 30, original.bounds.top + 10, original.bounds.width, original.bounds.height), moved.bounds, "z is up, so a negative z lowers the layer")
+			assertEquals(original.id, moved.id)
+			assertEquals(original.groupPath, moved.groupPath)
+			assertEquals(original.clipped, moved.clipped)
+		}
+
+		val source = ArtSource(ArtSourceId("art-3"), "x.psd", null, "psd", offsetX = 4, offsetZ = 6)
+		assertEquals(LayerBounds(104, 44, 10, 8), art.placedFor(source).layers.first { layer -> layer.name == "Eye" }.bounds, "a record's offset places the same way")
+	}
+
+	/**
+	 * The anchor splits the room between the document's canvas and the file's by its fraction, rounded
+	 * down, and the nudge is added on top - in world axes, so a file placed below the document's top edge
+	 * carries a negative z; a file larger than the canvas overhangs it; a rig's first artwork and a
+	 * document with no canvas are never placed.
+	 */
+	@Test
+	fun theOffsetFollowsTheAnchorAndTheNudge() {
+		val host = SourceArtImport.fromSourceArt(fixture(), descriptor).puppet.copy(canvasWidth = 300f, canvasHeight = 250f)
+		val small = FixtureArt(widthPx = 101, heightPx = 50, layers = listOf(layer("lyid:0", "Dot", order = 0, left = 0, top = 0, raster = rasterOf(2, 2))))
+		val large = FixtureArt(widthPx = 400, heightPx = 250, layers = small.layers)
+
+		fun offsetOf(art: SourceArt, anchor: ArtworkAnchor, nudgeX: Int = 0, nudgeZ: Int = 0): CanvasOffset =
+			SourceArtImport.offsetFor(host, art, SourceArtImportOptions(anchor = anchor, nudgeX = nudgeX, nudgeZ = nudgeZ))
+
+		assertEquals(CanvasOffset(99, -100), offsetOf(small, ArtworkAnchor.Center), "199 x 200 of room, halved and rounded down; 100 px down the canvas is z = -100")
+		assertEquals(CanvasOffset(0, 0), offsetOf(small, ArtworkAnchor.TopLeft))
+		assertEquals(CanvasOffset(199, -200), offsetOf(small, ArtworkAnchor.BottomRight))
+		assertEquals(CanvasOffset(99, 0), offsetOf(small, ArtworkAnchor.Top))
+		assertEquals(CanvasOffset(0, -100), offsetOf(small, ArtworkAnchor.Left))
+		assertEquals(CanvasOffset(199, -100), offsetOf(small, ArtworkAnchor.Right))
+		assertEquals(CanvasOffset(102, -104), offsetOf(small, ArtworkAnchor.Center, nudgeX = 3, nudgeZ = -4), "the nudge is added to the anchor's placement")
+		assertEquals(CanvasOffset(-50, 0), offsetOf(large, ArtworkAnchor.Center), "a wider file overhangs both sides by the same amount")
+		assertEquals(CanvasOffset(-100, 0), offsetOf(large, ArtworkAnchor.BottomRight))
+
+		val blank = host.copy(drawables = emptyList(), atlas = PuppetAtlas.Empty)
+		assertEquals(CanvasOffset.Zero, SourceArtImport.offsetFor(blank, small, SourceArtImportOptions(nudgeX = 7)), "a first artwork sets the canvas and is never placed")
+		assertTrue(SourceArtImport.isFirstArtwork(blank))
+		assertTrue(!SourceArtImport.isFirstArtwork(host))
+		assertEquals(CanvasOffset.Zero, SourceArtImport.offsetFor(host.copy(canvasWidth = 0f), small, SourceArtImportOptions()), "no canvas, nothing to place within")
+	}
+
+	/**
+	 * A placed file's birth quads sit at the placed positions, its inventory rows are recorded in the
+	 * document frame, and its record keeps the offset; a listed file's additions keep the offset its
+	 * record already carries, whatever the caller passes.
+	 */
+	@Test
+	fun additionsRecordTheOffsetTheFileWasPlacedBy() {
+		val existing = SourceArtImport.fromSourceArt(fixture(), descriptor).puppet
+		val offset = CanvasOffset(50, 20)
+		val added = SourceArtImport.additionsFor(fixture().placedBy(offset), ArtSourceDescriptor("second.psd", null, "psd"), SourceArtImportOptions(), existing, offset = offset).additions
+
+		assertEquals(50 to 20, added.source.offsetX to added.source.offsetZ, "the new record keeps the offset")
+		val eye = assertNotNull(added.drawables.first { drawable -> drawable.name == "Eye" }.mesh)
+		assertTrue(eye.positions.contentEquals(floatArrayOf(150f, 29f, 158f, 29f, 158f, 36f, 150f, 36f)), "the quad is the fixture's, shifted right and UP: ${eye.positions.toList()}")
+		assertEquals(150 to 30, added.source.layers.first { row -> row.name == "Eye" }.let { row -> row.left to row.top }, "the inventory row is in the document frame")
+
+		val listed = existing.copy(sources = existing.sources.map { source -> source.copy(offsetX = 8, offsetZ = 9) })
+		val underListed = SourceArtImport.additionsFor(fixture(), descriptor, SourceArtImportOptions(), listed, underSource = ArtSourceId("art-0"), layerKeys = setOf("lyid:1"), offset = offset).additions
+		assertEquals(8 to 9, underListed.source.offsetX to underListed.source.offsetZ, "a listed file's record keeps its own offset")
+	}
+
+	/**
+	 * The Automatic birth mode mints exactly what the Quad mode mints - the same drawables, each over its
+	 * quad, the same notices - and names every drawable a pending birth at its layer's canvas place; the
+	 * Quad mode names none.
+	 */
+	@Test
+	fun theAutomaticModeMintsWhatTheQuadModeMintsAndNamesEachDrawableAPendingBirth() {
+		val quad = SourceArtImport.fromSourceArt(fixture(), descriptor)
+		val automatic = SourceArtImport.fromSourceArt(fixture(), descriptor, SourceArtImportOptions(birthMesh = BirthMeshMode.Automatic(ArtMeshPreset.Standard.settings)))
+
+		assertTrue(quad.pendingBirths.isEmpty(), "the quad mode meshes nothing more")
+		assertEquals(quad.puppet.drawables.map { drawable -> Triple(drawable.id, drawable.atlasTileId, drawable.maskedBy) }, automatic.puppet.drawables.map { drawable -> Triple(drawable.id, drawable.atlasTileId, drawable.maskedBy) })
+		assertEquals(quad.notices, automatic.notices)
+
+		for ((quadDrawable, automaticDrawable) in quad.puppet.drawables.zip(automatic.puppet.drawables)) {
+			assertContentEquals(assertNotNull(quadDrawable.mesh).positions, assertNotNull(automaticDrawable.mesh).positions, "${automaticDrawable.name} is minted over its quad")
+		}
+
+		assertEquals(automatic.puppet.drawables.map { drawable -> drawable.id }, automatic.pendingBirths.map { birth -> birth.drawableId }, "each drawable a pending birth, in mint order")
+		val face = automatic.pendingBirths.first { birth -> birth.layerName == "Face" }
+		assertEquals(90 to 40, face.layerLeft to face.layerTop, "at the layer's canvas place")
+	}
+
+	/**
+	 * Landing the births swaps each born drawable's quad for its mesh; a refused one keeps its quad, and a
+	 * notice names it and why.
+	 */
+	@Test
+	fun landedBirthsTakeTheirMeshesAndARefusalKeepsItsQuadWithANotice() {
+		val automatic = SourceArtImport.fromSourceArt(fixture(), descriptor, SourceArtImportOptions(birthMesh = BirthMeshMode.Automatic(ArtMeshPreset.Standard.settings)))
+		val resolution = BirthMesher.resolveSequentially(automatic.pendingBirths)
+		val landed = automatic.withBirths(resolution)
+
+		assertTrue(landed.pendingBirths.isEmpty(), "nothing is pending once landed")
+
+		for (drawable in landed.puppet.drawables) {
+			val born = assertNotNull(resolution.outcomes[drawable.id] as? BirthOutcome.Born, "${drawable.name} is born")
+			assertSame(born.mesh, drawable.mesh, "${drawable.name} takes its mesh")
+		}
+
+		val faceId = automatic.puppet.drawables.first { drawable -> drawable.name == "Face" }.id
+		val partly = automatic.withBirths(BirthResolution(resolution.outcomes + (faceId to BirthOutcome.Refused(BirthRefusal.OverBudget))))
+		assertSame(automatic.puppet.drawables.first { drawable -> drawable.id == faceId }.mesh, partly.puppet.drawables.first { drawable -> drawable.id == faceId }.mesh, "the refused one keeps its quad")
+		assertEquals(SourceArtImportNotice.BirthMeshFellBackToQuad("Face", BirthRefusal.OverBudget), partly.notices.last())
+	}
+
+	/**
+	 * A birth meshes every pixel the quad would have drawn: at the import's own threshold, raised only to
+	 * the atlas's - never at the preset's.
+	 */
+	@Test
+	fun theMesherThresholdIsTheImportsRaisedToTheAtlas() {
+		val existing = SourceArtImport.fromSourceArt(fixture(), descriptor).puppet
+		val automatic = BirthMeshMode.Automatic(ArtMeshPreset.Standard.settings)
+
+		fun thresholdOf(importThreshold: Int, atlasThreshold: Int): Int {
+			val host = existing.copy(atlas = existing.atlas.copy(composition = AtlasComposition(alphaThreshold = atlasThreshold)))
+			val added = SourceArtImport.additionsFor(fixture(), descriptor, SourceArtImportOptions(alphaThreshold = importThreshold, birthMesh = automatic), host)
+
+			return added.pendingBirths.map { birth -> birth.settings.alphaThreshold }.distinct().single()
+		}
+
+		assertEquals(1, thresholdOf(importThreshold = 1, atlasThreshold = 1), "the import's own threshold, not the preset's 16")
+		assertEquals(30, thresholdOf(importThreshold = 30, atlasThreshold = 1))
+		assertEquals(50, thresholdOf(importThreshold = 30, atlasThreshold = 50), "raised to the atlas's")
 	}
 }

@@ -122,6 +122,7 @@ class AlphaAnalysisTest {
 		assertEquals(fromPositional.opaqueBounds, fromExtension.opaqueBounds)
 		assertEquals(fromPositional.opaquePixelCount, fromExtension.opaquePixelCount)
 		assertEquals(fromPositional.contours.size, fromExtension.contours.size)
+
 		for (contourIndex in fromPositional.contours.indices) {
 			assertContentEquals(
 				fromPositional.contours[contourIndex].points,
@@ -143,6 +144,7 @@ class AlphaAnalysisTest {
 		assertEquals(fromPositional.opaqueBounds, fromImage.opaqueBounds)
 		assertEquals(fromPositional.opaquePixelCount, fromImage.opaquePixelCount)
 		assertEquals(fromPositional.contours.size, fromImage.contours.size)
+
 		for (contourIndex in fromPositional.contours.indices) {
 			assertContentEquals(
 				fromPositional.contours[contourIndex].points,

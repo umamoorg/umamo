@@ -49,9 +49,10 @@ class AtlasPageRenderTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(positions, FloatArray(positions.size), intArrayOf(0, 1, 2, 1, 3, 2)),
+				mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), intArrayOf(0, 1, 2, 1, 3, 2)),
 				geometryGrid = KeyformGrid(listOf(KeyformAxis(paramA, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size))))),
 			)
+
 		return PuppetModel(
 			parameters = listOf(Parameter(paramA, "A", -1f, 1f, 0f)),
 			parts = emptyList(),
@@ -62,7 +63,7 @@ class AtlasPageRenderTest {
 			canvasWidth = 0f,
 			canvasHeight = 0f,
 			worldOriginX = 0f,
-			worldOriginY = 0f,
+			worldOriginZ = 0f,
 		)
 	}
 
@@ -72,6 +73,7 @@ class AtlasPageRenderTest {
 	 */
 	private fun quadrantPage(size: Int): DecodedImage {
 		val rgba = ByteArray(size * size * 4)
+
 		for (rowIndex in 0 until size) {
 			for (columnIndex in 0 until size) {
 				val top = rowIndex < size / 2 // row 0 is the atlas TOP row (top-row-first)
@@ -79,28 +81,33 @@ class AtlasPageRenderTest {
 				val red: Int
 				val green: Int
 				val blue: Int
+
 				when {
 					top && left -> {
 						red = 255
 						green = 0
 						blue = 0
 					}
+
 					top && !left -> {
 						red = 0
 						green = 255
 						blue = 0
 					}
+
 					!top && left -> {
 						red = 0
 						green = 0
 						blue = 255
 					}
+
 					else -> {
 						red = 255
 						green = 255
 						blue = 255
 					}
 				}
+
 				val pixel = (rowIndex * size + columnIndex) * 4
 				rgba[pixel] = red.toByte()
 				rgba[pixel + 1] = green.toByte()
@@ -108,6 +115,7 @@ class AtlasPageRenderTest {
 				rgba[pixel + 3] = 255.toByte()
 			}
 		}
+
 		return DecodedImage(rgba, size, size)
 	}
 
@@ -183,6 +191,7 @@ class AtlasPageRenderTest {
 	private fun readPixels(width: Int, height: Int): ByteBuffer {
 		val buffer = BufferUtils.createByteBuffer(width * height * 4)
 		GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer)
+
 		return buffer
 	}
 }

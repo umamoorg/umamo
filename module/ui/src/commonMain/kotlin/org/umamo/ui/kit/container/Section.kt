@@ -1,0 +1,157 @@
+package org.umamo.ui.kit.container
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.takeOrElse
+import androidx.compose.ui.unit.dp
+import org.umamo.ui.kit.Text
+import org.umamo.ui.kit.button.DisclosureChevron
+import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoShapes
+import org.umamo.ui.theme.LocalUmamoTypography
+
+/*
+ * The kit's containers, which hold content they know nothing about: the section header row, the
+ * collapsible section card, and the sub-panel nested in one (this file), the tab strip (Tabs.kt), the
+ * vertical tab rail (VerticalTabRail.kt), and the strip that collapses what does not fit into an overflow
+ * chip (OverflowRow.kt, over the pure packing in OverflowRowPacking.kt).
+ */
+
+/** The gap between two rows in a [SectionCard] or [NestedSection], so filled controls never touch. */
+private val SECTION_ROW_SPACING = 4.dp
+
+/**
+ * A disclosure row: a small chevron (right when collapsed, down when expanded) plus a label, the whole row
+ * clickable to [onToggle], with a hover highlight.
+ *
+ * @param String   label    The section label.
+ * @param Boolean  expanded Whether the section is open.
+ * @param Function onToggle Toggle callback.
+ * @param Modifier modifier Layout modifier (e.g. a leading indent for a nested section).
+ */
+@Composable
+fun SectionHeader(label: String, expanded: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+	val colors = LocalUmamoColors.current
+	val interaction = remember { MutableInteractionSource() }
+	val hovered by interaction.collectIsHoveredAsState()
+	Row(
+		modifier =
+			modifier
+				.fillMaxWidth()
+				.height(22.dp)
+				.background(if (hovered) colors.rowHover else Color.Transparent)
+				// NOT focusable: a header can sit in chrome that leaves the composition on the next edit (the
+				// operation settings strip, a Properties section that hides when its rows go), and Compose
+				// leaves focus null when the focused node is disposed - every keyboard shortcut then dies
+				// until something focusable is clicked again.  The keyboard belongs to the shell root.
+				.focusProperties { canFocus = false }
+				.clickable(interactionSource = interaction, indication = null, onClick = onToggle)
+				.padding(horizontal = 4.dp),
+		verticalAlignment = Alignment.CenterVertically,
+	) {
+		DisclosureChevron(expanded = expanded, tint = colors.text, glyphSize = 10.dp)
+		Spacer(modifier = Modifier.width(5.dp))
+		Text(text = label, style = LocalUmamoTypography.current.labelMedium)
+	}
+}
+
+/**
+ * A collapsible section card: a [SectionHeader] over the section's rows, raised one step above the panel
+ * it sits on unless a card floating over a work surface passes its own [fill] and [border].  The card
+ * fills the width it is offered; a caller that sizes it itself does so through [modifier], which comes
+ * first.
+ *
+ * @param String   title    The section heading.
+ * @param Boolean  expanded Whether the rows are shown.
+ * @param Function onToggle Called when the header is clicked, to open or fold the section.
+ * @param Modifier modifier Layout modifier.
+ * @param Color    fill     The card's fill, or Unspecified for the raised panelThirdElevation.
+ * @param Color    border   The card's hairline border, or Unspecified for the one paired with the raised fill.
+ * @param Function content  The section's rows, top to bottom.
+ */
+@Composable
+fun SectionCard(
+	title: String,
+	expanded: Boolean,
+	onToggle: () -> Unit,
+	modifier: Modifier = Modifier,
+	fill: Color = Color.Unspecified,
+	border: Color = Color.Unspecified,
+	content: @Composable ColumnScope.() -> Unit,
+) {
+	val colors = LocalUmamoColors.current
+	val shapes = LocalUmamoShapes.current
+	Column(
+		modifier =
+			modifier
+				.fillMaxWidth()
+				.clip(shapes.medium)
+				.background(fill.takeOrElse { colors.panelThirdElevation }, shape = shapes.medium)
+				.border(width = 1.dp, color = border.takeOrElse { colors.panelThirdElevationBorder }, shape = shapes.medium),
+	) {
+		SectionHeader(label = title, expanded = expanded, onToggle = onToggle)
+
+		if (expanded) {
+			Column(
+				modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 8.dp, top = 2.dp, bottom = 8.dp),
+				// Breathing room between separate rows so filled controls do not touch; a FieldStack's own
+				// 1.dp seam is internal, so stacked groups stay tight.
+				verticalArrangement = Arrangement.spacedBy(SECTION_ROW_SPACING),
+				content = content,
+			)
+		}
+	}
+}
+
+/**
+ * A collapsible sub-panel inside a [SectionCard]'s body: a [SectionHeader] over its own rows.  The card's
+ * body inset is what sets the header in from the card's, so the rows take no indent of their own and their
+ * label and control halves line up with the card's other rows.
+ *
+ * @param String   title    The sub-panel heading.
+ * @param Boolean  expanded Whether the rows are shown.
+ * @param Function onToggle Called when the header is clicked, to open or fold the sub-panel.
+ * @param Modifier modifier Layout modifier.
+ * @param Function content  The sub-panel's rows, top to bottom.
+ */
+@Composable
+fun NestedSection(
+	title: String,
+	expanded: Boolean,
+	onToggle: () -> Unit,
+	modifier: Modifier = Modifier,
+	content: @Composable ColumnScope.() -> Unit,
+) {
+	Column(modifier = modifier.fillMaxWidth()) {
+		SectionHeader(label = title, expanded = expanded, onToggle = onToggle)
+
+		if (expanded) {
+			Column(
+				// A little air under the last row, so the next sub-panel's header reads as a new group.
+				modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp),
+				verticalArrangement = Arrangement.spacedBy(SECTION_ROW_SPACING),
+				content = content,
+			)
+		}
+	}
+}

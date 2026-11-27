@@ -67,7 +67,7 @@ class CompositeEditReconcileTest {
 			parentDeformerId = null,
 			blendMode = blendMode,
 			maskedBy = maskedBy,
-			mesh = DrawableMesh(positions, FloatArray(positions.size), frontIndices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), frontIndices),
 			geometryGrid = restGrid(positions),
 			isVisible = isVisible,
 		)
@@ -83,7 +83,7 @@ class CompositeEditReconcileTest {
 			canvasWidth = 0f,
 			canvasHeight = 0f,
 			worldOriginX = 0f,
-			worldOriginY = 0f,
+			worldOriginZ = 0f,
 		).withDerivedRenderRoot()
 
 	private fun isolatedPart(partId: String, childId: String, composite: PartComposite): Part =
@@ -121,6 +121,7 @@ class CompositeEditReconcileTest {
 		fun pixel(x: Int, y: Int): IntArray {
 			val image = device.readPixels(target)
 			val pixelOffset = (y * viewportSize + x) * 4
+
 			return IntArray(4) { channelIndex -> image.rgba[pixelOffset + channelIndex].toInt() and 0xFF }
 		}
 
@@ -193,6 +194,7 @@ class CompositeEditReconcileTest {
 
 		live.show(withOpacity(0.5f))
 		val halved = live.centerPixel()
+
 		for (channelIndex in 0 until 3) {
 			assertTrue(
 				abs(halved[channelIndex] - opaque[channelIndex] / 2) <= 3,

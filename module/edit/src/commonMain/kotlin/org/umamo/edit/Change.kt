@@ -1,6 +1,7 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ColorRgb
@@ -15,17 +16,17 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.RuntimeTarget
 
 /**
- * How a [Change] participates in undo. Reconciles the two channels a mutation feeds: the change-event
- * bus (everything emits) and the undo stack (only a subset are steps). A change declares one of these,
+ * How a [Change] participates in undo.  Reconciles the two channels a mutation feeds: the change-event
+ * bus (everything emits) and the undo stack (only a subset are steps).  A change declares one of these,
  * so the [EditorSession] knows whether to push a history step without the call site hardcoding it.
  */
 sealed interface Undoability {
-	/** Pushes its own history step. The common case (rename, reparent, visibility, a selection gesture). */
+	/** Pushes its own history step.  The common case (rename, reparent, visibility, a selection gesture). */
 	object Undoable : Undoability
 
 	/**
 	 * Pushes a step, but a run that shares [key] within one gesture merges into a single step (a slider
-	 * scrub, a continuous brush drag). Reserved for gestures like these; no call site produces a
+	 * scrub, a continuous brush drag).  Reserved for gestures like these; no call site produces a
 	 * [Coalescing] change yet.
 	 *
 	 * @property String key The coalescing identity; consecutive changes sharing it merge.
@@ -37,8 +38,8 @@ sealed interface Undoability {
 }
 
 /**
- * A described edit. Carries the description of what changed — not how to undo it — because undo is by
- * immutable snapshot, not by inverse op (see [History]). Every mutation emits a [Change] on the
+ * A described edit.  Carries the description of what changed — not how to undo it — because undo is by
+ * immutable snapshot, not by inverse op (see [History]).  Every mutation emits a [Change] on the
  * session's change bus; the [undoability] decides whether it also becomes a history step, and [labelKey]
  * is a stable key the UI resolves to a localized history-panel label (kept here as a string so :edit
  * stays free of Compose resources).
@@ -53,18 +54,6 @@ sealed interface Change {
 
 /** Changes to a part (the organizational tree node). */
 sealed interface PartChange : Change {
-	/**
-	 * Toggles a part's Parts-panel eyeball. Cascades at render time (hiding a part hides its subtree),
-	 * but the stored change is just this one part's flag.
-	 *
-	 * @property PartId id The part whose visibility changed.
-	 * @property Boolean visible The new visibility.
-	 */
-	data class SetVisibility(val id: PartId, val visible: Boolean) : PartChange {
-		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.part.visibility"
-	}
-
 	/**
 	 * Renames a part.
 	 *
@@ -100,7 +89,7 @@ sealed interface PartChange : Change {
 	}
 
 	/**
-	 * Deletes a part. A cascade removes the whole subtree (the part, descendant parts, and their drawables);
+	 * Deletes a part.  A cascade removes the whole subtree (the part, descendant parts, and their drawables);
 	 * an ungroup removes only the folder and re-homes its contents up one level.
 	 *
 	 * @property PartId id The deleted part.
@@ -164,17 +153,6 @@ sealed interface PartChange : Change {
 /** Changes to a drawable (an art mesh). */
 sealed interface DrawableChange : Change {
 	/**
-	 * Toggles a drawable's own Parts-panel eyeball.
-	 *
-	 * @property DrawableId id The drawable whose visibility changed.
-	 * @property Boolean visible The new visibility.
-	 */
-	data class SetVisibility(val id: DrawableId, val visible: Boolean) : DrawableChange {
-		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.drawable.visibility"
-	}
-
-	/**
 	 * Renames a drawable.
 	 *
 	 * @property DrawableId id The renamed drawable.
@@ -198,7 +176,7 @@ sealed interface DrawableChange : Change {
 
 	/**
 	 * Moves a drawable in the organizational tree: to a new owning part (null = the root level) and / or a
-	 * new position among its siblings. Because the parts-panel order is also the draw-order tiebreak, this
+	 * new position among its siblings.  Because the parts-panel order is also the draw-order tiebreak, this
 	 * can change draw order, so the viewport follows.
 	 *
 	 * @property DrawableId id The moved drawable.
@@ -210,14 +188,16 @@ sealed interface DrawableChange : Change {
 	}
 
 	/**
-	 * Duplicates whole drawables (Object-mode Shift+D): each copy gets a fresh id and name, sits after
-	 * its source in the org tree, and carries no glue membership.
+	 * Duplicates whole objects (Object-mode Shift+D): each copied drawable gets a fresh id and name, sits after
+	 * its source in the org tree, and carries no glue membership; each copied warp gets a fresh id and name and
+	 * the same forms.  A copy whose source's parent was copied too sits under that parent's copy.
 	 *
-	 * @property List<DrawableId> ids The created copies.
+	 * @property List<DrawableId> ids The created drawable copies.
+	 * @property List<DeformerId> deformerIds The created warp copies.
 	 */
-	data class Duplicate(val ids: List<DrawableId>) : DrawableChange {
+	data class Duplicate(val ids: List<DrawableId>, val deformerIds: List<DeformerId> = emptyList()) : DrawableChange {
 		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.drawable.duplicate"
+		override val labelKey: String = if (deformerIds.isEmpty()) "change.drawable.duplicate" else "change.object.duplicate"
 	}
 
 	/**
@@ -386,6 +366,82 @@ sealed interface DeformerChange : Change {
 	}
 
 	/**
+	 * Reshapes one or more warps' lattices at rest (a finished Edit-mode G / S / R or Vertex Slide over lattice
+	 * points): every form of each warp shifts by the same parent-space offset, and the warps' children are
+	 * re-expressed so they rest where they rested.  Labelled by the operator, like a mesh transform.
+	 *
+	 * @property List<DeformerId> deformerIds The reshaped warps.
+	 * @property ElementEditKind kind What reshaped them.
+	 */
+	data class ReshapeLattice(val deformerIds: List<DeformerId>, val kind: ElementEditKind) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String =
+			when (kind) {
+				ElementEditKind.Grab -> "change.lattice.move"
+				ElementEditKind.Scale -> "change.lattice.scale"
+				ElementEditKind.Rotate -> "change.lattice.rotate"
+				ElementEditKind.VertexSlide -> "change.lattice.slide"
+				ElementEditKind.ToShape -> "change.lattice.toShape"
+			}
+	}
+
+	/**
+	 * Creates a warp around the selection (Create Warp Deformer): the warp is born with one keyform holding a lattice
+	 * over the selection's bounds plus a margin, and the wrapped items are re-parented under it, kept where they rest.
+	 *
+	 * @property DeformerId id The new warp.
+	 * @property List<DrawableId> wrappedDrawables The drawables re-parented under it.
+	 * @property List<DeformerId> wrappedDeformers The deformers re-parented under it.
+	 */
+	data class Create(val id: DeformerId, val wrappedDrawables: List<DrawableId>, val wrappedDeformers: List<DeformerId>) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.deformer.create"
+	}
+
+	/**
+	 * Gives warps a new lattice resolution typed as rows and columns: every grid cell and blend-shape form of each warp
+	 * is resampled onto the new grid, and the children are re-expressed so they rest where they rested whenever the
+	 * resample cannot keep the old map exactly.
+	 *
+	 * @property List<DeformerId> deformerIds The resized warps.
+	 */
+	data class ResizeLattice(val deformerIds: List<DeformerId>) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.lattice.resize"
+	}
+
+	/**
+	 * Splits every cell of warps' lattices by whole factors along rows and columns - [ResizeLattice] by multiples, which
+	 * keeps a quad-mode warp's map exactly.
+	 *
+	 * @property List<DeformerId> deformerIds The subdivided warps.
+	 */
+	data class SubdivideLattice(val deformerIds: List<DeformerId>) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.lattice.subdivide"
+	}
+
+	/**
+	 * Shapes one or more warps' lattices at the pose without keying them (a finished Pose-mode G / S / R, Vertex
+	 * Slide, snap, or To Shape over lattice points): the shaped lattices are held pending until a key consumes them or
+	 * the pose moves, and the model is untouched.  Labelled by what shaped them, like a mesh transform.
+	 *
+	 * @property List<DeformerId> deformerIds The shaped warps.
+	 * @property ElementEditKind kind What shaped them.
+	 */
+	data class PoseLattice(val deformerIds: List<DeformerId>, val kind: ElementEditKind) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String =
+			when (kind) {
+				ElementEditKind.Grab -> "change.pose.move"
+				ElementEditKind.Scale -> "change.pose.scale"
+				ElementEditKind.Rotate -> "change.pose.rotate"
+				ElementEditKind.VertexSlide -> "change.pose.slide"
+				ElementEditKind.ToShape -> "change.pose.toShape"
+			}
+	}
+
+	/**
 	 * Sets a deformer's static opacity - the value its opacity channel falls back to when unkeyed.
 	 *
 	 * A deformer's render channels CASCADE: this multiplies onto every drawable beneath it, so it is not
@@ -470,7 +526,7 @@ sealed interface DeformerChange : Change {
 	}
 
 	/**
-	 * Sets a rotation deformer's static editor reference angle. A no-op on a warp deformer (it has no
+	 * Sets a rotation deformer's static editor reference angle.  A no-op on a warp deformer (it has no
 	 * base angle), so the transform short-circuits.
 	 *
 	 * @property DeformerId id The rotation deformer whose base angle changed.
@@ -482,8 +538,9 @@ sealed interface DeformerChange : Change {
 	}
 
 	/**
-	 * Sets a warp deformer's FFD interpolation mode (true = bilinear / quad, false = triangle split).
-	 * A no-op on a rotation deformer (it has no lattice), so the transform short-circuits.
+	 * Sets a warp deformer's FFD interpolation mode (true = bilinear / quad, false = triangle split), with its
+	 * children re-expressed so they rest where they rested under the new mapping.  A no-op on a rotation deformer (it
+	 * has no lattice), so the transform short-circuits.
 	 *
 	 * @property DeformerId id The warp deformer whose interpolation mode changed.
 	 * @property Boolean quad The new quad-transform state.
@@ -498,10 +555,10 @@ sealed interface DeformerChange : Change {
 sealed interface ParameterChange : Change {
 	/**
 	 * Commits a parameter scrub: the live value (pose) of one or more parameters reached a new resting
-	 * position. The pose is ephemeral editor state (not document content), snapshotted so the scrub is
-	 * undoable. Coalescing is realized upstream, at the gesture boundary: a continuous slider / 2D-pad
+	 * position.  The pose is ephemeral editor state (not document content), snapshotted so the scrub is
+	 * undoable.  Coalescing is realized upstream, at the gesture boundary: a continuous slider / 2D-pad
 	 * drag streams transient preview frames straight to the renderer and commits exactly one [SetValue]
-	 * on release, so a whole drag is a single undo step while two separate drags are two. Hence this is a
+	 * on release, so a whole drag is a single undo step while two separate drags are two.  Hence this is a
 	 * plain [Undoability.Undoable] step (one per commit), not a history-side merge.
 	 *
 	 * @property List<ParameterId> ids The parameters whose live value this gesture moved.
@@ -512,9 +569,9 @@ sealed interface ParameterChange : Change {
 	}
 
 	/**
-	 * Sets a parameter's range (minimum / maximum) and default. Document content - it changes the model
-	 * and marks the document dirty. The default is clamped within the range, and the live pose value is
-	 * re-clamped into the new range as part of the same undo step.
+	 * Sets a parameter's range (minimum / maximum) and default.  Document content - it changes the model
+	 * and marks the document dirty.  The default is clamped within the range, and the live pose value is
+	 * brought back into the new range as part of the same undo step.
 	 *
 	 * @property ParameterId id The parameter whose range changed.
 	 * @property Float min The new minimum (normalized so it does not exceed [max]).
@@ -527,8 +584,31 @@ sealed interface ParameterChange : Change {
 	}
 
 	/**
-	 * Links two adjacent parameters into one 2D pad, or removes that link. Document content - it
-	 * changes the model and marks the document dirty. The live pose is untouched: both parameters
+	 * Turns a parameter's repeat on or off.  Document content - it changes the model and marks the document
+	 * dirty.  The live pose is untouched: a value inside the range is valid on either kind of axis.
+	 *
+	 * @property ParameterId id The parameter whose repeat changed.
+	 * @property Boolean repeat Whether the axis now wraps past its limits.
+	 */
+	data class SetRepeat(val id: ParameterId, val repeat: Boolean) : ParameterChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.parameter.repeat"
+	}
+
+	/**
+	 * Sets a parameter's note field.
+	 *
+	 * @property ParameterId id The parameter whose note changed.
+	 * @property String note The new note, empty for none.
+	 */
+	data class SetNote(val id: ParameterId, val note: String) : ParameterChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.parameter.note"
+	}
+
+	/**
+	 * Links two adjacent parameters into one 2D pad, or removes that link.  Document content - it
+	 * changes the model and marks the document dirty.  The live pose is untouched: both parameters
 	 * keep their values, only the panel presentation folds into (or splits out of) a pad.
 	 *
 	 * @property ParameterId horizontal The X-axis (upper) parameter.
@@ -541,8 +621,8 @@ sealed interface ParameterChange : Change {
 	}
 
 	/**
-	 * Reorders a parameter row in the panel's group tree, or moves it into or out of a group. Layout only
-	 * - the flat parameters list and the links are untouched. The subject is one or two adjacent parameter
+	 * Reorders a parameter row in the panel's group tree, or moves it into or out of a group.  Layout only
+	 * - the flat parameters list and the links are untouched.  The subject is one or two adjacent parameter
 	 * leaves (a slider or a linked pad) or a whole group.
 	 *
 	 * @property ParameterMoveSubject subject The leaves or group being moved.
@@ -622,7 +702,7 @@ sealed interface ParameterChange : Change {
 
 sealed interface DocumentChange : Change {
 	/**
-	 * Sets the document canvas size in world units. Document content, so it marks the document dirty.
+	 * Sets the document canvas size in world units.  Document content, so it marks the document dirty.
 	 *
 	 * @property Float width The new canvas width.
 	 * @property Float height The new canvas height.
@@ -633,19 +713,19 @@ sealed interface DocumentChange : Change {
 	}
 
 	/**
-	 * Sets the world origin (where the viewport axis lines cross, in world space). Document content, so
+	 * Sets the world origin (where the viewport axis lines cross, in world space).  Document content, so
 	 * it marks the document dirty.
 	 *
 	 * @property Float x The new world-origin x.
-	 * @property Float y The new world-origin y.
+	 * @property Float z The new world-origin z (up).
 	 */
-	data class SetWorldOrigin(val x: Float, val y: Float) : DocumentChange {
+	data class SetWorldOrigin(val x: Float, val z: Float) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.worldOrigin"
 	}
 
 	/**
-	 * Sets the document's runtime-compatibility target. Document content, so it marks the document
+	 * Sets the document's runtime-compatibility target.  Document content, so it marks the document
 	 * dirty.
 	 *
 	 * @property RuntimeTarget target The new runtime target.
@@ -686,7 +766,9 @@ sealed interface DocumentChange : Change {
 		override val labelKey: String =
 			when (kind) {
 				MeshOperatorKind.Rotate -> "change.document.atlasPlacement.rotate"
+
 				MeshOperatorKind.Scale -> "change.document.atlasPlacement.scale"
+
 				// A placement has no slide; one arriving under that kind can only have moved.
 				MeshOperatorKind.Grab, MeshOperatorKind.VertexSlide, null -> "change.document.atlasPlacement"
 			}
@@ -736,13 +818,29 @@ sealed interface DocumentChange : Change {
 	 * Removes one piece of source art from the atlas: a tile no drawable samples (its drawables were
 	 * deleted, or it never had any), so it stops taking a page slot and a Sources row.  Its pixels stay
 	 * in the document's raster store, so undo shows it again.  Document content, so it marks the
-	 * document dirty.
+	 * document dirty.  With [ignoredLayer] the layer the tile was bound to is marked ignored in the same
+	 * step, so a reload does not mint the art back (Settings > Import decides).
 	 *
-	 * @property AtlasTileId tileId The tile removed.
+	 * @property AtlasTileId tileId       The tile removed.
+	 * @property Boolean     ignoredLayer Whether the tile's layer was marked ignored with it.
 	 */
-	data class DeleteTile(val tileId: AtlasTileId) : DocumentChange {
+	data class DeleteTile(val tileId: AtlasTileId, val ignoredLayer: Boolean = false) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.document.deleteTile"
+		override val labelKey: String = if (ignoredLayer) "change.document.deleteTileIgnore" else "change.document.deleteTile"
+	}
+
+	/**
+	 * Marks or clears the ignore on one layer of a listed artwork file: while marked, a reload leaves the
+	 * layer out of the rig instead of minting a drawable for it.  Document content the native format
+	 * carries, so it marks the document dirty.
+	 *
+	 * @property ArtSourceId sourceId The file.
+	 * @property String      layerKey The layer's key within it.
+	 * @property Boolean     ignored  True when the layer was marked, false when the mark was cleared.
+	 */
+	data class SetLayerIgnored(val sourceId: ArtSourceId, val layerKey: String, val ignored: Boolean) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = if (ignored) "change.document.layerIgnore" else "change.document.layerUnignore"
 	}
 
 	/**
@@ -755,22 +853,31 @@ sealed interface DocumentChange : Change {
 	 */
 	data class AddArtwork(val sourceName: String, val drawableCount: Int) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.document.addArtwork"
+		override val labelKey: String = "change.document.importArtwork"
 	}
 
 	/**
 	 * Reloads the document's artwork files: every changed layer's tile replaced with its new art, a lost
-	 * layer's tile rebound to the layer that re-created it, the layers the files gained added, the
-	 * inventories refreshed, and the changed tiles packed beside the existing art - one step for however
-	 * many files were read.  Document content, so it marks the document dirty.
+	 * layer's tile rebound to the layer that re-created it, the layers the files gained added, the untouched
+	 * drawables following their layers' eye toggles, the inventories refreshed, and the changed tiles packed
+	 * beside the existing art - one step for however many files were read.  Document content, so it marks
+	 * the document dirty.
 	 *
-	 * @property Int fileCount     How many files were re-read.
-	 * @property Int replacedCount How many tiles took new art (the rebound ones among them).
-	 * @property Int addedCount    How many drawables the files' new layers added.
-	 * @property Int matchedCount  How many tiles the matcher rebound to a re-created layer.
-	 * @property Int missingCount  How many bound layers the files no longer have (left for review).
+	 * @property Int fileCount       How many files were re-read.
+	 * @property Int replacedCount   How many tiles took new art (the rebound ones among them).
+	 * @property Int addedCount      How many drawables the files' new layers added.
+	 * @property Int matchedCount    How many tiles the matcher rebound to a re-created layer.
+	 * @property Int missingCount    How many bound layers the files no longer have (left for review).
+	 * @property Int visibilityCount How many drawables followed their layer's eye toggle in the file.
 	 */
-	data class ReloadArtwork(val fileCount: Int, val replacedCount: Int, val addedCount: Int, val matchedCount: Int, val missingCount: Int) : DocumentChange {
+	data class ReloadArtwork(
+		val fileCount: Int,
+		val replacedCount: Int,
+		val addedCount: Int,
+		val matchedCount: Int,
+		val missingCount: Int,
+		val visibilityCount: Int = 0,
+	) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.reloadArtwork"
 	}
@@ -816,6 +923,78 @@ sealed interface DocumentChange : Change {
 	data class ReplaceArtwork(val sourceName: String, val matchedCount: Int, val reboundCount: Int, val missingCount: Int) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.replaceArtwork"
+	}
+}
+
+/** Changes to an object's Parts-panel eye, for one object or for many at once. */
+sealed interface VisibilityChange : Change {
+	/**
+	 * Toggles a part's eye.  Cascades at render time (hiding a part hides its subtree), but the stored change
+	 * is just this one part's flag.
+	 *
+	 * @property PartId id The part whose visibility changed.
+	 * @property Boolean visible The new visibility.
+	 */
+	data class Part(val id: PartId, val visible: Boolean) : VisibilityChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.visibility.part"
+	}
+
+	/**
+	 * Toggles a drawable's own eye.
+	 *
+	 * @property DrawableId id The drawable whose visibility changed.
+	 * @property Boolean visible The new visibility.
+	 */
+	data class Drawable(val id: DrawableId, val visible: Boolean) : VisibilityChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.visibility.drawable"
+	}
+
+	/**
+	 * Toggles a deformer's own eye, which hides its overlay and nothing nested in it.
+	 *
+	 * @property DeformerId id The deformer whose visibility changed.
+	 * @property Boolean visible The new visibility.
+	 */
+	data class Deformer(val id: DeformerId, val visible: Boolean) : VisibilityChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.visibility.deformer"
+	}
+
+	/**
+	 * Hides everything outside the selection, each unselected branch at its topmost part or drawable, and each
+	 * unselected deformer still shown after that.
+	 *
+	 * @property List<SelectionTarget> hidden The parts, drawables, and deformers whose own eye turned off.
+	 */
+	data class HideUnselected(val hidden: List<SelectionTarget>) : VisibilityChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.visibility.hideUnselected"
+	}
+
+	/**
+	 * Turns on the eye of every part, drawable, and deformer that had it off.
+	 *
+	 * @property List<SelectionTarget> shown The parts, drawables, and deformers whose own eye turned on.
+	 */
+	data class UnhideAll(val shown: List<SelectionTarget>) : VisibilityChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.visibility.unhideAll"
+	}
+}
+
+/** Changes that bind a relation of many objects at once. */
+sealed interface RelationChange : Change {
+	/**
+	 * Gives several objects the binding one of them holds - its parent part, its parent deformer, or one of its
+	 * clip masks - as one step.
+	 *
+	 * @property List<SelectionTarget> targets The objects that took the binding.
+	 */
+	data class CopyToSelected(val targets: List<SelectionTarget>) : RelationChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.relation.copyToSelected"
 	}
 }
 
@@ -869,12 +1048,14 @@ sealed interface KeyformChange : Change {
 }
 
 /**
- * Changes to a drawable's art mesh (its interior geometry, edited in Edit mode).
+ * Changes to a drawable's art mesh (its interior geometry, edited in Edit mode), plus the Object-mode move of whole
+ * drawables and warps ([TransformObjects]).
  *
- * The three whole-gesture transforms ([TransformVertices], [TransformDrawables], [TransformUvs]) each carry
- * the [MeshOperatorKind] they performed, so the history panel can name the operation rather than filing
- * every Grab, Scale, and Rotate under one "Move" label.  The kind names WHAT the transform was, not how it
- * was driven: the Properties panel's typed Size row records Scale with no modal operator ever latching.
+ * The three whole-gesture transforms ([TransformVertices], [TransformObjects], [TransformUvs]) each carry what they
+ * performed ([ElementEditKind] for the vertices, the [MeshOperatorKind] for the others), so the history panel can name
+ * the operation rather than filing every Grab, Scale, and Rotate under one "Move" label.  The kind names WHAT the
+ * transform was, not how it was driven: the Properties panel's typed Size row records Scale with no modal operator
+ * ever latching.
  *
  * Each label key is resolved by an exhaustive `when` over the kind rather than by interpolating a suffix
  * into a namespace.  Interpolation would happily mint a key like `change.object.slide` that no string
@@ -883,24 +1064,25 @@ sealed interface KeyformChange : Change {
 sealed interface MeshChange : Change {
 	/**
 	 * Transforms a set of mesh vertices to new rest positions, per drawable - an Edit session spans several
-	 * meshes, so one gesture can move vertices on each of them as a single undo step. The pose is
+	 * meshes, so one gesture can move vertices on each of them as a single undo step.  The pose is
 	 * unaffected; this edits the rest geometry, which is document content.
 	 *
 	 * @property Map<DrawableId, List<Int>> vertexIndicesByDrawable The vertices this gesture moved, per
 	 *   drawable (for the history-panel detail).
-	 * @property MeshOperatorKind kind The operator this gesture ran, which selects the history label.
+	 * @property ElementEditKind kind What this step did to the vertices, which selects the history label.
 	 */
 	data class TransformVertices(
 		val vertexIndicesByDrawable: Map<DrawableId, List<Int>>,
-		val kind: MeshOperatorKind,
+		val kind: ElementEditKind,
 	) : MeshChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String =
 			when (kind) {
-				MeshOperatorKind.Grab -> "change.mesh.move"
-				MeshOperatorKind.Scale -> "change.mesh.scale"
-				MeshOperatorKind.Rotate -> "change.mesh.rotate"
-				MeshOperatorKind.VertexSlide -> "change.mesh.slide"
+				ElementEditKind.Grab -> "change.mesh.move"
+				ElementEditKind.Scale -> "change.mesh.scale"
+				ElementEditKind.Rotate -> "change.mesh.rotate"
+				ElementEditKind.VertexSlide -> "change.mesh.slide"
+				ElementEditKind.ToShape -> "change.mesh.toShape"
 			}
 	}
 
@@ -917,22 +1099,54 @@ sealed interface MeshChange : Change {
 	}
 
 	/**
-	 * Transforms every vertex of one or more whole drawables to new rest positions - an Object-mode Grab /
-	 * Scale / Rotate of the selected drawables, or the Properties panel's typed Position / Size rows.
-	 * Recorded as one undo step for the whole gesture even though several drawables move.  The pose is
-	 * unaffected; this edits rest geometry, which is document content.
+	 * Generates one or more drawables' meshes from their art in one step: every listed mesh is replaced
+	 * by a generated one, its keyform deltas, blend shapes, and glue pairs carried over from the mesh it
+	 * replaced.
+	 *
+	 * @property List<DrawableId> drawableIds The drawables whose meshes were replaced.
+	 */
+	data class GenerateFromArt(val drawableIds: List<DrawableId>) : MeshChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.mesh.generateFromArt"
+	}
+
+	/**
+	 * Gives one or more drawables a quad over their art in one step: every listed mesh is replaced by a
+	 * quad (with any glued vertex kept in it), its keyform deltas, blend shapes, and glue pairs carried
+	 * over from the mesh it replaced.
+	 *
+	 * @property List<DrawableId> drawableIds The drawables whose meshes were replaced.
+	 */
+	data class GenerateQuad(val drawableIds: List<DrawableId>) : MeshChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.mesh.generateQuad"
+	}
+
+	/**
+	 * Transforms whole objects - an Object-mode Grab / Scale / Rotate of the selected drawables and warps, a
+	 * Shift+S selection snap, or the Properties panel's typed Position / Size rows.  A drawable's every vertex
+	 * moves to new rest positions; a warp's every grid cell and blend-shape form moves, its art following.
+	 * Recorded as one undo step for the whole gesture even though several objects move.  The pose is
+	 * unaffected; this edits rest geometry and lattice forms, which are document content.
 	 *
 	 * @property List<DrawableId> drawableIds The drawables this gesture moved (for the history-panel detail).
 	 * @property MeshOperatorKind kind The operator this gesture ran, which selects the history label.
+	 * @property List<DeformerId> deformerIds The warps this gesture moved.
 	 */
-	data class TransformDrawables(val drawableIds: List<DrawableId>, val kind: MeshOperatorKind) : MeshChange {
+	data class TransformObjects(
+		val drawableIds: List<DrawableId>,
+		val kind: MeshOperatorKind,
+		val deformerIds: List<DeformerId> = emptyList(),
+	) : MeshChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String =
 			when (kind) {
 				// Object mode cannot latch a Vertex Slide (the command is Edit-mode gated), so it can only
 				// arrive here through a future caller - where reading as a plain move is the honest label.
 				MeshOperatorKind.Grab, MeshOperatorKind.VertexSlide -> "change.object.move"
+
 				MeshOperatorKind.Scale -> "change.object.scale"
+
 				MeshOperatorKind.Rotate -> "change.object.rotate"
 			}
 	}
@@ -957,7 +1171,9 @@ sealed interface MeshChange : Change {
 				// The UV editor has no Vertex Slide yet (see TODO § UV Editor); until it does, a slide can
 				// only reach here as a move.
 				MeshOperatorKind.Grab, MeshOperatorKind.VertexSlide -> "change.uv.move"
+
 				MeshOperatorKind.Scale -> "change.uv.scale"
+
 				MeshOperatorKind.Rotate -> "change.uv.rotate"
 			}
 	}
@@ -979,18 +1195,18 @@ sealed interface MeshChange : Change {
 
 /**
  * Changes to ephemeral editor state — selection and mode — which ride alongside the document model in
- * a history snapshot rather than inside [org.umamo.runtime.model.PuppetModel]. Selection gestures are
+ * a history snapshot rather than inside [org.umamo.runtime.model.PuppetModel].  Selection gestures are
  * full undo steps (the user's chosen Blender-faithful granularity); a mode toggle is transient.
  */
 sealed interface EditorStateChange : Change {
-	/** A selection gesture (click, deselect, range). Its own undo step so a misclick is recoverable. */
+	/** A selection gesture (click, deselect, range).  Its own undo step so a misclick is recoverable. */
 	object SelectionChanged : EditorStateChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.selection"
 	}
 
 	/**
-	 * A parameter-target gesture (clicking a parameter row). Its own undo step, like the object and mesh
+	 * A parameter-target gesture (clicking a parameter row).  Its own undo step, like the object and mesh
 	 * selection gestures, so undoing back across a keyform edit restores the parameter it was made on.
 	 */
 	object ParameterSelectionChanged : EditorStateChange {
@@ -999,7 +1215,7 @@ sealed interface EditorStateChange : Change {
 	}
 
 	/**
-	 * An Edit-mode element-selection gesture (click, box, deselect). Its own undo step, like its
+	 * An Edit-mode element-selection gesture (click, box, deselect).  Its own undo step, like its
 	 * object-mode counterpart [SelectionChanged], so a misclick that loses a selection is recoverable.
 	 */
 	object MeshSelectionChanged : EditorStateChange {
@@ -1018,7 +1234,7 @@ sealed interface EditorStateChange : Change {
 	}
 
 	/**
-	 * An Edit-mode select-mode switch (vertex / edge / face). Its own undo step, so undoing back across
+	 * An Edit-mode select-mode switch (vertex / edge / face).  Its own undo step, so undoing back across
 	 * the switch restores both the prior mode and the selection it converted - the flush-down / derive-up
 	 * conversion is lossy by design (Blender-faithful), so only the snapshot can bring the set back.
 	 *
@@ -1030,7 +1246,7 @@ sealed interface EditorStateChange : Change {
 	}
 
 	/**
-	 * An Object/Edit mode toggle. Its own undo step (like a selection gesture), so undoing back across a
+	 * An Object/Edit mode toggle.  Its own undo step (like a selection gesture), so undoing back across a
 	 * mode change restores the prior mode together with the vertex selection it seeded - the editor never
 	 * ends up in Edit mode showing a state that was captured in Object mode.
 	 *
@@ -1039,5 +1255,14 @@ sealed interface EditorStateChange : Change {
 	data class ModeChanged(val mode: EditorMode) : EditorStateChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.mode"
+	}
+
+	/**
+	 * Every unkeyed edit held at the pose discarded at once - the channel values and the Pose-mode lattices - with
+	 * the pose and the model untouched.  Its own undo step, so undoing it brings the edits back.
+	 */
+	object PoseEditsCleared : EditorStateChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.pose.clearEdits"
 	}
 }

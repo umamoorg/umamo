@@ -1,0 +1,1424 @@
+package org.umamo.ui.workspace.shell
+
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.key.Key
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import org.umamo.edit.DepthSurface
+import org.umamo.edit.EditorMode
+import org.umamo.edit.EditorSession
+import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.PieMenuKind
+import org.umamo.edit.Selection
+import org.umamo.edit.SelectionTarget
+import org.umamo.edit.TransformAxisConstraint
+import org.umamo.edit.selectAllMeshElements
+import org.umamo.edit.transform.beginBoxSelect
+import org.umamo.edit.transform.beginMeshOperator
+import org.umamo.edit.transform.beginObjectOperator
+import org.umamo.edit.transform.beginUvOperator
+import org.umamo.interop.ExportFormat
+import org.umamo.interop.ExportReport
+import org.umamo.interop.moc3.Moc3ExportOptions
+import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.Drawable
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandFamily
+import org.umamo.ui.action.CommandRegistry
+import org.umamo.ui.action.KeyChord
+import org.umamo.ui.action.Keymap
+import org.umamo.ui.action.keyName
+import org.umamo.ui.document.DocumentOpenError
+import org.umamo.ui.document.DocumentOpenFailure
+import org.umamo.ui.kit.field.ScrubCancelController
+import org.umamo.ui.kit.menu.MenuBarController
+import org.umamo.ui.kit.textentry.InlineEditController
+import org.umamo.ui.kit.textentry.KeyCaptureController
+import org.umamo.ui.model.SelectionHandle
+import org.umamo.ui.model.repack.AtlasRepackReport
+import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.cmd_mesh_grab
+import org.umamo.ui.settings.QuickSetupState
+import org.umamo.ui.viewport.viewport2d.LATTICE_RIG_BODY
+import org.umamo.ui.viewport.viewport2d.latticeRigSession
+import org.umamo.ui.workspace.AlertRequest
+import org.umamo.ui.workspace.ConfirmRequest
+import org.umamo.ui.workspace.DialogAlternative
+import org.umamo.ui.workspace.KeyformSheetSurface
+import org.umamo.ui.workspace.KeyformSheetViews
+import org.umamo.ui.workspace.RelationPickController
+import org.umamo.ui.workspace.ShellOverlayState
+import org.umamo.ui.workspace.area.AreaCorner
+import org.umamo.ui.workspace.area.AreaDragController
+import org.umamo.ui.workspace.area.SplitterDragCancelController
+import org.umamo.ui.workspace.commands.shellCommandTables
+import org.umamo.ui.workspace.export.ExportOptionsRequest
+import org.umamo.ui.workspace.rowdrag.RowDragCancelController
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertSame
+import kotlin.test.assertTrue
+
+/**
+ * Pins the shell's modal key precedence - the order in which modal chrome and in-flight gestures claim a
+ * key before the keymap ever sees it.
+ *
+ * The ladder's own header says "Order is the contract", and until this suite existed nothing enforced
+ * it: every arm was reachable only through a live composition, so a reordering merged silently.  Two
+ * halves here, and the second is the one that matters.  The per-arm tests prove each state claims its
+ * key at all; the precedence tests open two or three modals at once and assert which one wins, which is
+ * the only way a mis-ordered arm actually shows up.
+ *
+ * Several arms exist because of a specific past bug - Escape during an area drag must reach
+ * area.dragCancel, Escape on a row drag must not deselect the dragged rows, Edit mode must never clear
+ * the object selection - so those are pinned against the behavior their comments describe.
+ */
+class ModalKeyLadderTest {
+	private val areaId = "viewport-1"
+
+	private fun meshDrawable(id: String): Drawable =
+		Drawable(
+			id = DrawableId(id),
+			name = id,
+			parentDeformerId = null,
+			blendMode = BlendMode.Normal,
+			maskedBy = emptyList(),
+			mesh =
+				DrawableMesh.withLocalEqualToCanvas(
+					floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
+					floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
+					intArrayOf(0, 1, 2),
+				),
+			geometryGrid = null,
+		)
+
+	/**
+	 * A session in [mode] with one drawable selected and every mesh element selected, so an operator or
+	 * tool actually latches rather than refusing on an empty selection.
+	 *
+	 * @param EditorMode mode The mode to leave the session in.
+	 * @return EditorSession The session.
+	 */
+	private fun session(mode: EditorMode = EditorMode.Object): EditorSession {
+		val session =
+			EditorSession(
+				PuppetModel(
+					parameters = emptyList(),
+					parts = emptyList(),
+					deformers = emptyList(),
+					drawables = listOf(meshDrawable("a")),
+					rootChildren = emptyList(),
+					rootPartId = null,
+				),
+			)
+		val drawable = SelectionTarget.Drawable(DrawableId("a"))
+		session.setSelection(Selection(setOf(drawable), drawable))
+		session.setMode(mode)
+
+		if (mode == EditorMode.Edit) {
+			session.selectAllMeshElements()
+		}
+
+		return session
+	}
+
+	/**
+	 * One session per operator family, each already latched, in the mode that family requires - Object
+	 * refuses outside Object mode and UV outside Edit mode.
+	 *
+	 * Each entry asserts its OWN latch, because a fixture that quietly fails to arm would make every
+	 * ladder assertion below it pass for the wrong reason.
+	 *
+	 * @return List<Pair<String, EditorSession>> The family name and its latched session.
+	 */
+	private fun latchedOperatorFamilies(): List<Pair<String, EditorSession>> =
+		listOf(
+			"mesh" to session(EditorMode.Edit).apply { beginMeshOperator(MeshOperatorKind.Grab, areaId) },
+			"object" to session(EditorMode.Object).apply { beginObjectOperator(MeshOperatorKind.Grab, areaId) },
+			"uv" to session(EditorMode.Edit).apply { beginUvOperator(MeshOperatorKind.Grab, areaId) },
+		).onEach { (family, session) ->
+			assertNotNull(session.activeOperator, "the $family fixture must actually latch")
+		}
+
+	/** A selection handle over a mutable slot, so the clear-selection arm's effect is observable. */
+	private class RecordingSelection(initial: Selection) : SelectionHandle {
+		override var selection: Selection = initial
+			private set
+
+		override fun set(selection: Selection) {
+			this.selection = selection
+		}
+	}
+
+	private fun nonEmptySelection(): RecordingSelection {
+		val drawable = SelectionTarget.Drawable(DrawableId("a"))
+
+		return RecordingSelection(Selection(setOf(drawable), drawable))
+	}
+
+	/** A menu-bar seam whose close was recorded, so "the menu claimed it" is an assertion and not an absence. */
+	private class RecordingMenuBar {
+		var closed = false
+		val controller = MenuBarController().apply { closeOpenMenu = { closed = true } }
+	}
+
+	private class RecordingInlineEdit {
+		var cancelled = false
+		val controller = InlineEditController().apply { cancel = { cancelled = true } }
+	}
+
+	private class RecordingRowDrag {
+		var cancelled = false
+		val controller = RowDragCancelController().apply { cancel = { cancelled = true } }
+	}
+
+	/** A sheet surface with an armed marquee, recording the disarm the ladder is expected to call. */
+	private class RecordingSheet(armedInitially: Boolean) {
+		var armed = armedInitially
+
+		val surface: KeyformSheetSurface =
+			KeyformSheetSurface(
+				selectedTracks = { emptyList() },
+				hasSelection = { false },
+				frameAll = {},
+				armBoxSelect = { armed = true },
+				boxSelectArmed = { armed },
+				disarmBoxSelect = { armed = false },
+				nudgeSelection = {},
+			)
+	}
+
+	private fun sheetViews(armed: Boolean): Pair<KeyformSheetViews, RecordingSheet> {
+		val sheet = RecordingSheet(armed)
+		val views = KeyformSheetViews()
+		views.register("sheet-1", sheet.surface)
+
+		return views to sheet
+	}
+
+	/** A controller reporting an in-flight corner drag, which several arms gate off. */
+	private fun draggingController(): AreaDragController =
+		AreaDragController().apply { beginDrag("a", AreaCorner.TopLeft, Offset.Zero) }
+
+	/** A minimal pending MOC3 export-options request, for the self-focused overlay arms. */
+	private fun exportOptionsRequest(): ExportOptionsRequest =
+		ExportOptionsRequest.Moc3(
+			initial = Moc3ExportOptions(),
+			physicsAvailable = false,
+			userDataAvailable = false,
+			canvasWidth = 100f,
+			canvasHeight = 100f,
+			onConfirm = {},
+		)
+
+	/** A registry with one recording command, for the arms that dispatch by id. */
+	private class RecordingRegistry(commandId: String) {
+		var invoked = false
+		val registry =
+			CommandRegistry().apply {
+				register(Command(commandId, title = Res.string.cmd_mesh_grab) { invoked = true })
+			}
+	}
+
+	private fun press(
+		key: Key,
+		state: ShellModalState,
+		isDown: Boolean = true,
+		primaryModifier: Boolean = false,
+		shift: Boolean = false,
+		alt: Boolean = false,
+	): Boolean = handleModalKeyLadder(ShellKeyStroke(key, isDown, primaryModifier, shift, alt), state)
+
+	private fun escape(state: ShellModalState): Boolean = press(Key.Escape, state)
+
+	private fun enter(state: ShellModalState): Boolean = press(Key.Enter, state)
+
+	// ---------------------------------------------------------------------------------------------
+	// Arm 1-3: the modal alerts, which swallow every key so nothing fires behind them - except the
+	// copy chord, which every alert but the confirm passes on to its selectable text.
+	// ---------------------------------------------------------------------------------------------
+
+	@Test
+	fun aConfirmDialogTakesEnterOrEscapeAndSwallowsEverythingElse() {
+		var confirmCount = 0
+		val overlays = ShellOverlayState().apply { pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { confirmCount++ } }
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(press(Key.Spacebar, state), "every key is swallowed so no shortcut fires behind the dialog")
+		assertNotNull(overlays.pendingConfirm, "but only Enter or Escape dismisses it")
+
+		assertTrue(escape(state))
+		assertNull(overlays.pendingConfirm)
+		assertEquals(0, confirmCount, "Escape cancels without running the confirm")
+
+		for (confirmKey in listOf(Key.Enter, Key.NumPadEnter)) {
+			val before = confirmCount
+			overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { confirmCount++ }
+
+			assertTrue(press(confirmKey, state))
+			assertNull(overlays.pendingConfirm, "$confirmKey dismisses the dialog")
+			assertEquals(before + 1, confirmCount, "$confirmKey runs the confirm exactly once")
+			// Released like a real key: a request raised while a confirming Enter is still down waits for
+			// the release, so the next press would otherwise count as that Enter's repeat.
+			press(confirmKey, state, isDown = false)
+		}
+	}
+
+	@Test
+	fun aConfirmThatRaisesAnotherConfirmLeavesTheSecondPending() {
+		val overlays = ShellOverlayState()
+		val followUp = ConfirmRequest(Res.string.cmd_mesh_grab) {}
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { overlays.pendingConfirm = followUp }
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(enter(state))
+
+		assertEquals(followUp, overlays.pendingConfirm, "the confirm leaves its queue before the action runs, so the follow-up survives")
+	}
+
+	/**
+	 * The palette runs its command on Enter's key-down, so a confirm that command raises lands under a
+	 * still-held Enter.  The OS repeats a held key; without this rule the repeat would confirm a destructive
+	 * action before the dialog is seen.  Compose's key-down has no repeat flag, so the ladder tracks the
+	 * key itself: the confirm stays unarmed until that Enter is released, and only a fresh press confirms.
+	 */
+	@Test
+	fun aConfirmRaisedUnderAHeldEnterWaitsForItsRelease() {
+		var confirmCount = 0
+		val overlays = ShellOverlayState()
+		val state = ShellModalState(overlays = overlays)
+		// The ladder previews the key-down first; the command then raises the confirm under the held key.
+		press(Key.Enter, state)
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { confirmCount++ }
+
+		assertTrue(press(Key.Enter, state), "the auto-repeat of the same Enter is swallowed")
+		assertNotNull(overlays.pendingConfirm, "and confirms nothing")
+		assertTrue(press(Key.Enter, state, isDown = false), "the release is swallowed too")
+		assertNotNull(overlays.pendingConfirm, "and confirms nothing either")
+		assertEquals(0, confirmCount)
+
+		assertTrue(enter(state))
+		assertNull(overlays.pendingConfirm, "a fresh press confirms")
+		assertEquals(1, confirmCount, "exactly once")
+	}
+
+	@Test
+	fun aHeldNumPadEnterIsHeldEnterToo() {
+		var confirmCount = 0
+		val overlays = ShellOverlayState()
+		val state = ShellModalState(overlays = overlays)
+		press(Key.NumPadEnter, state)
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { confirmCount++ }
+
+		assertTrue(press(Key.NumPadEnter, state))
+		assertNotNull(overlays.pendingConfirm, "the repeated NumPadEnter confirms nothing")
+		press(Key.NumPadEnter, state, isDown = false)
+
+		assertTrue(press(Key.NumPadEnter, state))
+		assertNull(overlays.pendingConfirm, "and a fresh press confirms")
+		assertEquals(1, confirmCount)
+	}
+
+	@Test
+	fun escapeCancelsAConfirmThatEnterCannotYetConfirm() {
+		var confirmCount = 0
+		val overlays = ShellOverlayState()
+		val state = ShellModalState(overlays = overlays)
+		press(Key.Enter, state)
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { confirmCount++ }
+
+		assertTrue(escape(state))
+
+		assertNull(overlays.pendingConfirm, "the arming gates Enter alone; Escape cancels as always")
+		assertEquals(0, confirmCount)
+	}
+
+	/**
+	 * The Enter that acknowledges one alert is still down when the next queued alert shows, and its auto-repeat
+	 * must not acknowledge that one unseen.  A release followed by a fresh press does.
+	 */
+	@Test
+	fun enterAutoRepeatNeverDismissesAQueuedAlert() {
+		val overlays = ShellOverlayState()
+		val second = AlertRequest(Res.string.cmd_mesh_grab, listOf("second"))
+		overlays.pendingAlert = AlertRequest(Res.string.cmd_mesh_grab, listOf("first"))
+		overlays.pendingAlert = second
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(enter(state))
+		assertSame(second, overlays.pendingAlert, "the press acknowledges the first")
+		assertTrue(enter(state), "its auto-repeat is swallowed")
+		assertSame(second, overlays.pendingAlert, "and leaves the second up")
+
+		assertTrue(press(Key.Enter, state, isDown = false))
+		assertSame(second, overlays.pendingAlert, "the release acknowledges nothing")
+		assertTrue(enter(state))
+		assertNull(overlays.pendingAlert, "a fresh press does")
+	}
+
+	/**
+	 * The Enter that confirms one confirmation must not confirm the one queued behind it through its auto-repeat:
+	 * the second runs only on a fresh press.
+	 */
+	@Test
+	fun enterAutoRepeatNeverConfirmsAQueuedConfirm() {
+		val runs = ArrayList<String>()
+		val overlays = ShellOverlayState()
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { runs.add("first") }
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { runs.add("second") }
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(enter(state))
+		assertEquals(listOf("first"), runs, "the press confirms the first")
+		assertTrue(enter(state), "its auto-repeat is swallowed")
+		assertEquals(listOf("first"), runs, "and confirms nothing")
+		assertNotNull(overlays.pendingConfirm, "the second stays up")
+
+		press(Key.Enter, state, isDown = false)
+		assertTrue(enter(state))
+		assertEquals(listOf("first", "second"), runs, "a fresh press confirms the second")
+		assertNull(overlays.pendingConfirm)
+	}
+
+	/**
+	 * A confirm over an alert takes Enter, and the repeat of that Enter leaves the alert beneath it up: the alert
+	 * takes the top under a held key, so it waits for a fresh press like a queued confirm does.
+	 */
+	@Test
+	fun aConfirmOverAnAlertTakesEnterAndItsRepeatLeavesTheAlertUp() {
+		var confirmCount = 0
+		val alert = AlertRequest(Res.string.cmd_mesh_grab)
+		val overlays =
+			ShellOverlayState().apply {
+				pendingAlert = alert
+				pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { confirmCount++ }
+			}
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(enter(state))
+		assertEquals(1, confirmCount, "Enter confirms the confirm")
+		assertNull(overlays.pendingConfirm)
+		assertTrue(enter(state))
+		assertSame(alert, overlays.pendingAlert, "the repeat leaves the alert up")
+
+		press(Key.Enter, state, isDown = false)
+		assertTrue(enter(state))
+		assertNull(overlays.pendingAlert, "a fresh press acknowledges it")
+	}
+
+	/**
+	 * Every alert kind's queue waits out a held Enter the same way, so none of the five arms can skip the gate.
+	 */
+	@Test
+	fun enterAutoRepeatNeverDismissesTheNextOfAnyAlertKind() {
+		val kinds =
+			listOf<Triple<String, (ShellOverlayState) -> Unit, (ShellOverlayState) -> Boolean>>(
+				Triple("open failure", { overlays -> overlays.openFailure = DocumentOpenFailure(DocumentOpenError.ReadFailed, "model.cmo3") }, { overlays -> overlays.openFailure != null }),
+				Triple("app alert", { overlays -> overlays.pendingAlert = AlertRequest(Res.string.cmd_mesh_grab) }, { overlays -> overlays.pendingAlert != null }),
+				Triple("export report", { overlays -> overlays.exportReport = ExportReport(ExportFormat.Cmo3, emptyList()) }, { overlays -> overlays.exportReport != null }),
+				Triple("repack report", { overlays -> overlays.repackReport = AtlasRepackReport(emptyList()) }, { overlays -> overlays.repackReport != null }),
+			)
+
+		for ((label, raise, isUp) in kinds) {
+			val overlays = ShellOverlayState()
+			raise(overlays)
+			raise(overlays)
+			val state = ShellModalState(overlays = overlays)
+
+			assertTrue(enter(state))
+			assertTrue(enter(state))
+			assertTrue(isUp(overlays), "$label: the repeat leaves the second up")
+
+			press(Key.Enter, state, isDown = false)
+			assertTrue(enter(state))
+			assertFalse(isUp(overlays), "$label: a fresh press acknowledges it")
+		}
+	}
+
+	/**
+	 * An alert raised under a held Enter - the palette ran a command that failed at once - waits for that Enter's
+	 * release, as a confirm raised the same way does.
+	 */
+	@Test
+	fun anAlertRaisedUnderAHeldEnterWaitsForItsRelease() {
+		val overlays = ShellOverlayState()
+		val state = ShellModalState(overlays = overlays)
+		press(Key.Enter, state)
+		overlays.pendingAlert = AlertRequest(Res.string.cmd_mesh_grab)
+
+		assertTrue(enter(state))
+		assertNotNull(overlays.pendingAlert, "the auto-repeat acknowledges nothing")
+
+		press(Key.Enter, state, isDown = false)
+		assertTrue(enter(state))
+		assertNull(overlays.pendingAlert)
+	}
+
+	/**
+	 * The gate holds Enter alone: Escape acknowledges a queued alert even while the Enter that answered the one
+	 * before it is still held.
+	 */
+	@Test
+	fun escapeStillDismissesAQueuedAlertUnderAHeldEnter() {
+		val overlays = ShellOverlayState()
+		overlays.pendingAlert = AlertRequest(Res.string.cmd_mesh_grab, listOf("first"))
+		overlays.pendingAlert = AlertRequest(Res.string.cmd_mesh_grab, listOf("second"))
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(enter(state))
+		assertTrue(escape(state))
+
+		assertNull(overlays.pendingAlert)
+	}
+
+	@Test
+	fun anAppAlertTakesEscapeOrEnterAndSwallowsEverythingElse() {
+		val overlays = ShellOverlayState().apply { pendingAlert = AlertRequest(Res.string.cmd_mesh_grab) }
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(press(Key.Spacebar, state))
+		assertNotNull(overlays.pendingAlert, "every other key is swallowed")
+		assertTrue(enter(state))
+		assertNull(overlays.pendingAlert, "Enter acknowledges it")
+
+		overlays.pendingAlert = AlertRequest(Res.string.cmd_mesh_grab)
+		assertTrue(escape(state))
+		assertNull(overlays.pendingAlert, "and so does Escape")
+	}
+
+	@Test
+	fun theCopyChordPassesThroughEveryAlertToItsText() {
+		val alerts =
+			listOf<Pair<String, (ShellOverlayState) -> Unit>>(
+				"open failure" to { overlays -> overlays.openFailure = DocumentOpenFailure(DocumentOpenError.ReadFailed, "model.cmo3") },
+				"app alert" to { overlays -> overlays.pendingAlert = AlertRequest(Res.string.cmd_mesh_grab) },
+				"export report" to { overlays -> overlays.exportReport = ExportReport(ExportFormat.Cmo3, emptyList()) },
+			)
+
+		for ((label, raise) in alerts) {
+			val overlays = ShellOverlayState().apply(raise)
+			val state = ShellModalState(overlays = overlays)
+
+			// Not consumed: the event goes on to the alert's selectable text, which copies it.
+			assertFalse(press(Key.C, state, primaryModifier = true), "$label: Ctrl/Cmd+C reaches the text")
+			assertFalse(press(Key.Copy, state), "$label: a Copy key reaches the text")
+			assertTrue(overlays.modalAlertOpen, "$label: copying leaves the alert up")
+			// Everything else is still swallowed, a plain C and the other primary chords included.
+			assertTrue(press(Key.C, state), "$label: a plain C is swallowed")
+			assertTrue(press(Key.V, state, primaryModifier = true), "$label: Ctrl/Cmd+V is swallowed")
+		}
+	}
+
+	@Test
+	fun aConfirmDialogStillSwallowsTheCopyChord() {
+		val overlays = ShellOverlayState().apply { pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) {} }
+
+		assertTrue(press(Key.C, ShellModalState(overlays = overlays), primaryModifier = true))
+	}
+
+	@Test
+	fun enterAndEscapeNeverPickAnAlertsAlternative() {
+		var alternativeCount = 0
+		val overlays = ShellOverlayState()
+		val state = ShellModalState(overlays = overlays)
+
+		// "Don't Show Again" is a deliberate click: the keys that acknowledge an alert mean OK.
+		for (acknowledge in listOf<(ShellModalState) -> Boolean>({ modalState -> enter(modalState) }, { modalState -> escape(modalState) })) {
+			overlays.pendingAlert = AlertRequest(Res.string.cmd_mesh_grab, alternative = DialogAlternative(Res.string.cmd_mesh_grab) { alternativeCount++ })
+			assertTrue(acknowledge(state))
+			assertNull(overlays.pendingAlert)
+			press(Key.Enter, state, isDown = false)
+		}
+
+		assertEquals(0, alternativeCount)
+	}
+
+	@Test
+	fun theOpenFailureAlertTakesEscapeOrEnter() {
+		val overlays =
+			ShellOverlayState().apply { openFailure = DocumentOpenFailure(DocumentOpenError.ReadFailed, "model.cmo3") }
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(press(Key.Spacebar, state))
+		assertNotNull(overlays.openFailure)
+
+		assertTrue(enter(state), "Enter acknowledges it like its OK button")
+		assertNull(overlays.openFailure)
+	}
+
+	@Test
+	fun theExportReportAlertTakesEscapeOrEnter() {
+		val overlays = ShellOverlayState().apply { exportReport = ExportReport(ExportFormat.Cmo3, emptyList()) }
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(escape(state))
+		assertNull(overlays.exportReport)
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// Arm 4-6: the chrome that claims Escape but yields other keys to its own content.
+	// ---------------------------------------------------------------------------------------------
+
+	@Test
+	fun anOpenMenuTakesEscape() {
+		val menu = RecordingMenuBar()
+		val state = ShellModalState(menuBarController = menu.controller)
+
+		assertTrue(escape(state))
+		assertTrue(menu.closed)
+	}
+
+	@Test
+	fun anOpenMenuSwallowsOtherKeysInsteadOfFiringShortcutsBehindIt() {
+		// The bar's dropdowns open non-focusable so the labels keep receiving hover, which leaves the host
+		// window focused and this root ladder seeing every key first.  The bar's own handler claims ONLY
+		// Escape, so before this arm covered the rest, G with the File menu open dispatched mesh.grab and
+		// left the menu hanging open over the moving geometry.
+		val menu = RecordingMenuBar()
+		val registry = RecordingRegistry("mesh.grab")
+		val keymap = Keymap(mapOf(KeyChord("KeyG") to "mesh.grab"))
+		val state =
+			ShellModalState(
+				menuBarController = menu.controller,
+				commandRegistry = registry.registry,
+				keymap = keymap,
+			)
+
+		assertFalse(press(Key.G, state), "the key is inert; the menu has no keyboard content to yield to")
+
+		assertFalse(registry.invoked, "no shortcut may fire while a menu is open")
+		assertFalse(menu.closed, "and an unrelated key does not dismiss the menu either")
+	}
+
+	/**
+	 * A control capturing the next key press (the keybindings editor's chord chip) owns the whole keyboard, Escape
+	 * included: the ladder previews every key before the control does, so it has to stand aside or the overlay arm
+	 * closes Preferences behind the capture.  A confirm still outranks it - it paints over everything and can
+	 * arrive unasked while a capture is live.
+	 */
+	@Test
+	fun aLiveKeyCaptureOwnsEveryKeyOverAnOpenOverlay() {
+		val overlays = ShellOverlayState().apply { settingsVisible = true }
+		val keyCapture = KeyCaptureController()
+		val state = ShellModalState(overlays = overlays, keyCapture = keyCapture)
+
+		keyCapture.begin()
+		assertFalse(escape(state), "Escape is left to the capturing control, which cancels its capture")
+		assertTrue(overlays.settingsVisible, "and Preferences stays open")
+		assertFalse(press(Key.Spacebar, state), "as is every other key - any of them may be the one being bound")
+
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) {}
+		assertTrue(escape(state), "a confirm raised over the capture takes its own Escape")
+		assertNull(overlays.pendingConfirm)
+		assertTrue(overlays.settingsVisible)
+
+		keyCapture.end()
+		assertTrue(escape(state), "with the capture over, Escape is the overlay's again")
+		assertFalse(overlays.settingsVisible)
+	}
+
+	/**
+	 * A scrub inside Preferences (its own number fields) or the export-options dialog cancels on Escape; the
+	 * overlay closes on the NEXT Escape.  A live key capture still outranks it - any key may be the one
+	 * being bound, Escape included.
+	 */
+	@Test
+	fun anInFlightScrubOutranksAnOpenOverlayAndYieldsToAKeyCapture() {
+		val overlays = ShellOverlayState().apply { settingsVisible = true }
+		val scrub = RecordingScrub()
+		val keyCapture = KeyCaptureController()
+		val state = ShellModalState(overlays = overlays, keyCapture = keyCapture, scrubCancel = scrub.controller)
+
+		assertTrue(escape(state))
+		assertTrue(scrub.cancelled, "the scrub took it")
+		assertTrue(overlays.settingsVisible, "and Preferences stays open")
+
+		scrub.cancelled = false
+		keyCapture.begin()
+		assertFalse(escape(state), "a capture leaves Escape to the capturing control")
+		assertFalse(scrub.cancelled)
+		keyCapture.end()
+
+		scrub.controller.cancel = null
+		assertTrue(escape(state), "with the scrub over, Escape is the overlay's again")
+		assertFalse(overlays.settingsVisible)
+	}
+
+	/** Two captures overlapping - one chip ending as another begins - never read as no capture at all. */
+	@Test
+	fun overlappingKeyCapturesStayLiveUntilTheLastEnds() {
+		val keyCapture = KeyCaptureController()
+
+		keyCapture.begin()
+		keyCapture.begin()
+		keyCapture.end()
+		assertTrue(keyCapture.active)
+		keyCapture.end()
+		assertFalse(keyCapture.active)
+		keyCapture.end()
+		assertFalse(keyCapture.active, "an unpaired end is harmless")
+	}
+
+	@Test
+	fun theSelfFocusedOverlaysTakeEscapeAndYieldOtherKeys() {
+		// Preferences, Quick Setup, the two Help dialogs, the palette, and the export-options dialog are one
+		// family: Escape closes, anything else falls through to the overlay's own content (its search field,
+		// its scroll, its links, its number field's type-in).
+		val cases =
+			listOf<Triple<String, ShellOverlayState, (ShellOverlayState) -> Boolean>>(
+				Triple("preferences", ShellOverlayState().apply { settingsVisible = true }, { it.settingsVisible }),
+				Triple("quick setup", ShellOverlayState().apply { quickSetupVisible = true }, { it.quickSetupVisible }),
+				Triple("about", ShellOverlayState().apply { aboutVisible = true }, { it.aboutVisible }),
+				Triple("credits", ShellOverlayState().apply { creditsVisible = true }, { it.creditsVisible }),
+				Triple("palette", ShellOverlayState().apply { paletteVisible = true }, { it.paletteVisible }),
+				Triple(
+					"export options",
+					ShellOverlayState().apply { pendingExportOptions = exportOptionsRequest() },
+					{ it.pendingExportOptions != null },
+				),
+			)
+
+		for ((name, overlays, isOpen) in cases) {
+			val state = ShellModalState(overlays = overlays)
+
+			assertFalse(press(Key.A, state), "$name yields non-Escape keys to its own content")
+			assertTrue(isOpen(overlays), "$name stays open")
+
+			assertTrue(escape(state), "$name claims Escape")
+			assertFalse(isOpen(overlays), "$name closed")
+		}
+	}
+
+	@Test
+	fun escapeClosesOnlyTheTopmostSelfFocusedOverlay() {
+		// The four share ONE ladder arm, so their relative order lives in closeTopmostSelfFocused rather
+		// than in the ladder; this is what pins the two together: one Escape closes exactly one overlay,
+		// the topmost, leaving the one beneath it up.
+		val overlays =
+			ShellOverlayState().apply {
+				settingsVisible = true
+				aboutVisible = true
+			}
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(escape(state))
+		assertFalse(overlays.settingsVisible, "preferences sits above the Help dialogs")
+		assertTrue(overlays.aboutVisible, "and the dialog beneath it survives the first Escape")
+
+		assertTrue(escape(state))
+		assertFalse(overlays.aboutVisible, "a second Escape takes the next one down")
+	}
+
+	@Test
+	fun quickSetupSitsAbovePreferences() {
+		val overlays =
+			ShellOverlayState().apply {
+				settingsVisible = true
+				quickSetupVisible = true
+			}
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(escape(state))
+		assertFalse(overlays.quickSetupVisible, "Quick Setup closes before preferences")
+		assertTrue(overlays.settingsVisible, "which survives the first Escape")
+	}
+
+	@Test
+	fun quickSetupLivesInTheAppsHolderNotTheShell() {
+		// The shell's overlay state is rebuilt on every document swap; Quick Setup's visibility is the app's,
+		// so a new shell over the same holder opens with it still up, and closing it closes it for the app.
+		val quickSetup = QuickSetupState(visible = true)
+		assertTrue(ShellOverlayState(quickSetup).quickSetupVisible, "open in the first shell")
+
+		val rebuilt = ShellOverlayState(quickSetup)
+		assertTrue(rebuilt.quickSetupVisible, "and still open in the shell a document swap rebuilds")
+
+		assertTrue(escape(ShellModalState(overlays = rebuilt)))
+		assertFalse(quickSetup.visible, "Escape in the new shell closes it in the app's holder")
+	}
+
+	@Test
+	fun aConfirmOverQuickSetupTakesEscapeWhileQuickSetupStaysOpen() {
+		// A first launch can raise an alert or a confirm under Quick Setup; the alert arms sit above the
+		// self-focused arm, so their keys never reach Quick Setup's Escape-to-close.
+		val overlays =
+			ShellOverlayState().apply {
+				quickSetupVisible = true
+				pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) {}
+			}
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(escape(state))
+		assertNull(overlays.pendingConfirm, "Escape cancels the confirm")
+		assertTrue(overlays.quickSetupVisible, "and Quick Setup stays open")
+	}
+
+	@Test
+	fun theExportOptionsDialogSitsAtopTheSelfFocusedFamily() {
+		val overlays =
+			ShellOverlayState().apply {
+				pendingExportOptions = exportOptionsRequest()
+				settingsVisible = true
+			}
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(escape(state))
+		assertNull(overlays.pendingExportOptions, "the export dialog closes before preferences")
+		assertTrue(overlays.settingsVisible, "which survives the first Escape")
+
+		assertTrue(escape(state))
+		assertFalse(overlays.settingsVisible)
+	}
+
+	@Test
+	fun aConfirmDialogOutranksTheExportOptionsDialog() {
+		// The confirm is a modal alert, the export dialog a self-focused overlay; the alert arm sits
+		// higher in the ladder, so Escape reaches the confirm first.
+		val overlays =
+			ShellOverlayState().apply {
+				pendingExportOptions = exportOptionsRequest()
+				pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) {}
+			}
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(escape(state))
+		assertNull(overlays.pendingConfirm, "the confirm took it")
+		assertNotNull(overlays.pendingExportOptions, "and the export dialog beneath it stays up")
+	}
+
+	@Test
+	fun aConfirmOverPreferencesTakesEnterAndEscapeWhilePreferencesStaysOpen() {
+		// The keybinding conflict prompt raises its confirm from inside Preferences; the confirm arm sits
+		// above the self-focused arm, so its keys never reach Preferences' Escape-to-close.
+		var reassignCount = 0
+		val overlays =
+			ShellOverlayState().apply {
+				settingsVisible = true
+				pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { reassignCount++ }
+			}
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(escape(state))
+		assertNull(overlays.pendingConfirm, "Escape cancels the prompt")
+		assertTrue(overlays.settingsVisible, "and Preferences stays open")
+		assertEquals(0, reassignCount)
+
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { reassignCount++ }
+		assertTrue(enter(state))
+		assertNull(overlays.pendingConfirm, "Enter confirms the prompt")
+		assertTrue(overlays.settingsVisible, "and Preferences still stays open")
+		assertEquals(1, reassignCount)
+	}
+
+	@Test
+	fun anInlineEditorTakesEscapeAndYieldsOtherKeysToTheField() {
+		val inline = RecordingInlineEdit()
+		val state = ShellModalState(inlineEditController = inline.controller)
+
+		assertFalse(press(Key.A, state), "letters must reach the field, not fire file commands")
+		assertFalse(inline.cancelled)
+
+		assertTrue(escape(state))
+		assertTrue(inline.cancelled)
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// Arm 7-8: the modal operator latches - one Escape arm and one Enter arm, shared by all three families.
+	// ---------------------------------------------------------------------------------------------
+
+	@Test
+	fun escapeCancelsAnyModalOperator() {
+		for ((family, session) in latchedOperatorFamilies()) {
+			assertTrue(escape(ShellModalState(editorSession = session)), family)
+
+			assertNull(session.activeMeshOperator.value, family)
+			assertNull(session.activeObjectOperator.value, family)
+			assertNull(session.activeUvOperator.value, family)
+		}
+	}
+
+	@Test
+	fun escapeOnAMeshOperatorDoesNotAlsoClearTheVertexSelection() {
+		// The arm sits above the clear-selection arm precisely so cancelling a grab keeps the selection.
+		val session = session(EditorMode.Edit)
+		session.beginMeshOperator(MeshOperatorKind.Grab, areaId)
+		assertNotNull(session.activeMeshOperator.value, "fixture: the grab must be running")
+		val before = session.meshSelection.value
+
+		assertTrue(escape(ShellModalState(editorSession = session)))
+
+		assertNull(session.activeMeshOperator.value)
+		assertEquals(before, session.meshSelection.value, "the grab was cancelled, not the selection")
+	}
+
+	@Test
+	fun enterConfirmsAnyModalOperator() =
+		runTest {
+			for ((family, session) in latchedOperatorFamilies()) {
+				var confirms = 0
+				val collector = launch { session.meshConfirmRequests.collect { confirms++ } }
+				@OptIn(ExperimentalCoroutinesApi::class)
+				runCurrent()
+
+				assertTrue(enter(ShellModalState(editorSession = session)))
+				@OptIn(ExperimentalCoroutinesApi::class)
+				runCurrent()
+
+				assertEquals(1, confirms, "$family: Enter mirrors a primary click through the shared confirm signal")
+				collector.cancel()
+			}
+		}
+
+	// ---------------------------------------------------------------------------------------------
+	// Arm 9: the pie menu, which owns the keyboard while its ring is up.
+	// ---------------------------------------------------------------------------------------------
+
+	@Test
+	fun anOpenPieMenuTakesEscapeAndSwallowsUnhandledKeys() {
+		val session = session(EditorMode.Object)
+		session.openPieMenu(PieMenuKind.PivotMode)
+		val state = ShellModalState(editorSession = session)
+
+		assertTrue(press(Key.A, state), "shortcuts must not fire under the ring")
+		assertNotNull(session.activePieMenu.value, "an unmapped key leaves the ring up")
+
+		assertTrue(escape(state))
+		assertNull(session.activePieMenu.value)
+	}
+
+	@Test
+	fun aPieMenuDigitPicksItsEntryAndClosesTheRing() {
+		val session = session(EditorMode.Object)
+		session.openPieMenu(PieMenuKind.PivotMode)
+		// The ring is the pivot family as the registry lists it, so the stand-ins are the family's own members with
+		// recording handlers: a bare command of the same id would be in no family, and so in no ring.
+		val picked = mutableListOf<String>()
+		val registry = CommandRegistry()
+		shellCommandTables(session)
+			.filter { command -> command.group == CommandFamily.PivotMode }
+			.forEach { member -> registry.register(member.copy(handler = { picked += member.id })) }
+		val state = ShellModalState(editorSession = session, commandRegistry = registry)
+
+		assertTrue(press(Key.One, state))
+
+		assertEquals(listOf("transform.pivot.median"), picked, "digit 1 picks the first chip, matching the ordinal it draws")
+		assertNull(session.activePieMenu.value, "and the ring closes behind the pick")
+	}
+
+	@Test
+	fun aPieMenuIgnoresKeyUp() {
+		// The arm gates on isDown, so a key-up under the ring falls past it - the ring stays open.
+		val session = session(EditorMode.Object)
+		session.openPieMenu(PieMenuKind.PivotMode)
+
+		press(Key.Escape, ShellModalState(editorSession = session), isDown = false)
+
+		assertNotNull(session.activePieMenu.value)
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// Arm 10-11: the axis lock, which only the ladder can deliver while an operator swallows input.
+	// ---------------------------------------------------------------------------------------------
+
+	@Test
+	fun xAndZToggleTheAxisLockUnderEveryOperatorFamily() {
+		for ((family, session) in latchedOperatorFamilies()) {
+			val state = ShellModalState(editorSession = session)
+
+			assertTrue(press(Key.X, state), family)
+			assertEquals(TransformAxisConstraint.AxisX, session.axisConstraint.value, family)
+
+			assertTrue(press(Key.Z, state), family)
+			assertEquals(TransformAxisConstraint.AxisZ, session.axisConstraint.value, family)
+		}
+	}
+
+	/** A bare T cycles the depth surface during a Pose Rotate and nowhere else; everywhere else it reaches the keymap. */
+	@Test
+	fun tCyclesTheDepthSurfaceOnlyDuringAPoseRotate() {
+		val posing = latticeRigSession(listOf(SelectionTarget.Deformer(LATTICE_RIG_BODY)))
+		posing.togglePoseMode()
+		posing.selectAllMeshElements()
+		posing.beginMeshOperator(MeshOperatorKind.Rotate, areaId)
+		assertNotNull(posing.activeMeshOperator.value, "the Pose Rotate latched")
+
+		assertTrue(press(Key.T, ShellModalState(editorSession = posing)), "a Pose Rotate takes T")
+		assertEquals(DepthSurface.Flat, posing.depthSurface.value, "the cycle steps on from Unchanged")
+
+		// A T with a modifier held is some other chord's, and passes on to the keymap.
+		assertFalse(press(Key.T, ShellModalState(editorSession = posing), primaryModifier = true), "the primary modifier's T passes on")
+		assertFalse(press(Key.T, ShellModalState(editorSession = posing), shift = true), "Shift+T passes on")
+		assertEquals(DepthSurface.Flat, posing.depthSurface.value, "and neither cycles the surface")
+
+		// Everywhere else T must reach the keymap, where it toggles the toolbar.
+		val editRotate = session(EditorMode.Edit).apply { beginMeshOperator(MeshOperatorKind.Rotate, areaId) }
+		assertNotNull(editRotate.activeMeshOperator.value, "the Edit Rotate latched")
+		assertFalse(press(Key.T, ShellModalState(editorSession = editRotate)), "an Edit Rotate leaves T alone")
+		assertEquals(DepthSurface.Unchanged, editRotate.depthSurface.value)
+
+		for ((family, latched) in latchedOperatorFamilies()) {
+			assertFalse(press(Key.T, ShellModalState(editorSession = latched)), family)
+		}
+
+		assertFalse(press(Key.T, ShellModalState(editorSession = session(EditorMode.Object))), "and so does an idle session")
+	}
+
+	/** T names the new surface in a notice only while no axis is locked, since a locked rotation's inset already shows it. */
+	@Test
+	fun tAnnouncesTheSurfaceOnlyWithNoAxisLocked() {
+		val posing = latticeRigSession(listOf(SelectionTarget.Deformer(LATTICE_RIG_BODY)))
+		posing.togglePoseMode()
+		posing.selectAllMeshElements()
+		posing.beginMeshOperator(MeshOperatorKind.Rotate, areaId)
+		assertNotNull(posing.activeMeshOperator.value, "the Pose Rotate latched")
+		val state = ShellModalState(editorSession = posing)
+
+		press(Key.Z, state)
+		assertEquals(TransformAxisConstraint.AxisZ, posing.axisConstraint.value, "Z locked the axis")
+		press(Key.T, state)
+		assertEquals(DepthSurface.Flat, posing.depthSurface.value)
+		assertNull(posing.notice.value, "the locked rotation's inset names the surface, so no notice does")
+
+		press(Key.Z, state)
+		assertNull(posing.axisConstraint.value, "Z again released the lock")
+		press(Key.T, state)
+		assertEquals(DepthSurface.Cylinder, posing.depthSurface.value)
+		assertEquals("notice.depthSurface.cylinder", posing.notice.value?.messageKey, "an unlocked T names the surface")
+	}
+
+	@Test
+	fun xIsNotClaimedWithNoOperatorRunning() {
+		// Without a live operator X must reach the keymap, or the axis arm would eat a bindable key.
+		val session = session(EditorMode.Object)
+
+		assertFalse(press(Key.X, ShellModalState(editorSession = session)))
+		assertNull(session.axisConstraint.value)
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// Arm 12-17: the armed tools and in-flight panel gestures.
+	// ---------------------------------------------------------------------------------------------
+
+	@Test
+	fun anArmedSelectToolTakesEscapeAndEnterAndCancelsBeforeDisarming() =
+		runTest {
+			for (key in listOf(Key.Escape, Key.Enter)) {
+				val session = session(EditorMode.Object)
+				session.beginBoxSelect(areaId)
+				assertNotNull(session.activeSelectTool.value, "fixture: the tool must be armed")
+				var cancels = 0
+				val collector = launch { session.meshGestureCancelRequests.collect { cancels++ } }
+				@OptIn(ExperimentalCoroutinesApi::class)
+				runCurrent()
+
+				assertTrue(press(key, ShellModalState(editorSession = session)))
+				@OptIn(ExperimentalCoroutinesApi::class)
+				runCurrent()
+
+				// The cancel must fire as well as the disarm: clearSelectTool alone routes cleanup through a
+				// recomposition-gated effect that can lose the race to a mouse release still in flight.
+				assertEquals(1, cancels, "$key resolves the in-flight gesture")
+				assertNull(session.activeSelectTool.value, "$key disarms the tool")
+				collector.cancel()
+			}
+		}
+
+	@Test
+	fun anArmedSheetMarqueeTakesEscape() {
+		val (views, sheet) = sheetViews(armed = true)
+
+		assertTrue(escape(ShellModalState(keyformSheets = views)))
+
+		assertFalse(sheet.armed, "an armed marquee hides the cursor, so it must always have a way out")
+	}
+
+	@Test
+	fun anArmedRelationPickTakesEscape() {
+		val relationPick = RelationPickController()
+		relationPick.arm(accepts = emptySet()) {}
+		val selection = nonEmptySelection()
+		val state = ShellModalState(selection = selection, relationPick = relationPick)
+
+		assertTrue(escape(state))
+
+		assertNull(relationPick.request)
+		assertFalse(selection.selection.isEmpty, "abandoning a pick must never also wipe the selection")
+	}
+
+	@Test
+	fun anyBindableKeyEndsAnArmedRelationPickWithoutRunningItsCommand() {
+		// A shortcut run under the pick starts beneath its hidden cursor and badge: a grab, a mode switch, an undo.
+		val strokes =
+			listOf(
+				ShellKeyStroke(Key.G, isDown = true),
+				ShellKeyStroke(Key.Tab, isDown = true),
+				ShellKeyStroke(Key.Z, isDown = true, primaryModifier = true),
+				ShellKeyStroke(Key.Enter, isDown = true),
+			)
+
+		strokes.forEach { stroke ->
+			val relationPick = RelationPickController()
+			relationPick.arm(accepts = emptySet()) {}
+			val registry = RecordingRegistry("bound.command")
+			val chord = KeyChord(assertNotNull(keyName(stroke.key), "fixture: ${stroke.key} must be bindable"), primaryModifier = stroke.primaryModifier)
+			val state = ShellModalState(relationPick = relationPick, commandRegistry = registry.registry, keymap = Keymap(mapOf(chord to "bound.command")))
+
+			assertTrue(handleModalKeyLadder(stroke, state), "${stroke.key} is swallowed")
+
+			assertNull(relationPick.request, "${stroke.key} ends the pick")
+			assertFalse(registry.invoked, "${stroke.key} does not also run its binding")
+		}
+	}
+
+	@Test
+	fun aModifierAloneLeavesAnArmedRelationPickArmed() {
+		// Alt+click reaches a stack of targets, so holding Alt must not end the pick it is for.
+		listOf(Key.AltLeft, Key.ShiftLeft, Key.CtrlLeft, Key.MetaLeft).forEach { key ->
+			val relationPick = RelationPickController()
+			relationPick.arm(accepts = emptySet()) {}
+
+			press(key, ShellModalState(relationPick = relationPick), alt = key == Key.AltLeft)
+
+			assertNotNull(relationPick.request, "$key alone keeps the pick armed")
+		}
+	}
+
+	@Test
+	fun aKeyUpLeavesAnArmedRelationPickArmed() {
+		val relationPick = RelationPickController()
+		relationPick.arm(accepts = emptySet()) {}
+
+		press(Key.G, ShellModalState(relationPick = relationPick), isDown = false)
+
+		assertNotNull(relationPick.request, "only a press ends the pick")
+	}
+
+	@Test
+	fun anArmedZoomRegionTakesEscape() {
+		val session = session(EditorMode.Object)
+		session.armZoomRegion(areaId)
+		assertNotNull(session.zoomRegionArmedArea.value, "fixture: the region must be armed")
+
+		assertTrue(escape(ShellModalState(editorSession = session)))
+
+		assertNull(session.zoomRegionArmedArea.value)
+	}
+
+	@Test
+	fun anInFlightRowDragTakesEscapeWithoutDeselectingTheDraggedRows() {
+		// The press that started the drag already selected the row, so the clear-selection arm below would
+		// otherwise deselect the rows mid-drag.
+		val rowDrag = RecordingRowDrag()
+		val registry = RecordingRegistry("row.dragCancel")
+		val selection = nonEmptySelection()
+		val state =
+			ShellModalState(
+				selection = selection,
+				rowDragCancel = rowDrag.controller,
+				commandRegistry = registry.registry,
+			)
+
+		assertTrue(escape(state))
+
+		assertTrue(registry.invoked, "the cancel routes through the registry, mirroring area.dragCancel")
+		assertFalse(selection.selection.isEmpty, "and the dragged rows keep their selection")
+	}
+
+	/** A scrub seam whose cancel was recorded, so "the scrub claimed it" is an assertion and not an absence. */
+	private class RecordingScrub {
+		var cancelled = false
+		val controller = ScrubCancelController().apply { cancel = { cancelled = true } }
+	}
+
+	@Test
+	fun anInFlightScrubTakesEscapeWithoutClearingTheSelection() {
+		// The Properties row being scrubbed is on screen BECAUSE of the selection, so the clear-selection arm
+		// below would unmount the field mid-drag.
+		val scrub = RecordingScrub()
+		val selection = nonEmptySelection()
+
+		assertTrue(escape(ShellModalState(selection = selection, scrubCancel = scrub.controller)))
+
+		assertTrue(scrub.cancelled)
+		assertFalse(selection.selection.isEmpty, "and the row's selection survives")
+	}
+
+	@Test
+	fun anInFlightScrubClaimsEscapeAlone() {
+		val scrub = RecordingScrub()
+		val registry = RecordingRegistry("some.command")
+		val keymap = Keymap(mapOf(KeyChord("KeyS") to "some.command"))
+		val state = ShellModalState(scrubCancel = scrub.controller, commandRegistry = registry.registry, keymap = keymap)
+
+		assertTrue(press(Key.S, state), "every other key is still the keymap's")
+
+		assertTrue(registry.invoked)
+		assertFalse(scrub.cancelled)
+	}
+
+	@Test
+	fun anInFlightDividerDragTakesEscapeWithoutClearingTheSelection() {
+		// A divider drag keeps its session inside the dragged SplitContainer and never touches
+		// AreaDragController, so isDragging stays false and the corner-drag arm below does not cover it.
+		// Before this arm existed, Escape while resizing a panel fell all the way through and wiped the
+		// object selection.
+		val splitterDragCancel = SplitterDragCancelController()
+		var cancelled = false
+		splitterDragCancel.cancel = { cancelled = true }
+		val registry = RecordingRegistry("area.dragCancel")
+		val selection = nonEmptySelection()
+		val state =
+			ShellModalState(
+				editorSession = session(EditorMode.Object),
+				selection = selection,
+				splitterDragCancel = splitterDragCancel,
+				commandRegistry = registry.registry,
+			)
+
+		assertTrue(escape(state))
+
+		assertTrue(registry.invoked, "the cancel routes through area.dragCancel like the corner drag")
+		assertFalse(selection.selection.isEmpty, "and resizing a panel never touches the selection")
+		assertFalse(cancelled, "the recording seam is only reached through the real command, not directly")
+	}
+
+	@Test
+	fun noDividerDragLeavesEscapeToTheArmsBelow() {
+		// Guards the arm against widening to "the area tree exists": with no drag parked, Escape must
+		// still reach the clear-selection arm.
+		val selection = nonEmptySelection()
+
+		assertTrue(escape(ShellModalState(selection = selection, splitterDragCancel = SplitterDragCancelController())))
+
+		assertTrue(selection.selection.isEmpty)
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// Arm 18-19: the viewport gestures and the final clear-selection, the last arms before the
+	// else that falls through to the shell keymap.
+	// ---------------------------------------------------------------------------------------------
+
+	@Test
+	fun anInFlightViewportDragTakesEscapeWithoutClearingTheSelection() =
+		runTest {
+			val session = session(EditorMode.Object)
+			session.setViewportGestureActive(true)
+			val selection = nonEmptySelection()
+			var cancels = 0
+			val collector = launch { session.meshGestureCancelRequests.collect { cancels++ } }
+			@OptIn(ExperimentalCoroutinesApi::class)
+			runCurrent()
+
+			assertTrue(escape(ShellModalState(editorSession = session, selection = selection)))
+			@OptIn(ExperimentalCoroutinesApi::class)
+			runCurrent()
+
+			assertEquals(1, cancels)
+			assertFalse(selection.selection.isEmpty, "cancelling a drag never also wipes the selection")
+			collector.cancel()
+		}
+
+	@Test
+	fun editModeConsumesEscapeAndNeverClearsTheObjectSelection() {
+		// Blender parity: Edit mode leaves the selection alone.  Clearing it here would strand the Edit
+		// session on a drawable nothing points at, since the object selection holds the edited drawable.
+		val session = session(EditorMode.Edit)
+		val selection = nonEmptySelection()
+
+		assertTrue(escape(ShellModalState(editorSession = session, selection = selection)))
+
+		assertFalse(selection.selection.isEmpty)
+	}
+
+	@Test
+	fun objectModeEscapeClearsANonEmptySelection() {
+		val session = session(EditorMode.Object)
+		val selection = nonEmptySelection()
+
+		assertTrue(escape(ShellModalState(editorSession = session, selection = selection)))
+
+		assertTrue(selection.selection.isEmpty)
+	}
+
+	@Test
+	fun aNullSessionCountsAsObjectModeForTheClear() {
+		val selection = nonEmptySelection()
+
+		assertTrue(escape(ShellModalState(selection = selection)))
+
+		assertTrue(selection.selection.isEmpty)
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// The fallthrough.
+	// ---------------------------------------------------------------------------------------------
+
+	@Test
+	fun anUnclaimedKeyReachesTheKeymap() {
+		val registry = RecordingRegistry("mesh.grab")
+		val keymap = Keymap(mapOf(KeyChord("KeyG") to "mesh.grab"))
+		val state = ShellModalState(commandRegistry = registry.registry, keymap = keymap)
+
+		assertTrue(press(Key.G, state))
+		assertTrue(registry.invoked)
+	}
+
+	@Test
+	fun anUnclaimedKeyUpReachesNothing() {
+		val registry = RecordingRegistry("mesh.grab")
+		val keymap = Keymap(mapOf(KeyChord("KeyG") to "mesh.grab"))
+		val state = ShellModalState(commandRegistry = registry.registry, keymap = keymap)
+
+		assertFalse(press(Key.G, state, isDown = false))
+		assertFalse(registry.invoked, "only key-down dispatches")
+	}
+
+	@Test
+	fun theKeymapSeesTheStrokesModifiers() {
+		val registry = RecordingRegistry("mesh.grab")
+		val keymap = Keymap(mapOf(KeyChord("KeyG", primaryModifier = true, shift = true) to "mesh.grab"))
+		val state = ShellModalState(commandRegistry = registry.registry, keymap = keymap)
+
+		assertFalse(press(Key.G, state), "the bare chord is unbound")
+		assertTrue(press(Key.G, state, primaryModifier = true, shift = true))
+		assertTrue(registry.invoked)
+	}
+
+	@Test
+	fun aLiteralControlStrokeDispatchesItsOwnBinding() {
+		val registry = RecordingRegistry("mode.togglePose")
+		val keymap = Keymap(mapOf(KeyChord("Tab", controlKey = true) to "mode.togglePose"))
+		val state = ShellModalState(commandRegistry = registry.registry, keymap = keymap)
+
+		assertTrue(handleModalKeyLadder(ShellKeyStroke(Key.Tab, isDown = true, controlKey = true), state))
+		assertTrue(registry.invoked)
+	}
+
+	@Test
+	fun aLiteralControlStrokeFallsBackToThePrimaryBinding() {
+		val registry = RecordingRegistry("mesh.grab")
+		val keymap = Keymap(mapOf(KeyChord("KeyG", primaryModifier = true) to "mesh.grab"))
+		val state = ShellModalState(commandRegistry = registry.registry, keymap = keymap)
+
+		assertTrue(handleModalKeyLadder(ShellKeyStroke(Key.G, isDown = true, controlKey = true), state), "Control+G reaches the primary binding on macOS")
+		assertTrue(registry.invoked)
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// Precedence: two or more modals live at once.  A per-arm sweep passes regardless of order, so
+	// these are what actually enforce the contract.
+	// ---------------------------------------------------------------------------------------------
+
+	@Test
+	fun aConfirmDialogOutranksEverythingBelowIt() {
+		val session = session(EditorMode.Edit)
+		session.beginMeshOperator(MeshOperatorKind.Grab, areaId)
+		val overlays = ShellOverlayState().apply { pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) {} }
+		val menu = RecordingMenuBar()
+		val scrub = RecordingScrub()
+		val selection = nonEmptySelection()
+
+		assertTrue(
+			escape(
+				ShellModalState(
+					overlays = overlays,
+					menuBarController = menu.controller,
+					scrubCancel = scrub.controller,
+					editorSession = session,
+					selection = selection,
+				),
+			),
+		)
+
+		assertNull(overlays.pendingConfirm, "the dialog took it")
+		assertFalse(menu.closed, "and nothing below it ran")
+		assertFalse(scrub.cancelled)
+		assertNotNull(session.activeMeshOperator.value)
+		assertFalse(selection.selection.isEmpty)
+
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) {}
+		assertTrue(enter(ShellModalState(overlays = overlays, menuBarController = menu.controller, editorSession = session, selection = selection)))
+
+		assertNull(overlays.pendingConfirm, "Enter goes to the dialog too")
+		assertNotNull(session.activeMeshOperator.value, "rather than confirming the operator beneath it")
+	}
+
+	@Test
+	fun anOpenMenuOutranksAModalOperator() {
+		val session = session(EditorMode.Edit)
+		session.beginMeshOperator(MeshOperatorKind.Grab, areaId)
+		val menu = RecordingMenuBar()
+
+		assertTrue(escape(ShellModalState(menuBarController = menu.controller, editorSession = session)))
+
+		assertTrue(menu.closed)
+		assertNotNull(session.activeMeshOperator.value, "the grab survives closing the menu")
+	}
+
+	@Test
+	fun aModalOperatorOutranksAnArmedSelectTool() {
+		// beginBoxSelect then beginMeshOperator leaves only the operator latched (they are mutually
+		// exclusive), so this pins the ordering with the operator arm reached first.
+		val session = session(EditorMode.Edit)
+		session.beginBoxSelect(areaId)
+		session.beginMeshOperator(MeshOperatorKind.Grab, areaId)
+		assertNotNull(session.activeMeshOperator.value, "fixture: the grab must be running")
+		assertNull(session.activeSelectTool.value, "the latches are mutually exclusive")
+
+		assertTrue(escape(ShellModalState(editorSession = session)))
+
+		assertNull(session.activeMeshOperator.value)
+	}
+
+	@Test
+	fun anAreaDragTakesEscapeThroughTheDragCancelCommand() {
+		// The ladder owns an in-flight area CORNER drag's Escape itself, ahead of the viewport arms, so no chord
+		// is needed: with an empty keymap Escape still cancels the drag, in Object mode without clearing the
+		// selection and in Edit mode without standing in for a box drag's cancel.
+		for (mode in listOf(EditorMode.Object, EditorMode.Edit)) {
+			val selection = nonEmptySelection()
+			val registry = RecordingRegistry("area.dragCancel")
+			val state =
+				ShellModalState(
+					editorSession = session(mode),
+					selection = selection,
+					dragController = draggingController(),
+					commandRegistry = registry.registry,
+				)
+
+			assertTrue(escape(state), "Escape is taken in $mode")
+			assertTrue(registry.invoked, "Escape reached area.dragCancel in $mode")
+			assertFalse(selection.selection.isEmpty, "and did not clear the selection on the way in $mode")
+		}
+	}
+
+	@Test
+	fun anArmedSheetMarqueeOutranksTheClearSelection() {
+		val (views, sheet) = sheetViews(armed = true)
+		val selection = nonEmptySelection()
+
+		assertTrue(escape(ShellModalState(selection = selection, keyformSheets = views)))
+
+		assertFalse(sheet.armed)
+		assertFalse(selection.selection.isEmpty, "disarming a marquee is not a deselect")
+	}
+
+	@Test
+	fun anUnarmedSheetLeavesEscapeToTheArmsBelow() {
+		// Guards the arm against widening to "a sheet is open" - it must key on ARMED.
+		val (views, _) = sheetViews(armed = false)
+		val selection = nonEmptySelection()
+
+		assertTrue(escape(ShellModalState(selection = selection, keyformSheets = views)))
+
+		assertTrue(selection.selection.isEmpty, "with nothing armed the clear-selection arm runs")
+	}
+}

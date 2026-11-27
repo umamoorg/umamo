@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	Umamo's document type for the freedesktop shared MIME database.
+
+	The magic is the identification probe of docs/format/UMA.md § 2, verbatim: a ZIP whose FIRST entry is a stored
+	"mimetype" with no extra field, so its content sits at a fixed offset.  Nested the way the shared database
+	declares EPUB and OpenDocument, at their priority.  That is above application/zip's own magic (the bare
+	local-header signature), so a .uma with no extension still reads as a UMA.  It is deliberately below 80, the
+	level at which magic would outrank a file's name: a .uma someone renamed to .zip reads as a ZIP, as a renamed
+	OpenDocument file does - they asked for the archive.
+
+	The README's "Opening .uma files from the file manager" gives the per-user install for an unpacked Umamo.
+-->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+	<mime-type type="application/vnd.umamo.uma+zip">
+		<comment>Umamo Document</comment>
+		<comment xml:lang="ja">Umamo ドキュメント</comment>
+		<sub-class-of type="application/zip"/>
+		<generic-icon name="x-office-drawing"/>
+		<magic priority="70">
+			<match type="string" offset="0" value="PK\003\004">
+				<match type="string" offset="30" value="mimetype">
+					<match type="string" offset="38" value="application/vnd.umamo.uma+zip"/>
+				</match>
+			</match>
+		</magic>
+		<glob pattern="*.uma"/>
+	</mime-type>
+</mime-info>

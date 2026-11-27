@@ -2,7 +2,7 @@
 
 An open-source cross-platform modelling editor for 2D puppet animation, with first class pen and touch support, designed to interoperate with the Live2D Cubism source format (`.cmo3`).  Runs on Windows, macOS, Linux, and Android tablets with pen/touch input.  Supports importing and exporting both CMO3 and MOC3 formats.
 
-> **Status:** Early development.  Prebuilt downloads are on the [Releases page](https://github.com/umamoorg/umamo/releases).  Note, releases are not currently signed so Windows and MacOS will complain about it.  APIs, formats, and scope are in flux.
+> **Status:** Early development.  Prebuilt downloads are on the [Releases page](https://github.com/umamoorg/umamo/releases).
 
 ![Screenshot showing the main Umamo window with 2D puppet posed and smiling in a centered viewport.  The left side shows an adjustable parameter panel while the right shows an object outliner, information, and history panel.](docs/screenshots/readme20260905.webp)
 
@@ -34,18 +34,77 @@ An open-source cross-platform modelling editor for 2D puppet animation, with fir
 
 Every tagged version publishes desktop builds on the [Releases page](https://github.com/umamoorg/umamo/releases).  There are two different releases per platform:
 
-| File                                      | Note                                                                                                                                     |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `umamo-<target>-<version>.zip`/`.tar.gz`  | Java SDK not required, just run it directly.                                                                                             |
-| `umamo-<target>-<version>.jar`            | You will need Java SDK 21 or higher to run.  Either open through the file browser or through the command line.  `java -jar umamo-...jar` |
+| File                                     | Note                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `umamo-windows-x64-<version>.msi`        | Windows installer.  Installs for your user alone, with no administrator rights needed.                                                                                                                                                                                                                |
+| `umamo-macos-arm64-<version>.dmg`        | Apple silicon Macs.  Open it and drag Umamo to Applications.                                                                                                                                                                                                                                          |
+| `umamo-linux-<arch>-<version>.deb`       | Debian 12+, Ubuntu 22.04+, Linux Mint 21+.                                                                                                                                                                                                                                                            |
+| `umamo-linux-<arch>-<version>.rpm`       | Fedora and other RPM distributions.                                                                                                                                                                                                                                                                   |
+| `umamo-<target>-<version>.zip`/`.tar.gz` | Java SDK not required, just unpack it and run it directly.                                                                                                                                                                                                                                            |
+| `umamo-<target>-<version>.jar`           | You will need Java SDK 21 or higher to run.  When Java's default would give Umamo less than 3 GB of memory, it restarts itself with room for up to half of your computer's memory.  To always allow half, start it from a terminal: `java -XX:MaxRAMPercentage=50 -jar umamo-<target>-<version>.jar`. |
 
-Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.  Check your download against the release's `SHA256SUMS.txt`.
+Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.  Check your download against the release's signed `SHA256SUMS.txt` (see [Verifying downloads](#verifying-downloads)).
 
-**These builds are not signed.**  Code signing and notarization cost a lot of money so I will be waiting to do that until getting to a release candidate stage.  Until then Windows and MacOS will complain about the applications being unsigned.
+**Signing.**  The MacOS downloads are signed and notarized by Apple, and the Linux RPM and the release's checksums are signed with the Umamo release key.  Windows builds are not signed yet due to the high cost.
 
-- **MacOS:** Gatekeeper will quarantine the application and report it as *damaged*.  It is not damaged.  After unzipping run this in the Terminal, `xattr -dr com.apple.quarantine /path/to/umamo.app`, or allow the application through the settings.
-- **Windows:** SmartScreen shows "Windows protected your PC".  Choose *More info* -> *Run anyway*.
-- **Linux:** Just run the application: `tar xzf umamo-*.tar.gz` and run `umamo/bin/umamo`.  Linux doesn't restrict you from running any application that you wish to run on your computer.
+- **Windows:** SmartScreen might show "Windows protected your PC" for the installer and the archive version's `Umamo.exe`.  Choose *More info* -> *Run anyway*.
+
+### Installing
+
+- **Windows:**
+	* Run `umamo-windows-x64-<version>.msi`.
+		* Umamo installs per user to: `%LOCALAPPDATA%\Programs\umamo`,
+			* A start menu entry will be added and `*.uma` files will be associated automatically.
+			* Note: There is no confirmation screen, when the installer finishes it will exit without confirming.
+		* Uninstall through Windows Settings -> Apps.
+		* The zip archive version is portable and can be run directly after extracting: `Umamo\Umamo.exe`.
+- **Debian, Ubuntu, Linux Mint:**
+	* `sudo apt install ./umamo-linux-<arch>-<version>.deb`.
+		* Uninstall: `sudo apt remove umamo`.
+- **Fedora:** Import the Umamo release key once:
+	* `sudo rpm --import https://umamo.org/keys/umamo-signing-key.asc`
+	* `sudo dnf install --setopt=localpkg_gpgcheck=1 ./umamo-linux-x64-<version>.rpm`.
+		* Uninstall: `sudo dnf remove umamo`.
+- **Other Linux:** `tar xzf umamo-linux-x64-<version>.tar.gz` and run `umamo/bin/umamo`.
+- **MacOS:** Open `umamo-macos-arm64-<version>.dmg` and drag Umamo to Applications, or unzip `Umamo.app` and move it there.
+
+The DEB and RPM install Umamo to `/opt/umamo`, add it to the application menu, and make it the app that opens `.uma` files.  If you registered the tarball's `umamo.desktop` by hand before, remove that first (below), or the menu will show Umamo twice.
+
+To upgrade, install the new version over the old one.  Your customized settings will be kept on upgrade and uninstall.
+If you need to reset your settings, then delete `settings.json` from:
+* Linux: `~/.config/umamo`
+* MacOS: `~/Library/Application Support/umamo`
+* Windows: `%APPDATA%\umamo`
+
+### Verifying downloads
+
+The Umamo release key signs the RPM and every release's `SHA256SUMS.txt`.  Its fingerprint is `67754C0DC58743270D574066F5499AE5C80A0F1C`; the key is on [umamo.org](https://umamo.org/keys/umamo-signing-key.asc) and in this repository at `app/desktop/packaging/umamo-signing-key.asc`.  Download `SHA256SUMS.txt` and `SHA256SUMS.txt.asc` beside your files, then:
+```bash
+gpg --fetch-keys https://umamo.org/keys/umamo-signing-key.asc
+gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt
+sha256sum --check --ignore-missing SHA256SUMS.txt
+```
+`gpg --verify` names the key it checked; compare its fingerprint with the one above.  Every file also carries a build provenance attestation from GitHub: `gh attestation verify <file> --repo umamoorg/umamo` confirms it was built by this repository's release workflow.
+
+### Opening .uma files from the file manager
+
+The installers register the `.uma` type, and on MacOS `Umamo.app` declares it itself, so Finder can open `.uma` files with it.  The portable zip and tarball register nothing on their own.
+
+- **Linux:** The archives come with freedesktop.org files to register the mimetype manually.  Put `umamo/bin/umamo` on your `PATH`(or edit the `Exec=` line in `umamo.desktop` to its full path), then register them for your user:
+```bash
+xdg-mime install --novendor umamo/lib/app/resources/umamo-uma.xml
+xdg-desktop-menu install --novendor umamo/lib/app/resources/umamo.desktop
+```
+`xdg-mime uninstall` and `xdg-desktop-menu uninstall` with the same files to undo it.
+
+### Log files
+
+Go to Help -> Open Log Folder to open the log folder location.  When submitting bug reports, please attach the newest file.
+Log file locations:
+
+- **Linux:** `~/.local/share/umamo/logs` (or `$XDG_DATA_HOME/umamo/logs`)
+- **MacOS:** `~/Library/Application Support/umamo/logs`
+- **Windows:** `%LOCALAPPDATA%\umamo\logs`
 
 ## Building & Development
 
@@ -72,6 +131,7 @@ The Gradle wrapper (`./gradlew`) pins the Gradle version so no system Gradle ins
 ./gradlew :desktop:run                                      #Launch the desktop editor
 ./gradlew :android:installDebug                             #Deploy to a connected Android tablet
 ./gradlew build                                             #Everything
+./gradlew verifyChanged                                     #Run build and lint only on changed files.
 ./gradlew test                                              #Unit tests
 ./gradlew ktlintFormat                                      #Format all files according to .editorconfig
 ./gradlew -q :cli:run --args="dump model.moc3"              #Dump a CMO3/MOC3's contents to stdout
@@ -117,19 +177,24 @@ Don't combine `-Pumamo.target` with `:desktop:run` — that would load the targe
 
 Reusable library modules live under `module/`, runnable application targets under `app/`.  Everything else at the repo root (`gradle/`, `docs/`, build files) is intentionally *not* a module. A module's Gradle path (`:format`) is kept flat and independent of its folder.  See: [settings.gradle.kts](settings.gradle.kts)
 
-| Module      | Directory         | Targets       | Role                                                                                                   |
-| ----------- | ----------------- | ------------- | ------------------------------------------------------------------------------------------------------ |
-| `:format`   | `module/format`   | jvm + android | Cubism file family + art I/O (CMO3 read/write, …)                                                      |
-| `:reimport` | `module/reimport` | jvm + android | Source-art binding + non-destructive reconcile                                                         |
-| `:storage`  | `module/storage`  | jvm + android | App config/data dirs + file IO (okio) + native file dialogs (FileKit)                                  |
-| `:settings` | `module/settings` | jvm + android | JSON settings: defaults←user merge, dotted get/set, change Flow → `:storage`                           |
-| `:runtime`  | `module/runtime`  | jvm + android | Puppet model + CMO3 ingest                                                                             |
-| `:render`   | `module/render`   | jvm + android | Deformation eval (CPU) + renderer + morph-blend shaders (`expect`/`actual`: LWJGL / GLES) → `:runtime` |
-| `:ui`       | `module/ui`       | jvm + android | Compose Multiplatform editor shell                                                                     |
-| `:desktop`  | `app/desktop`     | jvm           | Desktop entrypoint (Compose Desktop + LWJGL viewport)                                                  |
-| `:android`  | `app/android`     | android       | Android entrypoint (Activity + Compose + GLSurfaceView)                                                |
+| Module      | Directory         | Targets                             | Role                                                                                           |
+| ----------- | ----------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `:geometry` | `module/geometry` | jvm + android + iosArm64 + linuxX64 | Pure vector geometry: exact predicates, constrained Delaunay triangulation, mesh refinement    |
+| `:runtime`  | `module/runtime`  | jvm + android + iosArm64            | The immutable puppet model, keyform grid algebra, and atlas domain; no format knowledge        |
+| `:format`   | `module/format`   | jvm + android + iosArm64            | File codecs: UMA, CMO3, MOC3 and its JSON sidecars, PSD, CLIP, KRA                             |
+| `:interop`  | `module/interop`  | jvm + android + iosArm64            | Format ↔ puppet model conversion: import, CMO3 export, artwork import, and the art mesher      |
+| `:reimport` | `module/reimport` | jvm + android                       | Non-destructive artwork reload: reconcile, file watcher, layer matcher                         |
+| `:edit`     | `module/edit`     | jvm + android                       | The editing session: undo history, selection, and every edit operation over the puppet model   |
+| `:render`   | `module/render`   | jvm + android + iosArm64            | Deformation eval (CPU), the puppet renderer, and its shaders over a backend-neutral device API |
+| `:storage`  | `module/storage`  | jvm + android                       | App config/data dirs + file IO (okio) + native file dialogs (FileKit)                          |
+| `:settings` | `module/settings` | jvm + android                       | JSON settings: defaults←user merge, dotted get/set, change Flow → `:storage`                   |
+| `:ui`       | `module/ui`       | jvm + android                       | Compose Multiplatform editor UI and the shared app shell                                       |
+| `:testkit`  | `module/testkit`  | jvm                                 | Test support: the helpers that end a test as skipped when its sample is absent                 |
+| `:desktop`  | `app/desktop`     | jvm                                 | Desktop entrypoint (Compose Desktop window + LWJGL offscreen viewport)                         |
+| `:android`  | `app/android`     | android                             | Android entrypoint (Activity over the shared app shell)                                        |
+| `:cli`      | `app/cli`         | jvm                                 | Headless diagnostic tool (dump, extract, atlas, mesh, convert, diff)                           |
 
-Shared logic lives in `commonMain`; platform code in `jvmMain`/`androidMain` via `expect`/`actual`.
+Shared logic lives in `commonMain`; platform code lives in `jvmMain`/`androidMain`.  The `iosArm64` target is compile-only: it keeps `commonMain` free of JVM-only code.  `:geometry` also runs its tests natively on `linuxX64`.
 
 ### Input, Commands, & Settings
 
@@ -146,8 +211,9 @@ Editor-format knowledge for CMO3, MOC3, and CLIP are reverse-engineered by black
 | Format | Read | Write | Note                                                                                     |
 | ------ | ---- | ----- | ---------------------------------------------------------------------------------------- |
 | PSD    | 〇   | -     | Photoshop (Read only)                                                                    |
-| CLIP   | △   | -     | Clip Studio Paint (Read only) - Implemented, not fully tested.  Has some blending issues. |
+| CLIP   | 〇   | -     | Clip Studio Paint (Read only)                                                            |
 | KRA    | 〇   | -     | Krita (Read only) - ZIP + maindoc.xml + tiled LZF rasters; ported from open source.      |
+| UMA    | 〇   | 〇    | Umamo Model File                                                                         |
 | CMO3   | 〇   | 〇    | Cubism Editor Model File - Compatible up to Cubism 5.4                                   |
 | MOC3   | 〇   | 〇    | Cubism Distribution Model File - Compatible up to Cubism 5.4                             |
 
@@ -158,7 +224,7 @@ Reverse engineered file formats have documentation in the [docs/format/](docs/fo
 
 #### Diagnostic CLI
 
-The `:cli` module (`app/cli`) is a headless dump, convert, diff, and atlas packing tool over the same CODEC and conversion stack the editor uses.  Run it through Gradle; relative paths resolve against the repository root.  Always pass `-q` so Gradle's own build output stays out of the tool's output.  The tool writes data to stdout and diagnostics to stderr.  The convert command will **overwrite WITHOUT confirmation**.
+The `:cli` module (`app/cli`) is a headless dump, convert, diff, atlas packing, and art meshing tool over the same CODEC and conversion stack the editor uses.  Run it through Gradle; relative paths resolve against the repository root.  Always pass `-q` so Gradle's own build output stays out of the tool's output.  The tool writes data to stdout and diagnostics to stderr.  The convert command will **overwrite WITHOUT confirmation**.
 
 ```bash
 ./gradlew -q :cli:run --args="dump model.moc3"               #Static-rig summary
@@ -170,6 +236,7 @@ The `:cli` module (`app/cli`) is a headless dump, convert, diff, and atlas packi
 ./gradlew -q :cli:run --args="extract model.cmo3 out/"       #Unpack the archive (Plaintext main.xml + layer PNGs) into out/model/
 ./gradlew -q :cli:run --args="atlas art.psd out/"            #Pack the layers into out/art/page_NN.png + placements.txt
 ./gradlew -q :cli:run --args="atlas art.clip out/ --preview" #Also recomposite the canvas from the packed pages.
+./gradlew -q :cli:run --args="mesh art.psd out/ --preview"   #Auto-mesh every layer: out/art-mesh/mesh.txt + wireframe PNGs
 ./gradlew -q :cli:run --args="convert in.cmo3 out.cmo3"      #Resave (An unedited main.xml will reemit byte-identical.)
 ./gradlew -q :cli:run --args="convert in.moc3 out.moc3"      #Rebake (Fresh synthesis, NOT byte-identical by design.)
 ./gradlew -q :cli:run --args="convert in.cmo3 out.moc3"      #Full family: moc3 + model3.json + cdi3.json + textures
@@ -179,7 +246,68 @@ The `:cli` module (`app/cli`) is a headless dump, convert, diff, and atlas packi
 
 A moc3 input may also be given as its `.model3.json` manifest; textures and sidecars(cdi3/physics3/pose3/userdata3) are discovered through the manifest's file references.
 
-Both `dump` and `atlas` accept source layered artwork(`.psd`, `.clip`, `.kra`) or any flat raster read as a one-layer document.  The `atlas` command takes `--page-size=N`, `--gutter=N`, `--extrude=N`, `--rotate`, `--visible-only`, and `--no-shrink`.  It reads every packed tile back out of its page and exits non-zero if any byte differs and reports layers it could not pack(no opaque pixels, or larger than a page) rather than dropping them silently.
+`dump`, `atlas`, and `mesh` accept layered source artwork (`.psd`, `.clip`, `.kra`) or any flat raster, read as a one-layer document.
+
+##### `atlas`
+
+Packs a document's layers into atlas pages, writing `page_NN.png` and `placements.txt` to a new subdirectory named after the input.  It reads every packed tile back out of its page and exits non-zero if any byte differs.  Layers it cannot pack (no opaque pixels, or larger than a page) are reported rather than dropped silently.
+
+| Option           | Effect                                                                                                           | Default |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------- | ------- |
+| `--page-size=N`  | Page side to pack against.                                                                                       | 4096    |
+| `--gutter=N`     | Transparent spacing around every tile.                                                                           | 2       |
+| `--extrude=N`    | Edge pixels replicated into the gutter.                                                                          | 2       |
+| `--rotate`       | Allow quarter-turning tiles to pack tighter.                                                                     | Off     |
+| `--visible-only` | Skip layers hidden by their own or a folder's eye.                                                               | Off     |
+| `--no-shrink`    | Keep full `--page-size` pages instead of cropping them.                                                          | Off     |
+| `--preview`      | Also write `preview.png`: the canvas recomposited from the packed pages (blend modes and layer opacity ignored). | Off     |
+
+##### `mesh`
+
+Runs the art mesher over a document's raster layers, printing a report and writing it to `mesh.txt` in a new `<input>-mesh` subdirectory.  It exits non-zero if the mesher withheld a mesh after a failed structural check.
+
+| Option              | Effect                                                                                                                                                                  | Default            |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `--layer=NAME`      | Mesh only the layer with this exact name.                                                                                                                               | Every raster layer |
+| `--preset=NAME`     | `standard`, `fine`, or `coarse`: The settings the overrides below start from.                                                                                           | `standard`         |
+| `--visible-only`    | Skip layers hidden by their own or a folder's eye.                                                                                                                      | Off                |
+| `--fill-holes`      | Mesh over holes in the art (lace, a spider web) as one solid sheet instead of cutting them out.                                                                         | Off                |
+| `--no-strand-rungs` | Mesh thin strands from their outline alone instead of as rung strips.                                                                                                   | Off                |
+| `--preview`         | Also write `NNN-<layer>.png`: each mesh over its art (outline magenta, interior edges blue, triangles under the minimum angle orange, vertices refinement added green). | Off                |
+| `--scale=N`         | Magnify previews N times.                                                                                                                                               | 1                  |
+
+Each setting override replaces one value of the preset.  Distances are in art pixels.
+
+| Override                      | Sets                                                                                                         | Standard | Fine | Coarse |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------ | -------- | ---- | ------ |
+| `--alpha-threshold=N`         | The least alpha (1-255) counted as art.                                                                      | 16       | 16   | 16     |
+| `--outline-spacing=N`         | The distance between outline vertices.                                                                       | 32       | 20   | 48     |
+| `--interior-spacing=N`        | The distance between inner-ring and lattice vertices.                                                        | 48       | 28   | 72     |
+| `--outer-margin=N`            | How far outside the art the outline runs.                                                                    | 4        | 3    | 6      |
+| `--inner-margin=N`            | How far inside the art's edge the inner ring runs; 0 for none.                                               | 8        | 6    | 12     |
+| `--minimum-margin=N`          | The closest the outline may come to any art pixel.                                                           | 2        | 1.5  | 3      |
+| `--minimum-outline-points=N`  | The fewest vertices one outline ring may have.                                                               | 6        | 8    | 4      |
+| `--vertex-budget=N`           | The most vertices one mesh may have.                                                                         | 1024     | 1024 | 1024   |
+| `--minimum-angle=N`           | The angle, in degrees, refinement brings every triangle up to; 0 turns refinement off.                       | 20       | 24   | 15     |
+| `--interior-thinning-limit=N` | Over the vertex budget, how many outline spacings the interior may thin to before the outline thins with it. | 4        | 4    | 4      |
+| `--strand-width=N`            | The art width below which a stretch of art is a strand, meshed as rungs.                                     | 40       | 26   | 60     |
+
+The report has one row per layer, then the run's smallest triangle angles in 5-degree buckets.
+
+| Column                         | Meaning                                                                                                                                 |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `order`, `name`, `raster`      | The layer's order, name, and raster size.                                                                                               |
+| `vertices`, `triangles`        | The mesh's vertex and triangle counts.                                                                                                  |
+| `outline`                      | Outline rings / outline vertices.                                                                                                       |
+| `refined`                      | Outline chords split because they came too close to the art or cut it off.                                                              |
+| `inner`                        | Inner rings / inner-ring vertices.                                                                                                      |
+| `lattice`                      | Interior lattice vertices.                                                                                                              |
+| `strands`                      | Strands / rungs / centerline vertices.                                                                                                  |
+| `steiner`                      | Vertices refinement added toward the minimum angle.                                                                                     |
+| `minAngle`                     | The smallest triangle angle, in degrees.                                                                                                |
+| `under5`, `under10`, `under20` | Triangles whose smallest angle is under 5, 10, and 20 degrees.                                                                          |
+| `unfixable`                    | Triangles left under the minimum angle that refinement could not help: an angle the outline itself makes, or a spot too tight to split. |
+| `milliseconds`, `notices`      | The time taken and the mesher's notices.                                                                                                |
 
 #### Running Tests
 
@@ -202,9 +330,11 @@ test/corpus/clip/    test/corpus/psd/  test/corpus/krita/   test/corpus/tiff/  t
 ```
 
 ```bash
-./gradlew :format:jvmTest                                   #Corpus automatic discovery.
-./gradlew :format:jvmTest -Dcmo3.sample=/path/to/Model.cmo3 #Point at one explicitly.
+./gradlew :format:jvmTest                                                                                                                        #Corpus automatic discovery.
+./gradlew :format:jvmTest -Dcmo3.sample=/path/to/Model.cmo3                                                                                      #Point at one explicitly.
 ./gradlew :format:jvmTest --tests "org.umamo.format.cmo3.tools.ModelGenerator" -Dcmo3.generate=true -Dcmo3.gensample=/path/to/Model.cmo3 --rerun #Generate new CMO3 model and registration.  Make sure to run ktlintFormat afterwards to clean up.
+./gradlew :ui:jvmTest --tests "*.EditGrabPerfProbeTest" -i                                                                                       #Edit-mode perf probe over moc3.perfSample (test/corpus/moc3/modelF by default).  Print-only: -i (--info) shows the rows, or read build/test-results.
+./gradlew :render:jvmTest --tests "*.EditGrabRenderPerfProbeTest" -i                                                                             #Its render-thread twin (needs a GL context).
 ```
 
 ## Legal & Trademark Notice
@@ -217,8 +347,9 @@ Umamo is an independent, community-developed project.  It is **not affiliated wi
 
 WANTED: Human translations for various languages.(Japanese, Chinese, Korean, Spanish, French, German, etc.)
 The English strings are located at: `module/ui/src/commonMain/composeResources/values/strings.xml`
+We're testing Weblate to translate!  You can translate easily from a browser on your phone or desktop: https://hosted.weblate.org/projects/umamo/
 
-At the moment I'm not accepting large code contributions from outside contributers.  Small fixes are accepted, but please keep in mind that at moment the development speed on this project is rapid.  I'm might make your change obsolete by the time I get around to reviewing it.
+At the moment I'm not accepting large code contributions from outside contributors.  Small fixes are accepted, but please keep in mind that at moment the development speed on this project is rapid.  I'm might make your change obsolete by the time I get around to reviewing it.
 
 (Once large changes are accepted in the future.)
 If you are planning a large change that touches many files then break it down into a stack of smaller pull requests that build on each other.  For example, if you're adding a new export format:

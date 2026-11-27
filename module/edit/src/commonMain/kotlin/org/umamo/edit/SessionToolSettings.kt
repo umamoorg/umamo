@@ -1,0 +1,192 @@
+package org.umamo.edit
+
+import kotlinx.coroutines.flow.StateFlow
+import org.umamo.runtime.model.ParameterId
+
+/**
+ * The tool settings a session carries between gestures and a saved document carries between sessions:
+ * the 2D and UV cursors, the transform pivot mode, proportional editing, and the control each parameter shows.
+ * Unlike [SessionToolLatches] these survive mode switches and are laid in from [SessionViewState] at open; like
+ * them they are never snapshotted and never enter the change bus.  [EditorSession] exposes this surface by
+ * delegation.
+ */
+interface SessionToolSettings {
+	/**
+	 * The 2D cursor's world position, or null before any placement or after [clearCursor2d].  Transient
+	 * session state like the tool latches (deliberately NOT part of EditorSnapshot - see [Cursor2d]); placed
+	 * by Shift+RightClick in the viewport, moved by the snap commands, and drawn by the HUD overlay only once
+	 * placed.  An operation that uses the cursor as a point reads [EditorSession.cursor2dOrWorldOrigin]
+	 * instead.
+	 */
+	val cursor2d: StateFlow<Cursor2d?>
+
+	/**
+	 * Places (or moves) the 2D cursor.
+	 *
+	 * @param Float worldX The cursor's new world-space x.
+	 * @param Float worldZ The cursor's new world-space z (up).
+	 */
+	fun setCursor2d(worldX: Float, worldZ: Float)
+
+	/**
+	 * Takes the 2D cursor off the canvas again, back to never placed: it is drawn nowhere, saved nowhere, and
+	 * an operation that uses it as a point reads the world origin.  What a cancelled cursor drag restores when
+	 * the cursor was unplaced before the drag began.
+	 */
+	fun clearCursor2d()
+
+	/**
+	 * The UV editor's cursor in normalized atlas coordinates, or null before any placement.  The
+	 * texture-space sibling of [cursor2d] (see [UvCursor]): placed by Shift+RightClick in the UV editor,
+	 * drawn by its overlay, and read as the UV transform pivot in [TransformPivotMode.Cursor].
+	 */
+	val uvCursor: StateFlow<UvCursor?>
+
+	/**
+	 * Places (or moves) the UV editor's cursor.
+	 *
+	 * @param Float u The cursor's new normalized atlas u coordinate.
+	 * @param Float v The cursor's new normalized atlas v coordinate.
+	 */
+	fun setUvCursor(u: Float, v: Float)
+
+	/**
+	 * Takes the UV editor's cursor off the surface again, back to never placed: it is drawn nowhere, saved nowhere,
+	 * and an operation that uses it as a point reads the stored origin.  What a cancelled cursor scrub restores when
+	 * the cursor was unplaced before the scrub began.
+	 */
+	fun clearUvCursor()
+
+	/**
+	 * What a modal Scale / Rotate turns the selection about (the Period pie / the header dropdown).
+	 * Transient editor state - it survives mode switches but is never snapshotted; the default is
+	 * Blender's Median Point.
+	 */
+	val pivotMode: StateFlow<TransformPivotMode>
+
+	/**
+	 * Selects the transform pivot mode.
+	 *
+	 * @param TransformPivotMode mode The pivot mode the next transforms anchor on.
+	 */
+	fun setPivotMode(mode: TransformPivotMode)
+
+	/**
+	 * How far a depth rotation's pivot is pushed along world Y, in world px, positive into the screen: the
+	 * primary-modifier wheel pushes it mid-gesture and the operation strip's Depth row writes it back, so the next
+	 * turn starts where the last one left it (the proportional radius's rule), and a To Shape hands it the center of
+	 * the shape it laid down.  Transient editor state like [pivotMode] - never snapshotted.
+	 */
+	val pivotDepth: StateFlow<Float>
+
+	/**
+	 * Sets the depth rotation's pivot depth outright, silently, clamped to the Depth row's range.
+	 *
+	 * @param Float depthWorld The depth along world Y, in world px, positive into the screen.
+	 */
+	fun setPivotDepth(depthWorld: Float)
+
+	/**
+	 * How deep the points sit before a rotation about X or Z (see [DepthSurface]): T cycles it
+	 * during the rotation and the strip's Surface row writes it back, so the next rotation starts from it, and a To
+	 * Shape sets it to Unchanged so the next turn keeps the depths it laid down.
+	 */
+	val depthSurface: StateFlow<DepthSurface>
+
+	/**
+	 * Sets the depth surface outright, silently.
+	 *
+	 * @param DepthSurface surface The surface the next depth rotation lays the points over.
+	 */
+	fun setDepthSurface(surface: DepthSurface)
+
+	/**
+	 * Moves the depth surface to the next one in T's cycle (Unchanged, Flat, Cylinder, Sphere), naming the new surface
+	 * in a near-cursor notice when [announce] - a rotation with no axis locked, whose depth inset is not showing it.
+	 *
+	 * @param Boolean announce True to post the notice.
+	 */
+	fun cycleDepthSurface(announce: Boolean)
+
+	/**
+	 * Proportional editing (Blender's O): non-null while enabled, carrying the falloff curve and the
+	 * influence radius.  Transient editor state like [pivotMode] - it survives mode switches but is
+	 * never snapshotted; the Edit overlay reads it when a modal operator latches (and on mid-gesture
+	 * radius scrolls) to weight the unselected vertices near the selection.
+	 */
+	val proportionalEdit: StateFlow<ProportionalEditState?>
+
+	/**
+	 * The proportional falloff, radius, and connected flag as they apply now: the live state while
+	 * proportional editing is on (always equal to [proportionalEdit]), else the configuration a toggle
+	 * brings back.  What the header shows while the tool is off, and what a setting change while off edits.
+	 */
+	val proportionalSettings: StateFlow<ProportionalEditState>
+
+	/**
+	 * Toggles proportional editing on or off (Blender's O), restoring the last falloff and radius on
+	 * re-enable and confirming either way with a near-cursor notice (an idle toggle has no other
+	 * visible effect - the influence circle only shows during a modal transform).
+	 */
+	fun toggleProportionalEdit()
+
+	/**
+	 * Toggles Connected Only for proportional editing (influence measured along mesh edges instead of
+	 * straight-line, so the halo never leaps to unconnected geometry).  Never switches proportional
+	 * editing itself on or off (Blender's rule): while it is off, the flag waits in [proportionalSettings]
+	 * for the next toggle.  Confirms either way with a near-cursor notice.
+	 */
+	fun toggleProportionalConnected()
+
+	/**
+	 * Sets Connected Only outright, silently, never switching proportional editing itself on or off.  The
+	 * write of a control that shows the flag (the proportional panel's checkbox): the control is its own
+	 * confirmation, as the operation strip's rows are for [setProportionalEdit], so no notice fires.
+	 *
+	 * @param Boolean connectedOnly Whether influence spreads only along mesh edges.
+	 */
+	fun setProportionalConnected(connectedOnly: Boolean)
+
+	/**
+	 * Selects the proportional falloff curve.  Never switches proportional editing itself on or off: while
+	 * it is off, the curve waits in [proportionalSettings] for the next toggle.
+	 *
+	 * @param ProportionalFalloff falloff The falloff curve the influence weights follow.
+	 */
+	fun setProportionalFalloff(falloff: ProportionalFalloff)
+
+	/**
+	 * Sets the proportional influence radius, clamped to the allowed range.  Never switches proportional
+	 * editing itself on or off: while it is off, the radius waits in [proportionalSettings] for the next
+	 * toggle.
+	 *
+	 * @param Float radiusWorld The influence radius in world units (canvas px).
+	 */
+	fun setProportionalRadius(radiusWorld: Float)
+
+	/**
+	 * Sets proportional editing outright - on with [state], or off with null - without a notice: the
+	 * operation settings strip writes an adjusted transform's proportional rows back through here, so
+	 * the next gesture starts from what the rigger last dialed in.
+	 *
+	 * @param ProportionalEditState? state The state to set, or null to turn proportional editing off.
+	 */
+	fun setProportionalEdit(state: ProportionalEditState?)
+
+	/**
+	 * The control each parameter, or each linked pair by its horizontal member, was set to show in the Parameters
+	 * panel, over the application's preference (see [ParameterControl]).  A parameter that is absent follows it.  An
+	 * entry outlives its parameter's deletion, so an undo finds it, and a lower member's own entry waits while it is
+	 * linked.  Never snapshotted, so a pick is no undo step and never marks the document dirty; an id that holds an
+	 * entry is therefore never minted for a new parameter, which would take the entry up.
+	 */
+	val parameterControls: StateFlow<Map<ParameterId, ParameterControl>>
+
+	/**
+	 * Sets the control [parameterId] shows, or puts it back on the preference.
+	 *
+	 * @param ParameterId parameterId The parameter, or a pair's horizontal member.
+	 * @param ParameterControl? control The control to show, or null to follow the preference.
+	 */
+	fun setParameterControl(parameterId: ParameterId, control: ParameterControl?)
+}

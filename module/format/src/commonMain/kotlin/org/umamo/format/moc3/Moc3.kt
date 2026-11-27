@@ -8,8 +8,11 @@ import org.umamo.format.FormatVersion
 import org.umamo.format.moc3.decode.MocDecoder
 import org.umamo.format.moc3.encode.MocEncoder
 import org.umamo.format.moc3.json.Cdi3Json
+import org.umamo.format.moc3.json.Exp3Json
 import org.umamo.format.moc3.json.Model3Json
+import org.umamo.format.moc3.json.Motion3Json
 import org.umamo.format.moc3.json.Physics3Json
+import org.umamo.format.moc3.json.Pose3Json
 import org.umamo.format.moc3.json.SidecarJson
 import org.umamo.format.moc3.json.UserData3Json
 import org.umamo.format.moc3.moc.MocCodec
@@ -29,7 +32,7 @@ import org.umamo.format.moc3.moc.MocVersion
  * The JSON sidecar helpers handle `model3.json` and friends.  Those sidecars are `String`-shaped
  * (not `ByteArray`), so they sit alongside the [FormatCodec] members rather than within them.  The
  * `.moc3` and its sidecars are sibling files (the manifest references the rest by path), so they are
- * decoupled here - pair them yourself.  Pure Kotlin (JVM + Android); no JDOM/reflection.
+ * decoupled here - pair them yourself.  Pure commonMain Kotlin; no JDOM/reflection.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §8</a>
  */
@@ -55,8 +58,10 @@ public object Moc3 : FormatCodec<MocDocument> {
 		if (!MocCodec.isMoc3(bytes)) {
 			return null
 		}
+
 		// MOC3.md §version gating: version byte @ +0x04.
 		val versionByte = bytes[4].toInt() and 0xFF
+
 		return MocVersion.entries.firstOrNull { it.byteValue == versionByte }
 	}
 
@@ -92,11 +97,8 @@ public object Moc3 : FormatCodec<MocDocument> {
 
 	/**
 	 * Bakes a (possibly-edited) [doc] onto [reference], synthesizing every section the lowering covers
-	 * and carrying anything it does not from the reference container.
-	 *
-	 * That carry-through is empty for every corpus model (`MocBakeFreshCoverageTest` pins the carried
-	 * set at nothing), so it stands against a section some later format version adds rather than against
-	 * one we cannot derive.  [write] is the reference-free form, and what an export uses.
+	 * and carrying anything it does not from the reference container.  [write] is the reference-free
+	 * form, and what an export uses.
 	 *
 	 * @param MocModel reference The decoded source providing the carried sections and the version.
 	 * @param MocDocument doc The document to bake.
@@ -167,4 +169,52 @@ public object Moc3 : FormatCodec<MocDocument> {
 	 * @return String The serialized JSON.
 	 */
 	public fun writeUserData3(userData: UserData3Json): String = SidecarJson.encodeToString(userData)
+
+	/**
+	 * Parses an `exp3.json` expression.
+	 *
+	 * @param String text The file contents.
+	 * @return Exp3Json The parsed expression.
+	 */
+	public fun readExp3(text: String): Exp3Json = SidecarJson.decodeFromString(text)
+
+	/**
+	 * Serializes an `exp3.json` expression.
+	 *
+	 * @param Exp3Json expression The expression to write.
+	 * @return String The serialized JSON.
+	 */
+	public fun writeExp3(expression: Exp3Json): String = SidecarJson.encodeToString(expression)
+
+	/**
+	 * Parses a `motion3.json` motion.
+	 *
+	 * @param String text The file contents.
+	 * @return Motion3Json The parsed motion.
+	 */
+	public fun readMotion3(text: String): Motion3Json = SidecarJson.decodeFromString(text)
+
+	/**
+	 * Serializes a `motion3.json` motion.
+	 *
+	 * @param Motion3Json motion The motion to write.
+	 * @return String The serialized JSON.
+	 */
+	public fun writeMotion3(motion: Motion3Json): String = SidecarJson.encodeToString(motion)
+
+	/**
+	 * Parses a `pose3.json` pose definition.
+	 *
+	 * @param String text The file contents.
+	 * @return Pose3Json The parsed pose definition.
+	 */
+	public fun readPose3(text: String): Pose3Json = SidecarJson.decodeFromString(text)
+
+	/**
+	 * Serializes a `pose3.json` pose definition.
+	 *
+	 * @param Pose3Json pose The pose definition to write.
+	 * @return String The serialized JSON.
+	 */
+	public fun writePose3(pose: Pose3Json): String = SidecarJson.encodeToString(pose)
 }

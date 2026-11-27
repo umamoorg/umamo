@@ -1,16 +1,18 @@
 package org.umamo.cli
 
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.png.PngCodec
 import org.umamo.interop.ExportReport
-import org.umamo.interop.cmo3.Cmo3Conversion
-import org.umamo.interop.cmo3.cmo3AtlasPages
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3PageImage
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
+import org.umamo.interop.describeExportNotice
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.render.PuppetTextures
 import org.umamo.render.UndecodablePagePolicy
 import org.umamo.render.buildPuppetTextures
-import org.umamo.render.canvasToParentSpaceFor
 import org.umamo.render.encodeAtlasPng
 import org.umamo.render.withTexturePagesFrom
 import java.io.File
@@ -18,8 +20,7 @@ import java.util.Locale
 import kotlin.random.Random
 
 /*
- * The convert subcommand: cmo3/moc3 resaves and cross-format conversions, replacing the old
- * Cmo3ResaveDumpTest -Dcmo3.resave workflow.
+ * The convert subcommand: cmo3/moc3 resaves and cross-format conversions.
  */
 
 /**
@@ -33,10 +34,12 @@ internal fun runConvert(arguments: List<String>): Int {
 	if (arguments.size != 2) {
 		throw CliUsageException("Usage: convert <in> <out>")
 	}
+
 	val loaded = loadInput(arguments[0])
 	val outputFile = File(arguments[1])
 	val outputExtension = outputFile.name.substringAfterLast('.', "").lowercase(Locale.ROOT)
 	outputFile.parentFile?.mkdirs()
+
 	when {
 		loaded is LoadedInput.Cmo3Input && outputExtension == "cmo3" -> {
 			// An unedited graph re-emits its main.xml byte-identically; only the CAFF wrapper differs.
@@ -58,18 +61,17 @@ internal fun runConvert(arguments: List<String>): Int {
 			convertMoc3ToCmo3(loaded, outputFile)
 		}
 
-		else -> throw CliUsageException("Unsupported conversion: ${arguments[0]} -> ${outputFile.name}")
+		else -> {
+			throw CliUsageException("Unsupported conversion: ${arguments[0]} -> ${outputFile.name}")
+		}
 	}
+
 	return 0
 }
 
 /**
  * Lowers a CMO3 document to the full MOC3 family (moc3 + model3.json + cdi3.json + atlas textures)
- * next to [outputFile].
- *
- * The two mandatory pre-steps mirror the app's own export path: the puppet's drawables arrive on
- * the -1 texture-page sentinel (CMO3 binds textures through the layered-art web, not a page index),
- * so withTexturePagesFrom must land real pages before the lowering can name them.
+ * next to [outputFile], through the same pre-steps as the app's own export path.
  *
  * @param LoadedInput.Cmo3Input loaded The cmo3 input.
  * @param File outputFile             The target .moc3 path; the family lands beside it.
@@ -77,7 +79,7 @@ internal fun runConvert(arguments: List<String>): Int {
 private fun convertCmo3ToMoc3Family(loaded: LoadedInput.Cmo3Input, outputFile: File) {
 	val basename = Moc3Sidecars.basenameFor(outputFile.name)
 	val importedPuppet = importPuppet(loaded)
-	val modelSource = (loaded.model.root as org.umamo.format.cmo3.model.custom.CModelSource)
+	val modelSource = (loaded.model.root as CModelSource)
 	val pageSet = cmo3AtlasPages(modelSource) { imageResource -> loaded.model.extractLayerPng(imageResource) }
 	// Skip matches the editor's CMO3 loader: a page that will not decode drops rather than failing the
 	// whole conversion, and Skip never returns null, so the fallback is unreachable.
@@ -88,6 +90,8 @@ private fun convertCmo3ToMoc3Family(loaded: LoadedInput.Cmo3Input, outputFile: F
 			pageSet.premultipliedAlpha,
 			UndecodablePagePolicy.Skip,
 		) ?: PuppetTextures(emptyList(), emptyMap(), pageSet.premultipliedAlpha)
+	// CMO3 drawables arrive on the -1 texture-page sentinel (CMO3 binds textures through the layered-art
+	// web, not a page index), so real pages must land before the lowering can name them.
 	val puppet = withTexturePagesFrom(importedPuppet, textures)
 	val pages =
 		textures.atlases.mapIndexed { pageIndex, atlas ->
@@ -101,25 +105,24 @@ private fun convertCmo3ToMoc3Family(loaded: LoadedInput.Cmo3Input, outputFile: F
 			puppet = puppet,
 			basename = basename,
 			pages = pages,
-			canvasToParentSpace = canvasToParentSpaceFor(puppet),
 		)
 
 	// Overwrites without confirmation.
 	val outputDirectory = outputFile.parentFile ?: File(".")
+
 	for (bundleFile in bundle.files) {
 		val target = File(outputDirectory, bundleFile.name)
 		target.parentFile?.mkdirs()
 		target.writeBytes(bundleFile.bytes)
 		println("Wrote ${target.path} (${bundleFile.bytes.size} bytes)")
 	}
+
 	reportNotices(bundle.report)
 }
 
 /**
- * Synthesizes a fresh CMO3 from a MOC3-origin document.  The atlas pages come from the manifest's
- * texture files; without a manifest the conversion proceeds textureless with a warning.  A
- * MissingSourceArt notice is always reported - the pages are atlas copies, not the original
- * layered source art.
+ * Synthesizes a fresh CMO3 from a MOC3-origin document, its atlas pages taken from the manifest's
+ * texture files.
  *
  * @param LoadedInput.Moc3Input loaded The moc3 input with its discovered family.
  * @param File outputFile             The target .cmo3 path.
@@ -127,16 +130,18 @@ private fun convertCmo3ToMoc3Family(loaded: LoadedInput.Cmo3Input, outputFile: F
 private fun convertMoc3ToCmo3(loaded: LoadedInput.Moc3Input, outputFile: File) {
 	val puppet = importPuppet(loaded)
 	val presentTextureFiles = loaded.family.textureFiles.filter { textureFile -> textureFile.isFile }
+
 	if (loaded.family.manifest == null) {
 		System.err.println("Warning: no model3.json manifest found beside ${loaded.family.mocFile.name}; converting textureless")
 	} else if (presentTextureFiles.size < loaded.family.textureFiles.size) {
 		System.err.println("Warning: ${loaded.family.textureFiles.size - presentTextureFiles.size} manifest texture(s) missing on disk")
 	}
+
 	val pages =
 		presentTextureFiles.map { textureFile ->
 			val pngBytes = textureFile.readBytes()
 			val decoded = PngCodec.read(pngBytes)
-			Cmo3Conversion.AtlasPage(pngBytes = pngBytes, width = decoded.width, height = decoded.height)
+			Cmo3PageImage(pngBytes = pngBytes, width = decoded.width, height = decoded.height)
 		}
 	val result =
 		Cmo3Conversion.freshCmo3(
@@ -155,7 +160,8 @@ private fun convertMoc3ToCmo3(loaded: LoadedInput.Moc3Input, outputFile: File) {
 }
 
 /**
- * Prints an export report's notices to stderr - advisory, never fatal.
+ * Prints an export report's notices to stderr - advisory, never fatal.  Each line is the same one the
+ * editor's log carries for that notice, so a report reads alike whichever tool wrote the file.
  *
  * @param ExportReport report The lowering's report.
  */
@@ -163,8 +169,10 @@ private fun reportNotices(report: ExportReport) {
 	if (report.isEmpty) {
 		return
 	}
+
 	System.err.println("Export notices (${report.notices.size}):")
+
 	for (notice in report.notices) {
-		System.err.println("  $notice")
+		System.err.println("  ${describeExportNotice(notice)}")
 	}
 }

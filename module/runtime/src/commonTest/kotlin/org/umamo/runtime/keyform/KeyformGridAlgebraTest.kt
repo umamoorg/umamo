@@ -46,9 +46,11 @@ class KeyformGridAlgebraTest {
 		val corners = gridCorners(grid) { parameterId -> if (parameterId == angleX) poseValue else otherValue } ?: return null
 		val formByIndex = grid.cells.associate { cell -> grid.linearIndexOf(cell.coordinate) to cell.form }
 		var total = 0f
+
 		for (corner in corners) {
 			total += corner.weight * ((formByIndex[corner.linearIndex] as? ChannelValue.Scalar)?.value ?: 0f)
 		}
+
 		return total
 	}
 
@@ -82,6 +84,7 @@ class KeyformGridAlgebraTest {
 		assertEquals(listOf(angleX, angleY), seeded.axes.map { axis -> axis.parameterId }, "the new axis is appended, not spliced")
 		assertEquals(6, seeded.cells.size)
 		assertTrue(seeded.isDense)
+
 		// The pre-existing motion is unchanged at every angleY key, which is what makes binding non-destructive.
 		for (poseY in listOf(-1f, 0f, 1f)) {
 			assertEquals(15f, sample(seeded, poseValue = 0f, otherValue = poseY))
@@ -91,12 +94,10 @@ class KeyformGridAlgebraTest {
 	/**
 	 * Inserting a key leaves the evaluated curve alone - it adds a sample, not a shape change.
 	 *
-	 * Asserted to a tolerance, NOT bit-equality, and deliberately so: re-associating one linear blend into
-	 * two consecutive ones is exact in the reals but lands a few ULP apart in float (pose 6 evaluates
-	 * 60.000004 before the insert and 60.0 after).  The bit-exact claim in this layer belongs only to
-	 * compaction and refinement being mutual inverses, which evaluate the SAME expression on the SAME
-	 * inputs - see KeyformCompactionTest.  Asserting bit-equality here would be claiming something the
-	 * arithmetic does not support.
+	 * Asserted to a tolerance, NOT bit-equality: re-associating one linear blend into two consecutive ones is
+	 * exact in the reals but lands a few ULP apart in float (pose 6 evaluates 60.000004 before the insert and
+	 * 60.0 after).  The bit-exact claim in this layer belongs only to compaction and refinement being mutual
+	 * inverses, which evaluate the SAME expression on the SAME inputs - see KeyformCompactionTest.
 	 */
 	@Test
 	fun insertingAKeyPreservesTheCurve() {
@@ -104,6 +105,7 @@ class KeyformGridAlgebraTest {
 		val after = before.withKeyInserted(angleX, 2.5f, ChannelValueInterpolator)
 		assertEquals(listOf(0f, 2.5f, 10f), after.axes.single().keys.toList())
 		assertEquals(25f, scalarOf(after.cells.first { cell -> cell.coordinate.single() == 1 }))
+
 		for (poseValue in listOf(0f, 1f, 2.5f, 6f, 10f)) {
 			val beforeValue = assertNotNull(sample(before, poseValue))
 			val afterValue = assertNotNull(sample(after, poseValue))
@@ -205,6 +207,19 @@ class KeyformGridAlgebraTest {
 		assertSame(sparse, sparse.withKeyInserted(angleX, 2f, ChannelValueInterpolator))
 		assertSame(sparse, sparse.withKeyRemoved(angleX, keyIndex = 1))
 		assertSame(sparse, sparse.withFormCaptured({ 2f }, scalar(1f), ChannelValueInterpolator))
+		assertSame(sparse, sparse.refinedToUnion(mapOf(angleX to floatArrayOf(0f, 2f, 5f, 10f)), emptyMap(), ChannelValueInterpolator))
+		assertEquals(-1, sparse.keyIndexAfterInsert(angleX, 2f), "a sparse grid reports no insert ordinal")
+	}
+
+	/** The insert-ordinal query names the slot a new key takes, and -1 wherever the insert adds no key. */
+	@Test
+	fun keyIndexAfterInsertNamesTheNewKeysSlot() {
+		val grid = track(floatArrayOf(0f, 5f, 10f), floatArrayOf(0f, 40f, 100f))
+		assertEquals(1, grid.keyIndexAfterInsert(angleX, 2f))
+		assertEquals(3, grid.keyIndexAfterInsert(angleX, 20f), "an out-of-span key still reports where it would go")
+		assertEquals(-1, grid.keyIndexAfterInsert(angleX, 5f), "a key already sits there")
+		assertEquals(-1, grid.keyIndexAfterInsert(angleX, 5.0005f), "inside the snap tolerance of an existing key")
+		assertEquals(-1, grid.keyIndexAfterInsert(angleY, 2f), "no axis for the parameter")
 	}
 
 	/** Moving a key changes only WHERE it applies; the value it holds rides along. */
@@ -217,7 +232,7 @@ class KeyformGridAlgebraTest {
 	}
 
 	/**
-	 * A key may CROSS its neighbours; the axis re-sorts and the cells permute to match.
+	 * A key may CROSS its neighbors; the axis re-sorts and the cells permute to match.
 	 *
 	 * The permutation is the whole cost of allowing it.  A cell's coordinate on an axis is a key ORDINAL
 	 * and the evaluator requires an ascending axis, so re-sorting the keys alone would still satisfy

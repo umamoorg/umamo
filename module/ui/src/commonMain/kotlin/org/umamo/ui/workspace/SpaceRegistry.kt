@@ -2,54 +2,110 @@ package org.umamo.ui.workspace
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import org.jetbrains.compose.resources.StringResource
-import org.umamo.ui.kit.OverflowRowScope
+import org.umamo.ui.kit.container.OverflowRowScope
 import org.umamo.ui.theme.UmamoIcon
 
 /**
- * The per-area context handed to a space's content factory and its header slot. Carries the hosting
+ * A space's view state that a saved document carries (docs/format/UMA.md §7.3): it writes itself as one member of
+ * its area's block and takes that member back when the document reopens.
+ *
+ * Nothing here marks a document dirty.  The state rides on a real save and is otherwise left alone (UMA §7).
+ */
+interface PersistentSpaceState {
+	/**
+	 * This state as its area block's member.  Every member this state knows is named: its value when it deviates
+	 * from the default, a JSON null when it does not - a merge alone could never take a deviation back out of the
+	 * file (UMA §7.5).
+	 *
+	 * @return JsonObject The member's content.
+	 */
+	fun toJson(): JsonObject
+
+	/**
+	 * Takes the state a document was saved with.  Tolerant by contract: a member of the wrong type, an unknown
+	 * name, or an id that names nothing is skipped, never thrown over (UMA §7.1).
+	 *
+	 * @param JsonObject tree The member as the file held it.
+	 */
+	fun restore(tree: JsonObject)
+}
+
+/** An area block's members in the order a writer lays them down (UMA §7.3, §7.5). */
+internal val AREA_BLOCK_MEMBER_ORDER: List<String> = listOf("cameras", "viewport", "outliner", "sources", "parameters", "keyformSheet", "properties", "uv")
+
+/**
+ * The per-area context handed to a space's content factory and its header slot.  Carries the hosting
  * area's stable id (which the 2D viewport needs to key its GL surface) and the per-space state bag -
  * the header slot and the body render as sibling subtrees sharing only this scope, so [spaceState] is
  * the one channel a space's header controls and its body can share state through (a CompositionLocal
  * provided inside the body never reaches the header).
  *
- * @property String areaId The id of the leaf hosting this space.
+ * @property String      areaId   The id of the leaf hosting this space.
+ * @property JsonObject? restored This area's block as the open document held it (UMA §7.3), or null.
  */
 class AreaScope(
 	val areaId: String,
+	private val restored: JsonObject? = null,
 ) {
 	/** Per-space parked state, keyed by a space-chosen string. */
 	private val spaceStates = mutableMapOf<String, Any>()
 
 	/**
-	 * Returns the state object parked under [stateKey], creating it via [factory] on first use. The
-	 * instance lives as long as this scope (the leaf's lifetime - remember(area.id) in AreaLeaf), so
-	 * it survives switching the space away and back. Keys must be namespaced by their space
-	 * ("outliner.view"); a cross-space key collision is a programming error, hence the unchecked cast.
+	 * Returns the state object parked under [stateKey], creating it via [factory] on first use.  The
+	 * instance lives as long as this scope, so it survives switching the space away and back.  A key is
+	 * the space's member name in its area block ("outliner", "keyformSheet"), which is why it carries no
+	 * dot; a cross-space key collision is a programming error, hence the unchecked cast.
+	 *
+	 * A [PersistentSpaceState] takes the document's saved member the moment it is created, before any
+	 * composable reads it, so a space never renders its defaults first and the restored state second.
 	 *
 	 * @param String stateKey The space-unique key naming the parked state.
 	 * @param Function factory Creates the state on first request.
 	 * @return StateT The one instance for this area.
 	 */
 	@Suppress("UNCHECKED_CAST")
-	fun <StateT : Any> spaceState(stateKey: String, factory: () -> StateT): StateT = spaceStates.getOrPut(stateKey, factory) as StateT
+	fun <StateT : Any> spaceState(stateKey: String, factory: () -> StateT): StateT =
+		spaceStates.getOrPut(stateKey) {
+			factory().also { created ->
+				if (created is PersistentSpaceState) {
+					(restored?.get(stateKey) as? JsonObject)?.let(created::restore)
+				}
+			}
+		} as StateT
+
+	/**
+	 * This area's block for a save: one member per persistent state the area has shown, in the spec's order
+	 * (UMA §7.5).  A space the area never showed has no state here and so is not named, which leaves its member
+	 * as the file had it.
+	 *
+	 * @return JsonObject The block's members.
+	 */
+	fun gather(): JsonObject =
+		buildJsonObject {
+			for (stateKey in spaceStates.keys.sortedWith(compareBy({ key -> AREA_BLOCK_MEMBER_ORDER.indexOf(key).takeIf { index -> index >= 0 } ?: Int.MAX_VALUE }, { key -> key }))) {
+				(spaceStates[stateKey] as? PersistentSpaceState)?.let { state -> put(stateKey, state.toJson()) }
+			}
+		}
 }
 
 /**
  * Describes one editor space: its [kind], the localized [title] shown in the dropdown menu, the [icon]
  * shown in the area header and beside the title in the dropdown, and the [content] factory that renders
- * it given its [AreaScope]. Keeping content a `@Composable (AreaScope) -> Unit` lambda lets the app
+ * it given its [AreaScope].  Keeping content a `@Composable (AreaScope) -> Unit` lambda lets the app
  * override specific kinds (notably the GL viewport) without `:ui` depending on any platform code.
  *
  * [headerContent] is the optional space-specific header strip, rendered by the (otherwise
- * space-agnostic) area header after the editor-type dropdown - the 2D viewport mounts its mode dropdown
- * and select-mode buttons here, and the UV editor is the intended second consumer.  Declared before
- * [content] so the existing trailing-lambda construction sites stay valid.
+ * space-agnostic) area header after the editor-type dropdown.  The viewports mount the mode dropdown
+ * and select-mode buttons here.  Declared before [content] so the existing trailing-lambda construction
+ * sites stay valid.
  *
  * The slot declares ITEMS into an overflow-aware strip rather than emitting composables into a Row: a
  * control that does not fit collapses into the strip's trailing dropdown instead of being squeezed to
  * nothing.  Because the builder is not itself composable, a CompositionLocal may only be read inside an
- * item's body - see [org.umamo.ui.kit.OverflowRowScope].
+ * item's body - see [org.umamo.ui.kit.container.OverflowRowScope].
  *
  * @property SpaceKind kind The space type this describes.
  * @property StringResource title The localized dropdown label.
@@ -66,14 +122,14 @@ class SpaceDescriptor(
 )
 
 /**
- * The resolver from [SpaceKind] to its [SpaceDescriptor] - the agnostic-area machinery. An area asks
+ * The resolver from [SpaceKind] to its [SpaceDescriptor] - the agnostic-area machinery.  An area asks
  * the registry for its current kind's descriptor to render content, and lists [all] descriptors to
- * populate the editor-type dropdown. The app augments the base registry with [withOverrides] (e.g. to
+ * populate the editor-type dropdown.  The app augments the base registry with [withOverrides] (e.g. to
  * swap the placeholder viewport for the real GL one).
  */
 class SpaceRegistry(private val descriptorsByKind: Map<SpaceKind, SpaceDescriptor>) {
 	/**
-	 * The descriptor for [kind]. Throws if a kind is unregistered - every kind must have a descriptor
+	 * The descriptor for [kind].  Throws if a kind is unregistered - every kind must have a descriptor
 	 * (the base registry covers all of them), so a miss is a programming error, not a runtime branch.
 	 *
 	 * @param SpaceKind kind The kind to resolve.
@@ -96,10 +152,8 @@ class SpaceRegistry(private val descriptorsByKind: Map<SpaceKind, SpaceDescripto
 }
 
 /**
- * The active [SpaceRegistry] for the composition. `static` - the registry is stable for the shell's
+ * The active [SpaceRegistry] for the composition.  `static` - the registry is stable for the shell's
  * lifetime; areas read `LocalSpaceRegistry.current` to render and to build their dropdown.
- *
- * コンポジションで有効な SpaceRegistry。
  */
 val LocalSpaceRegistry =
 	staticCompositionLocalOf<SpaceRegistry> {

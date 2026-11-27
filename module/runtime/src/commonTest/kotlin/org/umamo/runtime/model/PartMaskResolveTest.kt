@@ -58,14 +58,19 @@ class PartMaskResolveTest {
 
 		fun find(node: RenderNode): RenderGroup? =
 			when (node) {
-				is RenderDrawable -> null
-				is RenderGroup ->
+				is RenderDrawable -> {
+					null
+				}
+
+				is RenderGroup -> {
 					if (node.partId == subjectPartId) {
 						node
 					} else {
 						node.children.firstNotNullOfOrNull { child -> find(child) }
 					}
+				}
 			}
+
 		return find(root)?.composite
 	}
 

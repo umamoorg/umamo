@@ -8,7 +8,7 @@ import kotlin.test.assertFalse
 /**
  * Unit tests for the channelflags to ChannelMask mapping. channelflags is a per-channel enable mask
  * ('0' disables, else enables) in channel-index order, which for RGB is Blue, Green, Red, Alpha and
- * for GRAYA is Gray, Alpha. A disabled alpha is Krita's "Inherit Alpha" (the clipped signal).
+ * for GRAYA is Gray, Alpha.  A disabled alpha is Krita's "Inherit Alpha" (the clipped signal).
  * Values like "1110" are real Krita output - its comic templates ship inherit-alpha layers.
  */
 class KraChannelMaskTest {

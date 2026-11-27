@@ -39,6 +39,7 @@ class PsdSyntheticTest {
 		val out = Buffer()
 		out.writeByte(row.size - 1) // control n: copy the next n+1 literal bytes
 		out.write(row)
+
 		return out.readByteArray()
 	}
 
@@ -55,20 +56,29 @@ class PsdSyntheticTest {
 	private fun encodeChannel(plane: ByteArray, width: Int, height: Int, compression: Int): ByteArray {
 		val out = Buffer()
 		out.writeShort(compression)
+
 		when (compression) {
-			compressionRaw -> out.write(plane)
+			compressionRaw -> {
+				out.write(plane)
+			}
+
 			compressionRle -> {
 				val encodedRows = (0 until height).map { rowIndex -> packBitsRow(plane.copyOfRange(rowIndex * width, rowIndex * width + width)) }
+
 				for (encoded in encodedRows) {
 					out.writeShort(encoded.size) // byte-count table entry
 				}
+
 				for (encoded in encodedRows) {
 					out.write(encoded)
 				}
 			}
 
-			compressionZip -> out.write(deflate(plane))
+			compressionZip -> {
+				out.write(deflate(plane))
+			}
 		}
+
 		return out.readByteArray()
 	}
 
@@ -84,6 +94,7 @@ class PsdSyntheticTest {
 		out.writeUtf8("lyid")
 		out.writeInt(4)
 		out.writeInt(layerId)
+
 		return out.readByteArray()
 	}
 
@@ -167,10 +178,12 @@ class PsdSyntheticTest {
 		out.writeInt(height) // bottom
 		out.writeInt(width) // right
 		out.writeShort(blocks.size)
+
 		for ((id, block) in blocks) {
 			out.writeShort(id)
 			out.writeInt(block.size)
 		}
+
 		out.writeUtf8("8BIM")
 		out.writeUtf8("norm")
 		out.writeByte(255) // opacity
@@ -184,6 +197,7 @@ class PsdSyntheticTest {
 		val maskBlockLength = if (mask != null) 20 else 0
 		out.writeInt(4 + maskBlockLength + 4 + 1 + nameBytes.size + additional.size) // extra data: mask + ranges + name + additional info
 		out.writeInt(maskBlockLength) // layer mask data length
+
 		if (mask != null) {
 			// PSD: rectangle (top, left, bottom, right), default color, flags (bit 1 = disabled), 2 padding.
 			out.writeInt(mask.top)
@@ -194,6 +208,7 @@ class PsdSyntheticTest {
 			out.writeByte(if (mask.disabled) 0x02 else 0)
 			out.writeShort(0)
 		}
+
 		out.writeInt(0) // blending ranges length
 		out.writeByte(nameBytes.size)
 		out.write(nameBytes)
@@ -203,6 +218,7 @@ class PsdSyntheticTest {
 		for ((_, block) in blocks) {
 			out.write(block)
 		}
+
 		return out.readByteArray()
 	}
 

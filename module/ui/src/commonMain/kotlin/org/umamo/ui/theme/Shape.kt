@@ -7,9 +7,7 @@ import androidx.compose.ui.unit.dp
 
 /*
  * Compact corner rounding for a dense editor surface - tighter than the conventional defaults so panels,
- * chips, and menus read as crisp tool chrome. The small radius matches the 4 dp viewport zoom chip.
- *
- * 密度の高いエディタ向けの小さめの角丸。
+ * chips, and menus read as crisp tool chrome.  The small radius matches the 4 dp viewport zoom chip.
  */
 
 /**

@@ -37,9 +37,11 @@ public object TiffReader : ReadOnlyRasterCodec {
 		if (candidateBytes.size < 4) {
 			return false
 		}
+
 		// TIFF: 'II' 0x2A00 (little-endian) or 'MM' 0x002A (big-endian) header @ +0x00.
 		val littleEndian = candidateBytes[0] == 0x49.toByte() && candidateBytes[1] == 0x49.toByte() && candidateBytes[2] == 0x2A.toByte() && candidateBytes[3] == 0x00.toByte()
 		val bigEndian = candidateBytes[0] == 0x4D.toByte() && candidateBytes[1] == 0x4D.toByte() && candidateBytes[2] == 0x00.toByte() && candidateBytes[3] == 0x2A.toByte()
+
 		return littleEndian || bigEndian
 	}
 
@@ -63,9 +65,11 @@ public object TiffReader : ReadOnlyRasterCodec {
 
 		val bitsPerSampleValues = directory.ints(TiffConstants.TAG_BITS_PER_SAMPLE) ?: intArrayOf(1)
 		val bitsPerSample = bitsPerSampleValues[0]
+
 		for (sampleIndex in 1 until minOf(bitsPerSampleValues.size, samplesPerPixel)) {
 			require(bitsPerSampleValues[sampleIndex] == bitsPerSample) { "Mixed TIFF bits-per-sample not supported" }
 		}
+
 		require(bitsPerSample == 1 || bitsPerSample == 2 || bitsPerSample == 4 || bitsPerSample == 8 || bitsPerSample == 16) {
 			"Unsupported TIFF bits-per-sample $bitsPerSample"
 		}
@@ -101,6 +105,7 @@ public object TiffReader : ReadOnlyRasterCodec {
 				photometric == TiffConstants.PHOTOMETRIC_PALETTE ||
 				(photometric == TiffConstants.PHOTOMETRIC_YCBCR && compression == TiffConstants.COMPRESSION_JPEG),
 		) { "Unsupported TIFF photometric interpretation $photometric" }
+
 		// The two tags are validated independently above, so a file may still pair a color photometric
 		// with too few samples.  assembleRgba reads three samples per pixel for those, which would run
 		// off the end of a one-sample buffer, so require the pairing to be coherent up front.
@@ -131,12 +136,14 @@ public object TiffReader : ReadOnlyRasterCodec {
 		val samples = IntArray(width * height * samplesPerPixel)
 		val units = buildUnits(directory, width, height, samplesPerPixel, planeCount)
 		val coding = buildCoding(directory, bytes, units, compression, predictor, photometric, littleEndian)
+
 		for (unit in units) {
 			decodeUnit(bytes, unit, width, samplesInPlane, samplesPerPixel, bitsPerSample, coding, samples)
 		}
 
 		// A JPEG-compressed YCbCr image is color-converted by the JPEG decoder, so it assembles as RGB.
 		val assemblyPhotometric = if (photometric == TiffConstants.PHOTOMETRIC_YCBCR) TiffConstants.PHOTOMETRIC_RGB else photometric
+
 		return RasterImage(width, height, assembleRgba(samples, width, height, samplesPerPixel, bitsPerSample, assemblyPhotometric, extraSamples, colorMap))
 	}
 
@@ -242,6 +249,7 @@ public object TiffReader : ReadOnlyRasterCodec {
 	 */
 	private fun buildUnits(directory: TiffDirectory, width: Int, height: Int, samplesPerPixel: Int, planeCount: Int): List<TiffUnit> {
 		val units = ArrayList<TiffUnit>()
+
 		if (directory.has(TiffConstants.TAG_TILE_WIDTH)) {
 			val tileWidth = directory.int(TiffConstants.TAG_TILE_WIDTH, width)
 			val tileHeight = directory.int(TiffConstants.TAG_TILE_HEIGHT, height)
@@ -251,13 +259,16 @@ public object TiffReader : ReadOnlyRasterCodec {
 			val tilesAcross = (width + tileWidth - 1) / tileWidth
 			val tilesDown = (height + tileHeight - 1) / tileHeight
 			val tilesPerPlane = tilesAcross * tilesDown
+
 			for (plane in 0 until planeCount) {
 				for (tileY in 0 until tilesDown) {
 					for (tileX in 0 until tilesAcross) {
 						val unitIndex = plane * tilesPerPlane + tileY * tilesAcross + tileX
+
 						if (unitIndex >= offsets.size) {
 							continue
 						}
+
 						val imageX = tileX * tileWidth
 						val imageY = tileY * tileHeight
 						units +=
@@ -280,12 +291,15 @@ public object TiffReader : ReadOnlyRasterCodec {
 			val offsets = directory.longs(TiffConstants.TAG_STRIP_OFFSETS) ?: throw IllegalArgumentException("TIFF without strip offsets")
 			val byteCounts = directory.longs(TiffConstants.TAG_STRIP_BYTE_COUNTS)
 			val stripsPerPlane = (height + rowsPerStrip - 1) / rowsPerStrip
+
 			for (plane in 0 until planeCount) {
 				for (stripY in 0 until stripsPerPlane) {
 					val unitIndex = plane * stripsPerPlane + stripY
+
 					if (unitIndex >= offsets.size) {
 						continue
 					}
+
 					val imageY = stripY * rowsPerStrip
 					val copyHeight = minOf(rowsPerStrip, height - imageY)
 					units +=
@@ -303,6 +317,7 @@ public object TiffReader : ReadOnlyRasterCodec {
 				}
 			}
 		}
+
 		return units
 	}
 
@@ -334,13 +349,17 @@ public object TiffReader : ReadOnlyRasterCodec {
 
 		for (row in 0 until unit.copyHeight) {
 			val rowBase = row * rowBytes
+
 			if (coding.predictor == TiffConstants.PREDICTOR_HORIZONTAL_DIFFERENCING) {
 				applyHorizontalPredictor(decompressed, rowBase, unit.unitWidth, samplesInPlane, bitsPerSample, coding.littleEndian)
 			}
+
 			val imageY = unit.imageY + row
+
 			for (column in 0 until unit.copyWidth) {
 				val imageX = unit.imageX + column
 				val pixelBase = (imageY * width + imageX) * samplesPerPixel
+
 				for (sampleWithinPlane in 0 until samplesInPlane) {
 					val linearSampleIndex = column * samplesInPlane + sampleWithinPlane
 					val channel = if (samplesInPlane == 1) unit.plane else sampleWithinPlane
@@ -369,6 +388,7 @@ public object TiffReader : ReadOnlyRasterCodec {
 
 			16 -> {
 				val offset = rowBase + linearSampleIndex * 2
+
 				if (offset + 1 < row.size) {
 					val low = row[offset].toInt() and 0xFF
 					val high = row[offset + 1].toInt() and 0xFF
@@ -381,9 +401,11 @@ public object TiffReader : ReadOnlyRasterCodec {
 			else -> {
 				val bitIndex = linearSampleIndex * bitsPerSample
 				val byteIndex = rowBase + (bitIndex ushr 3)
+
 				if (byteIndex >= row.size) {
 					return 0
 				}
+
 				val shift = 8 - bitsPerSample - (bitIndex and 7)
 				val mask = (1 shl bitsPerSample) - 1
 				(row[byteIndex].toInt() ushr shift) and mask
@@ -404,24 +426,35 @@ public object TiffReader : ReadOnlyRasterCodec {
 	private fun decompressUnit(bytes: ByteArray, unit: TiffUnit, expectedSize: Int, samplesInPlane: Int, coding: TiffCoding): ByteArray {
 		val safeOffset = unit.offset.coerceIn(0, bytes.size)
 		val available = if (unit.byteCount > 0) minOf(unit.byteCount, bytes.size - safeOffset) else bytes.size - safeOffset
+
 		return when (coding.compression) {
 			TiffConstants.COMPRESSION_NONE -> {
 				val out = ByteArray(expectedSize)
 				val copy = minOf(available, expectedSize)
+
 				if (copy > 0) {
 					bytes.copyInto(out, 0, safeOffset, safeOffset + copy)
 				}
+
 				out
 			}
 
-			TiffConstants.COMPRESSION_PACKBITS -> decodePackBits(bytes.copyOfRange(safeOffset, safeOffset + available), expectedSize)
-			TiffConstants.COMPRESSION_LZW -> decodeLzw(bytes.copyOfRange(safeOffset, safeOffset + available), expectedSize)
-			TiffConstants.COMPRESSION_ZLIB, TiffConstants.COMPRESSION_DEFLATE -> inflate(bytes, safeOffset, available, expectedSize)
+			TiffConstants.COMPRESSION_PACKBITS -> {
+				decodePackBits(bytes.copyOfRange(safeOffset, safeOffset + available), expectedSize)
+			}
+
+			TiffConstants.COMPRESSION_LZW -> {
+				decodeLzw(bytes.copyOfRange(safeOffset, safeOffset + available), expectedSize)
+			}
+
+			TiffConstants.COMPRESSION_ZLIB, TiffConstants.COMPRESSION_DEFLATE -> {
+				inflate(bytes, safeOffset, available, expectedSize)
+			}
 
 			TiffConstants.COMPRESSION_CCITT_MODIFIED_HUFFMAN_RLE,
 			TiffConstants.COMPRESSION_CCITT_T4,
 			TiffConstants.COMPRESSION_CCITT_T6,
-			->
+			-> {
 				decodeCcitt(
 					bytes.copyOfRange(safeOffset, safeOffset + available),
 					unit.unitWidth,
@@ -430,11 +463,15 @@ public object TiffReader : ReadOnlyRasterCodec {
 					coding.ccittOptions,
 					coding.ccittByteAligned,
 				)
+			}
 
-			TiffConstants.COMPRESSION_JPEG ->
+			TiffConstants.COMPRESSION_JPEG -> {
 				decodeJpegUnit(bytes.copyOfRange(safeOffset, safeOffset + available), unit, samplesInPlane, expectedSize, coding)
+			}
 
-			else -> throw IllegalArgumentException("Unsupported TIFF compression ${coding.compression}")
+			else -> {
+				throw IllegalArgumentException("Unsupported TIFF compression ${coding.compression}")
+			}
 		}
 	}
 
@@ -463,9 +500,11 @@ public object TiffReader : ReadOnlyRasterCodec {
 		val rowBytes = unit.unitWidth * samplesInPlane
 		val copyRows = minOf(unit.unitHeight, decoded.height)
 		val copyBytes = minOf(rowBytes, decoded.width * samplesInPlane)
+
 		for (row in 0 until copyRows) {
 			decoded.samples.copyInto(out, row * rowBytes, row * decoded.width * samplesInPlane, row * decoded.width * samplesInPlane + copyBytes)
 		}
+
 		return out
 	}
 
@@ -481,19 +520,25 @@ public object TiffReader : ReadOnlyRasterCodec {
 		if (tables == null || tables.size < 4) {
 			return unitBytes
 		}
+
 		// Drop the tables' EOI marker, keeping SOI + DQT/DHT segments.
 		var tablesEnd = tables.size
+
 		if (tables[tablesEnd - 2] == 0xFF.toByte() && tables[tablesEnd - 1] == 0xD9.toByte()) {
 			tablesEnd -= 2
 		}
+
 		// Drop the strip's SOI marker, which the tables stream already supplied.
 		var unitStart = 0
+
 		if (unitBytes.size >= 2 && unitBytes[0] == 0xFF.toByte() && unitBytes[1] == 0xD8.toByte()) {
 			unitStart = 2
 		}
+
 		val spliced = ByteArray(tablesEnd + (unitBytes.size - unitStart))
 		tables.copyInto(spliced, 0, 0, tablesEnd)
 		unitBytes.copyInto(spliced, tablesEnd, unitStart, unitBytes.size)
+
 		return spliced
 	}
 
@@ -510,11 +555,14 @@ public object TiffReader : ReadOnlyRasterCodec {
 	 */
 	private fun inflate(bytes: ByteArray, offset: Int, length: Int, expectedSize: Int): ByteArray {
 		val inflated = inflateZlib(bytes, offset, length, expectedSize)
+
 		if (inflated.size == expectedSize) {
 			return inflated
 		}
+
 		val out = ByteArray(expectedSize)
 		inflated.copyInto(out, 0, 0, minOf(inflated.size, expectedSize))
+
 		return out
 	}
 
@@ -559,9 +607,11 @@ public object TiffReader : ReadOnlyRasterCodec {
 			var red: Int
 			var green: Int
 			var blue: Int
+
 			when (photometric) {
 				TiffConstants.PHOTOMETRIC_PALETTE -> {
 					val index = samples[sampleBase]
+
 					if (colorMap != null && index < paletteSize && 2 * paletteSize + index < colorMap.size) {
 						red = paletteComponent(colorMap[index], paletteAllLow)
 						green = paletteComponent(colorMap[paletteSize + index], paletteAllLow)
@@ -581,9 +631,11 @@ public object TiffReader : ReadOnlyRasterCodec {
 
 				else -> {
 					var gray = scaleToByte(samples[sampleBase], bitsPerSample, maxValue)
+
 					if (photometric == TiffConstants.PHOTOMETRIC_WHITE_IS_ZERO) {
 						gray = 255 - gray
 					}
+
 					red = gray
 					green = gray
 					blue = gray
@@ -591,8 +643,10 @@ public object TiffReader : ReadOnlyRasterCodec {
 			}
 
 			var alpha = 255
+
 			if (hasAlpha) {
 				alpha = scaleToByte(samples[sampleBase + opaqueSamples], bitsPerSample, maxValue)
+
 				if (associatedAlpha) {
 					red = unpremultiply(red, alpha)
 					green = unpremultiply(green, alpha)
@@ -605,6 +659,7 @@ public object TiffReader : ReadOnlyRasterCodec {
 			rgba[destination + 2] = blue.toByte()
 			rgba[destination + 3] = alpha.toByte()
 		}
+
 		return rgba
 	}
 

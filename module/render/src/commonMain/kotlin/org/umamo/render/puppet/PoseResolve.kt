@@ -84,14 +84,18 @@ internal fun resolvePose(
 	// LinkedHashMap: iteration follows inputs.drawables order, which the backend's per-pose uploads walk.
 	val posed = LinkedHashMap<DrawableId, PosedDrawable>(inputs.drawables.size)
 	val drawOrderById = HashMap<DrawableId, Float>(inputs.drawables.size)
+
 	for (drawableInputs in inputs.drawables) {
 		if (drawableInputs.drawableId !in renderableById) {
 			continue // not resident: the backend has nothing to draw it with
 		}
+
 		val corners = drawableInputs.corners ?: continue // hidden at this pose
+
 		if (drawableInputs.isParented && drawableInputs.parentWorld == null) {
 			continue // a hidden ancestor deformer produced no transform, so the mesh has no geometry
 		}
+
 		posed[drawableInputs.drawableId] =
 			PosedDrawable(
 				drawableInputs.drawableId,
@@ -105,17 +109,19 @@ internal fun resolvePose(
 		drawOrderById[drawableInputs.drawableId] = drawableInputs.drawOrder
 	}
 
-	// Weld intensity per pose, gated on BOTH meshes being posed. Pass 1 only writes a posed glue mesh's
+	// Weld intensity per pose, gated on BOTH meshes being posed.  Pass 1 only writes a posed glue mesh's
 	// region of the shared position store; if a partner is unposed its region is uninitialised, so welding
-	// toward it would read garbage (random spikes on a live, dirty GPU). A zero intensity makes the weld
+	// toward it would read garbage (random spikes on a live, dirty GPU).  A zero intensity makes the weld
 	// skip the partner read entirely - matching the CPU applyGluesResolved, which skips a glue whose
-	// partner produced no geometry. Note this asks whether the partner POSED, not whether it draws: an
+	// partner produced no geometry.  Note this asks whether the partner POSED, not whether it draws: an
 	// index-less anchor is a legitimate partner.
 	glueIntensities.fill(1f) // slots beyond glues.size stay 1f and are never read by the shader
+
 	for ((glueIndex, glue) in inputs.glues.withIndex()) {
 		if (glueIndex >= MAX_GLUES) {
 			continue // beyond the shader's glueIntensity[] array: this glue renders unwelded
 		}
+
 		val bothPosed = glue.meshA in posed && glue.meshB in posed
 		glueIntensities[glueIndex] = if (bothPosed) glue.intensity else 0f
 	}
@@ -131,6 +137,7 @@ internal fun resolvePose(
 			renderPlan(renderRoot, drawOrderById, inputs.partDrawOrders)
 		}
 	val drawnPlan = filterPlan(plan) { it in posed && renderableById[it] == true && it in shownIds }
+
 	return ResolvedPose(posed, drawnPlan, flattenRenderPlan(drawnPlan), glueIntensities)
 }
 
@@ -146,9 +153,13 @@ internal fun resolvePose(
 private fun filterPlan(nodes: List<RenderPlanNode>, isDrawn: (DrawableId) -> Boolean): List<RenderPlanNode> =
 	nodes.mapNotNull { node ->
 		when (node) {
-			is RenderPlanDrawable -> node.takeIf { isDrawn(it.id) }
+			is RenderPlanDrawable -> {
+				node.takeIf { isDrawn(it.id) }
+			}
+
 			is RenderPlanComposite -> {
 				val children = filterPlan(node.children, isDrawn)
+
 				if (children.isEmpty()) {
 					null
 				} else {

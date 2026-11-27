@@ -3,12 +3,8 @@ package org.umamo.ui.action
 import androidx.compose.ui.input.key.Key
 
 /**
- * Normalizes a key event's [Key] before name lookup.  Desktop Compose builds its located numpad
- * constants from different AWT codes than AWT actually delivers (Key.NumPadDot is Key(VK_PERIOD,
- * NUMPAD) while the physical key arrives as VK_DECIMAL), so without normalization the numpad decimal
- * - and with it the NumpadDecimal binding - can never match.  The desktop actual remaps those codes
- * (and defensively re-locates the numpad-only ones); Android keys carry no location and match their
- * constants directly, so its actual is the identity.
+ * Normalizes a key event's [Key] before name lookup, so a physical key whose event code differs from the
+ * Compose constant named for it (the desktop numpad decimal) still matches its binding.
  *
  * @param Key key The key from a key event.
  * @return Key The key to match the named constants against.
@@ -21,9 +17,6 @@ internal expect fun normalizeKeyPosition(key: Key): Key
  * single source of truth shared by the live keyboard dispatch (handleShellKey) and the rebinding editor's
  * chord capture, so a captured chord and a dispatched chord always agree on a key's name - the tokens here
  * are exactly the ones a preset spec or a stored override uses.
- *
- * Compose の Key を KeyChord が保持する位置ベースのトークンに変換する。入力ディスパッチと再割り当て UI で共有し、
- * 取り込んだコードと発火するコードのキー名が必ず一致するようにする。
  *
  * @param Key key The Compose key from a key event.
  * @return String? The position-based token, or null if the key is not bindable.

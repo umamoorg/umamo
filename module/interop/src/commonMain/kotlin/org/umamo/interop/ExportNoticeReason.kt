@@ -32,14 +32,32 @@ sealed interface ExportNoticeReason {
 	/** The drawable carries no mesh, so there is no geometry to write. */
 	data object DrawableHasNoMesh : ExportNoticeReason
 
+	/**
+	 * These warps' lattices carry editing depth, which the format cannot hold.  The file keeps their 2D points, the
+	 * projection the deformation uses, so the art deforms as it does in Umamo, but reopening it gives them no depth.
+	 * Raised once per export, as a document-level finding.
+	 *
+	 * @property List<String> warpNames The warps' display names, in document order.
+	 */
+	data class LatticeDepthFlattened(val warpNames: List<String>) : ExportNoticeReason
+
 	// MOC3 lowering.
 
 	/**
-	 * A channel keyed over a narrower span than its object's grid, written as a constant instead.
+	 * A channel that cannot share its object's grid, written as a constant instead.
 	 *
-	 * @property FormChannel channel The demoted channel.
+	 * @property FormChannel          channel The demoted channel.
+	 * @property ChannelDemotionCause cause   Which side could not refine onto the other's keys.
 	 */
-	data class ChannelDemotedToStatic(val channel: FormChannel) : ExportNoticeReason
+	data class ChannelDemotedToStatic(val channel: FormChannel, val cause: ChannelDemotionCause) : ExportNoticeReason
+
+	/**
+	 * A keyform set that will not bundle into the single grid MOC3 stores per object, so the object was
+	 * written with one static form instead.
+	 *
+	 * @property KeyformBundleRejection rejection Which bundling rule the keyforms broke.
+	 */
+	data class KeyformsDemotedToStatic(val rejection: KeyformBundleRejection) : ExportNoticeReason
 
 	/** A guide-image (sketch) part holds authoring aids, not runtime content. */
 	data object SketchPartIsNotRuntimeContent : ExportNoticeReason
@@ -50,18 +68,16 @@ sealed interface ExportNoticeReason {
 	/** A hidden art mesh was left out because the export options omit hidden drawables. */
 	data object HiddenDrawableOmittedByExportOption : ExportNoticeReason
 
-	/** An unkeyed drawable under a deformer has no parent-space geometry the moc could store. */
-	data object UnkeyedDrawableUnderDeformerHasNoParentGeometry : ExportNoticeReason
-
 	/**
-	 * The canvas-to-parent conversion returned a different coordinate count than the mesh has.
+	 * An art mesh with more vertices than a MOC3's 16-bit triangle indices can address, left out rather
+	 * than written with wrapped indices.
 	 *
-	 * @property Int convertedCoordinateCount The count the conversion returned.
-	 * @property Int expectedCoordinateCount  The count the mesh carries.
+	 * @property Int vertexCount        The mesh's vertex count.
+	 * @property Int maximumVertexCount The most vertices one mesh can have.
 	 */
-	data class RestMeshConversionSizeMismatch(
-		val convertedCoordinateCount: Int,
-		val expectedCoordinateCount: Int,
+	data class VertexCountExceedsIndexWidth(
+		val vertexCount: Int,
+		val maximumVertexCount: Int,
 	) : ExportNoticeReason
 
 	/** No atlas page is bound to the drawable, so its texture index fell back to page 0. */
@@ -126,7 +142,7 @@ sealed interface ExportNoticeReason {
 	/** Which texture a drawable samples is editor-only state that CMO3 does not carry. */
 	data object TextureSourceRebindingIsEditorOnly : ExportNoticeReason
 
-	/** The edited base geometry has a different vertex count than its CMO3 source. */
+	/** The edited canvas editable mesh has a different vertex count than its CMO3 source. */
 	data object BaseGeometryVertexCountMismatch : ExportNoticeReason
 
 	/** The drawable has no UVs to reconcile. */
@@ -208,6 +224,32 @@ sealed interface ExportNoticeReason {
 	 */
 	data class BlendShapeParameterHasNoSource(val parameterId: String) : ExportNoticeReason
 
+	/**
+	 * A parameter the edit deleted is still read or driven by physics settings the CMO3 retained, which Umamo
+	 * does not model and wrote back as they were.
+	 *
+	 * @property List settingNames The physics settings that still name the parameter.
+	 */
+	data class PhysicsNamesDeletedParameter(val settingNames: List<String>) : ExportNoticeReason
+
+	/**
+	 * A sidecar carried through verbatim names parameters the MOC3 does not contain - deleted, or written under
+	 * a shortened id - so a runtime reading it finds nothing for those inputs and outputs.
+	 *
+	 * @property String fileName     The sidecar's file name.
+	 * @property List   parameterIds The ids it names that the MOC3 does not contain.
+	 */
+	data class SidecarNamesUnwrittenParameters(val fileName: String, val parameterIds: List<String>) : ExportNoticeReason
+
+	/**
+	 * A sidecar carried through verbatim names parts the MOC3 does not contain - deleted, in a sketch subtree the
+	 * bake leaves out, or written under a shortened id - so a runtime reading it switches or fades nothing for them.
+	 *
+	 * @property String fileName The sidecar's file name.
+	 * @property List   partIds  The ids it names that the MOC3 does not contain.
+	 */
+	data class SidecarNamesUnwrittenParts(val fileName: String, val partIds: List<String>) : ExportNoticeReason
+
 	/** Keyforms with no base mesh to bundle against. */
 	data object KeyformsWithoutBaseMesh : ExportNoticeReason
 
@@ -267,9 +309,19 @@ sealed interface ExportNoticeReason {
 	 */
 	data object AtlasPageNotRecomposed : ExportNoticeReason
 
-	/** The tile's own art changed - its name, size, or source layer - which a repack cannot express. */
+	/** The tile's own art changed - its pixels, name, size, or source layer - which a repack cannot express. */
 	data object AtlasTileMetadataNotReconcilable : ExportNoticeReason
 
 	/** The drawable was rebound to different source art, which needs the art re-imported, not repacked. */
 	data object AtlasTileRebindingNotLowered : ExportNoticeReason
+
+	/**
+	 * The tile's binding names a file the document does not list, or a layer that file never inventoried, so the
+	 * export wrote its art as a flat image of its own and the binding did not cross.  The Sources space shows such
+	 * a tile as waiting on a person; relinking it before the export carries a real binding instead.
+	 *
+	 * @property String sourceName The bound file's name, or its id when the document does not list it.
+	 * @property String layerKey   The bound layer's key.
+	 */
+	data class SourceLayerBindingNotInExport(val sourceName: String, val layerKey: String) : ExportNoticeReason
 }

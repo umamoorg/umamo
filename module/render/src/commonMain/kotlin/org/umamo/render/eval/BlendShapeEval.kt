@@ -2,6 +2,7 @@ package org.umamo.render.eval
 
 import org.umamo.runtime.eval.colorAt
 import org.umamo.runtime.eval.meshGridDefaultDeltas
+import org.umamo.runtime.eval.multiplierAt
 import org.umamo.runtime.eval.rotationFormAt
 import org.umamo.runtime.eval.scalarAt
 import org.umamo.runtime.eval.warpControlPointsAt
@@ -24,15 +25,14 @@ import org.umamo.runtime.model.RotationPivotForm
  *  - A binding's weight is a LINEAR interpolation between the two keys bracketing the driving
  *    parameter's value; the neutral key (at the parameter default) contributes zero.
  *  - Out-of-range driving values SATURATE - the end key's full delta is held (Umamo C++ Runtime
- *    verdict, Model A's ParamEyeSize matrix; a competing hide-on-out-of-range hypothesis was
- *    overruled).
+ *    verdict, Model A's ParamEyeSize matrix).
  *  - The bracket has NO epsilon, unlike the grid path's EPS_KEY snapping - mirrored from the
  *    reference runtime for ULP parity.
  *  - The weight is multiplied by the MINIMUM over the binding's limit curves (end-clamped
  *    piecewise-linear over OTHER parameters); Model B-measured: a half-ramp scales deltas by
  *    exactly 0.5000.
  *  - Deltas are relative to the object's grid form INTERPOLATED AT THE DEFAULT POSE, not the rest
- *    shape (refuted 16/16 on Model A). Forms with a null entry (an inserted neutral) never reach
+ *    shape (refuted 16/16 on Model A).  Forms with a null entry (an inserted neutral) never reach
  *    the contribution list.
  */
 
@@ -41,8 +41,8 @@ internal class ActiveBlendKey(val keyIndex: Int, val weight: Float)
 
 /**
  * Resolves which of [binding]'s keys contribute at [value], with the net weight of each
- * (bracket interpolation x [limitMultiplier]). At most two entries; EMPTY at the neutral value,
- * so the default pose stays arithmetic-free. Out-of-range values saturate to the end key.
+ * (bracket interpolation x [limitMultiplier]).  At most two entries; EMPTY at the neutral value,
+ * so the default pose stays arithmetic-free.  Out-of-range values saturate to the end key.
  *
  * @param BlendShapeBinding binding        The binding to resolve.
  * @param Float             value          The driving parameter's current value.
@@ -57,16 +57,21 @@ internal fun activeBlendKeys(
 	if (limitMultiplier <= 0f) {
 		return emptyList()
 	}
+
 	val keys = binding.keys
+
 	if (keys.size < 2) {
 		// A lone key is necessarily the neutral (ingest always inserts it): nothing to add.
 		return emptyList()
 	}
+
 	// Saturating bracket, no epsilon: grid = last key <= value, clamped to the ends.
 	var lowerKeyIndex = 0
+
 	while (lowerKeyIndex + 1 < keys.size && keys[lowerKeyIndex + 1] <= value) {
 		lowerKeyIndex++
 	}
+
 	val span = if (lowerKeyIndex + 1 < keys.size) keys[lowerKeyIndex + 1] - keys[lowerKeyIndex] else 0f
 	val fraction =
 		when {
@@ -77,59 +82,28 @@ internal fun activeBlendKeys(
 		}
 	val active = ArrayList<ActiveBlendKey>(2)
 	val lowerWeight = (1f - fraction) * limitMultiplier
+
 	if (lowerKeyIndex != binding.neutralIndex && lowerWeight > 0f) {
 		active.add(ActiveBlendKey(lowerKeyIndex, lowerWeight))
 	}
+
 	val upperWeight = fraction * limitMultiplier
+
 	if (fraction > 0f && lowerKeyIndex + 1 != binding.neutralIndex && upperWeight > 0f) {
 		active.add(ActiveBlendKey(lowerKeyIndex + 1, upperWeight))
 	}
+
 	return active
 }
 
 /**
- * The binding's blend-weight limit multiplier at the current pose: the MINIMUM over its limit
- * curves, each an end-clamped piecewise-linear (value, weight) map over another parameter.
- * 1 when the binding has no limits.
+ * The binding's blend-weight limit multiplier at the current pose.
  *
  * @param List     limits     The binding's limit curves.
  * @param Function paramValue Current value per parameter id.
  * @return Float The multiplier in [0..1] (whatever the curves yield).
  */
-internal fun limitMultiplier(limits: List<BlendWeightLimit>, paramValue: (ParameterId) -> Float): Float {
-	var multiplier = 1f
-	for (limit in limits) {
-		val points = limit.points
-		if (points.isEmpty()) {
-			continue
-		}
-		val value = paramValue(limit.parameterId)
-		val capped =
-			when {
-				value <= points.first().value -> points.first().weight
-				value >= points.last().value -> points.last().weight
-				else -> {
-					var lowerPointIndex = 0
-					while (lowerPointIndex + 1 < points.size && points[lowerPointIndex + 1].value <= value) {
-						lowerPointIndex++
-					}
-					val lower = points[lowerPointIndex]
-					val upper = points[lowerPointIndex + 1]
-					val span = upper.value - lower.value
-					if (span > 0f) {
-						val fraction = (value - lower.value) / span
-						lower.weight + fraction * (upper.weight - lower.weight)
-					} else {
-						lower.weight
-					}
-				}
-			}
-		if (capped < multiplier) {
-			multiplier = capped
-		}
-	}
-	return multiplier
-}
+internal fun limitMultiplier(limits: List<BlendWeightLimit>, paramValue: (ParameterId) -> Float): Float = limits.multiplierAt(paramValue)
 
 /** One active mesh blend contribution: the form, its net weight, and its (binding, key) identity. */
 internal class MeshBlendContribution(
@@ -172,18 +146,22 @@ internal fun meshBlendState(
 	if (drawable.blendShapes.isEmpty()) {
 		return null
 	}
+
 	val contributions = ArrayList<MeshBlendContribution>()
+
 	for (bindingIndex in drawable.blendShapes.indices) {
 		val binding = drawable.blendShapes[bindingIndex]
 		val active =
 			activeBlendKeys(binding, paramValue(binding.parameterId), limitMultiplier(binding.limits, paramValue))
+
 		for (key in active) {
 			val form = binding.forms[key.keyIndex] ?: continue
 			contributions.add(MeshBlendContribution(bindingIndex, key.keyIndex, form, key.weight))
 		}
 	}
-	// The reference is the entity's state at the DEFAULT pose (E5): geometry deltas vs the rest mesh,
-	// plus each scalar channel's own value there. An untracked or out-of-range channel resolves to the
+
+	// The reference is the entity's state at the DEFAULT pose: geometry deltas vs the keyform-space base,
+	// plus each scalar channel's own value there.  An untracked or out-of-range channel resolves to the
 	// drawable's static, which for an imported drawable is Cubism's 500 / full opacity - the same
 	// statics scalarAt falls back to everywhere else, so the evaluator's subtraction still cancels exactly.
 	return MeshBlendState(
@@ -200,8 +178,8 @@ internal fun meshBlendState(
 
 /**
  * The summed weighted control-point delta of [warp]'s blend bindings at the current pose, or null
- * when nothing contributes. Deltas are relative to the lattice's grid form at the DEFAULT pose
- * (E5); WarpForm control points are absolute, so the reference is subtracted here.
+ * when nothing contributes.  Deltas are relative to the lattice's grid form at the DEFAULT pose;
+ * WarpForm control points are absolute, so the reference is subtracted here.
  *
  * @param Deformer.Warp warp        The warp deformer.
  * @param Function      paramValue   Current value per parameter id.
@@ -216,22 +194,29 @@ internal fun warpBlendDeltas(
 	if (warp.blendShapes.isEmpty()) {
 		return null
 	}
+
 	var deltas: FloatArray? = null
 	var reference: FloatArray? = null
+
 	for (binding in warp.blendShapes) {
 		val active =
 			activeBlendKeys(binding, paramValue(binding.parameterId), limitMultiplier(binding.limits, paramValue))
+
 		for (key in active) {
 			val form = binding.forms[key.keyIndex] ?: continue
+
 			if (reference == null) {
 				reference = warpControlPointsAt(warp.geometryGrid, defaultValue) ?: FloatArray(form.controlPoints.size)
 			}
+
 			val target = deltas ?: FloatArray(form.controlPoints.size).also { deltas = it }
+
 			for (componentIndex in target.indices) {
 				target[componentIndex] += key.weight * (form.controlPoints[componentIndex] - reference[componentIndex])
 			}
 		}
 	}
+
 	return deltas
 }
 
@@ -245,8 +230,8 @@ internal class RotationBlendDeltas(
 
 /**
  * The summed weighted affine deltas of [rotation]'s blend bindings at the current pose, or null
- * when nothing contributes. Deltas are relative to the rotation's grid form at the DEFAULT pose
- * (E5); RotationForm fields are absolute, so the reference is subtracted here.
+ * when nothing contributes.  Deltas are relative to the rotation's grid form at the DEFAULT pose;
+ * RotationForm fields are absolute, so the reference is subtracted here.
  *
  * @param Deformer.Rotation rotation     The rotation deformer.
  * @param Function          paramValue   Current value per parameter id.
@@ -261,23 +246,28 @@ internal fun rotationBlendDeltas(
 	if (rotation.blendShapes.isEmpty()) {
 		return null
 	}
+
 	var originX = 0f
 	var originY = 0f
 	var angle = 0f
 	var scale = 0f
 	var contributed = false
 	var reference: RotationPivotForm? = null
+
 	for (binding in rotation.blendShapes) {
 		val active =
 			activeBlendKeys(binding, paramValue(binding.parameterId), limitMultiplier(binding.limits, paramValue))
+
 		for (key in active) {
 			val form = binding.forms[key.keyIndex] ?: continue
+
 			if (reference == null) {
 				// The identity fallback mirrors the importer's, so the subtraction cancels exactly even for
-				// an unkeyed rotation. Flips are FLAG channels and never take part in a blend-shape delta.
+				// an unkeyed rotation.  Flips are FLAG channels and never take part in a blend-shape delta.
 				reference = rotationFormAt(rotation.geometryGrid, defaultValue)
 					?: RotationPivotForm(0f, 0f, 0f, 1f)
 			}
+
 			originX += key.weight * (form.originX - reference.originX)
 			originY += key.weight * (form.originY - reference.originY)
 			angle += key.weight * (form.angle - reference.angle)
@@ -285,6 +275,7 @@ internal fun rotationBlendDeltas(
 			contributed = true
 		}
 	}
+
 	return if (contributed) RotationBlendDeltas(originX, originY, angle, scale) else null
 }
 
@@ -316,6 +307,7 @@ internal class DeformerBlendChannelDeltas(
  * @param ColorRgb     staticScreen The deformer's static screen color.
  * @param Function     paramValue   Current value per parameter id.
  * @param Function     defaultValue Default value per parameter id (the neutral pose).
+ * @param Function     channelsOf   Reads a form's channel triple.
  * @return DeformerBlendChannelDeltas? The summed offsets, or null when nothing contributes.
  */
 internal fun <F : Any> deformerBlendChannelDeltas(
@@ -331,6 +323,7 @@ internal fun <F : Any> deformerBlendChannelDeltas(
 	if (bindings.isEmpty()) {
 		return null
 	}
+
 	var opacity = 0f
 	var multiplyRed = 0f
 	var multiplyGreen = 0f
@@ -340,11 +333,14 @@ internal fun <F : Any> deformerBlendChannelDeltas(
 	var screenBlue = 0f
 	var contributed = false
 	var reference: DeformerBlendChannelDeltas? = null
+
 	for (binding in bindings) {
 		val active =
 			activeBlendKeys(binding, paramValue(binding.parameterId), limitMultiplier(binding.limits, paramValue))
+
 		for (key in active) {
 			val form = binding.forms[key.keyIndex] ?: continue
+
 			if (reference == null) {
 				reference =
 					DeformerBlendChannelDeltas(
@@ -353,6 +349,7 @@ internal fun <F : Any> deformerBlendChannelDeltas(
 						channelGrids.colorAt(FormChannel.SCREEN_COLOR, staticScreen, defaultValue),
 					)
 			}
+
 			val channels = channelsOf(form)
 			contributed = true
 			opacity += key.weight * (channels.opacity - reference.opacity)
@@ -364,9 +361,11 @@ internal fun <F : Any> deformerBlendChannelDeltas(
 			screenBlue += key.weight * (channels.screenColor.blue - reference.screenColor.blue)
 		}
 	}
+
 	if (!contributed) {
 		return null
 	}
+
 	return DeformerBlendChannelDeltas(
 		opacity,
 		ColorRgb(multiplyRed, multiplyGreen, multiplyBlue),
@@ -396,21 +395,27 @@ internal fun partBlendDrawOrderDelta(
 	if (part.blendShapes.isEmpty()) {
 		return null
 	}
+
 	var delta = 0f
 	var contributed = false
 	var reference: Float? = null
+
 	for (binding in part.blendShapes) {
 		val active =
 			activeBlendKeys(binding, paramValue(binding.parameterId), limitMultiplier(binding.limits, paramValue))
+
 		for (key in active) {
 			val form = binding.forms[key.keyIndex] ?: continue
+
 			if (reference == null) {
 				reference =
 					part.channelGrids.scalarAt(FormChannel.DRAW_ORDER, part.drawOrder.toFloat(), defaultValue)
 			}
+
 			contributed = true
 			delta += key.weight * (form.drawOrder - reference)
 		}
 	}
+
 	return if (contributed) delta else null
 }

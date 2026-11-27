@@ -70,13 +70,14 @@ class SideTargetGrowthTest {
 				corners[2],
 				corners[3],
 			)
+
 		return Drawable(
 			id = id,
 			name = id.raw,
 			parentDeformerId = null,
 			blendMode = blendMode,
 			maskedBy = maskedBy,
-			mesh = DrawableMesh(positions, FloatArray(positions.size), intArrayOf(0, 1, 2, 1, 3, 2)),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), intArrayOf(0, 1, 2, 1, 3, 2)),
 			geometryGrid = restGrid(positions),
 		)
 	}
@@ -87,6 +88,7 @@ class SideTargetGrowthTest {
 		val maskSource = quad(maskId, BlendMode.Normal, emptyList(), floatArrayOf(-24f, -24f, 8f, 8f))
 		val masked = quad(maskedId, BlendMode.Normal, listOf(maskId), floatArrayOf(-32f, -32f, 32f, 32f))
 		val darken = quad(darkenId, BlendMode.Darken, emptyList(), floatArrayOf(-8f, -8f, 24f, 24f))
+
 		return PuppetModel(
 			parameters = listOf(Parameter(paramA, "A", -1f, 1f, 0f)),
 			parts = emptyList(),
@@ -97,7 +99,7 @@ class SideTargetGrowthTest {
 			canvasWidth = 0f,
 			canvasHeight = 0f,
 			worldOriginX = 0f,
-			worldOriginY = 0f,
+			worldOriginZ = 0f,
 		)
 	}
 
@@ -132,6 +134,7 @@ class SideTargetGrowthTest {
 		renderer.setGrid(greyGrid, 100f, 10)
 		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 		renderer.setPose(emptyMap())
+
 		return renderer
 	}
 
@@ -148,6 +151,7 @@ class SideTargetGrowthTest {
 		renderer.render(target, size, size)
 		val image = device.readPixels(target)
 		device.destroyRenderTarget(target)
+
 		return image
 	}
 }

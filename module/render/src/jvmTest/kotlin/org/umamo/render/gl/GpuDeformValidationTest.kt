@@ -10,7 +10,7 @@ import org.lwjgl.opengl.GL20
 import org.lwjgl.opengl.GL30
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.render.eval.DeformerWorld
 import org.umamo.render.eval.MeshBlendState
 import org.umamo.render.eval.RotationWorld
@@ -18,6 +18,7 @@ import org.umamo.render.eval.WarpWorld
 import org.umamo.render.eval.deformMeshWorldFromCorners
 import org.umamo.render.eval.preparePose
 import org.umamo.render.glsl.GlslDialect
+import org.umamo.render.glsl.MAX_BLEND_CORNERS
 import org.umamo.render.glsl.tfDeformVertexShader
 import org.umamo.render.glsl.tfDiscardFragmentShader
 import org.umamo.render.puppet.blendColumnLayout
@@ -28,25 +29,26 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * Differential validation that the GPU deform shader matches the CPU evaluator per vertex. Runs the
+ * Differential validation that the GPU deform shader matches the CPU evaluator per vertex.  Runs the
  * shipped [DEFORM_GLSL] (the exact body [PuppetRenderer] uses) in a headless GL context with transform
  * feedback capturing each vertex's world position, then diffs against [deformMeshWorldFromCorners] (the CPU
- * deform, pre-glue) for the same pose. Bounded-ULP is the bar - float32 GPU vs float32 CPU diverge slightly
- * by construction. Glue is excluded (the GPU path skips it), so this compares the morph + cascade math only.
+ * deform, pre-glue) for the same pose.  Bounded-ULP is the bar - float32 GPU vs float32 CPU diverge slightly
+ * by construction.  Glue is excluded (the GPU path skips it), so this compares the morph + cascade math only.
  *
  * Gated on `-Dcmo3.sample` and on a usable GL context, both via JUnit assumptions - so an ungated run
- * reports SKIPPED rather than passing green having asserted nothing. That distinction matters here more
+ * reports SKIPPED rather than passing green having asserted nothing.  That distinction matters here more
  * than anywhere: this is the only pin on the deform math, and a Metal port will check itself against it.
  * Run: `./gradlew :render:jvmTest -Dcmo3.sample=… --tests *GpuDeformValidationTest`.
  */
 class GpuDeformValidationTest {
-	// Per-coordinate bound in Umamo canvas units (~4500 across the canvas, so this is well sub-pixel). It
+	// Per-coordinate bound in Umamo canvas units (~4500 across the canvas, so this is well sub-pixel).  It
 	// tolerates float32 GPU-vs-CPU rounding and the shader's approximate out-of-grid warp extrapolation.
 	private val toleranceUnits = 0.5
 
@@ -55,7 +57,7 @@ class GpuDeformValidationTest {
 		val file = File(System.getProperty("cmo3.sample") ?: "")
 		Assume.assumeTrue("[gpu-tf] no -Dcmo3.sample corpus model", file.isFile)
 		requireHeadlessGl("[gpu-tf]")
-		val root = Cmo3.read(file).root as? CModelSource ?: return
+		val root = Cmo3.read(file).root as? CModelSource ?: skipTest("[gpu-tf] ${file.name}: root is not a CModelSource")
 		val model = Cmo3Import.fromModelSource(root)
 		val program = linkTransformFeedbackProgram()
 		GL20.glUseProgram(program)
@@ -84,33 +86,43 @@ class GpuDeformValidationTest {
 		var worstMesh = ""
 		var worstPose = ""
 		var meshesChecked = 0
+
 		for ((poseName, parameters) in poses) {
 			val inputs = preparePose(model, parameters)
+
 			for (drawableInputs in inputs.drawables) {
 				val corners = drawableInputs.corners ?: continue
+
 				if (drawableInputs.isParented && drawableInputs.parentWorld == null) {
 					continue
 				}
+
 				val drawable = drawableById[drawableInputs.drawableId] ?: continue
 				val grid = drawable.geometryGrid ?: continue
-				val base = drawable.mesh?.positions ?: continue
+				val base = drawable.mesh?.localPositions ?: continue
+
 				if (drawable.mesh?.indices?.isEmpty() != false) {
 					continue // renderer skips index-less meshes (glue anchors)
 				}
+
 				val cpuWorld = deformMeshWorldFromCorners(grid, base, corners, drawableInputs.parentWorld)
 				val gpuWorld = gpuDeform(program, base, grid, corners, drawableInputs.parentWorld)
 				var meshMax = 0.0
+
 				for (coordIndex in cpuWorld.indices) {
 					meshMax = maxOf(meshMax, abs(cpuWorld[coordIndex] - gpuWorld[coordIndex]).toDouble())
 				}
+
 				if (meshMax > maxError) {
 					maxError = meshMax
 					worstMesh = drawableInputs.drawableId.raw
 					worstPose = poseName
 				}
+
 				meshesChecked++
 			}
 		}
+
 		println("[gpu-tf] checked $meshesChecked mesh-poses; max GPU-vs-CPU per-coord error = ${"%.5f".format(maxError)} units (worst $worstMesh @ $worstPose)")
 		assertTrue(meshesChecked > 0, "no meshes were validated")
 		assertTrue(maxError < toleranceUnits, "GPU deform diverges from CPU by $maxError units at $worstMesh @ $worstPose (> $toleranceUnits)")
@@ -129,7 +141,7 @@ class GpuDeformValidationTest {
 				?.firstOrNull { it.isFile && it.name.startsWith("modelA") }
 		Assume.assumeTrue("[gpu-tf] no Model A blend-shape model in -Dcmo3.probe", modelAFile != null)
 		requireHeadlessGl("[gpu-tf]")
-		val root = Cmo3.read(modelAFile!!).root as? CModelSource ?: return
+		val root = Cmo3.read(modelAFile!!).root as? CModelSource ?: skipTest("[gpu-tf] ${modelAFile.name}: root is not a CModelSource")
 		val model = Cmo3Import.fromModelSource(root)
 		val defaults = model.parameters.associate { it.id to it.default }
 		val defaultValue: (ParameterId) -> Float = { defaults[it] ?: 0f }
@@ -147,32 +159,43 @@ class GpuDeformValidationTest {
 			)
 		var maxError = 0.0
 		var blendMeshesChecked = 0
+
 		for ((poseName, parameters) in poses) {
 			val inputs = preparePose(model, parameters)
+
 			for (drawableInputs in inputs.drawables) {
 				val blend = drawableInputs.blend ?: continue
+
 				if (blend.contributions.isEmpty()) {
 					continue
 				}
+
 				val corners = drawableInputs.corners ?: continue
+
 				if (drawableInputs.isParented && drawableInputs.parentWorld == null) {
 					continue
 				}
+
 				val drawable = drawableById[drawableInputs.drawableId] ?: continue
 				val grid = drawable.geometryGrid ?: continue
-				val base = drawable.mesh?.positions ?: continue
+				val base = drawable.mesh?.localPositions ?: continue
+
 				if (drawable.mesh?.indices?.isEmpty() != false) {
 					continue
 				}
+
 				val cpuWorld = deformMeshWorldFromCorners(grid, base, corners, drawableInputs.parentWorld, blend)
 				val gpuWorld =
 					gpuDeform(program, base, grid, corners, drawableInputs.parentWorld, drawable, blend, defaultValue)
+
 				for (coordIndex in cpuWorld.indices) {
 					maxError = maxOf(maxError, abs(cpuWorld[coordIndex] - gpuWorld[coordIndex]).toDouble())
 				}
+
 				blendMeshesChecked++
 			}
 		}
+
 		println("[gpu-tf] blend: checked $blendMeshesChecked blend mesh-poses; max error = ${"%.5f".format(maxError)} units")
 		assertTrue(blendMeshesChecked > 0, "no blend-shaped meshes were validated")
 		assertTrue(maxError < toleranceUnits, "GPU blend deform diverges from CPU by $maxError units")
@@ -240,22 +263,28 @@ class GpuDeformValidationTest {
 		// Blend uniforms are set EVERY call (the program persists across meshes; a stale nonzero
 		// blendCount from a previous mesh would corrupt a binding-free one).
 		var blendCount = 0
+
 		if (blend != null && blendLayout != null) {
-			val blendCells = IntArray(org.umamo.render.glsl.MAX_BLEND_CORNERS)
-			val blendWeights = FloatArray(org.umamo.render.glsl.MAX_BLEND_CORNERS)
+			val blendCells = IntArray(MAX_BLEND_CORNERS)
+			val blendWeights = FloatArray(MAX_BLEND_CORNERS)
+
 			for (contribution in blend.contributions) {
-				if (blendCount >= org.umamo.render.glsl.MAX_BLEND_CORNERS) {
+				if (blendCount >= MAX_BLEND_CORNERS) {
 					break
 				}
+
 				val column = blendLayout.columnOf(contribution.bindingIndex, contribution.keyIndex) ?: continue
 				blendCells[blendCount] = column
 				blendWeights[blendCount] = contribution.weight
 				blendCount++
 			}
+
 			GL20.glUniform1iv(GL20.glGetUniformLocation(program, "blendCell"), blendCells)
 			GL20.glUniform1fv(GL20.glGetUniformLocation(program, "blendWeight"), blendWeights)
 		}
+
 		GL20.glUniform1i(GL20.glGetUniformLocation(program, "blendCount"), blendCount)
+
 		when (val parentWorld = parent) {
 			is RotationWorld -> {
 				val xform = parentWorld.xform
@@ -265,6 +294,7 @@ class GpuDeformValidationTest {
 				)
 				GL20.glUniform1i(GL20.glGetUniformLocation(program, "parentType"), 1)
 			}
+
 			is WarpWorld -> {
 				GL13.glActiveTexture(GL13.GL_TEXTURE1)
 				uploadControlPointTexture(parentWorld)
@@ -273,7 +303,10 @@ class GpuDeformValidationTest {
 				GL20.glUniform1i(GL20.glGetUniformLocation(program, "warpBilinear"), if (parentWorld.bilinear) 1 else 0)
 				GL20.glUniform1i(GL20.glGetUniformLocation(program, "parentType"), 2)
 			}
-			else -> GL20.glUniform1i(GL20.glGetUniformLocation(program, "parentType"), 0)
+
+			else -> {
+				GL20.glUniform1i(GL20.glGetUniformLocation(program, "parentType"), 0)
+			}
 		}
 
 		val feedbackBuffer = GL15.glGenBuffers()
@@ -296,6 +329,7 @@ class GpuDeformValidationTest {
 		GL15.glDeleteBuffers(baseVbo)
 		GL11.glDeleteTextures(deltaTexture)
 		GL30.glDeleteVertexArrays(vao)
+
 		return out
 	}
 
@@ -304,9 +338,11 @@ class GpuDeformValidationTest {
 	private fun uploadDeltaTexture(grid: KeyformGrid<MeshDeltaForm>, vertexCount: Int, cellCount: Int): Int {
 		val cells = cellsByLinearIndex(grid)
 		val data = BufferUtils.createFloatBuffer(vertexCount * cellCount * 2)
+
 		for (vertexIndex in 0 until vertexCount) {
 			for (cellIndex in 0 until cellCount) {
 				val deltas = cells[cellIndex]?.form?.positionDeltas
+
 				if (deltas != null && vertexIndex * 2 + 1 < deltas.size) {
 					data.put(deltas[vertexIndex * 2]).put(deltas[vertexIndex * 2 + 1])
 				} else {
@@ -314,9 +350,11 @@ class GpuDeformValidationTest {
 				}
 			}
 		}
+
 		data.flip()
 		val texture = nearestTexture()
 		GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_RG32F, cellCount, vertexCount, 0, GL30.GL_RG, GL11.GL_FLOAT, data)
+
 		return texture
 	}
 
@@ -325,6 +363,7 @@ class GpuDeformValidationTest {
 		buffer.put(warp.cp).flip()
 		val texture = nearestTexture()
 		GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_RG32F, warp.cols + 1, warp.rows + 1, 0, GL30.GL_RG, GL11.GL_FLOAT, buffer)
+
 		return texture
 	}
 
@@ -335,6 +374,7 @@ class GpuDeformValidationTest {
 		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST)
 		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE)
 		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE)
+
 		return texture
 	}
 
@@ -342,10 +382,12 @@ class GpuDeformValidationTest {
 		val cornerCount = minOf(16, corners.size)
 		val cellBuffer = BufferUtils.createIntBuffer(cornerCount)
 		val weightBuffer = BufferUtils.createFloatBuffer(cornerCount)
+
 		for (cornerIndex in 0 until cornerCount) {
 			cellBuffer.put(corners[cornerIndex].linearIndex)
 			weightBuffer.put(corners[cornerIndex].weight)
 		}
+
 		cellBuffer.flip()
 		weightBuffer.flip()
 		GL20.glUniform1i(GL20.glGetUniformLocation(program, "cornerCount"), cornerCount)
@@ -366,6 +408,7 @@ class GpuDeformValidationTest {
 		check(GL20.glGetProgrami(program, GL20.GL_LINK_STATUS) != GL11.GL_FALSE) {
 			"TF program link failed: ${GL20.glGetProgramInfoLog(program)}"
 		}
+
 		return program
 	}
 
@@ -376,6 +419,7 @@ class GpuDeformValidationTest {
 		check(GL20.glGetShaderi(shader, GL20.GL_COMPILE_STATUS) != GL11.GL_FALSE) {
 			"shader compile failed: ${GL20.glGetShaderInfoLog(shader)}"
 		}
+
 		return shader
 	}
 }

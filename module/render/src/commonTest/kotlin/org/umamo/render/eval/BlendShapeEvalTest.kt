@@ -32,6 +32,7 @@ class BlendShapeEvalTest {
 	/** Value lookup from explicit pairs; everything else 0. */
 	private fun values(vararg pairs: Pair<ParameterId, Float>): (ParameterId) -> Float {
 		val map = mapOf(*pairs)
+
 		return { map[it] ?: 0f }
 	}
 

@@ -56,15 +56,11 @@ internal class RectPackLayout(
 /**
  * Packs footprints onto as many equally-sized pages as they need.
  *
- * Requests are packed in descending max-side order, which is what makes MaxRects behave: the large
- * awkward pieces claim their space while the free list is still coarse, and the small ones fill the
- * remainders.  The caller is responsible for supplying a deterministic request order - this function
- * preserves it exactly and adds no ordering of its own.
- *
- * Seeds go first: a seeded page exists whether or not a request lands on it (a seed on page 2 opens
- * pages 0 and 1 too, so page indices keep their meaning), and its rectangle is taken before the first
- * request is placed.  The caller keeps every seed inside the page - a seed is a footprint the caller
- * already decided to keep, so there is nothing sensible to do with one that does not fit.
+ * Requests are placed exactly in the order given, so the caller owns determinism; descending max-side
+ * order is what makes MaxRects behave, since the large awkward pieces claim their space while the free
+ * list is still coarse.  A seeded page exists whether or not a request lands on it (a seed on page 2
+ * opens pages 0 and 1 too, so page indices keep their meaning), and the caller keeps every seed inside
+ * the page.
  *
  * @param List    requests      The footprints to place, already in packing order.
  * @param Int     pageSize      The square page side every page is packed against, in pixels.
@@ -86,9 +82,11 @@ internal fun packRects(
 
 	for (seed in seeds) {
 		require(seed.pageIndex >= 0) { "seed page index must not be negative: ${seed.pageIndex}" }
+
 		while (pages.size <= seed.pageIndex) {
 			pages.add(MaxRectsPage(pageSize))
 		}
+
 		pages[seed.pageIndex].seed(seed.x, seed.y, seed.width, seed.height)
 	}
 
@@ -97,17 +95,23 @@ internal fun packRects(
 		// have to fit either way.
 		if (request.width > pageSize || request.height > pageSize) {
 			oversizedItemIndices.add(request.itemIndex)
+
 			continue
 		}
+
 		var placed = false
+
 		for ((pageIndex, page) in pages.withIndex()) {
 			val placement = page.place(request.width, request.height, allowRotation)
+
 			if (placement != null) {
 				slots.add(RectPackSlot(request.itemIndex, pageIndex, placement.x, placement.y, placement.rotated))
 				placed = true
+
 				break
 			}
 		}
+
 		if (!placed) {
 			val freshPage = MaxRectsPage(pageSize)
 			val placement =
@@ -163,17 +167,21 @@ private class MaxRectsPage(private val pageSize: Int) {
 
 		for (freeRect in freeRects) {
 			val orientationCount = if (allowRotation) 2 else 1
+
 			for (orientationIndex in 0 until orientationCount) {
 				val rotated = orientationIndex == 1
 				val candidateWidth = if (rotated) height else width
 				val candidateHeight = if (rotated) width else height
+
 				if (candidateWidth > freeRect.width || candidateHeight > freeRect.height) {
 					continue
 				}
+
 				val leftoverHorizontal = freeRect.width - candidateWidth
 				val leftoverVertical = freeRect.height - candidateHeight
 				val shortSide = minOf(leftoverHorizontal, leftoverVertical)
 				val longSide = maxOf(leftoverHorizontal, leftoverVertical)
+
 				if (shortSide < bestShortSide || (shortSide == bestShortSide && longSide < bestLongSide)) {
 					bestShortSide = shortSide
 					bestLongSide = longSide
@@ -187,11 +195,13 @@ private class MaxRectsPage(private val pageSize: Int) {
 		if (bestX < 0) {
 			return null
 		}
+
 		val placedWidth = if (bestRotated) height else width
 		val placedHeight = if (bestRotated) width else height
 		occupy(bestX, bestY, placedWidth, placedHeight)
 		usedWidth = maxOf(usedWidth, bestX + placedWidth)
 		usedHeight = maxOf(usedHeight, bestY + placedHeight)
+
 		return MaxRectsPlacement(bestX, bestY, bestRotated)
 	}
 
@@ -221,11 +231,13 @@ private class MaxRectsPage(private val pageSize: Int) {
 	 */
 	private fun occupy(placedX: Int, placedY: Int, placedWidth: Int, placedHeight: Int) {
 		val next = ArrayList<FreeRect>(freeRects.size + 4)
+
 		for (freeRect in freeRects) {
 			if (!splitFreeRect(freeRect, placedX, placedY, placedWidth, placedHeight, next)) {
 				next.add(freeRect)
 			}
 		}
+
 		freeRects = pruneContained(next)
 	}
 
@@ -252,25 +264,31 @@ private class MaxRectsPage(private val pageSize: Int) {
 		val placedBottom = placedY + placedHeight
 		val freeRight = freeRect.x + freeRect.width
 		val freeBottom = freeRect.y + freeRect.height
+
 		if (placedX >= freeRight || placedRight <= freeRect.x || placedY >= freeBottom || placedBottom <= freeRect.y) {
 			return false
 		}
+
 		if (placedX < freeRight && placedRight > freeRect.x) {
 			if (placedY > freeRect.y && placedY < freeBottom) {
 				out.add(FreeRect(freeRect.x, freeRect.y, freeRect.width, placedY - freeRect.y))
 			}
+
 			if (placedBottom < freeBottom) {
 				out.add(FreeRect(freeRect.x, placedBottom, freeRect.width, freeBottom - placedBottom))
 			}
 		}
+
 		if (placedY < freeBottom && placedBottom > freeRect.y) {
 			if (placedX > freeRect.x && placedX < freeRight) {
 				out.add(FreeRect(freeRect.x, freeRect.y, placedX - freeRect.x, freeRect.height))
 			}
+
 			if (placedRight < freeRight) {
 				out.add(FreeRect(placedRight, freeRect.y, freeRight - placedRight, freeRect.height))
 			}
 		}
+
 		return true
 	}
 
@@ -286,25 +304,33 @@ private class MaxRectsPage(private val pageSize: Int) {
 	 */
 	private fun pruneContained(candidates: MutableList<FreeRect>): MutableList<FreeRect> {
 		var candidateIndex = 0
+
 		while (candidateIndex < candidates.size) {
 			var otherIndex = candidateIndex + 1
 			var removedCandidate = false
+
 			while (otherIndex < candidates.size) {
 				if (contains(candidates[otherIndex], candidates[candidateIndex])) {
 					candidates.removeAt(candidateIndex)
 					removedCandidate = true
+
 					break
 				}
+
 				if (contains(candidates[candidateIndex], candidates[otherIndex])) {
 					candidates.removeAt(otherIndex)
+
 					continue
 				}
+
 				otherIndex++
 			}
+
 			if (!removedCandidate) {
 				candidateIndex++
 			}
 		}
+
 		return candidates
 	}
 

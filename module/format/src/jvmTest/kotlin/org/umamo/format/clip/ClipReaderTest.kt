@@ -1,11 +1,12 @@
 package org.umamo.format.clip
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * End-to-end reader test against a real .clip. Corpus-gated: it uses -Dclip.sample=<file> when given,
+ * End-to-end reader test against a real .clip.  Corpus-gated: it uses -Dclip.sample=<file> when given,
  * else auto-discovers a sample under test/corpus/clip/ by walking up from the working directory; if
  * neither is present it self-skips so CI stays green without a committed corpus.
  *
@@ -29,24 +30,29 @@ class ClipReaderTest {
 			return listOfNotNull(File(path).takeIf(File::isFile))
 		}
 		var directory: File? = File(System.getProperty("user.dir"))
+
 		while (directory != null) {
 			val corpus = File(directory, "test/corpus/clip")
+
 			if (corpus.isDirectory) {
 				return corpus.listFiles { file -> file.extension.equals("clip", ignoreCase = true) }
 					?.sortedBy { it.name } ?: emptyList()
 			}
+
 			directory = directory.parentFile
 		}
+
 		return emptyList()
 	}
 
 	@Test
 	fun readsLayerTreeFromRealClip() {
 		val samples = locateSamples()
+
 		if (samples.isEmpty()) {
-			println("no clip.sample and no test/corpus/clip samples; skipping CLIP reader test")
-			return
+			skipTest("no clip.sample and no test/corpus/clip samples; skipping CLIP reader test")
 		}
+
 		for (sample in samples) {
 			checkSample(sample)
 		}
@@ -87,22 +93,28 @@ class ClipReaderTest {
 
 		// If any layer decoded to a real raster (not a 1x1 placeholder), at least one should carry pixels.
 		val decodedRasters = art.layers.filter { layer -> layer.raster.width > 1 && layer.raster.height > 1 }
+
 		if (decodedRasters.isNotEmpty()) {
 			val anyVisible =
 				decodedRasters.any { layer ->
 					var byteIndex = 3
 					var hasAlpha = false
+
 					while (byteIndex < layer.raster.rgba.size) {
 						if (layer.raster.rgba[byteIndex].toInt() != 0) {
 							hasAlpha = true
+
 							break
 						}
+
 						byteIndex += 4
 					}
+
 					hasAlpha
 				}
 			assertTrue(anyVisible, "${sample.name}: a decoded raster layer has non-transparent pixels")
 		}
+
 		println("checked ${sample.name}: ${art.widthPx}x${art.heightPx}, ${art.layers.size} layers, ${art.groups.size} groups")
 	}
 }

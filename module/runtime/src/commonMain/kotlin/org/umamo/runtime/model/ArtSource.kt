@@ -32,6 +32,16 @@ package org.umamo.runtime.model
  *   document last read it - or, for a CMO3-origin source, when the official editor did - or null when
  *   neither is known.  The stale-at-open check falls back to it where no hash was recorded, since a
  *   CMO3 keeps the time but not a hash.
+ * @property Int                  offsetX How far right of the document canvas's top-left corner the file's
+ *   own top-left corner sits, in pixels: the translation from the file's own canvas to the document
+ *   canvas, in the viewport's world axes (x right, z up).  Every read of the file is placed by it before
+ *   the model sees the art, so the inventory rows, the birth meshes, and the reload's frame comparisons
+ *   all live in the document's coordinates.  Zero for a file that set or shares the document's frame (a
+ *   rig's first artwork, a CMO3's own layered image); a later file is placed by the import's Align anchor
+ *   and Offset rows.
+ * @property Int                  offsetZ How far UP from the document canvas's top-left corner the file's
+ *   top-left corner sits, in pixels; a file placed lower on the canvas carries a negative value, and a
+ *   layer's canvas y (down) is its own top minus this.  See [offsetX].
  */
 data class ArtSource(
 	val id: ArtSourceId,
@@ -41,6 +51,8 @@ data class ArtSource(
 	val layers: List<ArtSourceLayer> = emptyList(),
 	val contentHash: String? = null,
 	val lastModified: Long? = null,
+	val offsetX: Int = 0,
+	val offsetZ: Int = 0,
 )
 
 /**
@@ -52,8 +64,10 @@ data class ArtSource(
  * @property String  key       The reader's layer key - the same string a [SourceLayerRef] carries.
  * @property String  name      The layer's name at import.
  * @property String  groupPath The slash-joined enclosing-folder path at import ("" at the root).
- * @property Int     left      The layer's canvas position, top-left origin in source pixels.
- * @property Int     top       See [left].
+ * @property Int     left      The layer's position on the DOCUMENT canvas, top-left origin in source
+ *   pixels: the file's own position plus its source's [ArtSource.offsetX], the frame every drawable's
+ *   positions share.
+ * @property Int     top       See [left]; y runs down, so it is the file's own top minus [ArtSource.offsetZ].
  * @property Int     width     The layer's raster width in source pixels.
  * @property Int     height    The layer's raster height in source pixels.
  * @property Boolean visible   The layer's own eye toggle at import.
@@ -66,6 +80,13 @@ data class ArtSource(
  * @property Boolean empty     Whether the layer had no pixel with any alpha at the last read - erased to
  *   nothing rather than deleted.  A tile bound to such a layer keeps its art and reads as needing review,
  *   since the artist may have meant either; false where the art was never decoded.
+ * @property Boolean replaced  Meaningful only while [present] is false: the row was lost because Replace
+ *   Artwork repointed the file at art that mints other keys, not because the layer left the file - so the
+ *   row can say which.  A row lost before the replace keeps false.
+ * @property Boolean ignored   Whether a reload leaves this layer out of the rig: a present layer no tile
+ *   binds that the rigger keeps in the file but not in the model (a sketch, a reference), marked from its
+ *   Sources row or by Delete Art under the import setting, and carried across every refresh until the row
+ *   clears it.  Meaningless while a tile binds the key.
  */
 data class ArtSourceLayer(
 	val key: String,
@@ -79,6 +100,8 @@ data class ArtSourceLayer(
 	val present: Boolean = true,
 	val contentHash: String? = null,
 	val empty: Boolean = false,
+	val replaced: Boolean = false,
+	val ignored: Boolean = false,
 )
 
 /**
@@ -184,11 +207,8 @@ data class ReplacedTile(
 )
 
 /**
- * What re-reading one artwork file changes in a model: the file's record with its NEW inventory, the
- * tiles whose art changed (each superseded by a fresh, unplaced tile), the meshes the drawables over
- * them take (an untouched birth quad re-born over the new art, an edited mesh carried with its
- * coordinates remapped so every vertex samples the same canvas pixel as before), the layers the file
- * gained, and the drawables whose edited mesh the new opaque art now reaches past.
+ * What re-reading one artwork file changes in a model: the file's record with its NEW inventory, and
+ * what that implies for the tiles, meshes, drawables, and visibility bound to it.
  *
  * A delta rather than a model, like [ArtworkAdditions]: the same plan applies to the live model and
  * to the operation strip's rerun over its base.  Pixels travel beside it to the raster store.  A layer
@@ -198,14 +218,18 @@ data class ReplacedTile(
  *
  * @property ArtSource         source          The file's record, carrying the inventory as just read.
  * @property List              replacedTiles   The tiles whose art changed, each with its replacement.
- * @property Map               drawableMeshes  The mesh each affected drawable takes, keyed by drawable;
- *   texture coordinates in the ART frame of the drawable's new tile, which the pack that follows
- *   converts exactly as it does an import's.
+ * @property Map               drawableMeshes  The mesh each affected drawable takes, keyed by drawable: an
+ *   untouched birth quad re-born over the new art, or an edited mesh remapped so every vertex samples the
+ *   same canvas pixel as before.  Texture coordinates are in the ART frame of the drawable's new tile,
+ *   which the pack that follows converts exactly as it does an import's.
  * @property ArtworkAdditions? additions       The layers the file gained, minted under [source], or null.
- * @property List<DrawableId>  outgrown        Drawables whose kept mesh no longer covers the new opaque art.
+ * @property List<DrawableId>  outgrown        Drawables whose kept mesh cuts off art the new pixels added - art it already left out does not count.
  * @property List<AtlasTileId> retiredTiles    Tiles a rebinding made redundant: a lost layer's rig work took
  *   the layer a reload had minted a fresh, untouched drawable for, so that drawable and its tile go (the
  *   pixels stay in the raster store for undo).  Never a replaced tile; a part minted for the drawable stays.
+ * @property Map               drawableVisibility The visibility each drawable takes, keyed by drawable, where
+ *   the file's eye toggle changed since the last read and the drawable still showed the OLD state; a
+ *   drawable the rigger toggled since is absent, since that toggle is rig work.
  */
 data class ArtworkReload(
 	val source: ArtSource,
@@ -214,4 +238,18 @@ data class ArtworkReload(
 	val additions: ArtworkAdditions?,
 	val outgrown: List<DrawableId>,
 	val retiredTiles: List<AtlasTileId> = emptyList(),
+	val drawableVisibility: Map<DrawableId, Boolean> = emptyMap(),
 )
+
+/**
+ * Whether a layer key reads as format-minted: the PSD and CMO3 name fallbacks (a `name:` prefix or a `#`
+ * order suffix) read as weak, everything else (a lyid, a CLIP or Krita uuid) as surviving a rename.
+ *
+ * A guess from the key's shape alone, with a known miss: a flat raster's one layer is keyed by its file
+ * name, which its reader marks unstable but this reads as stable.  It types only a binding that neither a
+ * bound tile nor a read of the file backs; wherever the reader's own flag is at hand, that flag wins.
+ *
+ * @param String key The reader's layer key.
+ * @return Boolean True when the key looks stable.
+ */
+fun layerKeyLooksStable(key: String): Boolean = !key.startsWith("name:") && !key.contains('#')

@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.asImageBitmap
  */
 actual fun rgbaToImageBitmap(rgba: ByteArray, width: Int, height: Int, alphaType: RgbaAlphaType): ImageBitmap {
 	val argb = IntArray(width * height)
+
 	for (pixelIndex in argb.indices) {
 		val base = pixelIndex * 4
 		val red = rgba[base].toInt() and 0xFF
@@ -29,7 +30,9 @@ actual fun rgbaToImageBitmap(rgba: ByteArray, width: Int, height: Int, alphaType
 			}
 		argb[pixelIndex] = (alpha shl 24) or (red shl 16) or (green shl 8) or blue
 	}
+
 	val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
 	bitmap.setPixels(argb, 0, width, 0, 0, width, height)
+
 	return bitmap.asImageBitmap()
 }

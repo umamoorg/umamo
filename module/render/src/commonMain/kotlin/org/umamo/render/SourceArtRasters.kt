@@ -11,8 +11,8 @@ import kotlin.concurrent.Volatile
  * (`PuppetModel.atlas`), because a repack authors them; this holds the one thing a model must not,
  * since a raster in the model would ride along in every undo snapshot.
  *
- * Nothing is decoded until it is asked for: a CMO3 document loads synchronously on the UI thread, so
- * decoding every tile up front would stall the open by seconds on a real model.  A decoded tile is
+ * Nothing is decoded until it is asked for: decoding every tile of a real CMO3 model up front would add
+ * seconds to its open, for tiles the rigger may never touch.  A decoded tile is
  * retained for the store's life, which is the document's life - a replaced document drops the store.
  *
  * Format-agnostic by construction: the decoder is injected.  A CMO3 document supplies one over its
@@ -51,6 +51,7 @@ class SourceArtRasters(
 		if (rasters.isEmpty()) {
 			return
 		}
+
 		added = added + rasters
 	}
 
@@ -73,13 +74,16 @@ class SourceArtRasters(
 	 */
 	fun rasterFor(tileId: AtlasTileId): DecodedImage? {
 		added[tileId]?.let { raster -> return raster }
+
 		if (decodedByTile.containsKey(tileId)) {
 			return decodedByTile[tileId]
 		}
+
 		// The cached twin decodes through the uncached one: the two must produce the same image for the
 		// same bytes, because callers compare a cached result against a freshly decoded one by identity.
 		val decoded = decodeRaster(tileId)
 		decodedByTile[tileId] = decoded
+
 		return decoded
 	}
 
@@ -97,9 +101,6 @@ class SourceArtRasters(
 	fun decodeRaster(tileId: AtlasTileId): DecodedImage? = added[tileId] ?: decode(tileId)
 
 	companion object {
-		/** The store a document with no source art surfaces. */
-		val EMPTY: SourceArtRasters = SourceArtRasters { null }
-
 		/**
 		 * A store over encoded PNG bytes - the CMO3 case, where every tile's pixels sit in the retained
 		 * graph as an embedded PNG and decoding is deferred to first request.

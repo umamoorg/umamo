@@ -33,6 +33,7 @@ internal fun <TForm : Any> gridOf(
 	if (binding == null) {
 		return null
 	}
+
 	// MOC3 §5.6: axes are in stride order (first = fastest varying), matching the runtime grid's
 	// stride folding, so keyIndices(gridIndex) is the cell coordinate as-is.
 	val axes =
@@ -46,6 +47,7 @@ internal fun <TForm : Any> gridOf(
 		(0 until binding.gridSize).mapNotNull { gridIndex ->
 			formAt(gridIndex)?.let { form -> KeyformCell(binding.keyIndices(gridIndex), form) }
 		}
+
 	return KeyformGrid(axes, cells)
 }
 
@@ -53,14 +55,14 @@ internal fun <TForm : Any> gridOf(
  * The grid index of the default-pose cell of [binding]: per axis, the key nearest the driving
  * parameter's default value, stride-folded.
  *
- * This cell's baked values serve as the editor's rest state (rest mesh, static draw order); the
- * multilinear blend is base-independent, so the choice never changes evaluated output - which is also
- * why no evaluation oracle can see it go wrong.
+ * This cell's baked values serve as the editor's rest state (keyform-space base, static draw order); the
+ * multilinear blend is base-independent in exact arithmetic, so the choice moves evaluated output by
+ * rounding at most.  :runtime's `referenceCellOf` is the same rule over the model's own grid, the one the
+ * CMO3 import takes its base from.
  *
- * Resolves the default by parameter INDEX, not by id.  [Moc3ImportContext.defaultValueOf] answers the
- * same question keyed by id for the blend-shape pass, and on a document carrying one parameter id twice
- * the two disagree; an axis names its parameter positionally, so this is the accessor that matches what
- * the file said.
+ * Resolves the default by parameter INDEX, because an axis names its parameter positionally;
+ * [Moc3ImportContext.defaultValueOf] is the same table keyed by the de-duplicated id, for the
+ * blend-shape pass.
  *
  * @param Moc3ImportContext context The import's derived state, for the parameter defaults.
  * @param KeyformBinding?   binding The object's keyform binding, or null for a static object.
@@ -73,18 +75,23 @@ internal fun defaultCellIndexOf(
 	if (binding == null) {
 		return 0
 	}
+
 	var linearIndex = 0
 	var stride = 1
+
 	for (axis in binding.axes) {
 		val defaultValue = context.defaultValueAt(axis.parameterIndex)
 		var nearestKey = 0
+
 		for (keyIndex in axis.keyPositions.indices) {
 			if (abs(axis.keyPositions[keyIndex] - defaultValue) < abs(axis.keyPositions[nearestKey] - defaultValue)) {
 				nearestKey = keyIndex
 			}
 		}
+
 		linearIndex += nearestKey * stride
 		stride *= axis.keyCount
 	}
+
 	return linearIndex
 }

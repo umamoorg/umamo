@@ -8,6 +8,7 @@ import org.umamo.runtime.eval.scalarOrNull
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.DEFAULT_DRAW_ORDER
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.GluePair
@@ -17,13 +18,14 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
+import org.umamo.runtime.model.WarpLatticeForm
 
 /**
  * Backend-neutral per-pose deform inputs for one drawable - the cheap output of [preparePose]: which
  * keyform cells are active and their weights ([corners]), the mesh's baked parent-deformer transform
- * ([parentWorld]; null for a direct, deformer-less mesh), and the blended scalar attributes. [corners]
+ * ([parentWorld]; null for a direct, deformer-less mesh), and the blended scalar attributes.  [corners]
  * null means the mesh is hidden at this pose; [isParented] with a null [parentWorld] means a hidden
- * ancestor deformer (also hidden). Nothing here is per-vertex - the CPU finishes it in [applyCpuDeform],
+ * ancestor deformer (also hidden).  Nothing here is per-vertex - the CPU finishes it in [applyCpuDeform],
  * and the GPU path uploads the same corners (→ weight uniforms) + baked transform instead.
  */
 internal class DrawableDeformInputs(
@@ -57,7 +59,7 @@ internal class GlueInputs(
 
 /**
  * The full per-pose, backend-neutral deform inputs ([preparePose]'s output): per-drawable weights + baked
- * transforms and the resolved glues. The CPU finishes it per vertex via [applyCpuDeform]; the GPU path
+ * transforms and the resolved glues.  The CPU finishes it per vertex via [applyCpuDeform]; the GPU path
  * uploads the same data as uniforms instead of re-uploading every deformed vertex - that re-use is exactly
  * why the deformation is split into a cheap "prepare" and a backend-specific "apply".
  */
@@ -72,40 +74,51 @@ internal class PoseDeformInputs(
 	 * so the composite pass never has to re-derive them.
 	 */
 	val partCompositeStates: Map<PartId, PartRenderState> = emptyMap(),
+	/**
+	 * Every deformer the pose built, by id: the baked worlds the drawables' transforms came from.  A hidden
+	 * deformer, or one under a hidden ancestor, is absent, as [buildDeformerWorlds] leaves it out.  Kept so
+	 * what the viewport draws over a deformer (a warp's lattice) reads the same bake as the art under it.
+	 */
+	val deformerWorlds: Map<DeformerId, DeformerWorld> = emptyMap(),
 )
 
 /**
  * Computes the cheap, backend-neutral deform inputs for [model] at [parameters]: the multilinear keyform
- * weights per mesh and each mesh's baked deformer-cascade transform - never per-vertex geometry. Shared
+ * weights per mesh and each mesh's baked deformer-cascade transform - never per-vertex geometry.  Shared
  * verbatim by the CPU ([applyCpuDeform]) and the eventual GPU apply paths.
  *
  * @param PuppetModel model      The rig.
  * @param Map         parameters Parameter id → value (partial; the rest default).
  * @param Map         channelOverrides Pending unkeyed channel edits, which win over the stored value - how
  *   a value the user typed but has not keyed shows in the viewport without entering the document.
+ * @param Map         latticeOverrides Pending lattices by warp, each standing in for that warp's grid blend -
+ *   how a lattice posed but not yet keyed shows in the viewport without entering the document.
  * @return PoseDeformInputs The backend-neutral per-pose inputs.
  */
 internal fun preparePose(
 	model: PuppetModel,
 	parameters: Map<ParameterId, Float>,
 	channelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap(),
+	latticeOverrides: Map<DeformerId, WarpLatticeForm> = emptyMap(),
 ): PoseDeformInputs {
-	val defaults = model.parameters.associate { it.id to it.default }
-	val paramValue: (ParameterId) -> Float = { parameters[it] ?: defaults[it] ?: 0f }
-	val defaultValue: (ParameterId) -> Float = { defaults[it] ?: 0f }
+	val pose = PoseParameters(model, parameters)
+	val paramValue = pose.paramValue
+	val defaultValue = pose.defaultValue
 	// Null in the steady state (no pending unkeyed edit), so every lookup below short-circuits before
 	// constructing its KeyableTarget key - the per-frame path otherwise allocated a handful of key
 	// objects per entity purely to probe an empty map.
 	val overrides = channelOverrides.takeIf { pending -> pending.isNotEmpty() }
-	val deformerWorlds = buildDeformerWorlds(model.deformers, paramValue, defaultValue, channelOverrides)
+	val deformerWorlds = buildDeformerWorlds(model.deformers, paramValue, defaultValue, channelOverrides, latticeOverrides)
 	val drawables = ArrayList<DrawableDeformInputs>(model.drawables.size)
+
 	for (drawable in model.drawables) {
-		if (drawable.mesh?.positions == null) {
+		if (drawable.mesh?.localPositions == null) {
 			continue
 		}
+
 		// An UNKEYED drawable renders at its rest mesh rather than vanishing: one full-weight corner into
 		// an empty cell map contributes no deltas, and every blend site already treats a missing cell as a
-		// zero contribution. Null corners keep meaning HIDDEN (a pose outside a keyed grid's range), so
+		// zero contribution.  Null corners keep meaning HIDDEN (a pose outside a keyed grid's range), so
 		// "no grid" and "out of range" stay distinguishable - they are opposite outcomes.
 		val grid = drawable.geometryGrid
 		val corners = if (grid != null) gridCorners(grid, paramValue) else REST_CORNERS
@@ -143,9 +156,10 @@ internal fun preparePose(
 				paramValue,
 				overrides?.get(KeyableTarget(drawableOwner, FormChannel.SCREEN_COLOR)),
 			)
+
 		// Blend shapes: additive deltas on every channel the record carries, not just the scalars.  Each
 		// contribution's form holds its stored delta plus the grid-at-default reference (added at import),
-		// so subtracting that reference back out here recovers the delta exactly.  Opacity and the colours
+		// so subtracting that reference back out here recovers the delta exactly.  Opacity and the colors
 		// clamp to [0,1] only AFTER summing - clamping per contribution would bias a record whose
 		// neighbours pull the other way.  Draw order is left unrounded (the Umamo C++ Runtime rounds
 		// (int)(0.001+v) at sort time; Umamo sorts floats - MOC3.md §5.6).
@@ -169,13 +183,15 @@ internal fun preparePose(
 						screenColor.blue + contribution.weight * (form.screenColor.blue - blend.referenceScreenColor.blue),
 					)
 			}
+
 			opacity = opacity.coerceIn(0f, 1f)
 			multiplyColor = multiplyColor.coerceToUnit()
 			screenColor = screenColor.coerceToUnit()
 		}
-		// Then the parent deformer chain's accumulated channels. A deformer's opacity multiplies, its
+
+		// Then the parent deformer chain's accumulated channels.  A deformer's opacity multiplies, its
 		// multiply color multiplies, its screen color screens - each already folded over every ancestor
-		// deformer by buildDeformerWorlds, so one composition here covers the whole chain. Clamped
+		// deformer by buildDeformerWorlds, so one composition here covers the whole chain.  Clamped
 		// because a blended color can leave [0,1] at the ends of a keyed range.
 		parentWorld?.let { world ->
 			opacity *= world.accumulatedOpacity
@@ -206,6 +222,7 @@ internal fun preparePose(
 			),
 		)
 	}
+
 	val glues =
 		model.glues.map { glue ->
 			GlueInputs(
@@ -234,10 +251,16 @@ internal fun preparePose(
 	// immutable across all of them.
 	val partsById = model.partById
 
+	/**
+	 * Resolves a render group's posed draw order and composite state, then its child groups'.
+	 *
+	 * @param RenderGroup group The group to resolve.
+	 */
 	fun blendGroupStates(group: RenderGroup) {
 		val partId = group.partId
 		val channels = group.channelGrids
 		val partOwner = partId?.let { KeyformOwner.Part(it) }
+
 		if (partId != null && partOwner != null) {
 			// Null when the part has no draw-order track or the pose is out of its range; with no blend
 			// record contributing either, the map entry is then left ABSENT so the renderer keeps the
@@ -252,12 +275,15 @@ internal fun preparePose(
 			// all - so an entry appears whenever EITHER contributes, with the static standing in as the
 			// base when only the record does.
 			val blendDelta = partsById[partId]?.let { part -> partBlendDrawOrderDelta(part, paramValue, defaultValue) }
+
 			if (tracked != null || blendDelta != null) {
 				val base = tracked ?: partsById[partId]?.drawOrder?.toFloat() ?: DEFAULT_DRAW_ORDER.toFloat()
 				partDrawOrders[partId] = base + (blendDelta ?: 0f)
 			}
 		}
+
 		val composite = group.composite
+
 		if (partId != null && composite != null) {
 			// Each composite channel resolves independently against its own static, so an isolated part
 			// can key opacity alone without dragging its tints onto the same axes.
@@ -283,6 +309,7 @@ internal fun preparePose(
 					),
 				)
 		}
+
 		for (child in group.children) {
 			if (child is RenderGroup) {
 				blendGroupStates(child)
@@ -290,15 +317,16 @@ internal fun preparePose(
 		}
 	}
 	blendGroupStates(model.renderRoot)
-	return PoseDeformInputs(drawables, glues, partDrawOrders, partCompositeStates)
+
+	return PoseDeformInputs(drawables, glues, partDrawOrders, partCompositeStates, deformerWorlds)
 }
 
 /**
  * Finishes [inputs] on the CPU: per drawable, blends the active corners into local positions, pushes them
- * through the baked parent transform, negates Y, then welds the glue pairs in place. Output is identical
+ * through the baked parent transform, negates Y, then welds the glue pairs in place.  Output is identical
  * to evaluating the model in one pass.
  *
- * @param PuppetModel      model  The rig (for each drawable's base positions + grid).
+ * @param PuppetModel      model  The rig (for each drawable's keyform-space base + grid).
  * @param PoseDeformInputs inputs The prepared per-pose inputs.
  * @return DeformedGeometry World positions + scalars per visible drawable.
  */
@@ -307,21 +335,27 @@ internal fun applyCpuDeform(model: PuppetModel, inputs: PoseDeformInputs): Defor
 	val worldPositions = HashMap<DrawableId, FloatArray>(inputs.drawables.size)
 	val drawOrders = HashMap<DrawableId, Float>(inputs.drawables.size)
 	val opacities = HashMap<DrawableId, Float>(inputs.drawables.size)
+
 	for (drawableInputs in inputs.drawables) {
 		val corners = drawableInputs.corners ?: continue
+
 		// A parented mesh whose ancestor deformer is hidden produces no geometry (the cascade omitted it).
 		if (drawableInputs.isParented && drawableInputs.parentWorld == null) {
 			continue
 		}
+
 		val drawable = drawableById[drawableInputs.drawableId] ?: continue
-		val base = drawable.mesh?.positions ?: continue
+		// The keyform-space base: the deltas are measured from it, and the parent chain maps it (DrawableMesh).
+		val base = drawable.mesh?.localPositions ?: continue
 		// A null grid is an unkeyed drawable, which deforms to its rest mesh - see preparePose.
 		worldPositions[drawableInputs.drawableId] =
 			deformMeshWorldFromCorners(drawable.geometryGrid, base, corners, drawableInputs.parentWorld, drawableInputs.blend)
 		drawOrders[drawableInputs.drawableId] = drawableInputs.drawOrder
 		opacities[drawableInputs.drawableId] = drawableInputs.opacity
 	}
+
 	applyGluesResolved(inputs.glues, worldPositions)
+
 	return DeformedGeometry(worldPositions, drawOrders, opacities)
 }
 
@@ -337,12 +371,15 @@ internal fun applyGluesResolved(glues: List<GlueInputs>, worldPositions: Map<Dra
 		val vertsA = worldPositions[glue.meshA] ?: continue
 		val vertsB = worldPositions[glue.meshB] ?: continue
 		val intensity = glue.intensity
+
 		for (pair in glue.pairs) {
 			val indexA = pair.indexA * 2
 			val indexB = pair.indexB * 2
+
 			if (indexA + 1 >= vertsA.size || indexB + 1 >= vertsB.size) {
 				continue
 			}
+
 			val ax = vertsA[indexA]
 			val ay = vertsA[indexA + 1]
 			val bx = vertsB[indexB]

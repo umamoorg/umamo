@@ -1,5 +1,6 @@
 package org.umamo.settings
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -9,6 +10,7 @@ import okio.fakefilesystem.FakeFileSystem
 import org.umamo.storage.OkioAppStorage
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -20,9 +22,11 @@ class SettingsTest {
 	private fun storageWith(userJson: String? = null): Pair<FakeFileSystem, OkioAppStorage> {
 		val fileSystem = FakeFileSystem()
 		fileSystem.createDirectories(configDir)
+
 		if (userJson != null) {
 			fileSystem.write(configDir / "settings.json") { writeUtf8(userJson) }
 		}
+
 		return fileSystem to OkioAppStorage(fileSystem, configDir, "/data".toPath())
 	}
 
@@ -75,16 +79,47 @@ class SettingsTest {
 	}
 
 	@Test
+	fun foundUserFileIsFalseWithNoFile() {
+		val (_, storage) = storageWith()
+		assertFalse(Settings.load(storage, "{}").foundUserFile)
+	}
+
+	@Test
+	fun foundUserFileIsTrueWithAValidFile() {
+		val (_, storage) = storageWith(userJson = """{"interface":{"theme":"light"}}""")
+		assertTrue(Settings.load(storage, "{}").foundUserFile)
+	}
+
+	@Test
+	fun foundUserFileIsTrueWithACorruptFile() {
+		// Present but unreadable is still found: the rigger's settings exist, they just did not parse.
+		val (_, storage) = storageWith(userJson = "{ this is not json")
+		assertTrue(Settings.load(storage, "{}").foundUserFile)
+	}
+
+	@Test
+	fun foundUserFileStaysFalseAfterTheFirstWrite() {
+		val (fileSystem, storage) = storageWith()
+		val settings = Settings.load(storage, """{"a":{"b":1}}""")
+		settings.setInt("a.b", 2)
+		// The write created the file, but the flag describes the load, not the disk now.
+		assertTrue(fileSystem.exists(configDir / "settings.json"))
+		assertFalse(settings.foundUserFile)
+		// The next load finds it.
+		assertTrue(Settings.load(OkioAppStorage(fileSystem, configDir, "/data".toPath()), "{}").foundUserFile)
+	}
+
+	@Test
 	fun setEmitsChangedKey() =
 		runTest {
 			val (_, storage) = storageWith()
 			val settings = Settings.load(storage, """{"a":{"b":1}}""")
 			val received = mutableListOf<String>()
 			val collector = launch { settings.changes.collect { received.add(it) } }
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent() // let the collector subscribe before we emit
 			settings.setInt("a.b", 2)
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent() // deliver the emission
 			collector.cancel()
 			assertEquals(listOf("a.b"), received)
@@ -98,12 +133,12 @@ class SettingsTest {
 			val settings = Settings.load(storage, """{"a":{"b":1,"c":"x"},"d":{"e":true}}""")
 			val received = mutableListOf<String>()
 			val collector = launch { settings.changes.collect { received.add(it) } }
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			settings.setInt("a.b", 2)
 			settings.setString("a.c", "y")
 			settings.setBoolean("d.e", false)
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			collector.cancel()
 			assertEquals(listOf("a.b", "a.c", "d.e"), received)
@@ -116,19 +151,19 @@ class SettingsTest {
 			val settings = Settings.load(storage, """{"a":{"b":1,"c":"x"}}""")
 			val earlyEvents = mutableListOf<String>()
 			val earlyCollector = launch { settings.changes.collect { earlyEvents.add(it) } }
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			settings.setInt("a.b", 2)
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 
 			// The changes flow has no replay: a subscriber arriving after an event never sees it.
 			val lateEvents = mutableListOf<String>()
 			val lateCollector = launch { settings.changes.collect { lateEvents.add(it) } }
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			settings.setString("a.c", "y")
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			earlyCollector.cancel()
 			lateCollector.cancel()

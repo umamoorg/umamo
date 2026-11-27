@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 /**
  * Pins every umamoDarkColors value to its expected constant.  The dark scheme is the shipped look and its
  * rendered pixels are a contract: this test keeps a later refactor of the color table from silently
- * shifting any token's value. Alpha-carrying tokens are asserted via .copy(alpha = ...) on the same base
+ * shifting any token's value.  Alpha-carrying tokens are asserted via .copy(alpha = ...) on the same base
  * value for float bit-identity (values like 0.7f have no exact 8-bit hex form).
  */
 class ThemeColorsTest {
@@ -39,12 +39,15 @@ class ThemeColorsTest {
 		assertEquals(mutedGrey.copy(alpha = 0.3f), colors.textDisabled, "textDisabled")
 		assertEquals(brandPurple, colors.accent, "accent")
 		assertEquals(Color(0xFFD394ED), colors.accentHover, "accentHover")
+		assertEquals(Color(0xFFA96FC1), colors.accentPressed, "accentPressed")
 		assertEquals(Color(0xFFFFFFFF), colors.accentText, "accentText")
+		assertEquals(Color(0xFFFCDD83), colors.repeatAccent, "repeatAccent")
 		assertEquals(brandPurple, colors.selection, "selection")
 		assertEquals(Color(0xFFFFFFFF), colors.selectionText, "selectionText")
 		assertEquals(Color(0xFF545454), colors.controlBackground, "controlBackground")
 		assertEquals(Color(0xFFFFFFFF), colors.controlGlyph, "controlGlyph")
 		assertEquals(Color(0xFF656565), colors.buttonHover, "buttonHover")
+		assertEquals(Color(0xFFA96FC1), colors.buttonPressed, "buttonPressed")
 		assertEquals(Color(0xFF252525), colors.sliderTrack, "sliderTrack")
 		assertEquals(Color(0xFFD2D2D2), colors.sliderThumb, "sliderThumb")
 		assertEquals(brandPurple.copy(alpha = 0.16f), colors.dropZoneFill, "dropZoneFill")

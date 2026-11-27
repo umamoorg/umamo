@@ -24,12 +24,9 @@ import org.umamo.format.raster.RasterImage
  * a backend that records into command buffers (Metal) is free to open and commit its own buffer internally
  * to service one.  They are not part of a FrameEncoder because they do not compose with a pass - a resolve
  * runs between a render frame and its read-back, and a read-back is polled across many later frames.
- *
- * GPU バックエンドの継ぎ目。GL / GLES / Metal ごとに実装する。描画はフレームに記録し、resolve / 読み戻し /
- * リソース操作はフレーム外の自己完結操作。
  */
 public interface RenderDevice {
-	// --- Resources. Everything the device hands out, the device frees. ---
+	// --- Resources.  Everything the device hands out, the device frees. ---
 
 	/**
 	 * Uploads an image as a sampleable texture.
@@ -67,9 +64,9 @@ public interface RenderDevice {
 	 *
 	 * The renderer calls this once per POSE CHANGE, never in the draw loop, and a backend must not
 	 * re-create the resource here.  Warp control points are pose-dependent but frame-invariant, and
-	 * re-specifying that texture 60x/sec churned the d3d12/Mesa driver into progressively corrupting the
-	 * points it sampled - the "facial features warp over time" bug, worst on masked warp meshes, which
-	 * draw twice.  The frequency is the fix; keep it.
+	 * re-specifying that texture every frame drives the d3d12/Mesa driver into progressively corrupting
+	 * the points it samples, worst on masked warp meshes, which draw twice; the once-per-pose frequency
+	 * is what prevents it.
 	 *
 	 * @param GpuTexture texture The texture to overwrite.
 	 * @param Int        width   Width in texels.
@@ -111,9 +108,11 @@ public interface RenderDevice {
 	fun createRenderTarget(spec: RenderTargetSpec): RenderTarget
 
 	/**
-	 * Allocates the shared pass-1 deformed-position store.
+	 * Allocates a deformed-position store of [vertexCapacity] vertices: the glue store pass 1 fills, the
+	 * 2D mesh overlay's, or a UV scene's, which [updateDeformedPositions] fills directly.  Sized by its
+	 * caller and freed by [destroyDeformedPositionStore].
 	 *
-	 * @param Int vertexCapacity The total glue vertex count across every glue mesh.
+	 * @param Int vertexCapacity The total vertex count the store must hold.
 	 * @return DeformedPositionStore The store.
 	 */
 	fun createDeformedPositionStore(vertexCapacity: Int): DeformedPositionStore
@@ -133,14 +132,73 @@ public interface RenderDevice {
 	 */
 	fun createDeformCapturePipeline(): DeformCapturePipeline
 
-	/** Frees [texture]. */
+	/**
+	 * Frees [texture].
+	 *
+	 * @param GpuTexture texture The texture to free.
+	 */
 	fun destroyTexture(texture: GpuTexture)
 
-	/** Frees [mesh] and every buffer it owns. */
+	/**
+	 * Frees [mesh] and every buffer it owns.
+	 *
+	 * @param GpuMesh mesh The mesh to free.
+	 */
 	fun destroyMesh(mesh: GpuMesh)
 
-	/** Frees [target]. */
+	/**
+	 * Frees [target].
+	 *
+	 * @param RenderTarget target The render target to free.
+	 */
 	fun destroyRenderTarget(target: RenderTarget)
+
+	/**
+	 * Writes [positions] (x then y per vertex) into [store] from vertex [vertexOffset] on: the direct fill
+	 * a UV scene's overlay uses, where nothing deforms and every vertex already sits where it is shown.  A
+	 * resource operation between frames, like [updateMeshPositions]; a draw in a later frame reads it.
+	 *
+	 * @param DeformedPositionStore store The store to write.
+	 * @param Int vertexOffset The first vertex written.
+	 * @param FloatArray positions The positions, two floats per vertex.
+	 */
+	fun updateDeformedPositions(store: DeformedPositionStore, vertexOffset: Int, positions: FloatArray)
+
+	/**
+	 * Frees [store].  A caller that outgrows a store frees it and allocates a larger one.
+	 *
+	 * @param DeformedPositionStore store The store to free.
+	 */
+	fun destroyDeformedPositionStore(store: DeformedPositionStore)
+
+	/**
+	 * Uploads one mesh's overlay instance data: per-instance buffers of edge endpoints, triangle corners,
+	 * and the three flag arrays, in the mesh's own vertex indices.  On the GL family these are instanced
+	 * vertex attributes (divisor 1), core in GL 3.3 and GLES 3.0; a Metal backend binds them as
+	 * per-instance buffers and reads the corner from the vertex id and the primitive from the instance id.
+	 *
+	 * @param OverlayMeshSpec spec The data to upload.
+	 * @return OverlayMeshBuffers The resident buffers.
+	 */
+	fun createOverlayMeshBuffers(spec: OverlayMeshSpec): OverlayMeshBuffers
+
+	/**
+	 * Replaces the three flag arrays of [buffers] in place, at the sizes they were created with: the
+	 * selection-change path, which uploads flags and nothing else.
+	 *
+	 * @param OverlayMeshBuffers buffers The resident buffers.
+	 * @param ByteArray vertexFlags One flag per vertex.
+	 * @param ByteArray edgeFlags One flag per edge.
+	 * @param ByteArray faceFlags One flag per triangle.
+	 */
+	fun updateOverlayMeshFlags(buffers: OverlayMeshBuffers, vertexFlags: ByteArray, edgeFlags: ByteArray, faceFlags: ByteArray)
+
+	/**
+	 * Frees [buffers].
+	 *
+	 * @param OverlayMeshBuffers buffers The resident buffers to free.
+	 */
+	fun destroyOverlayMeshBuffers(buffers: OverlayMeshBuffers)
 
 	// --- Frame recording ---
 
@@ -283,6 +341,25 @@ public interface RenderDevice {
 	fun readPixels(target: RenderTarget, usedWidth: Int, usedHeight: Int): RasterImage
 
 	/**
+	 * The largest render target edge this device can allocate AND draw to, in pixels.
+	 *
+	 * The smallest of the limits a render target meets on its way through a frame: the texture size, the
+	 * renderbuffer size, and the viewport size.  A caller rendering something larger than this splits it
+	 * into tiles rather than asking the device for a target it cannot make.
+	 *
+	 * @return Int The edge, in pixels.
+	 */
+	fun maxRenderTargetSize(): Int
+
+	/**
+	 * The largest texture edge this device can sample, in texels.  An image past it does not upload at all,
+	 * so art uploads scale down to it (see createArtTexture).
+	 *
+	 * @return Int The edge, in texels.
+	 */
+	fun maxTextureSize(): Int
+
+	/**
 	 * The backend's device / driver / version as one line - a startup diagnostic confirming which backend
 	 * actually drives the viewport (a hardware driver vs a software rasterizer, say).
 	 *
@@ -328,8 +405,8 @@ public interface FrameEncoder {
 	 *
 	 * A declared DEPENDENCY, not an instruction to stall - which is what lets each backend meet it its own
 	 * way.  The GL device issues `glFinish`: the WSL d3d12/Mesa stack does not reliably order transform
-	 * feedback's writes before a later texture read, so pass 2 sampled a half-written store and produced
-	 * garbage welds while a parameter moved.  `glMemoryBarrier` cannot help - feedback writes are
+	 * feedback's writes before a later texture read, so without it pass 2 could sample a half-written store
+	 * and weld garbage while a parameter moves.  `glMemoryBarrier` cannot help - feedback writes are
 	 * coherent-pipeline writes, outside its scope - so the full sync is the honest fix.  A Metal backend
 	 * would implement this as a genuine no-op, since it tracks the dependency itself within a command
 	 * buffer; that is correct, not a stub.
@@ -395,7 +472,7 @@ public data class ScissorRect(
  * One render pass.
  *
  * Every field is explicit because a pass that discovered its own target could not exist on a backend with
- * no bound-framebuffer concept - and because, even on GL, discovering it from ambient state hid a real
+ * no bound-framebuffer concept - and because, even on GL, discovering it from ambient state would hide a
  * coupling between the renderer and whoever bound the framebuffer first.
  *
  * @property RenderTarget colorTarget    The surface this pass writes.
@@ -410,6 +487,11 @@ public data class ScissorRect(
  * @property ScissorRect? scissor        Restricts every write of the pass - the clear included - to the
  *   rectangle, for the whole pass (per-pass fixed state, like the target).  Null writes everywhere.
  *   The composite path uses this to confine a layer's clear + composite to the subtree's bounds.
+ * @property RenderTarget? drawOrderTarget The draw-order target the pass's art draws write as a second
+ *   draw buffer, each covering fragment its drawable's back-to-front index, or null for a pass that writes
+ *   none; only the art pipelines write it, every other draw in the pass writes the color target alone.
+ * @property Boolean        clearDrawOrder  Whether the pass clears the draw-order target to nothing first
+ *   (the frame's first art pass); a resumed pass keeps what was written.
  */
 public data class RenderPassSpec(
 	val colorTarget: RenderTarget,
@@ -422,6 +504,8 @@ public data class RenderPassSpec(
 	val clearBlue: Float = 0f,
 	val clearAlpha: Float = 0f,
 	val scissor: ScissorRect? = null,
+	val drawOrderTarget: RenderTarget? = null,
+	val clearDrawOrder: Boolean = false,
 )
 
 /** Records draws into one render pass. */
@@ -477,14 +561,17 @@ public interface RenderPassEncoder {
 	)
 
 	/**
-	 * Draws the atlas-page underlay quad.
+	 * Draws one image quad of a UV scene (the pipeline must be [PipelinePurpose.AtlasPageDraw]): the unit
+	 * square's corners carried into world space by [quadToWorld], textured through the fragment's uvAffine
+	 * from the quad's V-flipped unit coordinates (corner (0, 1) samples the image's top-left), or filled with
+	 * the fragment's flat color when [texture] is null and the fragment says so.  An atlas page is the quad
+	 * diag(W, H) over its whole image; the placement drag's crops and scrims are the others.
 	 *
-	 * @param GpuTexture       atlas      The page.
-	 * @param Float            pageWidth  The page width in texels.
-	 * @param Float            pageHeight The page height in texels.
-	 * @param FragmentUniforms fragment   Its appearance.
+	 * @param GpuTexture?      texture     The image, or null for a flat-color quad.
+	 * @param FloatArray       quadToWorld The unit-corner-to-world affine, rows first (m00 m01 m02 m10 m11 m12).
+	 * @param FragmentUniforms fragment    Its appearance.
 	 */
-	fun drawAtlasPage(atlas: GpuTexture, pageWidth: Float, pageHeight: Float, fragment: FragmentUniforms)
+	fun drawImageQuad(texture: GpuTexture?, quadToWorld: FloatArray, fragment: FragmentUniforms)
 
 	/**
 	 * Fills the target with the grid backdrop.
@@ -511,6 +598,54 @@ public interface RenderPassEncoder {
 	 */
 	fun drawAxisLine(uniforms: AxisLineUniforms)
 
+	/**
+	 * Draws the mesh overlay's face fills of one mesh: every triangle in [buffers] as one instance,
+	 * positions fetched from [store].  There is no active fill (the active face fills as selected), so a
+	 * fill draw is never an active draw.  The bound pipeline must be [PipelinePurpose.OverlayFaceFill] -
+	 * never a glue pipeline, whose encoder latches the glue store on the position unit.
+	 *
+	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
+	 * @param DeformedPositionStore store The overlay's deformed positions.
+	 * @param OverlayDrawUniforms uniforms The draw's inputs.
+	 */
+	fun drawOverlayFaceFill(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms)
+
+	/**
+	 * Draws the mesh overlay's edges of one mesh, as [drawOverlayFaceFill] draws its fills, or the one
+	 * active edge when the uniforms say so; the bound pipeline must be [PipelinePurpose.OverlayEdge].  With
+	 * a cull order in the uniforms the draw samples [orderTexture], the frame's draw-order target, at its
+	 * own framebuffer pixel and leaves out the edge where a drawable in front of the mesh's own was drawn.
+	 *
+	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
+	 * @param DeformedPositionStore store The overlay's deformed positions.
+	 * @param OverlayDrawUniforms uniforms The draw's inputs.
+	 * @param GpuTexture? orderTexture The draw-order texture a culling draw reads, or null for none.
+	 */
+	fun drawOverlayEdges(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms, orderTexture: GpuTexture? = null)
+
+	/**
+	 * Draws the mesh overlay's vertex dots of one mesh: one instance per dotted vertex (the first
+	 * [OverlayMeshSpec.vertexDotCount]), the instance index being the vertex index; the bound pipeline must be
+	 * [PipelinePurpose.OverlayVertexDot].
+	 *
+	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
+	 * @param DeformedPositionStore store The overlay's deformed positions.
+	 * @param OverlayDrawUniforms uniforms The draw's inputs.
+	 */
+	fun drawOverlayVertexDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms)
+
+	/**
+	 * Draws the mesh overlay's face-centroid dots of one mesh: one instance per run of
+	 * [OverlayMeshSpec.trianglesPerFaceDot] triangles, at the centroid of the run's first [OverlayMeshSpec.faceDotCorners]
+	 * entry when the mesh has them, else of its own corners, with that triangle's flag; the bound pipeline must be
+	 * [PipelinePurpose.OverlayFaceDot].
+	 *
+	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
+	 * @param DeformedPositionStore store The overlay's deformed positions.
+	 * @param OverlayDrawUniforms uniforms The draw's inputs.
+	 */
+	fun drawOverlayFaceDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms)
+
 	/** Ends the pass. */
 	fun end()
 }
@@ -522,9 +657,9 @@ public interface DeformCapturePassEncoder {
 	 * [destinationVertexOffset] plus the vertex's own index.  Draws nothing.
 	 *
 	 * The name describes the EFFECT, not the mechanism, which is what lets the mechanism change without
-	 * touching the renderer: the GL family runs it as transform feedback today and may become a
-	 * point-scatter render once the store is a 2D texture (a texture cannot be a feedback target); Metal
-	 * has no transform feedback at all and would use a compute kernel.  None of that reaches here.
+	 * touching the renderer: the GL family runs it as transform feedback (on GLES 3.0 into a buffer then
+	 * copied into a 2D-texture store, since a texture cannot be a feedback target); Metal has no transform
+	 * feedback at all and would use a compute kernel.  None of that reaches here.
 	 *
 	 * @param GpuMesh         mesh                   The mesh to deform.
 	 * @param DeformUniforms  deform                 Its per-pose deform inputs (marshal, do not retain).

@@ -1,107 +1,229 @@
 package org.umamo.ui.workspace.commands
 
-import org.umamo.edit.Cursor2d
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.PieMenuKind
 import org.umamo.edit.SnapKind
 import org.umamo.edit.TransformPivotMode
-import org.umamo.edit.snapToGrid
+import org.umamo.edit.transform.snapToWorldGrid
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandFamily
+import org.umamo.ui.action.CommandSection
+import org.umamo.ui.action.CommandState
+import org.umamo.ui.action.CommandTable
+import org.umamo.ui.action.KeymapCategory
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoIcons
+import org.umamo.ui.viewport.GridConfig
+import org.umamo.ui.workspace.AreaOverlayHub
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.SpaceScope
+
+/**
+ * Reports whether [pivotMode] is the transform pivot.  With no document open the pivot reads as the median point, the
+ * one a session starts on, so the pivot control shows the same face before the first file opens.
+ *
+ * @param EditorSession? editorSession The open document's session, or null.
+ * @param TransformPivotMode pivotMode The pivot to report on.
+ * @return CommandState The state of the command that sets [pivotMode].
+ */
+private fun pivotState(editorSession: EditorSession?, pivotMode: TransformPivotMode): CommandState =
+	CommandState { (editorSession?.pivotMode?.value ?: TransformPivotMode.MedianPoint) == pivotMode }
 
 /**
  * The transform pivot modes (the Period pie / the palette) and the Shift+S snap operations over world
  * space.
  *
  * The pivot setters and the arithmetical cursor snaps run right here; the geometry-dependent snaps go
- * through the session's request flow to the active mode's overlay, which owns the world projections.
+ * through the session's request flow to the active mode's overlay, which owns the world projections.  A
+ * grid snap rounds to the grid of the 2D viewport the pointer is over, read through the areas' overlay hub.
  *
  * @param EditorSession? editorSession The open document's session, or null (every command then no-ops).
  * @param CommandRouting routing Resolves which area the pointer means at dispatch time.
  * @param SessionAvailability availability The shared document-scoped availability tiers.
+ * @param AreaOverlayHub areaOverlays The work surfaces' per-area overlay states, whose grids the snaps read.
  * @return List<Command> The commands to register.
  */
 internal fun snapCommands(
 	editorSession: EditorSession?,
 	routing: CommandRouting,
 	availability: SessionAvailability,
+	areaOverlays: AreaOverlayHub,
 ): List<Command> =
-	listOf(
-		Command("transform.pivotPie", title = Res.string.cmd_transform_pivot_pie, availability = availability.hasDocument) {
+	commandTable(
+		CommandTable.Snap,
+		Command(
+			"transform.pivotPie",
+			title = Res.string.cmd_transform_pivot_pie,
+			availability = availability.hasDocument,
+			keymapCategory = KeymapCategory.Transform,
+		) {
 			editorSession?.openPieMenu(PieMenuKind.PivotMode)
 		},
-		Command("transform.pivot.median", title = Res.string.cmd_transform_pivot_median, availability = availability.hasDocument) {
+		Command(
+			"transform.pivot.median",
+			title = Res.string.cmd_transform_pivot_median,
+			keymapCategory = KeymapCategory.Transform,
+			availability = availability.hasDocument,
+			group = CommandFamily.PivotMode,
+			icon = LocalUmamoIcons.pivotMedian,
+			state = pivotState(editorSession, TransformPivotMode.MedianPoint),
+		) {
 			editorSession?.setPivotMode(TransformPivotMode.MedianPoint)
 			editorSession?.closePieMenu()
 		},
-		Command("transform.pivot.individual", title = Res.string.cmd_transform_pivot_individual, availability = availability.hasDocument) {
+		Command(
+			"transform.pivot.individual",
+			title = Res.string.cmd_transform_pivot_individual,
+			keymapCategory = KeymapCategory.Transform,
+			availability = availability.hasDocument,
+			group = CommandFamily.PivotMode,
+			icon = LocalUmamoIcons.pivotIndividual,
+			state = pivotState(editorSession, TransformPivotMode.IndividualOrigins),
+		) {
 			editorSession?.setPivotMode(TransformPivotMode.IndividualOrigins)
 			editorSession?.closePieMenu()
 		},
-		Command("transform.pivot.active", title = Res.string.cmd_transform_pivot_active, availability = availability.hasDocument) {
+		Command(
+			"transform.pivot.active",
+			title = Res.string.cmd_transform_pivot_active,
+			keymapCategory = KeymapCategory.Transform,
+			availability = availability.hasDocument,
+			group = CommandFamily.PivotMode,
+			icon = LocalUmamoIcons.pivotActive,
+			state = pivotState(editorSession, TransformPivotMode.ActiveElement),
+		) {
 			editorSession?.setPivotMode(TransformPivotMode.ActiveElement)
 			editorSession?.closePieMenu()
 		},
-		Command("transform.pivot.cursor", title = Res.string.cmd_transform_pivot_cursor, availability = availability.hasDocument) {
+		Command(
+			"transform.pivot.cursor",
+			title = Res.string.cmd_transform_pivot_cursor,
+			keymapCategory = KeymapCategory.Transform,
+			availability = availability.hasDocument,
+			group = CommandFamily.PivotMode,
+			icon = LocalUmamoIcons.pivotCursor,
+			state = pivotState(editorSession, TransformPivotMode.Cursor),
+		) {
 			editorSession?.setPivotMode(TransformPivotMode.Cursor)
 			editorSession?.closePieMenu()
 		},
-		Command("snap.pie", title = Res.string.cmd_snap_pie, availability = availability.hasDocument) {
-			// Blender's hovered-area routing (the key acts where the pointer is): over the UV editor in
-			// Edit mode this opens the UV snap pie, whose entries snap texture coordinates; everywhere
-			// else the world snap pie - mirroring how mesh.grab / scale / rotate route to beginUvOperator.
+		Command(
+			"snap.pie",
+			title = Res.string.cmd_snap_pie,
+			availability = availability.hasDocument,
+		) {
+			// Blender's hovered-area routing (the key acts where the pointer is): over the UV editor this opens
+			// the UV snap pie - its entries snap texture coordinates in Edit mode and placed art tiles in Object
+			// mode, and nothing in Pose mode, where the UV editor is view-only, so no pie opens there; everywhere
+			// else the world snap pie, mirroring how mesh.grab / scale / rotate route to beginUvOperator.
 			editorSession?.let { live ->
-				if (live.mode.value == EditorMode.Edit && routing.isHovering(SpaceKind.UvEditor)) {
-					live.openPieMenu(PieMenuKind.UvSnap)
+				if (routing.isHovering(SpaceKind.UvEditor)) {
+					if (live.mode.value != EditorMode.Pose) {
+						live.openPieMenu(PieMenuKind.UvSnap)
+					}
 				} else {
 					live.openPieMenu(PieMenuKind.Snap)
 				}
 			}
 		},
-		Command("snap.cursorToWorldOrigin", title = Res.string.cmd_snap_cursor_world_origin, availability = availability.hasDocument) {
+		Command(
+			"snap.cursorToWorldOrigin",
+			title = Res.string.cmd_snap_cursor_world_origin,
+			availability = availability.hasDocument,
+			group = CommandSection.SnapCursor,
+			icon = LocalUmamoIcons.cursor,
+		) {
 			editorSession?.let { live ->
-				live.setCursor2d(live.model.value.worldOriginX, live.model.value.worldOriginY)
+				live.setCursor2d(live.model.value.worldOriginX, live.model.value.worldOriginZ)
 				live.closePieMenu()
 			}
 		},
-		Command("snap.cursorToGrid", title = Res.string.cmd_snap_cursor_grid, availability = availability.hasDocument) {
-			editorSession?.let { live ->
-				val model = live.model.value
-				// An unplaced cursor snaps from the world origin (its conceptual resting place).
-				val cursor = live.cursor2d.value ?: Cursor2d(model.worldOriginX, model.worldOriginY)
-				val step = live.gridConfig.value.snapStep
-				// Round relative to the world origin, so the snap targets the same lines the grid draws
-				// (a major line crosses the origin, not an arbitrary mid-cell point).
-				live.setCursor2d(
-					snapToGrid(cursor.worldX, model.worldOriginX, step),
-					snapToGrid(cursor.worldY, model.worldOriginY, step),
-				)
-				live.closePieMenu()
+		Command(
+			"snap.cursorToGrid",
+			title = Res.string.cmd_snap_cursor_grid,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.Viewport2D,
+			group = CommandSection.SnapCursor,
+			icon = LocalUmamoIcons.cursor,
+		) {
+			// The hovered 2D viewport's grid is the one the snap rounds to, since each area draws its own; over
+			// anything else the command does nothing (Blender's hovered-area rule, no fallback).
+			val areaId = routing.viewportArea()
+
+			if (editorSession != null && areaId != null) {
+				// An unplaced cursor snaps from the world origin (its resting place).  The world grid is anchored
+				// on the origin, so the snap targets the same lines that viewport's backdrop draws.
+				val step = (areaOverlays.forArea(areaId)?.grid ?: GridConfig()).snapStep
+				val cursor = editorSession.cursor2dOrWorldOrigin()
+				val (snappedX, snappedZ) = editorSession.model.value.snapToWorldGrid(cursor.worldX, cursor.worldZ, step)
+				editorSession.setCursor2d(snappedX, snappedZ)
+				editorSession.closePieMenu()
 			}
 		},
-		Command("snap.cursorToSelected", title = Res.string.cmd_snap_cursor_selected, availability = availability.hasDocument) {
+		Command(
+			"snap.cursorToSelected",
+			title = Res.string.cmd_snap_cursor_selected,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.Viewport2D,
+			group = CommandSection.SnapCursor,
+			icon = LocalUmamoIcons.cursor,
+		) {
 			editorSession?.requestSnap(SnapKind.CursorToSelected, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.cursorToActive", title = Res.string.cmd_snap_cursor_active, availability = availability.hasDocument) {
+		Command(
+			"snap.cursorToActive",
+			title = Res.string.cmd_snap_cursor_active,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.Viewport2D,
+			group = CommandSection.SnapCursor,
+			icon = LocalUmamoIcons.cursor,
+		) {
 			editorSession?.requestSnap(SnapKind.CursorToActive, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToGrid", title = Res.string.cmd_snap_selection_grid, availability = availability.hasDocument) {
+		Command(
+			"snap.selectionToGrid",
+			title = Res.string.cmd_snap_selection_grid,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.Viewport2D,
+			group = CommandSection.SnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			editorSession?.requestSnap(SnapKind.SelectionToGrid, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToCursor", title = Res.string.cmd_snap_selection_cursor, availability = availability.hasDocument) {
+		Command(
+			"snap.selectionToCursor",
+			title = Res.string.cmd_snap_selection_cursor,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.Viewport2D,
+			group = CommandSection.SnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			editorSession?.requestSnap(SnapKind.SelectionToCursor, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToCursorOffset", title = Res.string.cmd_snap_selection_cursor_offset, availability = availability.hasDocument) {
+		Command(
+			"snap.selectionToCursorOffset",
+			title = Res.string.cmd_snap_selection_cursor_offset,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.Viewport2D,
+			group = CommandSection.SnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			editorSession?.requestSnap(SnapKind.SelectionToCursorOffset, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToActive", title = Res.string.cmd_snap_selection_active, availability = availability.hasDocument) {
+		Command(
+			"snap.selectionToActive",
+			title = Res.string.cmd_snap_selection_active,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.Viewport2D,
+			group = CommandSection.SnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			editorSession?.requestSnap(SnapKind.SelectionToActive, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},

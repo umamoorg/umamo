@@ -2,6 +2,7 @@ package org.umamo.edit
 
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -16,8 +17,8 @@ import kotlin.test.assertTrue
  * select-mode switches follow Blender's flush-down / derive-up conversion rules per mesh.
  */
 class MeshSelectionOpsTest {
-	private val drawableD = DrawableId("d")
-	private val drawableE = DrawableId("e")
+	private val drawableD: ElementOwner = ElementOwner.Drawable(DrawableId("d"))
+	private val drawableE: ElementOwner = ElementOwner.Drawable(DrawableId("e"))
 
 	// A single-mesh session over d, and a two-mesh session over d + e.
 	private val base = MeshSelection.editing(listOf(drawableD))
@@ -26,19 +27,26 @@ class MeshSelectionOpsTest {
 	// The "spoke" fixture: center triangle T (face 0, vertices 0-1-2) shares each of its three edges with
 	// exactly one neighbor - A (face 1) across (0,1), B (face 2) across (1,2), C (face 3) across (0,2).
 	private val spokeIndices = intArrayOf(0, 1, 2, 0, 1, 3, 1, 2, 4, 2, 0, 5)
-	private val spokeMesh = DrawableMesh(FloatArray(12), FloatArray(12), spokeIndices)
+	private val spokeMesh = DrawableMesh.withLocalEqualToCanvas(FloatArray(12), FloatArray(12), spokeIndices)
 
 	// Two triangles sharing the (1, 2) edge - the second session mesh's smaller topology.
 	private val stripIndices = intArrayOf(0, 1, 2, 1, 3, 2)
-	private val stripMesh = DrawableMesh(FloatArray(8), FloatArray(8), stripIndices)
+	private val stripMesh = DrawableMesh.withLocalEqualToCanvas(FloatArray(8), FloatArray(8), stripIndices)
 
-	// The mesh provider the whole-session ops resolve topology through.
-	private fun meshOf(drawableId: DrawableId): DrawableMesh? =
-		when (drawableId) {
+	// The two meshes' topologies, as the session's providers hand them over.
+	private val spokeTopology = ElementTopology.ofMesh(spokeMesh)
+	private val stripTopology = ElementTopology.ofMesh(stripMesh)
+
+	// Each session owner's mesh, the source [topologyOf] builds its topology from.
+	private fun meshOf(owner: ElementOwner): DrawableMesh? =
+		when (owner) {
 			drawableD -> spokeMesh
 			drawableE -> stripMesh
 			else -> null
 		}
+
+	// The topology provider the whole-session ops take, over the same meshes.
+	private fun topologyOf(owner: ElementOwner): ElementTopology? = meshOf(owner)?.let { mesh -> ElementTopology.ofMesh(mesh) }
 
 	/**
 	 * Builds a vertex-domain element set from vertex indices, for terse assertions.
@@ -64,7 +72,7 @@ class MeshSelectionOpsTest {
 	): MeshSelection =
 		base.copy(
 			selectMode = selectMode,
-			elementsByDrawable = if (elements.isEmpty()) emptyMap() else mapOf(drawableD to elements),
+			elementsByOwner = if (elements.isEmpty()) emptyMap() else mapOf(drawableD to elements),
 			activeElement = active?.let { ActiveMeshElement(drawableD, it) },
 		)
 
@@ -72,30 +80,30 @@ class MeshSelectionOpsTest {
 	@Test
 	fun fitsWithinMeshesValidatesEachDomain() {
 		// The spoke fixture has vertices 0..5, four faces, and no (3,4) edge.
-		assertTrue(MeshSelectionOps.fitsWithinMeshes(selectionOnD(vertices(0, 5)), ::meshOf), "in-range vertices fit")
+		assertTrue(MeshSelectionOps.fitsWithinMeshes(selectionOnD(vertices(0, 5)), ::topologyOf), "in-range vertices fit")
 		assertTrue(
-			MeshSelectionOps.fitsWithinMeshes(selectionOnD(setOf(MeshElement.Edge.of(0, 1)), selectMode = MeshSelectMode.Edge), ::meshOf),
+			MeshSelectionOps.fitsWithinMeshes(selectionOnD(setOf(MeshElement.Edge.of(0, 1)), selectMode = MeshSelectMode.Edge), ::topologyOf),
 			"an existing edge fits",
 		)
 		assertTrue(
-			MeshSelectionOps.fitsWithinMeshes(selectionOnD(setOf(MeshElement.Face(3)), selectMode = MeshSelectMode.Face), ::meshOf),
+			MeshSelectionOps.fitsWithinMeshes(selectionOnD(setOf(MeshElement.Face(3)), selectMode = MeshSelectMode.Face), ::topologyOf),
 			"an existing face fits",
 		)
-		assertTrue(MeshSelectionOps.fitsWithinMeshes(base, ::meshOf), "an empty selection always fits")
+		assertTrue(MeshSelectionOps.fitsWithinMeshes(base, ::topologyOf), "an empty selection always fits")
 
-		assertFalse(MeshSelectionOps.fitsWithinMeshes(selectionOnD(vertices(0, 6)), ::meshOf), "an out-of-range vertex does not fit")
+		assertFalse(MeshSelectionOps.fitsWithinMeshes(selectionOnD(vertices(0, 6)), ::topologyOf), "an out-of-range vertex does not fit")
 		assertFalse(
-			MeshSelectionOps.fitsWithinMeshes(selectionOnD(setOf(MeshElement.Edge.of(3, 4)), selectMode = MeshSelectMode.Edge), ::meshOf),
+			MeshSelectionOps.fitsWithinMeshes(selectionOnD(setOf(MeshElement.Edge.of(3, 4)), selectMode = MeshSelectMode.Edge), ::topologyOf),
 			"an edge absent from the mesh does not fit even with in-range endpoints",
 		)
 		assertFalse(
-			MeshSelectionOps.fitsWithinMeshes(selectionOnD(setOf(MeshElement.Face(4)), selectMode = MeshSelectMode.Face), ::meshOf),
+			MeshSelectionOps.fitsWithinMeshes(selectionOnD(setOf(MeshElement.Face(4)), selectMode = MeshSelectMode.Face), ::topologyOf),
 			"an out-of-range face ordinal does not fit",
 		)
 		assertFalse(
 			MeshSelectionOps.fitsWithinMeshes(
-				base.copy(elementsByDrawable = mapOf(DrawableId("gone") to vertices(0))),
-			) { drawableId -> meshOf(drawableId) },
+				base.copy(elementsByOwner = mapOf(ElementOwner.Drawable(DrawableId("gone")) to vertices(0))),
+			) { owner -> topologyOf(owner) },
 			"a selection on a mesh the provider cannot resolve does not fit",
 		)
 	}
@@ -106,8 +114,8 @@ class MeshSelectionOpsTest {
 		val result = MeshSelectionOps.replace(base, drawableD, MeshElement.Vertex(3))
 		assertEquals(vertices(3), result.elementsOf(drawableD))
 		assertEquals(ActiveMeshElement(drawableD, MeshElement.Vertex(3)), result.activeElement)
-		assertEquals(listOf(drawableD), result.drawableIds)
-		assertEquals(drawableD, result.activeDrawableId)
+		assertEquals(listOf(drawableD), result.owners)
+		assertEquals(drawableD, result.activeOwner)
 	}
 
 	/** replace on one session mesh clears the other meshes' selections (a plain click replaces everything). */
@@ -117,7 +125,7 @@ class MeshSelectionOpsTest {
 		val result = MeshSelectionOps.replace(seeded, drawableE, MeshElement.Vertex(0))
 		assertTrue(result.elementsOf(drawableD).isEmpty(), "the other mesh's selection cleared")
 		assertEquals(vertices(0), result.elementsOf(drawableE))
-		assertEquals(drawableE, result.activeDrawableId, "the clicked mesh becomes active")
+		assertEquals(drawableE, result.activeOwner, "the clicked mesh becomes active")
 	}
 
 	/** toggle adds a missing element (active) and removes a present one (active falls back or clears). */
@@ -131,7 +139,7 @@ class MeshSelectionOpsTest {
 		assertEquals(vertices(1), removed.elementsOf(drawableD))
 		val removedActive = removed.activeElement
 		assertTrue(
-			removedActive != null && removed.contains(removedActive.drawableId, removedActive.element),
+			removedActive != null && removed.contains(removedActive.owner, removedActive.element),
 			"active stays a member after removal",
 		)
 
@@ -188,8 +196,23 @@ class MeshSelectionOpsTest {
 		val result = MeshSelectionOps.clear(MeshSelectionOps.add(edgeMode, drawableD, MeshElement.Edge.of(1, 0)))
 		assertTrue(result.isEmpty)
 		assertNull(result.activeElement)
-		assertEquals(listOf(drawableD, drawableE), result.drawableIds)
+		assertEquals(listOf(drawableD, drawableE), result.owners)
 		assertEquals(MeshSelectMode.Edge, result.selectMode)
+	}
+
+	/** clearElementsOf empties only the named meshes, dropping the active element only when it lies on one. */
+	@Test
+	fun clearElementsOfKeepsTheSessionAndOtherMeshes() {
+		val selected = MeshSelectionOps.add(MeshSelectionOps.add(dual, drawableE, MeshElement.Vertex(2)), drawableD, MeshElement.Vertex(1))
+		val cleared = MeshSelectionOps.clearElementsOf(selected, setOf(drawableD))
+		assertTrue(cleared.elementsOf(drawableD).isEmpty())
+		assertEquals(vertices(2), cleared.elementsOf(drawableE))
+		assertNull(cleared.activeElement, "the active element lay on the cleared mesh")
+		assertEquals(selected.drawableIds, cleared.drawableIds)
+		assertEquals(selected.activeDrawableId, cleared.activeDrawableId)
+		assertEquals(selected.selectMode, cleared.selectMode)
+		val keptActive = MeshSelectionOps.clearElementsOf(selected, setOf(drawableE))
+		assertEquals(ActiveMeshElement(drawableD, MeshElement.Vertex(1)), keptActive.activeElement)
 	}
 
 	/** The gestures work identically over edge and face elements, and Edge.of canonicalizes endpoint order. */
@@ -208,12 +231,12 @@ class MeshSelectionOpsTest {
 	@Test
 	fun changeSelectModeSameModeIsIdentityAndConversionDropsActive() {
 		val selection = MeshSelectionOps.add(base, drawableD, MeshElement.Vertex(0))
-		assertSame(selection, MeshSelectionOps.changeSelectMode(selection, MeshSelectMode.Vertex) { spokeIndices })
+		assertSame(selection, MeshSelectionOps.changeSelectMode(selection, MeshSelectMode.Vertex) { spokeTopology })
 
-		val converted = MeshSelectionOps.changeSelectMode(selection, MeshSelectMode.Edge) { spokeIndices }
+		val converted = MeshSelectionOps.changeSelectMode(selection, MeshSelectMode.Edge) { spokeTopology }
 		assertEquals(MeshSelectMode.Edge, converted.selectMode)
 		assertNull(converted.activeElement, "no single last-touched element survives a domain change")
-		assertEquals(listOf(drawableD), converted.drawableIds)
+		assertEquals(listOf(drawableD), converted.owners)
 	}
 
 	/** A mode switch converts EVERY session mesh's elements against its own topology. */
@@ -221,14 +244,14 @@ class MeshSelectionOpsTest {
 	fun changeSelectModeConvertsPerMesh() {
 		val selection =
 			dual.copy(
-				elementsByDrawable =
+				elementsByOwner =
 					mapOf(
 						// All of spoke face 0's vertices on d; all of strip face 0's vertices on e.
 						drawableD to vertices(0, 1, 2),
 						drawableE to vertices(0, 1, 2),
 					),
 			)
-		val converted = MeshSelectionOps.changeSelectMode(selection, MeshSelectMode.Face) { drawableId -> meshOf(drawableId)?.indices }
+		val converted = MeshSelectionOps.changeSelectMode(selection, MeshSelectMode.Face) { owner -> topologyOf(owner) }
 		assertEquals(setOf<MeshElement>(MeshElement.Face(0)), converted.elementsOf(drawableD), "the spoke's face 0 derives on d")
 		assertEquals(setOf<MeshElement>(MeshElement.Face(0)), converted.elementsOf(drawableE), "the strip's face 0 derives on e")
 	}
@@ -236,7 +259,7 @@ class MeshSelectionOpsTest {
 	/** Vertex-to-edge derives only edges whose both endpoints were selected. */
 	@Test
 	fun vertexToEdgeRequiresBothEndpoints() {
-		val converted = MeshSelectionOps.changeSelectMode(selectionOnD(vertices(0, 1, 3)), MeshSelectMode.Edge) { spokeIndices }
+		val converted = MeshSelectionOps.changeSelectMode(selectionOnD(vertices(0, 1, 3)), MeshSelectMode.Edge) { spokeTopology }
 		assertEquals(
 			setOf<MeshElement>(MeshElement.Edge.of(0, 1), MeshElement.Edge.of(0, 3), MeshElement.Edge.of(1, 3)),
 			converted.elementsOf(drawableD),
@@ -246,10 +269,10 @@ class MeshSelectionOpsTest {
 	/** Vertex-to-face derives only faces whose all three vertices were selected. */
 	@Test
 	fun vertexToFaceRequiresAllVertices() {
-		val allOfT = MeshSelectionOps.changeSelectMode(selectionOnD(vertices(0, 1, 2)), MeshSelectMode.Face) { spokeIndices }
+		val allOfT = MeshSelectionOps.changeSelectMode(selectionOnD(vertices(0, 1, 2)), MeshSelectMode.Face) { spokeTopology }
 		assertEquals(setOf<MeshElement>(MeshElement.Face(0)), allOfT.elementsOf(drawableD))
 
-		val twoOfThree = MeshSelectionOps.changeSelectMode(selectionOnD(vertices(0, 1, 4)), MeshSelectMode.Face) { spokeIndices }
+		val twoOfThree = MeshSelectionOps.changeSelectMode(selectionOnD(vertices(0, 1, 4)), MeshSelectMode.Face) { spokeTopology }
 		assertTrue(twoOfThree.isEmpty, "two of three vertices never derive a face")
 	}
 
@@ -267,12 +290,12 @@ class MeshSelectionOpsTest {
 				MeshElement.Edge.of(2, 4),
 			)
 		// Sanity: these four edges cover all of T's vertices {0, 1, 2}.
-		assertTrue(MeshTopology.coveredVertexIndices(neighborEdges, spokeIndices).containsAll(setOf(0, 1, 2)))
+		assertTrue(MeshTopology.coveredVertexIndices(neighborEdges, spokeTopology).containsAll(setOf(0, 1, 2)))
 		val converted =
 			MeshSelectionOps.changeSelectMode(
 				selectionOnD(neighborEdges, selectMode = MeshSelectMode.Edge),
 				MeshSelectMode.Face,
-			) { spokeIndices }
+			) { spokeTopology }
 		assertTrue(converted.isEmpty, "no face owns all three of its edges here (T owns none, A and B own two)")
 
 		val ownEdges =
@@ -285,7 +308,7 @@ class MeshSelectionOpsTest {
 			MeshSelectionOps.changeSelectMode(
 				selectionOnD(ownEdges, selectMode = MeshSelectMode.Edge),
 				MeshSelectMode.Face,
-			) { spokeIndices }
+			) { spokeTopology }
 		assertEquals(setOf<MeshElement>(MeshElement.Face(0)), face.elementsOf(drawableD), "all three own edges derive exactly T")
 	}
 
@@ -296,7 +319,7 @@ class MeshSelectionOpsTest {
 			MeshSelectionOps.changeSelectMode(
 				selectionOnD(setOf(MeshElement.Face(1)), selectMode = MeshSelectMode.Face),
 				MeshSelectMode.Edge,
-			) { spokeIndices }
+			) { spokeTopology }
 		assertEquals(
 			setOf<MeshElement>(MeshElement.Edge.of(0, 1), MeshElement.Edge.of(1, 3), MeshElement.Edge.of(0, 3)),
 			converted.elementsOf(drawableD),
@@ -315,10 +338,10 @@ class MeshSelectionOpsTest {
 				setOf(MeshElement.Face(1), MeshElement.Face(2), MeshElement.Face(3)),
 				selectMode = MeshSelectMode.Face,
 			)
-		val flushed = MeshSelectionOps.changeSelectMode(neighbors, MeshSelectMode.Vertex) { spokeIndices }
+		val flushed = MeshSelectionOps.changeSelectMode(neighbors, MeshSelectMode.Vertex) { spokeTopology }
 		assertEquals(vertices(0, 1, 2, 3, 4, 5), flushed.elementsOf(drawableD), "flush-down covers every vertex of the selected faces")
 
-		val derived = MeshSelectionOps.changeSelectMode(flushed, MeshSelectMode.Face) { spokeIndices }
+		val derived = MeshSelectionOps.changeSelectMode(flushed, MeshSelectMode.Face) { spokeTopology }
 		assertEquals(
 			setOf<MeshElement>(MeshElement.Face(0), MeshElement.Face(1), MeshElement.Face(2), MeshElement.Face(3)),
 			derived.elementsOf(drawableD),
@@ -333,26 +356,26 @@ class MeshSelectionOpsTest {
 			MeshSelectionOps.changeSelectMode(
 				selectionOnD(setOf(MeshElement.Edge.of(1, 3), MeshElement.Edge.of(2, 4)), selectMode = MeshSelectMode.Edge),
 				MeshSelectMode.Vertex,
-			) { spokeIndices }
+			) { spokeTopology }
 		assertEquals(vertices(1, 2, 3, 4), converted.elementsOf(drawableD))
 	}
 
 	/** selectAll fills the current mode's whole domain on every session mesh, keeping the active element. */
 	@Test
 	fun selectAllFillsDomainPerModeAcrossMeshes() {
-		val seeded = selectionOnD(vertices(2), active = MeshElement.Vertex(2)).copy(drawableIds = dual.drawableIds)
-		val allVertices = MeshSelectionOps.selectAll(seeded, ::meshOf)
+		val seeded = selectionOnD(vertices(2), active = MeshElement.Vertex(2)).copy(owners = dual.owners)
+		val allVertices = MeshSelectionOps.selectAll(seeded, ::topologyOf)
 		assertEquals(vertices(0, 1, 2, 3, 4, 5), allVertices.elementsOf(drawableD), "the spoke's six vertices")
 		assertEquals(vertices(0, 1, 2, 3), allVertices.elementsOf(drawableE), "the strip's four vertices")
 		assertEquals(ActiveMeshElement(drawableD, MeshElement.Vertex(2)), allVertices.activeElement, "active kept - it is still selected")
 
-		val allFaces = MeshSelectionOps.selectAll(base.copy(selectMode = MeshSelectMode.Face), ::meshOf)
+		val allFaces = MeshSelectionOps.selectAll(base.copy(selectMode = MeshSelectMode.Face), ::topologyOf)
 		assertEquals(
 			setOf<MeshElement>(MeshElement.Face(0), MeshElement.Face(1), MeshElement.Face(2), MeshElement.Face(3)),
 			allFaces.elementsOf(drawableD),
 		)
 
-		val allEdges = MeshSelectionOps.selectAll(base.copy(selectMode = MeshSelectMode.Edge), ::meshOf)
+		val allEdges = MeshSelectionOps.selectAll(base.copy(selectMode = MeshSelectMode.Edge), ::topologyOf)
 		assertEquals(MeshTopology.uniqueEdges(spokeIndices).toSet(), allEdges.elementsOf(drawableD))
 	}
 
@@ -361,10 +384,10 @@ class MeshSelectionOpsTest {
 	fun invertComplementsDomainAndDropsDeselectedActive() {
 		val selection =
 			dual.copy(
-				elementsByDrawable = mapOf(drawableD to vertices(0, 1)),
+				elementsByOwner = mapOf(drawableD to vertices(0, 1)),
 				activeElement = ActiveMeshElement(drawableD, MeshElement.Vertex(0)),
 			)
-		val inverted = MeshSelectionOps.invert(selection, ::meshOf)
+		val inverted = MeshSelectionOps.invert(selection, ::topologyOf)
 		assertEquals(vertices(2, 3, 4, 5), inverted.elementsOf(drawableD))
 		assertEquals(vertices(0, 1, 2, 3), inverted.elementsOf(drawableE), "an untouched session mesh inverts from empty to all")
 		assertNull(inverted.activeElement, "the active element was deselected by the inversion")
@@ -377,20 +400,20 @@ class MeshSelectionOpsTest {
 		val stripSelection = MeshSelection.editing(listOf(drawableE))
 		val island = setOf(0, 1, 2, 3)
 
-		val vertexResult = MeshSelectionOps.selectLinked(stripSelection, drawableE, island, stripIndices)
+		val vertexResult = MeshSelectionOps.selectLinked(stripSelection, drawableE, island, stripTopology)
 		assertEquals(vertices(0, 1, 2, 3), vertexResult.elementsOf(drawableE), "vertex mode adds every island vertex")
 
 		val edgeResult =
-			MeshSelectionOps.selectLinked(stripSelection.copy(selectMode = MeshSelectMode.Edge), drawableE, island, stripIndices)
+			MeshSelectionOps.selectLinked(stripSelection.copy(selectMode = MeshSelectMode.Edge), drawableE, island, stripTopology)
 		assertEquals(MeshTopology.uniqueEdges(stripIndices).toSet(), edgeResult.elementsOf(drawableE), "edge mode adds the island's edges")
 
 		val faceResult =
-			MeshSelectionOps.selectLinked(stripSelection.copy(selectMode = MeshSelectMode.Face), drawableE, island, stripIndices)
+			MeshSelectionOps.selectLinked(stripSelection.copy(selectMode = MeshSelectMode.Face), drawableE, island, stripTopology)
 		assertEquals(setOf<MeshElement>(MeshElement.Face(0), MeshElement.Face(1)), faceResult.elementsOf(drawableE))
 
 		// Additive: an existing selection on another vertex survives the union.
 		val seeded = MeshSelectionOps.add(stripSelection, drawableE, MeshElement.Vertex(3))
-		val grown = MeshSelectionOps.selectLinked(seeded, drawableE, setOf(0, 1, 2), stripIndices)
+		val grown = MeshSelectionOps.selectLinked(seeded, drawableE, setOf(0, 1, 2), stripTopology)
 		assertEquals(vertices(0, 1, 2, 3), grown.elementsOf(drawableE), "the union keeps prior members")
 		assertEquals(ActiveMeshElement(drawableE, MeshElement.Vertex(3)), grown.activeElement, "the active element is untouched")
 	}
@@ -406,5 +429,40 @@ class MeshSelectionOpsTest {
 		val afterOtherGone = MeshSelectionOps.remove(selection, mapOf(drawableD to vertices(0)))
 		assertEquals(vertices(1, 2), afterOtherGone.elementsOf(drawableD))
 		assertEquals(ActiveMeshElement(drawableD, MeshElement.Vertex(2)), afterOtherGone.activeElement, "active kept when it survives")
+	}
+
+	/**
+	 * An additive box keeps a mesh's set INSTANCE when it adds nothing to it - an empty entry, or elements
+	 * the mesh already has - so a consumer keyed on the set's identity (the GPU overlay's flags) sees that
+	 * mesh as untouched.  A brush stroke passes every session mesh on every stamp.
+	 */
+	@Test
+	fun anAdditiveBoxKeepsAnUntouchedMeshSetByIdentity() {
+		val seeded = MeshSelectionOps.box(dual, mapOf(drawableD to vertices(0, 1), drawableE to vertices(2)), additive = false)
+		val keptSet = seeded.elementsOf(drawableE)
+
+		val emptyEntry = MeshSelectionOps.box(seeded, mapOf(drawableD to vertices(3), drawableE to emptySet()), additive = true)
+		assertSame(keptSet, emptyEntry.elementsOf(drawableE), "an empty entry leaves the mesh's set as it was")
+		assertEquals(vertices(0, 1, 3), emptyEntry.elementsOf(drawableD), "while the touched mesh grows")
+
+		val knownEntry = MeshSelectionOps.box(seeded, mapOf(drawableE to vertices(2)), additive = true)
+		assertSame(keptSet, knownEntry.elementsOf(drawableE), "elements the mesh already has leave its set as it was")
+	}
+
+	/**
+	 * A remove keeps a mesh's set INSTANCE when it removes nothing from it: an empty entry, or elements the
+	 * mesh does not have.
+	 */
+	@Test
+	fun aRemoveKeepsAnUntouchedMeshSetByIdentity() {
+		val seeded = MeshSelectionOps.box(dual, mapOf(drawableD to vertices(0, 1), drawableE to vertices(2)), additive = false)
+		val keptSet = seeded.elementsOf(drawableE)
+
+		val emptyEntry = MeshSelectionOps.remove(seeded, mapOf(drawableD to vertices(1), drawableE to emptySet()))
+		assertSame(keptSet, emptyEntry.elementsOf(drawableE), "an empty entry leaves the mesh's set as it was")
+		assertEquals(vertices(0), emptyEntry.elementsOf(drawableD), "while the touched mesh shrinks")
+
+		val absentEntry = MeshSelectionOps.remove(seeded, mapOf(drawableE to vertices(3)))
+		assertSame(keptSet, absentEntry.elementsOf(drawableE), "elements the mesh does not have leave its set as it was")
 	}
 }

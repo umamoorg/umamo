@@ -122,13 +122,18 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 			if ((bytes[position].toInt() and 0xFF) != 0xFF) {
 				// Resynchronize: stray bytes between segments are not legal but do occur.
 				position++
+
 				continue
 			}
+
 			val marker = bytes[position + 1].toInt() and 0xFF
+
 			if (marker == 0xFF || marker == 0x00) {
 				position++
+
 				continue
 			}
+
 			position += 2
 
 			when {
@@ -156,16 +161,37 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 					val payloadEnd = minOf(position + segmentLength, bytes.size)
 
 					when {
-						marker == JpegConstants.MARKER_DQT -> readQuantizationTables(payloadStart, payloadEnd)
-						marker == JpegConstants.MARKER_DHT -> readHuffmanTables(payloadStart, payloadEnd)
-						marker == JpegConstants.MARKER_DRI -> restartInterval = readUnsigned16(payloadStart)
-						marker == JpegConstants.MARKER_APP0 -> readJfif(payloadStart, payloadEnd)
-						marker == JpegConstants.MARKER_APP14 -> readAdobe(payloadStart, payloadEnd)
-						marker == JpegConstants.MARKER_DAC -> throw IllegalArgumentException("Unsupported JPEG: arithmetic-coded JPEG")
-						JpegConstants.isStartOfFrame(marker) -> readFrame(marker, payloadStart, payloadEnd)
+						marker == JpegConstants.MARKER_DQT -> {
+							readQuantizationTables(payloadStart, payloadEnd)
+						}
+
+						marker == JpegConstants.MARKER_DHT -> {
+							readHuffmanTables(payloadStart, payloadEnd)
+						}
+
+						marker == JpegConstants.MARKER_DRI -> {
+							restartInterval = readUnsigned16(payloadStart)
+						}
+
+						marker == JpegConstants.MARKER_APP0 -> {
+							readJfif(payloadStart, payloadEnd)
+						}
+
+						marker == JpegConstants.MARKER_APP14 -> {
+							readAdobe(payloadStart, payloadEnd)
+						}
+
+						marker == JpegConstants.MARKER_DAC -> {
+							throw IllegalArgumentException("Unsupported JPEG: arithmetic-coded JPEG")
+						}
+
+						JpegConstants.isStartOfFrame(marker) -> {
+							readFrame(marker, payloadStart, payloadEnd)
+						}
 
 						marker == JpegConstants.MARKER_SOS -> {
 							position = decodeScan(payloadStart, payloadEnd)
+
 							continue
 						}
 
@@ -173,7 +199,9 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 							// APPn / COM / DNL and other segments carry no data this decoder needs.
 						}
 					}
+
 					position += segmentLength
+
 					continue
 				}
 			}
@@ -192,6 +220,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 		if (position + 1 >= bytes.size || (bytes[position].toInt() and 0xFF) != 0xFF) {
 			return -1
 		}
+
 		return bytes[position + 1].toInt() and 0xFF
 	}
 
@@ -203,6 +232,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 	 */
 	private fun readUnsigned16(position: Int): Int {
 		require(position + 1 < bytes.size) { "Truncated JPEG data" }
+
 		return ((bytes[position].toInt() and 0xFF) shl 8) or (bytes[position + 1].toInt() and 0xFF)
 	}
 
@@ -214,6 +244,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 	 */
 	private fun readQuantizationTables(start: Int, end: Int) {
 		var position = start
+
 		while (position < end) {
 			val precisionAndIndex = bytes[position].toInt() and 0xFF
 			position++
@@ -224,6 +255,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 
 			// DQT values arrive in zig-zag order; store them in natural order for the IDCT.
 			val table = IntArray(JpegConstants.BLOCK_COEFFICIENTS)
+
 			for (zigZagIndex in 0 until JpegConstants.BLOCK_COEFFICIENTS) {
 				val value =
 					if (precision == 0) {
@@ -234,6 +266,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 				position += if (precision == 0) 1 else 2
 				table[JpegConstants.NATURAL_ORDER[zigZagIndex]] = value
 			}
+
 			quantizationTables[tableIndex] = table
 		}
 	}
@@ -246,6 +279,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 	 */
 	private fun readHuffmanTables(start: Int, end: Int) {
 		var position = start
+
 		while (position < end) {
 			val classAndIndex = bytes[position].toInt() and 0xFF
 			position++
@@ -256,20 +290,25 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 
 			val codeCountsPerLength = IntArray(16)
 			var totalCodes = 0
+
 			for (lengthIndex in 0 until 16) {
 				codeCountsPerLength[lengthIndex] = bytes[position + lengthIndex].toInt() and 0xFF
 				totalCodes += codeCountsPerLength[lengthIndex]
 			}
+
 			position += 16
 
 			require(position + totalCodes <= end) { "Truncated JPEG Huffman table" }
 			val values = IntArray(totalCodes)
+
 			for (valueIndex in 0 until totalCodes) {
 				values[valueIndex] = bytes[position + valueIndex].toInt() and 0xFF
 			}
+
 			position += totalCodes
 
 			val table = JpegHuffmanTable(codeCountsPerLength, values)
+
 			if (tableClass == 0) {
 				dcHuffmanTables[tableIndex] = table
 			} else {
@@ -288,6 +327,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 		if (end - start < 5) {
 			return
 		}
+
 		// APP0 identifier "JFIF\0".
 		if (bytes[start].toInt() == 0x4A &&
 			bytes[start + 1].toInt() == 0x46 &&
@@ -309,6 +349,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 		if (end - start < 12) {
 			return
 		}
+
 		// APP14 identifier "Adobe"; the transform byte is the last of the 12-byte payload.
 		if (bytes[start].toInt() == 0x41 &&
 			bytes[start + 1].toInt() == 0x64 &&
@@ -347,6 +388,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 		require(end - start >= 6 + componentCount * 3) { "Truncated JPEG SOF component list" }
 
 		val parsed = ArrayList<JpegComponent>(componentCount)
+
 		for (componentIndex in 0 until componentCount) {
 			val fieldStart = start + 6 + componentIndex * 3
 			val samplingFactors = bytes[fieldStart + 1].toInt() and 0xFF
@@ -365,11 +407,13 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 					quantizationTableIndex = quantizationTableIndex,
 				)
 		}
+
 		components = parsed
 		frameSeen = true
 
 		maxHorizontalSamplingFactor = parsed.maxOf { it.horizontalSamplingFactor }
 		maxVerticalSamplingFactor = parsed.maxOf { it.verticalSamplingFactor }
+
 		// Every component must upsample by a whole number, which T.81 permits to be false (Hi/Vi are
 		// independent 1..4 fields) but no real encoder emits.  libjpeg rejects these outright
 		// ("Fractional sampling not implemented yet", jdsample.c), and matching libjpeg's output is
@@ -385,6 +429,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 					"against a maximum of ${maxHorizontalSamplingFactor}x$maxVerticalSamplingFactor)"
 			}
 		}
+
 		mcusPerLine = ceilDivide(frameWidth, 8 * maxHorizontalSamplingFactor)
 		mcusPerColumn = ceilDivide(frameHeight, 8 * maxVerticalSamplingFactor)
 
@@ -411,6 +456,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 		require(scanComponentCount in 1..components.size) { "Invalid JPEG scan component count $scanComponentCount" }
 
 		val scanComponents = ArrayList<JpegComponent>(scanComponentCount)
+
 		for (scanIndex in 0 until scanComponentCount) {
 			val fieldStart = start + 1 + scanIndex * 2
 			val componentIdentifier = bytes[fieldStart].toInt() and 0xFF
@@ -441,6 +487,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 			require(spectralStart <= spectralEnd && spectralEnd < JpegConstants.BLOCK_COEFFICIENTS) {
 				"Invalid progressive JPEG spectral band $spectralStart..$spectralEnd"
 			}
+
 			if (spectralStart == 0) {
 				require(spectralEnd == 0) { "A progressive JPEG DC scan must cover coefficient 0 alone (band $spectralStart..$spectralEnd)" }
 			} else {
@@ -455,6 +502,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 
 		endOfBandRun = 0
 		val reader = JpegBitReader(bytes, end)
+
 		if (scanComponentCount == 1) {
 			decodeNonInterleavedScan(reader, scanComponents[0])
 		} else {
@@ -463,15 +511,19 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 
 		// Skip past any trailing bytes to the next marker.
 		var position = reader.position
+
 		while (position + 1 < bytes.size) {
 			if ((bytes[position].toInt() and 0xFF) == 0xFF) {
 				val marker = bytes[position + 1].toInt() and 0xFF
+
 				if (marker != 0x00 && marker != 0xFF && marker !in JpegConstants.MARKER_RST0..JpegConstants.MARKER_RST7) {
 					break
 				}
 			}
+
 			position++
 		}
+
 		return position
 	}
 
@@ -484,15 +536,19 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 	private fun decodeInterleavedScan(reader: JpegBitReader, scanComponents: List<JpegComponent>) {
 		val totalMcus = mcusPerLine * mcusPerColumn
 		var mcusSinceRestart = 0
+
 		for (mcuIndex in 0 until totalMcus) {
 			if (restartInterval > 0 && mcusSinceRestart == restartInterval) {
 				if (!restart(reader, scanComponents)) {
 					return
 				}
+
 				mcusSinceRestart = 0
 			}
+
 			val mcuRow = mcuIndex / mcusPerLine
 			val mcuColumn = mcuIndex % mcusPerLine
+
 			for (component in scanComponents) {
 				for (blockY in 0 until component.verticalSamplingFactor) {
 					for (blockX in 0 until component.horizontalSamplingFactor) {
@@ -505,6 +561,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 					}
 				}
 			}
+
 			mcusSinceRestart++
 		}
 	}
@@ -521,14 +578,17 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 		val blocksPerColumn = ceilDivide(component.downsampledHeight, 8)
 		val scanComponents = listOf(component)
 		var blocksSinceRestart = 0
+
 		for (blockRow in 0 until blocksPerColumn) {
 			for (blockColumn in 0 until blocksPerLine) {
 				if (restartInterval > 0 && blocksSinceRestart == restartInterval) {
 					if (!restart(reader, scanComponents)) {
 						return
 					}
+
 					blocksSinceRestart = 0
 				}
+
 				decodeBlock(reader, component, blockRow, blockColumn)
 				blocksSinceRestart++
 			}
@@ -546,11 +606,14 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 		if (!reader.restart()) {
 			return false
 		}
+
 		for (component in scanComponents) {
 			component.dcPredictor = 0
 		}
+
 		// A restart interval is independently decodable, so any pending end-of-band run ends with it.
 		endOfBandRun = 0
+
 		return true
 	}
 
@@ -564,9 +627,11 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 	 */
 	private fun decodeBlock(reader: JpegBitReader, component: JpegComponent, blockRow: Int, blockColumn: Int) {
 		val blockOffset = (blockRow * component.blocksPerLine + blockColumn) * JpegConstants.BLOCK_COEFFICIENTS
+
 		if (blockOffset < 0 || blockOffset + JpegConstants.BLOCK_COEFFICIENTS > component.coefficients.size) {
 			return
 		}
+
 		when {
 			!progressive -> decodeBaselineBlock(reader, component, blockOffset)
 			spectralStart == 0 && approximationHigh == 0 -> decodeDcFirst(reader, component, blockOffset)
@@ -616,23 +681,30 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 
 		// AC coefficients: run-length of zeros in the high nibble, magnitude category in the low.
 		var coefficientIndex = 1
+
 		while (coefficientIndex < JpegConstants.BLOCK_COEFFICIENTS) {
 			val runAndSize = acTable.decode(reader)
 			val magnitudeCategory = runAndSize and 0x0F
 			val zeroRunLength = runAndSize shr 4
+
 			if (magnitudeCategory == 0) {
 				if (zeroRunLength != 15) {
 					// End Of Block: the rest of the block is zero.
 					break
 				}
+
 				// ZRL: a run of 16 zeros.
 				coefficientIndex += 16
+
 				continue
 			}
+
 			coefficientIndex += zeroRunLength
+
 			if (coefficientIndex >= JpegConstants.BLOCK_COEFFICIENTS) {
 				break
 			}
+
 			val value = extendJpegValue(reader.readBits(magnitudeCategory), magnitudeCategory)
 			component.coefficients[blockOffset + JpegConstants.NATURAL_ORDER[coefficientIndex]] = value.toShort()
 			coefficientIndex++
@@ -677,32 +749,44 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 		if (endOfBandRun > 0) {
 			// This block's whole band is zero, accounted for by a previous EOBn code.
 			endOfBandRun--
+
 			return
 		}
+
 		val acTable = acTableFor(component)
 		var coefficientIndex = spectralStart
+
 		while (coefficientIndex <= spectralEnd) {
 			val runAndSize = acTable.decode(reader)
 			val magnitudeCategory = runAndSize and 0x0F
 			var zeroRunLength = runAndSize shr 4
+
 			if (magnitudeCategory == 0) {
 				if (zeroRunLength != 15) {
 					// EOBn: this block plus the next 2^n - 1 + extra blocks have an empty rest-of-band.
 					endOfBandRun = 1 shl zeroRunLength
+
 					if (zeroRunLength != 0) {
 						endOfBandRun += reader.readBits(zeroRunLength)
 					}
+
 					endOfBandRun--
+
 					break
 				}
+
 				// ZRL: skip 16 zero coefficients.
 				coefficientIndex += 16
+
 				continue
 			}
+
 			coefficientIndex += zeroRunLength
+
 			if (coefficientIndex > spectralEnd) {
 				break
 			}
+
 			val value = extendJpegValue(reader.readBits(magnitudeCategory), magnitudeCategory)
 			component.coefficients[blockOffset + JpegConstants.NATURAL_ORDER[coefficientIndex]] = (value shl approximationLow).toShort()
 			coefficientIndex++
@@ -737,9 +821,11 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 					if (zeroRunLength != 15) {
 						// EOBn: the rest of this band, and of the next blocks, is handled as corrections only.
 						endOfBandRun = 1 shl zeroRunLength
+
 						if (zeroRunLength != 0) {
 							endOfBandRun += reader.readBits(zeroRunLength)
 						}
+
 						break
 					}
 					// ZRL: skip 16 zero-history coefficients (correcting nonzero ones on the way).
@@ -753,20 +839,24 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 				while (coefficientIndex <= spectralEnd) {
 					val position = blockOffset + JpegConstants.NATURAL_ORDER[coefficientIndex]
 					val existing = component.coefficients[position].toInt()
+
 					if (existing != 0) {
 						appendCorrectionBit(reader, component, position, existing, positiveBit, negativeBit)
 					} else {
 						if (zeroRunLength == 0) {
 							break
 						}
+
 						zeroRunLength--
 					}
+
 					coefficientIndex++
 				}
 
 				if (newValue != 0 && coefficientIndex <= spectralEnd) {
 					component.coefficients[blockOffset + JpegConstants.NATURAL_ORDER[coefficientIndex]] = newValue.toShort()
 				}
+
 				coefficientIndex++
 			}
 		}
@@ -776,11 +866,14 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 			while (coefficientIndex <= spectralEnd) {
 				val position = blockOffset + JpegConstants.NATURAL_ORDER[coefficientIndex]
 				val existing = component.coefficients[position].toInt()
+
 				if (existing != 0) {
 					appendCorrectionBit(reader, component, position, existing, positiveBit, negativeBit)
 				}
+
 				coefficientIndex++
 			}
+
 			endOfBandRun--
 		}
 	}
@@ -800,9 +893,11 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 		if (reader.readBit() == 0) {
 			return
 		}
+
 		if ((existing and positiveBit) != 0) {
 			return
 		}
+
 		val corrected = if (existing >= 0) existing + positiveBit else existing + negativeBit
 		component.coefficients[position] = corrected.toShort()
 	}
@@ -822,12 +917,15 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 		for (blockRow in 0 until component.blocksPerColumn) {
 			for (blockColumn in 0 until component.blocksPerLine) {
 				val blockOffset = (blockRow * component.blocksPerLine + blockColumn) * JpegConstants.BLOCK_COEFFICIENTS
+
 				for (coefficientIndex in 0 until JpegConstants.BLOCK_COEFFICIENTS) {
 					idctBlock[coefficientIndex] = component.coefficients[blockOffset + coefficientIndex] * quantizationTable[coefficientIndex]
 				}
+
 				JpegIdct.inverse(idctBlock, idctWorkspace, component.plane, blockRow * 8 * component.planeStride + blockColumn * 8, component.planeStride)
 			}
 		}
+
 		// The coefficients are spent; release them before the (larger) upsample buffers are allocated.
 		component.coefficients = ShortArray(0)
 	}
@@ -840,12 +938,14 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 	private fun assembleImage(): JpegImage {
 		require(frameSeen) { "JPEG has no frame header" }
 		val colorTransform = forcedColorTransform ?: detectColorTransform()
+
 		for (component in components) {
 			renderComponent(component)
 		}
 
 		if (components.size == 1) {
 			val luminance = upsampleComponent(components[0])
+
 			return JpegImage(frameWidth, frameHeight, 1, luminance)
 		}
 
@@ -861,6 +961,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 				rgb[pixelIndex * 3 + 1] = secondPlane[pixelIndex]
 				rgb[pixelIndex * 3 + 2] = thirdPlane[pixelIndex]
 			}
+
 			return JpegImage(frameWidth, frameHeight, 3, rgb)
 		}
 
@@ -873,6 +974,7 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 				clampToByte(luminance + ((JpegColorTables.greenFromBlueChroma[blueChroma] + JpegColorTables.greenFromRedChroma[redChroma]) shr JpegColorTables.SCALE_BITS))
 			rgb[pixelIndex * 3 + 2] = clampToByte(luminance + JpegColorTables.blueFromBlueChroma[blueChroma])
 		}
+
 		return JpegImage(frameWidth, frameHeight, 3, rgb)
 	}
 
@@ -886,16 +988,20 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 		if (components.size == 1) {
 			return JpegColorTransform.NONE
 		}
+
 		if (jfifSeen) {
 			return JpegColorTransform.YCBCR
 		}
+
 		adobeTransform?.let { transform ->
 			return if (transform == 0) JpegColorTransform.NONE else JpegColorTransform.YCBCR
 		}
+
 		// No markers: component ids 'R','G','B' mean RGB, anything else is assumed YCbCr.
 		if (components[0].identifier == 'R'.code && components[1].identifier == 'G'.code && components[2].identifier == 'B'.code) {
 			return JpegColorTransform.NONE
 		}
+
 		return JpegColorTransform.YCBCR
 	}
 
@@ -920,27 +1026,34 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 			for (row in 0 until frameHeight) {
 				component.plane.copyInto(output, row * frameWidth, row * component.planeStride, row * component.planeStride + frameWidth)
 			}
+
 			return output
 		}
 
 		val fancyEligible = horizontalExpansion == 2 && component.downsampledWidth > 2 && component.horizontalSamplingFactor * 2 == maxHorizontalSamplingFactor
+
 		if (fancyEligible && verticalExpansion == 1) {
 			upsampleHorizontallyFancy(component, output)
+
 			return output
 		}
+
 		if (fancyEligible && verticalExpansion == 2) {
 			upsampleBothFancy(component, output)
+
 			return output
 		}
 
 		// Replicate: the general power-of-two path.
 		for (row in 0 until frameHeight) {
 			val sourceRow = minOf(row / verticalExpansion, component.downsampledHeight - 1)
+
 			for (column in 0 until frameWidth) {
 				val sourceColumn = minOf(column / horizontalExpansion, component.downsampledWidth - 1)
 				output[row * frameWidth + column] = component.plane[sourceRow * component.planeStride + sourceColumn]
 			}
 		}
+
 		return output
 	}
 
@@ -953,18 +1066,21 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 	private fun upsampleHorizontallyFancy(component: JpegComponent, output: ByteArray) {
 		val sourceWidth = component.downsampledWidth
 		val expanded = ByteArray(sourceWidth * 2)
+
 		for (row in 0 until frameHeight) {
 			val sourceRow = minOf(row, component.downsampledHeight - 1)
 			val rowBase = sourceRow * component.planeStride
 
 			expanded[0] = component.plane[rowBase]
 			expanded[1] = (((component.plane[rowBase].toInt() and 0xFF) * 3 + (component.plane[rowBase + 1].toInt() and 0xFF) + 2) shr 2).toByte()
+
 			for (column in 1 until sourceWidth - 1) {
 				// 3/4 of the nearer sample plus 1/4 of the further one.
 				val nearer = (component.plane[rowBase + column].toInt() and 0xFF) * 3
 				expanded[column * 2] = ((nearer + (component.plane[rowBase + column - 1].toInt() and 0xFF) + 1) shr 2).toByte()
 				expanded[column * 2 + 1] = ((nearer + (component.plane[rowBase + column + 1].toInt() and 0xFF) + 2) shr 2).toByte()
 			}
+
 			val lastValue = component.plane[rowBase + sourceWidth - 1].toInt() and 0xFF
 			expanded[(sourceWidth - 1) * 2] = ((lastValue * 3 + (component.plane[rowBase + sourceWidth - 2].toInt() and 0xFF) + 1) shr 2).toByte()
 			expanded[(sourceWidth - 1) * 2 + 1] = lastValue.toByte()
@@ -995,16 +1111,19 @@ private class JpegDecoder(private val bytes: ByteArray, private val forcedColorT
 				}
 			val nearBase = nearRow * component.planeStride
 			val farBase = farRow * component.planeStride
+
 			for (column in 0 until sourceWidth) {
 				columnSums[column] = (component.plane[nearBase + column].toInt() and 0xFF) * 3 + (component.plane[farBase + column].toInt() and 0xFF)
 			}
 
 			expanded[0] = ((columnSums[0] * 4 + 8) shr 4).toByte()
 			expanded[1] = ((columnSums[0] * 3 + columnSums[1] + 7) shr 4).toByte()
+
 			for (column in 1 until sourceWidth - 1) {
 				expanded[column * 2] = ((columnSums[column] * 3 + columnSums[column - 1] + 8) shr 4).toByte()
 				expanded[column * 2 + 1] = ((columnSums[column] * 3 + columnSums[column + 1] + 7) shr 4).toByte()
 			}
+
 			expanded[(sourceWidth - 1) * 2] = ((columnSums[sourceWidth - 1] * 3 + columnSums[sourceWidth - 2] + 8) shr 4).toByte()
 			expanded[(sourceWidth - 1) * 2 + 1] = ((columnSums[sourceWidth - 1] * 4 + 7) shr 4).toByte()
 

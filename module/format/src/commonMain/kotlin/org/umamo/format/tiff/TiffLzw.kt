@@ -46,16 +46,21 @@ private class LzwString(
 		if (length == 0) {
 			return offset
 		}
+
 		var entry: LzwString? = this
 		var index = length - 1
+
 		while (entry != null && index >= 0) {
 			val position = offset + index
+
 			if (position < out.size) {
 				out[position] = entry.value
 			}
+
 			entry = entry.previous
 			index--
 		}
+
 		return minOf(offset + length, out.size)
 	}
 }
@@ -71,6 +76,7 @@ private class LzwString(
 internal fun decodeLzw(input: ByteArray, expectedSize: Int): ByteArray {
 	val oldBitReversed = isOldBitReversedStream(input)
 	val decoder = LzwDecoder(input, oldBitReversed)
+
 	return decoder.decode(expectedSize)
 }
 
@@ -85,8 +91,10 @@ private fun isOldBitReversedStream(input: ByteArray): Boolean {
 	if (input.size < 2) {
 		return false
 	}
+
 	val one = input[0].toInt() and 0xFF
 	val two = input[1].toInt() and 0xFF
+
 	return one == 0 && (two and 0x1) == 1
 }
 
@@ -114,6 +122,7 @@ private class LzwDecoder(
 		for (byteValue in 0..255) {
 			table[byteValue] = LzwString(byteValue.toByte())
 		}
+
 		reset()
 	}
 
@@ -152,41 +161,57 @@ private class LzwDecoder(
 		if (eofReached) {
 			return EOI_CODE
 		}
+
 		var read = readByte()
+
 		if (read < 0) {
 			eofReached = true
+
 			return EOI_CODE
 		}
+
 		if (oldBitReversed) {
 			nextData = nextData or (read shl nextBits)
 			nextBits += 8
+
 			if (nextBits < bitsPerCode) {
 				read = readByte()
+
 				if (read < 0) {
 					eofReached = true
+
 					return EOI_CODE
 				}
+
 				nextData = nextData or (read shl nextBits)
 				nextBits += 8
 			}
+
 			val code = nextData and bitMask
 			nextData = nextData ushr bitsPerCode
 			nextBits -= bitsPerCode
+
 			return code
 		} else {
 			nextData = (nextData shl 8) or read
 			nextBits += 8
+
 			if (nextBits < bitsPerCode) {
 				read = readByte()
+
 				if (read < 0) {
 					eofReached = true
+
 					return EOI_CODE
 				}
+
 				nextData = (nextData shl 8) or read
 				nextBits += 8
 			}
+
 			val code = (nextData shr (nextBits - bitsPerCode)) and bitMask
 			nextBits -= bitsPerCode
+
 			return code
 		}
 	}
@@ -200,15 +225,20 @@ private class LzwDecoder(
 		if (tableLength >= table.size) {
 			throw IllegalArgumentException("TIFF LZW table overflow (more than $MAX_BITS bits per code)")
 		}
+
 		table[tableLength++] = string
+
 		if (tableLength > maxCode) {
 			bitsPerCode++
+
 			if (bitsPerCode > MAX_BITS) {
 				bitsPerCode = MAX_BITS
 			}
+
 			bitMask = (1 shl bitsPerCode) - 1
 			maxCode = maxCode()
 		}
+
 		if (string.length > maxString) {
 			maxString = string.length
 		}
@@ -224,17 +254,21 @@ private class LzwDecoder(
 		val out = ByteArray(expectedSize)
 		var position = 0
 		var code = getNextCode()
+
 		while (code != EOI_CODE) {
 			if (code == CLEAR_CODE) {
 				reset()
 				code = getNextCode()
+
 				if (code == EOI_CODE) {
 					break
 				}
+
 				val entry = table[code] ?: throw IllegalArgumentException("Corrupted TIFF LZW code $code")
 				position = entry.writeTo(out, position)
 			} else {
 				table[oldCode] ?: throw IllegalArgumentException("Corrupted TIFF LZW code $oldCode")
+
 				if (code < tableLength) {
 					val entry = table[code]!!
 					position = entry.writeTo(out, position)
@@ -245,12 +279,16 @@ private class LzwDecoder(
 					addStringToTable(outString)
 				}
 			}
+
 			oldCode = code
+
 			if (position >= expectedSize) {
 				break
 			}
+
 			code = getNextCode()
 		}
+
 		return out
 	}
 }

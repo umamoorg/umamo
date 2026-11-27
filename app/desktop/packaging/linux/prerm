@@ -1,0 +1,46 @@
+#!/bin/sh
+# Umamo's copy of the prerm template of the JDK 21 jpackage that packages the Linux installers, changed in one
+# place: the menu entry and the .uma registration are removed best-effort.  A system with no desktop menu
+# directories (a bare container, WSL, a window manager without a menu) makes xdg-desktop-menu fail, and under set -e
+# that failure would make the package impossible to remove.  Each registration command is still attempted: a shell
+# ignores set -e on the left of ||.  Re-diff this file against the packaging JDK's template whenever that JDK
+# changes.
+# prerm script for APPLICATION_PACKAGE
+#
+# see: dh_installdeb(1)
+
+set -e
+
+# summary of how this script can be called:
+#        * <prerm> `remove'
+#        * <old-prerm> `upgrade' <new-version>
+#        * <new-prerm> `failed-upgrade' <old-version>
+#        * <conflictor's-prerm> `remove' `in-favour' <package> <new-version>
+#        * <deconfigured's-prerm> `deconfigure' `in-favour'
+#          <package-being-installed> <version> `removing'
+#          <conflicting-package> <version>
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+
+package_type=deb
+DESKTOP_SCRIPTS
+LAUNCHER_AS_SERVICE_SCRIPTS
+
+case "$1" in
+    remove|upgrade|deconfigure)
+( true; DESKTOP_COMMANDS_UNINSTALL
+) || true
+LAUNCHER_AS_SERVICE_COMMANDS_UNINSTALL
+    ;;
+
+    failed-upgrade)
+    ;;
+
+    *)
+        echo "prerm called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+exit 0

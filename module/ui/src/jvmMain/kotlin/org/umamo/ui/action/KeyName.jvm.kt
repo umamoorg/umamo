@@ -41,9 +41,19 @@ private val numpadOnlyKeyCodes =
  */
 internal actual fun normalizeKeyPosition(key: Key): Key =
 	when {
-		key.nativeKeyCode == KeyEvent.VK_DECIMAL -> Key(KeyEvent.VK_PERIOD, KeyEvent.KEY_LOCATION_NUMPAD)
-		key.nativeKeyCode == KeyEvent.VK_SEPARATOR -> Key(KeyEvent.VK_COMMA, KeyEvent.KEY_LOCATION_NUMPAD)
-		key.nativeKeyCode in numpadOnlyKeyCodes && key.nativeKeyLocation != KeyEvent.KEY_LOCATION_NUMPAD ->
+		key.nativeKeyCode == KeyEvent.VK_DECIMAL -> {
+			Key(KeyEvent.VK_PERIOD, KeyEvent.KEY_LOCATION_NUMPAD)
+		}
+
+		key.nativeKeyCode == KeyEvent.VK_SEPARATOR -> {
+			Key(KeyEvent.VK_COMMA, KeyEvent.KEY_LOCATION_NUMPAD)
+		}
+
+		key.nativeKeyCode in numpadOnlyKeyCodes && key.nativeKeyLocation != KeyEvent.KEY_LOCATION_NUMPAD -> {
 			Key(key.nativeKeyCode, KeyEvent.KEY_LOCATION_NUMPAD)
-		else -> key
+		}
+
+		else -> {
+			key
+		}
 	}

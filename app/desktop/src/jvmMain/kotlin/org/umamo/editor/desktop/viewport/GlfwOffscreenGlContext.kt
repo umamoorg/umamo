@@ -2,11 +2,12 @@ package org.umamo.editor.desktop.viewport
 
 import org.lwjgl.glfw.GLFW
 import org.lwjgl.opengl.GL
+import org.lwjgl.system.MemoryStack
 import org.lwjgl.system.MemoryUtil
 import org.umamo.render.gl.GlRenderDevice
 
 /**
- * The Windows / Linux offscreen GL context: a hidden GLFW window carrying a GL 3.3 core context, made
+ * The offscreen GL context on every desktop OS: a hidden GLFW window carrying a GL 3.3 core context, made
  * current on the render thread.
  */
 internal class GlfwOffscreenGlContext : OffscreenGlContext {
@@ -14,35 +15,88 @@ internal class GlfwOffscreenGlContext : OffscreenGlContext {
 
 	private var window: Long = MemoryUtil.NULL
 
+	/** Why the last attempt failed, or null. */
+	private var failure: String? = null
+
 	/**
-	 * Creates the GLFW hidden-window GL 3.3 core context on this thread and makes it current. Returns false
-	 * (degrading to a blank viewport) if GLFW init or window creation fails.
+	 * Creates the GLFW hidden-window GL 3.3 core context on this thread and makes it current, keeping a
+	 * description of any failure, GLFW's own where GLFW reports one, for [failureReason].
 	 *
 	 * @return Boolean True on success.
 	 */
 	override fun createAndMakeCurrent(): Boolean {
-		if (!GLFW.glfwInit()) {
+		failure = null
+
+		try {
+			// glfwInit on macOS takes over the NSApplication delegate that AWT's open-file and quit handlers need
+			// (MacAppDelegate.kt), so the delegate is captured first and handed back after.
+			val appKitDelegate = currentAppKitDelegate()
+
+			if (!GLFW.glfwInit()) {
+				failure = "glfwInit failed: ${lastGlfwError()}"
+
+				return false
+			}
+
+			restoreAppKitDelegate(appKitDelegate)
+
+			GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
+			GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
+			GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
+			GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
+			GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
+			window = GLFW.glfwCreateWindow(1, 1, "umamo-offscreen", MemoryUtil.NULL, MemoryUtil.NULL)
+
+			if (window == MemoryUtil.NULL) {
+				failure = "glfwCreateWindow for a GL 3.3 core context failed: ${lastGlfwError()}"
+
+				return false
+			}
+
+			GLFW.glfwMakeContextCurrent(window)
+			GL.createCapabilities()
+
+			return true
+		} catch (loadFailure: LinkageError) {
+			// A native library that will not load (a missing or rejected dylib, dll, or so) costs the viewport, not
+			// the editor.
+			failure = "the GLFW or OpenGL natives did not load: $loadFailure"
+			destroy()
+
+			return false
+		} catch (glFailure: IllegalStateException) {
+			failure = "OpenGL capabilities could not be created: ${glFailure.message}"
+			destroy()
+
 			return false
 		}
-		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
-		window = GLFW.glfwCreateWindow(1, 1, "umamo-offscreen", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) {
-			return false
-		}
-		GLFW.glfwMakeContextCurrent(window)
-		GL.createCapabilities()
-		return true
 	}
+
+	override fun failureReason(): String? = failure
+
+	/**
+	 * GLFW's most recent error, as its code and description.
+	 *
+	 * @return String The error, or a note that GLFW reported none.
+	 */
+	private fun lastGlfwError(): String =
+		MemoryStack.stackPush().use { stack ->
+			val description = stack.mallocPointer(1)
+			val code = GLFW.glfwGetError(description)
+
+			if (code == GLFW.GLFW_NO_ERROR) {
+				"GLFW reported no error"
+			} else {
+				"GLFW error 0x${code.toString(16)}: ${MemoryUtil.memUTF8Safe(description.get(0)) ?: "no description"}"
+			}
+		}
 
 	override fun describeContext(): String = GlRenderDevice().describeBackend()
 
 	/**
-	 * Releases the GLFW window and unbinds the context. Runs on the render thread, where the context is
-	 * current, after the engine's glFinish barrier.
+	 * Releases the GLFW window and unbinds the context.  Runs on the render thread, where the context is
+	 * current, after the engine's glFinish barrier - or from a failed [createAndMakeCurrent], to release the
+	 * window it made.  Does nothing once no window is held, so a second call is harmless.
 	 */
 	override fun destroy() {
 		if (window != MemoryUtil.NULL) {

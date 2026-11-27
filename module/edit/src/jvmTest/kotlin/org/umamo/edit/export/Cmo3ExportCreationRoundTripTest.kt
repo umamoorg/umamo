@@ -3,8 +3,8 @@ package org.umamo.edit.export
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.ExportReport
-import org.umamo.interop.cmo3.Cmo3Export
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.diffPuppetModels
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -19,6 +19,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -46,6 +47,7 @@ class Cmo3ExportCreationRoundTripTest {
 		val report = Cmo3Export.apply(edited, cmo3)
 		val reimportedSource =
 			Cmo3.read(Cmo3.write(cmo3)).root as? CModelSource ?: error("re-read root is not a CModelSource")
+
 		return RoundTrip(edited, Cmo3Import.fromModelSource(reimportedSource), report)
 	}
 
@@ -55,17 +57,11 @@ class Cmo3ExportCreationRoundTripTest {
 		assertTrue(residual.isEmpty, "$label: edits lost through export/import: $residual")
 	}
 
-	private fun skipMessageOrNull(): File? {
-		val file = sample
-		if (file == null) {
-			println("cmo3.sample not present; skipping creation round-trip test")
-		}
-		return file
-	}
+	private fun sampleOrSkip(): File = sample ?: skipTest("cmo3.sample not present; skipping creation round-trip test")
 
 	@Test
 	fun createdPartRoundTrips() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				val fresh =
@@ -85,7 +81,7 @@ class Cmo3ExportCreationRoundTripTest {
 
 	@Test
 	fun createdWarpDeformerRoundTrips() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				// Clone the lattice shape from an existing warp so the control-point count matches
@@ -124,7 +120,7 @@ class Cmo3ExportCreationRoundTripTest {
 
 	@Test
 	fun createdRotationDeformerRoundTrips() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				val axisParameter = puppet.parameters.first { it.max - it.min >= 1f }
@@ -156,7 +152,7 @@ class Cmo3ExportCreationRoundTripTest {
 
 	@Test
 	fun createdGlueRoundTrips() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				// Weld the first two drawables that have enough vertices; the static intensity stays

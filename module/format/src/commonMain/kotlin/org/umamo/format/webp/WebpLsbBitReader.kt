@@ -21,6 +21,7 @@ internal class WebpLsbBitReader(private val bytes: ByteArray, startByte: Int) {
 		var result = 0L
 		var shift = 0
 		var remaining = count
+
 		while (remaining > 0) {
 			val bytePosition = (bitPosition ushr 3).toInt()
 			val bitInByte = (bitPosition and 7L).toInt()
@@ -32,6 +33,7 @@ internal class WebpLsbBitReader(private val bytes: ByteArray, startByte: Int) {
 			remaining -= take
 			bitPosition += take
 		}
+
 		return result
 	}
 
@@ -45,6 +47,7 @@ internal class WebpLsbBitReader(private val bytes: ByteArray, startByte: Int) {
 		val saved = bitPosition
 		val value = readBits(count)
 		bitPosition = saved
+
 		return value
 	}
 

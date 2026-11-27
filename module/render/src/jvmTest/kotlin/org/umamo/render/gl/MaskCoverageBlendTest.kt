@@ -32,9 +32,6 @@ import kotlin.test.assertTrue
  * uses alpha factors (GL_ZERO, GL_ONE), so if the coverage draw honoured that mode the target's alpha
  * would stay 0 and the masked drawable would vanish entirely.  The renderer must therefore draw coverage
  * at Normal, not the source's mode - this test fails if that regresses (the masked quad goes black).
- *
- * マスク被覆パスがマスク元のブレンドモードに関わらず Normal で描くことを検証する。Multiply / Additive の
- * マスク元だと被覆アルファが 0 のままになり、被マスク描画が消えてしまう回帰を捕まえる。
  */
 class MaskCoverageBlendTest {
 	private val viewportSize = 64
@@ -61,7 +58,7 @@ class MaskCoverageBlendTest {
 			parentDeformerId = null,
 			blendMode = blendMode,
 			maskedBy = maskedBy,
-			mesh = DrawableMesh(fullQuad, FloatArray(fullQuad.size), intArrayOf(0, 1, 2, 1, 3, 2)),
+			mesh = DrawableMesh.withLocalEqualToCanvas(fullQuad, FloatArray(fullQuad.size), intArrayOf(0, 1, 2, 1, 3, 2)),
 			geometryGrid = restGrid(fullQuad),
 		)
 
@@ -69,6 +66,7 @@ class MaskCoverageBlendTest {
 	private fun model(maskBlend: BlendMode): PuppetModel {
 		val maskSource = drawable(maskId, maskBlend, emptyList())
 		val masked = drawable(maskedId, BlendMode.Normal, listOf(maskId))
+
 		return PuppetModel(
 			parameters = listOf(Parameter(paramA, "A", -1f, 1f, 0f)),
 			parts = emptyList(),
@@ -79,7 +77,7 @@ class MaskCoverageBlendTest {
 			canvasWidth = 0f,
 			canvasHeight = 0f,
 			worldOriginX = 0f,
-			worldOriginY = 0f,
+			worldOriginZ = 0f,
 		)
 	}
 
@@ -111,15 +109,18 @@ class MaskCoverageBlendTest {
 		GL11.glReadPixels(0, 0, viewportSize, viewportSize, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, frame)
 		val row = viewportSize / 2
 		var lit = 0
+
 		for (column in 0 until viewportSize) {
 			val pixel = (row * viewportSize + column) * 4
 			val red = frame.get(pixel).toInt() and 0xFF
 			val green = frame.get(pixel + 1).toInt() and 0xFF
 			val blue = frame.get(pixel + 2).toInt() and 0xFF
+
 			if (maxOf(red, green, blue) > 16) {
 				lit++
 			}
 		}
+
 		return lit
 	}
 }

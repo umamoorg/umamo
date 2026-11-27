@@ -4,9 +4,8 @@ package org.umamo.render.glsl
 //
 // These are a CONTRACT, not tuning knobs: each is interpolated into the GLSL below and read by the
 // backend that fills the matching uniform, so the two cannot be changed independently.  They live here,
-// beside the sources that interpolate them, precisely so that stays true - [MAX_CORNERS] previously sat
-// in the desktop renderer while the GLSL hardcoded a bare `16` in three places, which meant changing the
-// constant silently disagreed with the shader.
+// beside the sources that interpolate them, so the shaders never hardcode a bare number that a changed
+// constant would silently disagree with.
 
 /**
  * The most keyform-grid corners a single mesh's morph can blend at once.
@@ -21,9 +20,9 @@ internal const val MAX_CORNERS = 16
  * The most blend-shape delta columns a single mesh can have active at once.
  *
  * Sizes the `blendCell` / `blendWeight` uniform arrays - the additive blend-shape pass's analogue
- * of [MAX_CORNERS], kept SEPARATE so zero-blend models keep exactly the pre-blend uniform traffic.
+ * of [MAX_CORNERS], kept SEPARATE so blend shapes add no uniform traffic to a model that has none.
  * Corpus maximum is 18 active forms (Model C: 9 bindings x 2 bracketing keys); 32 gives headroom at a
- * worst-case cost of 64 uniform components against GL 3.3 / GLES 3.0's guaranteed 1024. Surplus
+ * worst-case cost of 64 uniform components against GL 3.3 / GLES 3.0's guaranteed 1024.  Surplus
  * contributions are dropped deterministically, with the same cap applied CPU-side.
  */
 internal const val MAX_BLEND_CORNERS = 32
@@ -56,3 +55,12 @@ internal const val UNIT_POSITION = 4
 // buffer) and the destination snapshot it blends against.
 internal const val UNIT_LAYER = 5
 internal const val UNIT_DEST = 6
+
+// The overlay edge program's draw-order sampler, the side target the order pass wrote.
+internal const val UNIT_DRAW_ORDER = 7
+
+/**
+ * The drawn alpha at which a pixel of a drawable counts as covering what is behind it in the draw-order
+ * pass: half covered counts as hidden, so a faint strand or a soft edge hides no wire while solid art does.
+ */
+internal const val DRAW_ORDER_ALPHA_THRESHOLD = 0.5f

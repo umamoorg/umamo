@@ -25,7 +25,7 @@ val DefaultThumbnailSize = 44.dp
 private val ThumbnailCheckerCell = 6.dp
 
 /**
- * A square art-mesh preview slot, shared by the overlap picker and the Outliner hover preview. When
+ * A square art-mesh preview slot, shared by the overlap picker and the Outliner hover preview.  When
  * [thumbnail] is present it is drawn over a small transparency checker (the themed viewport checker colors)
  * so the layer's silhouette reads against the surface; when it is null the slot is an empty box of the same
  * size, keeping label-only rows aligned with thumbnailed ones.
@@ -36,10 +36,13 @@ private val ThumbnailCheckerCell = 6.dp
 @Composable
 fun ThumbnailSlot(thumbnail: ImageBitmap?, size: Dp = DefaultThumbnailSize) {
 	val slotModifier = Modifier.size(size)
+
 	if (thumbnail == null) {
 		Box(modifier = slotModifier)
+
 		return
 	}
+
 	val colors = LocalUmamoColors.current
 	val checkerLight = colors.transparencyCheckerLight
 	val checkerDark = colors.transparencyCheckerDark
@@ -52,8 +55,10 @@ fun ThumbnailSlot(thumbnail: ImageBitmap?, size: Dp = DefaultThumbnailSize) {
 					val columns = ceil(this.size.width / cell).toInt()
 					val rows = ceil(this.size.height / cell).toInt()
 					var rowIndex = 0
+
 					while (rowIndex < rows) {
 						var columnIndex = 0
+
 						while (columnIndex < columns) {
 							val isDarkCell = (rowIndex + columnIndex) % 2 == 1
 							drawRect(
@@ -63,6 +68,7 @@ fun ThumbnailSlot(thumbnail: ImageBitmap?, size: Dp = DefaultThumbnailSize) {
 							)
 							columnIndex += 1
 						}
+
 						rowIndex += 1
 					}
 				},

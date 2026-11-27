@@ -1,59 +1,58 @@
 package org.umamo.ui.properties
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
-import org.umamo.edit.MeshBounds
+import org.umamo.edit.EditorMode
+import org.umamo.edit.EditorSession
 import org.umamo.edit.Pose
-import org.umamo.edit.moveDeformer
-import org.umamo.edit.moveOrgChild
-import org.umamo.edit.setDeformerBaseAngle
-import org.umamo.edit.setDeformerPart
-import org.umamo.edit.setDrawableParentDeformer
+import org.umamo.edit.SelectionTarget
+import org.umamo.edit.property.previewDeformerBaseAngle
+import org.umamo.edit.property.setDeformerBaseAngle
+import org.umamo.edit.relation.RelationSlot
+import org.umamo.edit.shownPose
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
-import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Part
-import org.umamo.runtime.model.deformerSelfAndDescendants
-import org.umamo.runtime.model.parentPartByPart
-import org.umamo.runtime.model.partByDrawable
-import org.umamo.runtime.model.partSelfAndDescendants
-import org.umamo.ui.kit.FieldStack
-import org.umamo.ui.kit.NumberField
-import org.umamo.ui.kit.button.IconButton
-import org.umamo.ui.kit.button.IconButtonAppearance
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.kit.field.AspectLockFieldPair
+import org.umamo.ui.kit.field.NumberField
+import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.resources.*
-import org.umamo.ui.theme.LocalUmamoIcons
-import org.umamo.ui.theme.LocalUmamoShapes
+import org.umamo.ui.transform.ItemWorldTransform
 import org.umamo.ui.transform.drawableWorldTransform
-import org.umamo.ui.transform.setDrawableWorldCenter
-import org.umamo.ui.transform.setDrawableWorldSize
+import org.umamo.ui.transform.moved
+import org.umamo.ui.transform.previewDrawableWorldCenter
+import org.umamo.ui.transform.previewDrawableWorldSize
+import org.umamo.ui.transform.previewWarpWorldCenter
+import org.umamo.ui.transform.previewWarpWorldSize
+import org.umamo.ui.transform.setDrawableWorldCenterAdjustable
+import org.umamo.ui.transform.setDrawableWorldSizeAdjustable
+import org.umamo.ui.transform.setWarpWorldCenterAdjustable
+import org.umamo.ui.transform.setWarpWorldSizeAdjustable
+import org.umamo.ui.transform.warpWorldTransform
+import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 
 /*
- * The Object tab's sections: the universal properties of whatever single item is active - where it sits and
- * what it is bound to - as opposed to the type-specific data in DataTabSections.kt.
+ * The Object tab's sections: the universal properties of the shown item - where it sits and what it is bound
+ * to - as opposed to the type-specific data in DataTabSections.kt.
  */
 
 /**
- * Object > Transform: the active item's placement.  A drawable has no scalar transform - its placement IS
+ * Object > Transform: the shown item's placement.  A drawable has no scalar transform - its placement IS
  * its geometry - so the rows measure its WORLD bounds and write back through the deformer chain (see
- * DrawableWorldTransform.kt for why world, and not the raw base mesh array).
+ * DrawableWorldTransform.kt for why world, and not the raw base mesh array); a warp's rows do the same for its
+ * lattice.  A part and a rotation show where they sit read-only (ReadOnlyTransformRows.kt).  Axes are labeled by
+ * Blender's axes (Y into the screen, Z up), the same naming the G / S / R axis lock uses.
  *
- * Axes are labelled by the DISPLAYED convention (Y+ forward, Z+ up), so the vertical field is Z and maps to
- * world y, which grows upward - the same naming the G / S / R axis lock uses.
- *
- * An item with no transform to show (a Part, a warp deformer, a mesh-less drawable) contributes NO rows,
- * and sectionVisibility then hides the whole section rather than drawing an empty card.
+ * An item with nothing to transform, such as a mesh-less drawable, contributes no rows, so sectionVisibility
+ * hides the whole section rather than drawing an empty card.
  */
 internal val TransformSection =
 	PropertySection(
@@ -62,8 +61,10 @@ internal val TransformSection =
 		rows = { context ->
 			val drawable = context.activeDrawable()
 			val deformer = context.activeDeformer()
+			val part = context.activePart()
 			val session = context.session
 			val mesh = drawable?.mesh
+
 			if (drawable != null && mesh != null && mesh.vertexCount > 0) {
 				listOf(
 					PropertyRow(
@@ -79,17 +80,44 @@ internal val TransformSection =
 				)
 			} else if (deformer is Deformer.Rotation) {
 				listOf(
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_position_x, Res.string.properties_field_position_z),
+					) { rowContext ->
+						RotationTransformRows(rowContext, deformer.id, showPivot = true)
+					},
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_angle, Res.string.properties_field_scale),
+					) { rowContext ->
+						RotationTransformRows(rowContext, deformer.id, showPivot = false)
+					},
 					PropertyRow(terms = listOf(Res.string.properties_field_base_angle)) { _ ->
-						PropertyFieldRow(stringResource(Res.string.properties_field_base_angle)) {
-							NumberField(
-								value = deformer.baseAngle,
-								onValueChange = { newAngle -> session?.setDeformerBaseAngle(deformer.id, newAngle) },
-								modifier = Modifier.fillMaxWidth(),
-								range = UNBOUNDED_RANGE,
-								decimals = 1,
-								unitSuffix = stringResource(Res.string.unit_degrees),
-							)
-						}
+						DeformerBaseAngleField(deformer, session)
+					},
+				)
+			} else if (deformer is Deformer.Warp) {
+				listOf(
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_position_x, Res.string.properties_field_position_z),
+					) { rowContext ->
+						WarpTransformRows(rowContext, deformer.id, showSize = false)
+					},
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_size_x, Res.string.properties_field_size_z),
+					) { rowContext ->
+						WarpTransformRows(rowContext, deformer.id, showSize = true)
+					},
+				)
+			} else if (part != null) {
+				listOf(
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_position_x, Res.string.properties_field_position_z),
+					) { rowContext ->
+						PartTransformRows(rowContext, part.id, showSize = false)
+					},
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_size_x, Res.string.properties_field_size_z),
+					) { rowContext ->
+						PartTransformRows(rowContext, part.id, showSize = true)
 					},
 				)
 			} else {
@@ -100,163 +128,252 @@ internal val TransformSection =
 	)
 
 /**
- * One of the two drawable Transform rows - Position X/Z, or Size X/Z with its aspect lock.
+ * The writes one item's Transform rows make, each in world values: a Position commit (registering the operation strip
+ * in the area given) and its scrub preview, and a Size commit and its preview.  A drawable's rows and a warp's differ
+ * only in these and in their descriptions.
  *
- * Both live in one composable because both need the same two things resolved IN the composition: the live
- * pose (so the fields disable the moment a parameter leaves its default) and the world bounds derived from
- * it.  The section's rows() lambda cannot do that - it is not composable, and it only re-runs when the
- * MODEL changes, so a pose scrub would never reach it.
+ * @property Function commitCenter Moves the item's bounds center to (x, z), registering the strip in the area.
+ * @property Function previewCenter The model that move would record, or null.
+ * @property Function commitSize Resizes the item's bounds to (width, height), registering the strip in the area.
+ * @property Function previewSize The model that resize would record, or null.
+ */
+private class TransformRowWrites(
+	val commitCenter: EditorSession.(Float, Float, String?) -> Unit,
+	val previewCenter: EditorSession.(Float, Float) -> PuppetModel?,
+	val commitSize: EditorSession.(Float, Float, String?) -> Unit,
+	val previewSize: EditorSession.(Float, Float) -> PuppetModel?,
+)
+
+/**
+ * The four field descriptions of one item kind's Transform rows.
  *
- * While the pose is off neutral the fields show the current world numbers but are inert: the write path
- * inverts through the deformer chain, which is exact only at the neutral pose, so this is the panel's face
- * of the same guard that blocks a viewport object transform on a posed rig.
+ * @property StringResource sizeX The Size X description.
+ * @property StringResource sizeZ The Size Z description.
+ * @property StringResource positionX The Position X description.
+ * @property StringResource positionZ The Position Z description.
+ */
+private class TransformRowDescriptions(
+	val sizeX: StringResource,
+	val sizeZ: StringResource,
+	val positionX: StringResource,
+	val positionZ: StringResource,
+)
+
+/** A drawable's Transform row descriptions. */
+private val DRAWABLE_ROW_DESCRIPTIONS =
+	TransformRowDescriptions(
+		Res.string.properties_field_size_x_description,
+		Res.string.properties_field_size_z_description,
+		Res.string.properties_field_position_x_description,
+		Res.string.properties_field_position_z_description,
+	)
+
+/** A warp's Transform row descriptions. */
+private val WARP_ROW_DESCRIPTIONS =
+	TransformRowDescriptions(
+		Res.string.properties_warp_size_x_description,
+		Res.string.properties_warp_size_z_description,
+		Res.string.properties_warp_position_x_description,
+		Res.string.properties_warp_position_z_description,
+	)
+
+/**
+ * The editor mode the Transform rows read, collected so a mode switch reaches them; Object mode with no session.
  *
- * @param PropertyContext context The row's context (its session supplies the live pose).
- * @param DrawableId drawableId The active drawable.
+ * @param PropertyContext context The row's context.
+ * @return EditorMode The mode.
+ */
+@Composable
+private fun rememberRowMode(context: PropertyContext): EditorMode = context.session?.mode?.collectAsState()?.value ?: EditorMode.Object
+
+/**
+ * One of a drawable's two Transform rows - Position X/Z, or Size X/Z with its aspect lock - over its art's world box
+ * ([TransformRows]).  A drawable without a mesh has no rows.
+ *
+ * @param PropertyContext context The row's context (its session supplies the live pose and mode).
+ * @param DrawableId drawableId The shown drawable.
  * @param Boolean showSize False for the Position pair, true for the Size pair.
  */
 @Composable
 private fun DrawableTransformRows(context: PropertyContext, drawableId: DrawableId, showSize: Boolean) {
-	val session = context.session
-	// Collected, not read: the pose changes without the model changing, and the disabled state tracks it.
-	val pose: Pose = session?.pose?.collectAsState()?.value ?: emptyMap()
+	val shownPose = rememberShownPose(context)
+	val mode = rememberRowMode(context)
 	// Keyed, because this is a full posed evaluation of the drawable's deformer chain - not something to
 	// redo when an unrelated recomposition happens to sweep the panel.  (Both Transform rows still evaluate
 	// once each when the model or pose genuinely changes; sharing one evaluation across them would mean
 	// merging them into a single row and giving up per-row search.)
-	val transform =
-		remember(context.puppet, pose, drawableId) {
-			drawableWorldTransform(context.puppet, pose, drawableId)
-		} ?: return
+	val transform = remember(context.puppet, shownPose, mode, drawableId) { drawableWorldTransform(context.puppet, shownPose, drawableId, mode) } ?: return
+	val writes =
+		remember(drawableId) {
+			TransformRowWrites(
+				commitCenter = { centerX, centerZ, areaId -> setDrawableWorldCenterAdjustable(drawableId, centerX, centerZ, areaId) },
+				previewCenter = { centerX, centerZ -> previewDrawableWorldCenter(drawableId, centerX, centerZ) },
+				commitSize = { width, height, areaId -> setDrawableWorldSizeAdjustable(drawableId, width, height, areaId) },
+				previewSize = { width, height -> previewDrawableWorldSize(drawableId, width, height) },
+			)
+		}
+
+	TransformRows(context, transform, DRAWABLE_ROW_DESCRIPTIONS, writes, showSize)
+}
+
+/**
+ * One of a warp's two Transform rows over its lattice's world box ([TransformRows]).  An edit moves the warp as a
+ * whole, every form it carries, so its art follows.  When the pose does not draw the warp there is no box: the
+ * Position row shows one note for the pair.
+ *
+ * @param PropertyContext context The row's context (its session supplies the live pose and mode).
+ * @param DeformerId deformerId The shown warp.
+ * @param Boolean showSize False for the Position pair, true for the Size pair.
+ */
+@Composable
+private fun WarpTransformRows(context: PropertyContext, deformerId: DeformerId, showSize: Boolean) {
+	val shownPose = rememberShownPose(context)
+	val mode = rememberRowMode(context)
+	val transform = remember(context.puppet, shownPose, mode, deformerId) { warpWorldTransform(context.puppet, shownPose, deformerId, mode) }
+
+	if (transform == null) {
+		// One note for the pair of rows, not one each.
+		if (!showSize) {
+			MutedNote(Res.string.properties_transform_unavailable)
+		}
+
+		return
+	}
+
+	val writes =
+		remember(deformerId) {
+			TransformRowWrites(
+				commitCenter = { centerX, centerZ, areaId -> setWarpWorldCenterAdjustable(deformerId, centerX, centerZ, areaId) },
+				previewCenter = { centerX, centerZ -> previewWarpWorldCenter(deformerId, centerX, centerZ) },
+				commitSize = { width, height, areaId -> setWarpWorldSizeAdjustable(deformerId, width, height, areaId) },
+				previewSize = { width, height -> previewWarpWorldSize(deformerId, width, height) },
+			)
+		}
+
+	TransformRows(context, transform, WARP_ROW_DESCRIPTIONS, writes, showSize)
+}
+
+/**
+ * One of an item's two Transform rows - Position X/Z, or Size X/Z with its aspect lock - over its world box: the rows
+ * a drawable and a warp share.
+ *
+ * The caller resolves the box in the composition at the shown pose, so the fields follow a pose scrub and a mode
+ * switch; the section's rows() lambda cannot, since it is not composable and re-runs only when the model changes.  A
+ * scrub previews through the row's [FieldScrubPreview], and the commit registers the operation strip the way the
+ * viewport's G / S do (see TransformRowAdjust.kt).
+ *
+ * @param PropertyContext context The row's context.
+ * @param ItemWorldTransform transform The item's world box and whether the rows may write it.
+ * @param TransformRowDescriptions descriptions The fields' descriptions.
+ * @param TransformRowWrites writes The item's writes.
+ * @param Boolean showSize False for the Position pair, true for the Size pair.
+ */
+@Composable
+private fun TransformRows(
+	context: PropertyContext,
+	transform: ItemWorldTransform,
+	descriptions: TransformRowDescriptions,
+	writes: TransformRowWrites,
+	showSize: Boolean,
+) {
+	val session = context.session
 	val bounds = transform.bounds
 	val editable = session != null && transform.editable
+	val scrub = rememberFieldScrubPreview(editable)
+	// Read here, called in the commit: the answer is the pointer's state as the release lands.
+	val stripArea = LocalOperationStripArea.current
+
 	if (showSize) {
-		SizeFieldsWithAspectLock(bounds, editable) { newWidth, newHeight ->
-			session?.setDrawableWorldSize(drawableId, newWidth, newHeight)
-		}
+		// A degenerate axis (zero extent) has no ratio to preserve, so a locked edit against one changes only the
+		// edited axis - and the resize then leaves the degenerate one alone.
+		AspectLockFieldPair(
+			firstLabel = stringResource(Res.string.properties_field_size_x),
+			firstDescription = stringResource(descriptions.sizeX),
+			firstValue = bounds.width,
+			secondLabel = stringResource(Res.string.properties_field_size_z),
+			secondDescription = stringResource(descriptions.sizeZ),
+			secondValue = bounds.height,
+			range = DRAWABLE_EXTENT_RANGE,
+			decimals = 1,
+			enabled = editable,
+			onCommit = { newWidth, newHeight ->
+				scrub.commit { session?.let { live -> writes.commitSize(live, newWidth, newHeight, stripArea()) } }
+			},
+			onPreview = { newWidth, newHeight ->
+				scrub.preview(session?.let { live -> writes.previewSize(live, newWidth, newHeight) })
+			},
+			onScrubCancel = { scrub.end() },
+		)
 	} else {
-		FieldStack(
-			listOf(
-				{ position ->
-					PropertyFieldRow(stringResource(Res.string.properties_field_position_x)) {
-						NumberField(
-							value = bounds.centerX,
-							onValueChange = { newX -> session?.setDrawableWorldCenter(drawableId, newX, bounds.centerY) },
-							modifier = Modifier.fillMaxWidth(),
-							range = UNBOUNDED_RANGE,
-							decimals = 1,
-							enabled = editable,
-							stackPosition = position,
-						)
-					}
-				},
-				{ position ->
-					PropertyFieldRow(stringResource(Res.string.properties_field_position_z)) {
-						NumberField(
-							value = bounds.centerY,
-							onValueChange = { newZ -> session?.setDrawableWorldCenter(drawableId, bounds.centerX, newZ) },
-							modifier = Modifier.fillMaxWidth(),
-							range = UNBOUNDED_RANGE,
-							decimals = 1,
-							enabled = editable,
-							stackPosition = position,
-						)
-					}
-				},
-			),
+		WorldPositionFields(
+			puppet = context.puppet,
+			worldX = bounds.centerX,
+			worldZ = bounds.centerY,
+			xDescription = descriptions.positionX,
+			zDescription = descriptions.positionZ,
+			enabled = editable,
+			onCommit = { axis, worldValue ->
+				val (centerX, centerZ) = axis.moved(worldValue, bounds.centerX, bounds.centerY)
+				scrub.commit { session?.let { live -> writes.commitCenter(live, centerX, centerZ, stripArea()) } }
+			},
+			onPreview = { axis, worldValue ->
+				val (centerX, centerZ) = axis.moved(worldValue, bounds.centerX, bounds.centerY)
+				scrub.preview(session?.let { live -> writes.previewCenter(live, centerX, centerZ) })
+			},
+			onScrubCancel = { scrub.end() },
 		)
 	}
 }
 
 /**
- * The Size X / Size Z stack plus its aspect-ratio lock.  Its own composable rather than an inline pair of
- * rows because the lock is stateful and the two fields are coupled through it: while locked, editing one
- * axis scales the other by the same factor, so the mesh keeps its proportions.
+ * The pose the Transform rows measure at: the rig's pose, or the rest pose while Edit mode pins it
+ * (EditorMode.shownPose), which is what the viewport draws.  Collected, not read: the pose and the mode change
+ * without the model changing, and both move what the rows show - the pose their numbers (and a drawable's
+ * disabled state), the mode whether that pose is pinned to rest.
  *
- * The lock is transient UI state (a tool preference, not document data), so it lives in a remember and
- * resets when the panel unmounts.  The ratio is read from the CURRENT bounds at commit time rather than
- * captured when the lock was engaged, so it always reflects what the fields are showing.
- *
- * A degenerate axis (zero extent) has no ratio to preserve, so a locked edit against one falls back to
- * changing only the edited axis - and [resizedAboutBoundsCenter] then leaves the degenerate one alone.
- *
- * @param MeshBounds bounds The active drawable's current world bounds (the displayed extents).
- * @param Boolean enabled Whether the fields and the lock accept input (false on a posed rig).
- * @param Function onResize Commits new (width, height) extents as one undo step.
+ * @param PropertyContext context The row's context (its session supplies the live pose and mode).
+ * @return Pose The shown pose; the rest pose with no session.
  */
 @Composable
-private fun SizeFieldsWithAspectLock(bounds: MeshBounds, enabled: Boolean, onResize: (Float, Float) -> Unit) {
-	var lockAspect by remember { mutableStateOf(false) }
-	val icons = LocalUmamoIcons
-	// A locked edit on one axis derives the other from the ratio the mesh currently has.
-	val commitWidth: (Float) -> Unit = { newWidth ->
-		val scaledHeight =
-			if (lockAspect && bounds.width > 0f) {
-				bounds.height * (newWidth / bounds.width)
-			} else {
-				bounds.height
-			}
-		onResize(newWidth, scaledHeight)
-	}
-	val commitHeight: (Float) -> Unit = { newHeight ->
-		val scaledWidth =
-			if (lockAspect && bounds.height > 0f) {
-				bounds.width * (newHeight / bounds.height)
-			} else {
-				bounds.width
-			}
-		onResize(scaledWidth, newHeight)
-	}
-	// The lock overlays the gutter the rows reserve, so the fields shrink by exactly the lock's width while
-	// the label column keeps its half of the FULL row width - that is what keeps these rows lined up with
-	// the Position rows above.
-	Box(modifier = Modifier.fillMaxWidth()) {
-		FieldStack(
-			listOf(
-				{ position ->
-					PropertyFieldRow(stringResource(Res.string.properties_field_size_x), trailingGutter = ASPECT_LOCK_GUTTER) {
-						NumberField(
-							value = bounds.width,
-							onValueChange = commitWidth,
-							modifier = Modifier.fillMaxWidth(),
-							range = DRAWABLE_EXTENT_RANGE,
-							decimals = 1,
-							enabled = enabled,
-							stackPosition = position,
-						)
-					}
-				},
-				{ position ->
-					PropertyFieldRow(stringResource(Res.string.properties_field_size_z), trailingGutter = ASPECT_LOCK_GUTTER) {
-						NumberField(
-							value = bounds.height,
-							onValueChange = commitHeight,
-							modifier = Modifier.fillMaxWidth(),
-							range = DRAWABLE_EXTENT_RANGE,
-							decimals = 1,
-							enabled = enabled,
-							stackPosition = position,
-						)
-					}
-				},
-			),
-		)
-		// The chain glyph spans both fields.  IconButton tooltips itself from contentDescription, and its own
-		// modifier already rides on that tooltip wrapper, so the alignment goes here rather than into a second
-		// enclosing Tooltip.
-		IconButton(
-			icon = if (lockAspect) icons.linked else icons.unlinked,
-			contentDescription = stringResource(Res.string.properties_transform_lock_aspect),
-			onClick = { lockAspect = !lockAspect },
-			modifier = Modifier.align(Alignment.CenterEnd),
-			active = lockAspect,
-			enabled = enabled,
-			appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
+internal fun rememberShownPose(context: PropertyContext): Pose {
+	val session = context.session
+	val pose: Pose = session?.pose?.collectAsState()?.value ?: emptyMap()
+	val mode: EditorMode = session?.mode?.collectAsState()?.value ?: EditorMode.Object
+
+	return remember(context.puppet, pose, mode) { mode.shownPose(context.puppet, pose) }
+}
+
+/**
+ * A rotation deformer's Base Angle field, shared by Object > Transform and the Data tab's deformer
+ * section so the two cannot drift apart.
+ *
+ * A scrub previews through the row's [FieldScrubPreview], so the viewport turns the deformer with the drag,
+ * and the release commits once.
+ *
+ * @param Deformer.Rotation deformer The deformer the field edits.
+ * @param EditorSession? session The editing session, or null with none (the field then edits nothing).
+ */
+@Composable
+internal fun DeformerBaseAngleField(deformer: Deformer.Rotation, session: EditorSession?) {
+	val scrub = rememberFieldScrubPreview(enabled = true)
+	PropertyFieldRow(
+		stringResource(Res.string.properties_field_base_angle),
+		description = stringResource(Res.string.properties_field_base_angle_description),
+	) {
+		NumberField(
+			value = deformer.baseAngle,
+			onValueChange = { newAngle -> scrub.commit { session?.setDeformerBaseAngle(deformer.id, newAngle) } },
+			onPreview = { newAngle -> scrub.preview(session?.previewDeformerBaseAngle(deformer.id, newAngle)) },
+			onScrubCancel = { scrub.end() },
+			modifier = Modifier.fillMaxWidth(),
+			range = UNBOUNDED_RANGE,
+			decimals = 1,
+			unitSuffix = stringResource(Res.string.unit_degrees),
 		)
 	}
 }
 
-/** Object > Relations: owning part, parent deformer, masks / children of the active item. */
+/** Object > Relations: Parent part, parent deformer, masks/children of the shown item. */
 internal val RelationsSection =
 	PropertySection(
 		id = "object.relations",
@@ -265,73 +382,47 @@ internal val RelationsSection =
 			val drawable = context.activeDrawable()
 			val deformer = context.activeDeformer()
 			val part = context.activePart()
-			val session = context.session
-			if (drawable != null) {
-				listOf(
-					PropertyRow(terms = listOf(Res.string.properties_part_ref)) { _ ->
-						// Part membership lives only in the org tree, so re-homing a drawable is a tree move.
-						// Note it appends at the destination, which changes draw order (Cubism does the same).
-						PartRelationRow(
-							labelRes = Res.string.properties_part_ref,
-							context = context,
-							selectedPartId = context.puppet.partByDrawable()[drawable.id],
-							owner = "drawable.part:${drawable.id.raw}",
-						) { partId -> session?.moveOrgChild(OrgChild.Drawable(drawable.id), partId, null) }
-					},
-					PropertyRow(terms = listOf(Res.string.properties_parent_deformer)) { _ ->
-						DeformerRelationRow(
-							labelRes = Res.string.properties_parent_deformer,
-							context = context,
-							selectedDeformerId = drawable.parentDeformerId,
-							owner = "drawable.parentDeformer:${drawable.id.raw}",
-						) { deformerId -> session?.setDrawableParentDeformer(drawable.id, deformerId) }
-					},
-				)
-			} else if (deformer != null) {
-				// Computed once for the row rather than per candidate, so filtering the list stays linear.
-				val cyclicParents = context.puppet.deformerSelfAndDescendants(deformer.id)
-				listOf(
-					PropertyRow(terms = listOf(Res.string.properties_part_ref)) { _ ->
-						PartRelationRow(
-							labelRes = Res.string.properties_part_ref,
-							context = context,
-							selectedPartId = deformer.partId,
-							owner = "deformer.part:${deformer.id.raw}",
-						) { partId -> session?.setDeformerPart(deformer.id, partId) }
-					},
-					PropertyRow(terms = listOf(Res.string.properties_parent_deformer)) { _ ->
-						DeformerRelationRow(
-							labelRes = Res.string.properties_parent_deformer,
-							context = context,
-							selectedDeformerId = deformer.parent,
-							// Nesting a deformer inside its own subtree would make the hierarchy a cycle, so
-							// those candidates are dropped rather than offered and then silently refused by
-							// withDeformerMoved.  Same query the move guard uses, so the two cannot disagree.
-							excluding = { candidate -> candidate.id in cyclicParents },
-							owner = "deformer.parent:${deformer.id.raw}",
-						) { parentId -> session?.moveDeformer(deformer.id, parentId, null) }
-					},
-				)
-			} else if (part != null) {
-				// A part nested under another part shows (and can rebind) its owner; a top-level part reads
-				// as unbound, and clearing the field moves it back out to the root.
-				val parentOf = context.puppet.parentPartByPart()
-				// Computed once for the row, not per candidate: withOrgChildMoved refuses a move into this set
-				// anyway, and filtering on the same query keeps an illegal target out of the list entirely.
-				val cyclicOwners = context.puppet.partSelfAndDescendants(part.id)
-				listOf(
-					PropertyRow(terms = listOf(Res.string.properties_part_ref)) { _ ->
-						PartRelationRow(
-							labelRes = Res.string.properties_part_ref,
-							context = context,
-							selectedPartId = parentOf[part.id],
-							excluding = { candidate -> candidate.id in cyclicOwners },
-							owner = "part.parent:${part.id.raw}",
-						) { parentId -> session?.moveOrgChild(OrgChild.Part(part.id), parentId, null) }
-					},
-				)
-			} else {
+
+			// Each row is one relation slot of the shown item: its eligible candidates (a part or a deformer never nests
+			// inside its own subtree) and its writes come from the slot, so the list, the eyedropper, and the menu agree.
+			val owner =
+				when {
+					drawable != null -> SelectionTarget.Drawable(drawable.id)
+					deformer != null -> SelectionTarget.Deformer(deformer.id)
+					part != null -> SelectionTarget.Part(part.id)
+					else -> null
+				}
+
+			if (owner == null) {
 				emptyList()
+			} else {
+				buildList {
+					add(
+						PropertyRow(terms = listOf(Res.string.properties_part_ref)) { _ ->
+							// A part shows (and can rebind) the part it is nested in; a top-level one reads as unbound,
+							// and clearing the field moves it back out to the root.
+							PartRelationRow(
+								labelRes = Res.string.properties_part_ref,
+								descriptionRes = Res.string.properties_part_ref_description,
+								context = context,
+								slot = RelationSlot.ParentPart(owner),
+							)
+						},
+					)
+
+					if (owner !is SelectionTarget.Part) {
+						add(
+							PropertyRow(terms = listOf(Res.string.properties_parent_deformer)) { _ ->
+								DeformerRelationRow(
+									labelRes = Res.string.properties_parent_deformer,
+									descriptionRes = Res.string.properties_parent_deformer_description,
+									context = context,
+									slot = RelationSlot.ParentDeformer(owner),
+								)
+							},
+						)
+					}
+				}
 			}
 		},
 	)

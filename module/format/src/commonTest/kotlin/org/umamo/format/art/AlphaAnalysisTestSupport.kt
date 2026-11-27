@@ -15,8 +15,10 @@ internal fun rasterOfRows(vararg rows: String): LayerRaster {
 	val height = rows.size
 	val width = if (height == 0) 0 else rows[0].length
 	val rgba = ByteArray(width * height * 4)
+
 	for (rowIndex in 0 until height) {
 		require(rows[rowIndex].length == width) { "all rows must share one width" }
+
 		for (columnIndex in 0 until width) {
 			val cell = rows[rowIndex][columnIndex]
 			val alpha =
@@ -33,6 +35,7 @@ internal fun rasterOfRows(vararg rows: String): LayerRaster {
 			rgba[byteIndex + 3] = alpha.toByte()
 		}
 	}
+
 	return LayerRaster(width, height, rgba)
 }
 
@@ -44,12 +47,14 @@ internal fun rasterOfRows(vararg rows: String): LayerRaster {
  */
 internal fun rasterOfAlphas(vararg alphaValues: Int): LayerRaster {
 	val rgba = ByteArray(alphaValues.size * 4)
+
 	for (columnIndex in alphaValues.indices) {
 		rgba[columnIndex * 4] = 0x11
 		rgba[columnIndex * 4 + 1] = 0x22
 		rgba[columnIndex * 4 + 2] = 0x33
 		rgba[columnIndex * 4 + 3] = alphaValues[columnIndex].toByte()
 	}
+
 	return LayerRaster(alphaValues.size, 1, rgba)
 }
 
@@ -69,9 +74,11 @@ internal fun assertNoOpaquePixelOutside(raster: LayerRaster, bounds: LayerBounds
 					columnIndex < bounds.left + bounds.width &&
 					rowIndex >= bounds.top &&
 					rowIndex < bounds.top + bounds.height
+
 			if (insideBounds) {
 				continue
 			}
+
 			val alpha = raster.rgba[(rowIndex * raster.width + columnIndex) * 4 + 3].toInt() and 0xFF
 			assertTrue(
 				alpha < alphaThreshold,
@@ -100,11 +107,13 @@ internal fun assertAnalysisInvariants(analysis: AlphaAnalysis, exactRings: Boole
 	assertTrue(analysis.contours.any { contour -> !contour.isHole }, "at least one non-hole contour")
 	val bounds = analysis.opaqueBounds
 	var signedAreaSum = 0L
+
 	for (contour in analysis.contours) {
 		val points = contour.points
 		assertTrue(points.size >= 6, "contour has at least 3 points, got ${points.size / 2}")
 		assertTrue(points.size % 2 == 0, "contour point array is flat (x, y) pairs")
 		val pointCount = points.size / 2
+
 		for (pointIndex in 0 until pointCount) {
 			val x = points[pointIndex * 2]
 			val y = points[pointIndex * 2 + 1]
@@ -115,6 +124,7 @@ internal fun assertAnalysisInvariants(analysis: AlphaAnalysis, exactRings: Boole
 					y <= bounds.top + bounds.height,
 				"corner ($x, $y) within trimmed-bounds lattice $bounds",
 			)
+
 			if (exactRings) {
 				val nextIndex = (pointIndex + 1) % pointCount
 				val nextX = points[nextIndex * 2]
@@ -123,6 +133,7 @@ internal fun assertAnalysisInvariants(analysis: AlphaAnalysis, exactRings: Boole
 				assertTrue((x == nextX) != (y == nextY), "exact ring steps are axis-aligned")
 			}
 		}
+
 		if (exactRings) {
 			assertTrue(
 				points[0] != points[(pointCount - 1) * 2] || points[1] != points[(pointCount - 1) * 2 + 1],
@@ -133,6 +144,7 @@ internal fun assertAnalysisInvariants(analysis: AlphaAnalysis, exactRings: Boole
 			signedAreaSum += signedArea
 		}
 	}
+
 	if (exactRings) {
 		assertEquals(
 			analysis.opaquePixelCount.toLong() * 2L,
@@ -160,11 +172,13 @@ internal fun pointKey(x: Int, y: Int): Long = (x.toLong() shl 32) or (y.toLong()
  */
 internal fun countOpaquePixels(raster: LayerRaster, alphaThreshold: Int): Int {
 	var count = 0
+
 	for (pixelIndex in 0 until raster.width * raster.height) {
 		if ((raster.rgba[pixelIndex * 4 + 3].toInt() and 0xFF) >= alphaThreshold) {
 			count++
 		}
 	}
+
 	return count
 }
 
@@ -178,9 +192,11 @@ internal fun countOpaquePixels(raster: LayerRaster, alphaThreshold: Int): Int {
  */
 internal fun assertSimplifiedIsVertexSubset(exactPoints: IntArray, simplifiedPoints: IntArray, label: String) {
 	val exactPointSet = mutableSetOf<Long>()
+
 	for (pointIndex in 0 until exactPoints.size / 2) {
 		exactPointSet.add(pointKey(exactPoints[pointIndex * 2], exactPoints[pointIndex * 2 + 1]))
 	}
+
 	for (pointIndex in 0 until simplifiedPoints.size / 2) {
 		val x = simplifiedPoints[pointIndex * 2]
 		val y = simplifiedPoints[pointIndex * 2 + 1]

@@ -4,6 +4,7 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -44,12 +45,14 @@ class Moc3ExportBindingOrderTest {
 	@Test
 	fun bindingIndicesAreAssignedInLoweringOrder() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping export binding-order gate")
-			return
+			skipTest("moc3.samples not present; skipping export binding-order gate")
 		}
+
 		val failures = ArrayList<String>()
 		var covered = 0
+
 		for (file in files) {
 			val source = Moc3.decode(MocCodec.read(file.readBytes()))
 			val puppet = Moc3Import.fromMocDocument(source, displayInfo = null)
@@ -60,6 +63,7 @@ class Moc3ExportBindingOrderTest {
 			// static object stores 0 to name it.  A pool handed to a producer already primed, or built
 			// fresh per producer, loses that reservation.
 			val firstBinding = exported.bindings.firstOrNull()
+
 			if (firstBinding == null || firstBinding.index != 0 || firstBinding.axes.isNotEmpty()) {
 				failures.add("${file.name}: binding 0 is not the reserved empty-axis record (got $firstBinding)")
 			}
@@ -74,19 +78,23 @@ class Moc3ExportBindingOrderTest {
 					exported.deformers.map { "deformer ${it.id}" to it.keyformBindingIndex } +
 					exported.artMeshes.map { "artMesh ${it.id}" to it.keyformBindingIndex } +
 					exported.glues.map { "glue ${it.id}" to it.keyformBindingIndex }
+
 			for ((subject, bindingIndex) in walk) {
 				if (bindingIndex == 0 || !seen.add(bindingIndex)) {
 					continue
 				}
+
 				if (bindingIndex < highestSoFar) {
 					failures.add(
 						"${file.name}: $subject introduces binding $bindingIndex after $highestSoFar - " +
 							"the lowering ran out of order",
 					)
 				}
+
 				highestSoFar = maxOf(highestSoFar, bindingIndex)
 			}
 		}
+
 		assertTrue(covered > 0, "no corpus model to check binding order against")
 		println("[export-order] $covered models, binding numbering follows lowering order")
 		assertEquals(emptyList(), failures.take(25), "export binding order diverged")
@@ -95,30 +103,39 @@ class Moc3ExportBindingOrderTest {
 	@Test
 	fun offscreenKeyformRowsComeFromTheOwnerPartsBundle() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping offscreen row gate")
-			return
+			skipTest("moc3.samples not present; skipping offscreen row gate")
 		}
+
 		val failures = ArrayList<String>()
 		var withOffscreens = 0
 		var withMultiRowOffscreens = 0
+
 		for (file in files) {
 			val source = Moc3.decode(MocCodec.read(file.readBytes()))
 			val puppet = Moc3Import.fromMocDocument(source, displayInfo = null)
 			val exported = Moc3Export.toMocDocument(puppet, source.version).document
+
 			if (exported.offscreens.isEmpty()) {
 				continue
 			}
+
 			withOffscreens++
+
 			for ((offscreenIndex, offscreen) in exported.offscreens.withIndex()) {
 				val ownerPart = exported.parts.getOrNull(offscreen.ownerPartIndex)
+
 				if (ownerPart == null) {
 					failures.add("${file.name}: offscreen $offscreenIndex names part ${offscreen.ownerPartIndex}, which does not exist")
+
 					continue
 				}
+
 				if (ownerPart.drawOrderKeyforms.size > 1) {
 					withMultiRowOffscreens++
 				}
+
 				if (offscreen.keyforms.size != ownerPart.drawOrderKeyforms.size) {
 					failures.add(
 						"${file.name}: offscreen on ${ownerPart.id} has ${offscreen.keyforms.size} rows but its " +
@@ -127,6 +144,7 @@ class Moc3ExportBindingOrderTest {
 				}
 			}
 		}
+
 		assertTrue(withOffscreens > 0, "no corpus model carries an offscreen")
 		// A fully-static owner part collapses to one row whether or not its bundle arrived, so a run that
 		// saw only static owners proved nothing about the hand-off.

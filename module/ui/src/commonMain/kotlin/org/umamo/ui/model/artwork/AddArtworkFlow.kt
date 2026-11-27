@@ -1,0 +1,557 @@
+package org.umamo.ui.model.artwork
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.umamo.edit.AdjustableOperation
+import org.umamo.edit.EditorSession
+import org.umamo.edit.NoticePlacement
+import org.umamo.edit.OperatorParameter
+import org.umamo.edit.ParameterChoice
+import org.umamo.edit.ParameterUnit
+import org.umamo.edit.atlas.commitArtworkAdded
+import org.umamo.edit.atlas.withArtworkAdded
+import org.umamo.edit.atlas.withAtlasRepack
+import org.umamo.edit.choiceValue
+import org.umamo.edit.intValue
+import org.umamo.format.art.LayerRaster
+import org.umamo.format.art.SourceArt
+import org.umamo.format.atlas.AtlasPackOptions
+import org.umamo.format.atlas.AtlasPackSkipReason
+import org.umamo.format.atlas.packAtlas
+import org.umamo.interop.art.ArtSourceDescriptor
+import org.umamo.interop.art.ArtworkAnchor
+import org.umamo.interop.art.BirthRefusal
+import org.umamo.interop.art.SourceArtAdditions
+import org.umamo.interop.art.SourceArtImport
+import org.umamo.interop.art.SourceArtImportNotice
+import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.interop.art.placedBy
+import org.umamo.render.DecodedImage
+import org.umamo.render.PuppetTextures
+import org.umamo.render.SourceArtRasters
+import org.umamo.render.generatedPuppetTextures
+import org.umamo.runtime.model.AtlasTileId
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.storage.UmamoLog
+import org.umamo.ui.model.repack.AtlasRepackHost
+import org.umamo.ui.model.repack.AtlasRepackRefusal
+import org.umamo.ui.model.repack.AtlasRepackRefusalReason
+import org.umamo.ui.model.repack.AtlasRepackReport
+import org.umamo.ui.model.repack.MAX_IMPORT_PAGE_SIZE
+import org.umamo.ui.model.repack.PackedAtlas
+import org.umamo.ui.model.repack.logPack
+import org.umamo.ui.model.repack.lowerPack
+import org.umamo.ui.model.repack.packAtlasOf
+import org.umamo.ui.model.repack.repackPageSizeOf
+import org.umamo.ui.model.repack.repackRefusals
+import org.umamo.ui.progress.ProgressHandle
+import org.umamo.ui.progress.ProgressLabels
+import org.umamo.ui.progress.track
+
+/*
+ * Adding an artwork file to an OPEN document: the bridge's additions appended to the live model, the
+ * new tiles packed into the gaps around the art already on the pages, committed as one undo step and
+ * registered on the operation settings strip.  The repack's shape throughout - the same pack
+ * primitive, the same supersede checks, the same amend-in-place adjustment - so a second artwork
+ * file lands the way a repack does rather than through a second pipeline.
+ *
+ * The package holds the artwork operations - add (this file), reload and relink
+ * (ReloadArtworkFlow.kt), match and replace (MatchArtworkFlow.kt) - over the rasters of a read file
+ * (DecodedLayerRasters.kt), and the source-file state the app publishes for the Sources space
+ * (SourceFilePresence.kt, SourceSuggestionState.kt, SourceWatchState.kt).
+ */
+
+/** The parameter keys the add-artwork rows carry (the strip maps their label keys to strings). */
+internal object ImportParameterKeys {
+	const val ALIGN = "import.align"
+	const val OFFSET_X = "import.offsetX"
+	const val OFFSET_Z = "import.offsetZ"
+	const val ALPHA_THRESHOLD = "import.alphaThreshold"
+	const val MARGIN = "import.margin"
+
+	/** The prefix an Align entry's label key carries in front of its [ArtworkAnchor.key]. */
+	const val ANCHOR_CHOICE_PREFIX = "import.anchor."
+}
+
+/** The widest birth-mesh margin the strip offers, in source pixels. */
+internal const val IMPORT_MAX_MARGIN = 64
+
+/** How far the Offset rows reach either way, in source pixels: past any page the pack can hold. */
+internal const val IMPORT_MAX_OFFSET = 8192
+
+/**
+ * One artwork file to add to the open document, as read from disk.
+ *
+ * Holds the parsed art for the strip's adjustments (a re-run re-derives the additions from the same
+ * layers), the decoded wrapper of every layer raster, minted once - a re-run hands the raster store the
+ * same instances again, and the renderer's texture cache keys on that identity - and the birth meshes
+ * made for its layers, so a re-run that only moves the art meshes nothing again.
+ *
+ * @property SourceArt              art        The parsed source art.
+ * @property ArtSourceDescriptor    descriptor What the model records about the file.
+ * @property SourceArtImportOptions options    The threshold, margin, and birth mesh the first run uses.
+ */
+class AddArtworkRequest(
+	val art: SourceArt,
+	val descriptor: ArtSourceDescriptor,
+	val options: SourceArtImportOptions,
+) {
+	private val decoded = DecodedLayerRasters()
+
+	/** The birth meshes made for this file's layers, for every run of the request. */
+	internal val births = BirthMeshCache()
+
+	/**
+	 * The decoded wrapper of one of this file's layer rasters.
+	 *
+	 * @param LayerRaster raster The layer's pixels.
+	 * @return DecodedImage The wrapper, the same instance on every call.
+	 */
+	internal fun decodedFor(raster: LayerRaster): DecodedImage = decoded.decodedFor(raster)
+}
+
+/** What one add-artwork pass produced, or why it produced nothing. */
+private sealed interface AddArtworkOutcome {
+	/** The file has no layer with art to add. */
+	data object NothingToAdd : AddArtworkOutcome
+
+	/**
+	 * The pack could not keep some of the document's OWN art where it is - a placed tile the packer
+	 * would not hold fixed - so nothing was applied; the refusals name the tiles.
+	 *
+	 * @property List refusals The document's tiles the pack could not keep.
+	 */
+	class Refused(val refusals: List<AtlasRepackRefusal>) : AddArtworkOutcome
+
+	/**
+	 * The additions appended and packed.
+	 *
+	 * @property SourceArtAdditions added    The bridge's delta, pixels, and notes.
+	 * @property PuppetModel        model    The base with the additions appended and packed.
+	 * @property PuppetTextures     textures The pages the pack composed, index-parallel to the model's.
+	 * @property List               notices  The bridge's notes plus every added tile the pack left unplaced.
+	 */
+	class Added(
+		val added: SourceArtAdditions,
+		val model: PuppetModel,
+		val textures: PuppetTextures,
+		val notices: List<SourceArtImportNotice>,
+	) : AddArtworkOutcome
+}
+
+/**
+ * The strip's rows for an add-artwork operation.  A rig's first artwork sets the canvas rather than
+ * landing within it, so its step carries no placement rows.
+ *
+ * The Offset rows are in the viewport's world axes (X right, Z up), the same axes the options' nudge
+ * and the record's offset use, so a positive Offset Z moves the art up on screen; the placement negates
+ * z into canvas y where the canvas math is.
+ *
+ * @param SourceArtImportOptions options The options the rows show.
+ * @param Boolean                placed  Whether the file was placed within an existing canvas.
+ * @return List The rows.
+ */
+internal fun addArtworkParameters(options: SourceArtImportOptions, placed: Boolean): List<OperatorParameter> {
+	val rows = ArrayList<OperatorParameter>()
+
+	if (placed) {
+		rows.add(
+			OperatorParameter.ChoiceParameter(
+				ImportParameterKeys.ALIGN,
+				ImportParameterKeys.ALIGN,
+				options.anchor.key,
+				ArtworkAnchor.entries.map { anchor -> ParameterChoice(anchor.key, ImportParameterKeys.ANCHOR_CHOICE_PREFIX + anchor.key) },
+			),
+		)
+		rows.add(OperatorParameter.IntParameter(ImportParameterKeys.OFFSET_X, ImportParameterKeys.OFFSET_X, options.nudgeX, -IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET, unit = ParameterUnit.Pixels))
+		rows.add(OperatorParameter.IntParameter(ImportParameterKeys.OFFSET_Z, ImportParameterKeys.OFFSET_Z, options.nudgeZ, -IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET, unit = ParameterUnit.Pixels))
+	}
+
+	rows.add(OperatorParameter.IntParameter(ImportParameterKeys.ALPHA_THRESHOLD, ImportParameterKeys.ALPHA_THRESHOLD, options.alphaThreshold, 1, 255))
+	rows.add(OperatorParameter.IntParameter(ImportParameterKeys.MARGIN, ImportParameterKeys.MARGIN, options.birthMeshMargin, 0, IMPORT_MAX_MARGIN, unit = ParameterUnit.Pixels))
+
+	return rows
+}
+
+/**
+ * The options [parameters] describe, over [fallback] for the seed parameters and the birth mode the
+ * rows do not carry (and for the placement, when the step had no placement rows).
+ *
+ * @param List                   parameters The strip's rows.
+ * @param SourceArtImportOptions fallback   The options the first run used.
+ * @return SourceArtImportOptions The adjusted options.
+ */
+internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: SourceArtImportOptions): SourceArtImportOptions =
+	SourceArtImportOptions(
+		parameters = fallback.parameters,
+		alphaThreshold = parameters.intValue(ImportParameterKeys.ALPHA_THRESHOLD, fallback.alphaThreshold).coerceIn(1, 255),
+		birthMeshMargin = parameters.intValue(ImportParameterKeys.MARGIN, fallback.birthMeshMargin).coerceIn(0, IMPORT_MAX_MARGIN),
+		anchor = ArtworkAnchor.fromKey(parameters.choiceValue(ImportParameterKeys.ALIGN, fallback.anchor.key)),
+		nudgeX = parameters.intValue(ImportParameterKeys.OFFSET_X, fallback.nudgeX).coerceIn(-IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET),
+		nudgeZ = parameters.intValue(ImportParameterKeys.OFFSET_Z, fallback.nudgeZ).coerceIn(-IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET),
+		birthMesh = fallback.birthMesh,
+	)
+
+/**
+ * Appends [request]'s art to [base] and packs the new tiles into the gaps around the art already on
+ * the pages ([packNewTilesAround]).  A file joining a rig that already has art is first placed on the
+ * rig's canvas by the options' anchor and nudge ([SourceArtImport.offsetFor]); the request's own art
+ * stays unplaced, so an adjustment places it again from its rows.
+ *
+ * @param PuppetModel            base               The model the additions join.
+ * @param AddArtworkRequest      request            The file.
+ * @param SourceArtImportOptions options            The placement, threshold, and margin to import with.
+ * @param SourceArtRasters       artRasters         The document's raster store.
+ * @param Boolean                premultipliedAlpha The document's texture-convention flag.
+ * @param ProgressHandle?        progress           Counts the birth meshes and says when the atlas packs, or null.
+ * @return AddArtworkOutcome The outcome, [AddArtworkOutcome.NothingToAdd] when the file has no layer with art to add.
+ */
+private suspend fun addArtworkOutcome(
+	base: PuppetModel,
+	request: AddArtworkRequest,
+	options: SourceArtImportOptions,
+	artRasters: SourceArtRasters,
+	premultipliedAlpha: Boolean,
+	progress: ProgressHandle? = null,
+): AddArtworkOutcome {
+	val offset = SourceArtImport.offsetFor(base, request.art, options)
+	val named = SourceArtImport.additionsFor(request.art.placedBy(offset), request.descriptor, options, base, offset = offset)
+	// The birth meshes land before the pack, which reserves each tile by its meshes' reach.
+	val added = named.withBirths(resolveBirths(named.pendingBirths, request.births, progress))
+
+	if (added.additions.drawables.isEmpty()) {
+		return AddArtworkOutcome.NothingToAdd
+	}
+
+	val withArt = base.withArtworkAdded(added.additions)
+
+	if (withArt === base) {
+		UmamoLog.error("add artwork: the additions for '${request.descriptor.name}' collide with the document's ids; nothing was applied")
+
+		return AddArtworkOutcome.NothingToAdd
+	}
+
+	// A rig with no art of its own takes its frame from the file that arrives - the new document starts
+	// on a placeholder canvas, and the first artwork is what says how big the rig really is.  A rig that
+	// already has art keeps its canvas: a second file is placed within that frame, not around it.
+	val framed = if (SourceArtImport.isFirstArtwork(base)) SourceArtImport.withFirstArtworkState(withArt, request.art) else withArt
+	// The parameter template seeds a rig that has none, which is what makes importing art into a new
+	// document behave like opening that art did.  Authored axes are never replaced.
+	val seeded = if (framed.parameters.isEmpty()) SourceArtImport.withSeedParameters(framed, options.parameters) else framed
+	val decodedByTile = added.rasterByTile.mapValues { (_, raster) -> request.decodedFor(raster) }
+	artRasters.addDecoded(decodedByTile)
+	val decode: (AtlasTileId) -> DecodedImage? = { tileId -> decodedByTile[tileId] ?: artRasters.decodeRaster(tileId) }
+	progress?.stage(ProgressLabels.ATLAS_PACKING)
+
+	return when (val packed = packNewTilesAround(seeded, added.additions.tiles.mapTo(HashSet()) { tile -> tile.id }, decode, premultipliedAlpha, added.notices)) {
+		is PackAroundOutcome.Refused -> AddArtworkOutcome.Refused(packed.refusals)
+		is PackAroundOutcome.Packed -> AddArtworkOutcome.Added(added, packed.model, packed.textures, packed.notices)
+	}
+}
+
+/** What packing new tiles around the document's art produced, or why nothing was applied. */
+internal sealed interface PackAroundOutcome {
+	/**
+	 * The pack could not keep some of the document's OWN art where it is - a placed tile the packer
+	 * would not hold fixed - so nothing was applied; the refusals name the tiles.
+	 *
+	 * @property List refusals The document's tiles the pack could not keep.
+	 */
+	class Refused(val refusals: List<AtlasRepackRefusal>) : PackAroundOutcome
+
+	/**
+	 * The new tiles packed and the model re-derived over the pages.
+	 *
+	 * @property PuppetModel    model    The model with the pack applied.
+	 * @property PuppetTextures textures The pages the pack composed, index-parallel to the model's.
+	 * @property List           notices  The caller's notes plus every new tile the pack left unplaced.
+	 */
+	class Packed(
+		val model: PuppetModel,
+		val textures: PuppetTextures,
+		val notices: List<SourceArtImportNotice>,
+	) : PackAroundOutcome
+}
+
+/**
+ * Packs the tiles [model] gained into the gaps around the art already on its pages, every placed tile
+ * held fixed, and re-derives the model through [withAtlasRepack] under the document's current
+ * composition so the pages the existing art sits on compose exactly as they did.  Shared by Add
+ * Artwork, Reload, relink, Match Automatically, and Replace Artwork, which differ only in how the new
+ * tiles came to be.
+ *
+ * A refusal over the document's own placed art refuses the whole pack, since the document's art must
+ * not move for tiles being added; any other refusal leaves its tile unplaced as a note, and the
+ * source-layer display still draws it.
+ *
+ * @param PuppetModel      model              The model carrying the new, unplaced tiles.
+ * @param Set              newTileIds         Which tiles are the new ones.
+ * @param Function         decode             The pixels of any tile, the new ones included.
+ * @param Boolean          premultipliedAlpha The document's texture-convention flag.
+ * @param List             notices            The notes gathered so far, carried through.
+ * @return PackAroundOutcome The packed model and pages, or the refusal.
+ */
+internal fun packNewTilesAround(
+	model: PuppetModel,
+	newTileIds: Set<AtlasTileId>,
+	decode: (AtlasTileId) -> DecodedImage?,
+	premultipliedAlpha: Boolean,
+	notices: List<SourceArtImportNotice>,
+): PackAroundOutcome {
+	// The document's composition governs the pack, so the fixed tiles compose as they already do; the
+	// gutter grows to hold the extrusion when a repack widened it past the default.
+	val composition = model.atlas.composition
+	val defaults = AtlasPackOptions()
+	var packOptions =
+		AtlasPackOptions(
+			maxPageSize = repackPageSizeOf(model),
+			gutter = maxOf(defaults.gutter, composition.extrude),
+			extrude = composition.extrude,
+			alphaThreshold = composition.alphaThreshold,
+		)
+	var packed = packAtlasOf(model, decode, packOptions, keepPinned = true, fixPlaced = true)
+
+	if (packOptions.maxPageSize < MAX_IMPORT_PAGE_SIZE && packed.result.skipped.any { skip -> skip.reason == AtlasPackSkipReason.LargerThanPage }) {
+		packOptions = packOptions.copy(maxPageSize = MAX_IMPORT_PAGE_SIZE)
+		packed = PackedAtlas(packed.input, packAtlas(packed.input.itemsFor(keepPinned = true, fixPlaced = true), packOptions))
+	}
+
+	// The new tiles and every tile that has no placement yet may end the pack unplaced; the placed art may not.
+	val mayStayUnplaced = model.atlas.tiles.filter { tile -> tile.id in newTileIds || tile.placement == null }.mapTo(HashSet()) { tile -> tile.id }
+	val unplacedNames = model.atlas.tiles.filter { tile -> tile.id in mayStayUnplaced }.mapTo(HashSet()) { tile -> tile.name }
+	val refusals = repackRefusals(model, packed.result.skipped, packed.input.undecodableTileIds)
+	val skippedKeys = packed.result.skipped.mapTo(HashSet()) { skip -> skip.key }
+	val existingRefusals =
+		refusals.filter { refusal ->
+			model.atlas.tiles.any { tile -> tile.name == refusal.tileName && tile.id !in mayStayUnplaced && (tile.id.raw in skippedKeys || tile.id in packed.input.undecodableTileIds) }
+		}
+
+	if (existingRefusals.isNotEmpty()) {
+		return PackAroundOutcome.Refused(existingRefusals)
+	}
+
+	val allNotices = ArrayList(notices)
+
+	for (refusal in refusals) {
+		if (refusal.tileName !in unplacedNames) {
+			continue
+		}
+
+		allNotices.add(
+			when (refusal.reason) {
+				AtlasRepackRefusalReason.LargerThanPage -> SourceArtImportNotice.LayerLargerThanPage(refusal.tileName)
+				else -> SourceArtImportNotice.LayerNotPacked(refusal.tileName, refusal.reason.name)
+			},
+		)
+	}
+
+	val lowered = lowerPack(model.atlas, packed.result)
+	val repacked = model.withAtlasRepack(lowered.pages, lowered.placementsByTile, composition)
+	logPack(packed.result, lowered, packOptions)
+
+	return PackAroundOutcome.Packed(repacked, generatedPuppetTextures(packed.result.pages, repacked, premultipliedAlpha), allNotices)
+}
+
+/**
+ * Whether artwork can be added to [model]: every drawable has a tile.  A drawable with none renders from the atlas
+ * pages alone, the way a baked model's art does, and an add's pack composes the pages from the tiles, so it would
+ * take those drawables' pixels away.
+ *
+ * This is what the Import Artwork command asks to know whether it applies, so the menu row, the palette, and the
+ * Sources button are grayed or absent on such a document.
+ *
+ * @param PuppetModel model The document's model.
+ * @return Boolean True when an add would leave every drawable its art.
+ */
+internal fun canTakeArtwork(model: PuppetModel): Boolean = model.drawables.none { drawable -> drawable.atlasTileId == null }
+
+/**
+ * Refuses an add into [session]'s document when it cannot take one ([canTakeArtwork]), saying so in the log and
+ * on the status bar.  The command is unavailable on such a document, so this speaks for the ways in that have no
+ * grayed control to read: a file dropped on the window.
+ *
+ * @param EditorSession session The document's session.
+ * @return Boolean True when the add was refused.
+ */
+internal fun refuseArtworkAdd(session: EditorSession): Boolean {
+	if (canTakeArtwork(session.model.value)) {
+		return false
+	}
+
+	UmamoLog.warn("add artwork: the document's drawables render from baked atlas pages, which an add's pack would replace; nothing was added")
+	session.emitNotice("notice.import.bakedAtlas", NoticePlacement.StatusBar)
+
+	return true
+}
+
+/**
+ * Adds an artwork file to the open document as ONE undo step, packed beside the art already there,
+ * and registers the step on the operation settings strip.
+ *
+ * Runs on the UI thread; the bridge and the pack hop to the default dispatcher.  The additions are
+ * minted against the model current at the start, so ANY edit landing while they were built
+ * supersedes them - stricter than the repack, whose pack only depends on the atlas and the reaches.
+ *
+ * @param AtlasRepackHost   host    The session, art, resolver, scope, and shell callbacks.
+ * @param AddArtworkRequest request The file to add.
+ * @param String?           areaId  The area the command was dispatched over, or null - where the strip shows.
+ * @return Boolean Whether the artwork was added.
+ */
+suspend fun runAddArtwork(host: AtlasRepackHost, request: AddArtworkRequest, areaId: String?): Boolean {
+	val session = host.session
+
+	if (refuseArtworkAdd(session)) {
+		return false
+	}
+
+	val modelAtStart = session.model.value
+	val outcome =
+		host.progress.track(ProgressLabels.ARTWORK_ADDING, listOf(request.descriptor.name)) { progress ->
+			withContext(Dispatchers.Default) {
+				addArtworkOutcome(modelAtStart, request, request.options, host.artRasters, host.premultipliedAlpha, progress)
+			}
+		}
+
+	when (outcome) {
+		AddArtworkOutcome.NothingToAdd -> {
+			UmamoLog.warn("add artwork: '${request.descriptor.name}' has no layer with pixels to add; nothing was applied")
+			session.emitNotice("notice.import.noArtLayers", NoticePlacement.StatusBar)
+
+			return false
+		}
+
+		is AddArtworkOutcome.Refused -> {
+			for (refusal in outcome.refusals) {
+				UmamoLog.warn("add artwork: the document's tile '${refusal.tileName}' could not be kept in place (${refusal.reason}); nothing was applied")
+			}
+
+			host.report(AtlasRepackReport(outcome.refusals))
+
+			return false
+		}
+
+		is AddArtworkOutcome.Added -> {}
+	}
+
+	if (session.model.value !== modelAtStart) {
+		UmamoLog.warn("add artwork: the document changed while '${request.descriptor.name}' was being added; nothing was applied")
+		session.emitNotice("notice.import.artworkSuperseded", NoticePlacement.StatusBar)
+
+		return false
+	}
+
+	val drawableCount = outcome.added.additions.drawables.size
+	val committed = session.commitArtworkAdded(request.descriptor.name, drawableCount, outcome.model)
+	host.sessionAtlasPages?.prewarm(committed.atlas, outcome.textures)
+	reportAddArtwork(request, outcome, committed)
+	session.emitNotice(if (outcome.notices.isEmpty()) "notice.import.artworkAdded" else "notice.import.artworkNotes", NoticePlacement.StatusBar)
+	session.registerAdjustableOperation(committed, areaId, addArtworkParameters(request.options, placed = !SourceArtImport.isFirstArtwork(modelAtStart))) { record ->
+		host.scope.launch { adjustAddArtwork(host, record, request) }
+	}
+
+	return true
+}
+
+/**
+ * Re-derives the additions for an adjustment of the strip: the record's rows become the options, the
+ * SAME parsed art is imported again over the record's base model, packed, and landed over the
+ * operation's own step.  A record cleared while the pass ran makes [org.umamo.edit.EditorSession.amendLastCommit]
+ * drop the result rather than commit over what the rigger did since.
+ *
+ * @param AtlasRepackHost     host    The session, resolver, and shell callbacks the first run had.
+ * @param AdjustableOperation record  The record with the adjusted parameters.
+ * @param AddArtworkRequest   request The first run's file.
+ */
+internal suspend fun adjustAddArtwork(host: AtlasRepackHost, record: AdjustableOperation, request: AddArtworkRequest) {
+	val base = record.baseSnapshot.model
+	val options = addArtworkOptionsOf(record.parameters, request.options)
+	val outcome =
+		host.progress.track(ProgressLabels.ARTWORK_ADDING, listOf(request.descriptor.name)) { progress ->
+			withContext(Dispatchers.Default) {
+				addArtworkOutcome(base, request, options, host.artRasters, host.premultipliedAlpha, progress)
+			}
+		}
+
+	when (outcome) {
+		AddArtworkOutcome.NothingToAdd -> {
+			UmamoLog.warn("add artwork: under the adjusted options '${request.descriptor.name}' has nothing to add; the previous result stands")
+
+			return
+		}
+
+		is AddArtworkOutcome.Refused -> {
+			host.report(AtlasRepackReport(outcome.refusals))
+
+			return
+		}
+
+		is AddArtworkOutcome.Added -> {}
+	}
+
+	host.sessionAtlasPages?.prewarm(outcome.model.atlas, outcome.textures)
+
+	if (!host.session.amendLastCommit(record, outcome.model)) {
+		UmamoLog.info("add artwork: the adjustment was superseded before it landed; nothing was applied")
+
+		return
+	}
+
+	reportAddArtwork(request, outcome, outcome.model)
+}
+
+/**
+ * Logs one add-artwork pass the way the first run and an adjustment both report it.
+ *
+ * @param AddArtworkRequest request   The file.
+ * @param AddArtworkOutcome outcome   What the pass produced.
+ * @param PuppetModel       committed The model that landed.
+ */
+private fun reportAddArtwork(request: AddArtworkRequest, outcome: AddArtworkOutcome.Added, committed: PuppetModel) {
+	for (notice in outcome.notices) {
+		UmamoLog.warn("add artwork: ${describeImportNotice(notice)}")
+	}
+
+	val additions = outcome.added.additions
+	UmamoLog.info(
+		"add artwork: ${request.descriptor.name} -> ${additions.drawables.size} drawable(s), ${additions.parts.size} part(s)," +
+			" now ${committed.atlas.pages.size} page(s); ${outcome.notices.size} note(s)",
+	)
+}
+
+/**
+ * One import notice as a log line: plain English naming the layer and what happened to it, the same
+ * shape the export notices log in.  Shared by the open (an artwork-origin document) and the add.
+ *
+ * @param SourceArtImportNotice notice The notice.
+ * @return String The log text.
+ */
+fun describeImportNotice(notice: SourceArtImportNotice): String =
+	when (notice) {
+		is SourceArtImportNotice.NonRasterLayer -> "layer '${notice.layerName}' is a ${notice.kind.name.lowercase()} layer with no pixels; skipped"
+		is SourceArtImportNotice.EmptyLayer -> "layer '${notice.layerName}' has no opaque pixels; skipped"
+		is SourceArtImportNotice.BlendUnsupported -> "layer '${notice.layerName}' blends with ${notice.blend.name}, which has no equivalent; imported as Normal"
+		is SourceArtImportNotice.BlendApproximated -> "layer '${notice.layerName}' blends with ${notice.blend.name}; imported as the nearest mode, ${notice.mappedTo.name}"
+		is SourceArtImportNotice.ClipBaseMissing -> "layer '${notice.layerName}' clips to the layer below but has none in its folder; imported unclipped"
+		is SourceArtImportNotice.ChannelMaskDropped -> "layer '${notice.layerName}' writes only some color channels; imported writing all of them"
+		is SourceArtImportNotice.FolderBlendUnsupported -> "folder '${notice.groupPath}' blends with ${notice.blend.name}, which has no equivalent; its part composites as Normal"
+		is SourceArtImportNotice.FolderClipDropped -> "folder '${notice.groupPath}' clips to the layer below; its part imports unclipped"
+		is SourceArtImportNotice.LayerLargerThanPage -> "layer '${notice.layerName}' is larger than the largest atlas page; left unpacked"
+		is SourceArtImportNotice.LayerNotPacked -> "layer '${notice.layerName}' could not be packed (${notice.reason}); left unpacked"
+		is SourceArtImportNotice.BirthMeshFellBackToQuad -> "layer '${notice.layerName}' could not be meshed automatically (${birthRefusalWording(notice.reason)}); born as a quad"
+	}
+
+/**
+ * Why the art mesher gave a layer no birth mesh, as the end of a log line.
+ *
+ * @param BirthRefusal reason The refusal.
+ * @return String The wording.
+ */
+private fun birthRefusalWording(reason: BirthRefusal): String =
+	when (reason) {
+		BirthRefusal.NothingOpaque -> "no pixel reaches the atlas's alpha threshold"
+		BirthRefusal.OverBudget -> "it needs more vertices than the largest budget"
+		BirthRefusal.Withheld -> "its mesh failed a structural check"
+		BirthRefusal.MesherRefused -> "the mesher refused it"
+		BirthRefusal.MesherFailed -> "the mesher failed on it"
+	}

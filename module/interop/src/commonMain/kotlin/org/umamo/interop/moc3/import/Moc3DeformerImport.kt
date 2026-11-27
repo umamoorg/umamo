@@ -52,6 +52,7 @@ internal fun importDeformers(context: Moc3ImportContext): List<Deformer> {
 	): String {
 		val anchorIndex = soleDrawable[deformerIndex] ?: return id.raw
 		val anchorName = mocDocument.artMeshes.getOrNull(anchorIndex)?.id ?: return id.raw
+
 		return "${id.raw} ($anchorName)"
 	}
 
@@ -60,6 +61,7 @@ internal fun importDeformers(context: Moc3ImportContext): List<Deformer> {
 		val parent = context.deformerIds.getOrNull(source.parentDeformerIndex)
 		val keyformSpace = context.pointSpaceOf(source.parentDeformerIndex)
 		val binding = context.bindingOf(source.keyformBindingIndex)
+
 		when (source) {
 			is WarpDeformer -> {
 				// One bundled grid, then split into lattice geometry and the render tracks that cascade
@@ -93,6 +95,7 @@ internal fun importDeformers(context: Moc3ImportContext): List<Deformer> {
 						channelGrids = fannedWarp?.channels ?: ChannelGrids.Empty,
 					)
 				val warpRecords = context.blendRecordsByTarget[BlendShapeTarget.WARP to deformerIndex].orEmpty()
+
 				if (warpRecords.isEmpty()) {
 					warp
 				} else {
@@ -135,6 +138,7 @@ internal fun importDeformers(context: Moc3ImportContext): List<Deformer> {
 						channelGrids = fannedRotation?.channels ?: ChannelGrids.Empty,
 					)
 				val rotationRecords = context.blendRecordsByTarget[BlendShapeTarget.ROTATION to deformerIndex].orEmpty()
+
 				if (rotationRecords.isEmpty()) {
 					rotation
 				} else {
@@ -159,19 +163,11 @@ internal fun importDeformers(context: Moc3ImportContext): List<Deformer> {
  * §5.6 s15 carries real deformer→part membership, and this runs solely when that section placed
  * nothing at all.
  *
- * A MOC3 whose s15 is absent or entirely -1 - a stripped or synthesized file, or one that
- * genuinely puts every deformer at the root - converts to a flat org tree with an unusable
- * parts panel.  The two cases are indistinguishable in a bake, and inference is the better
- * outcome for both, so this reconstructs the grouping from the one signal that is still
- * present: a deformer's drawables almost always live in the deformer's own part.  The rule is
- * the plurality part of the DIRECTLY deformed drawables, falling back to the whole descendant
- * subtree for a deformer that only deforms other deformers.
- *
- * This is INFERENCE, not recovery.  Measured against the corpus twins (each model's
- * editor-written CMO3 against its own bake) it reproduced 81-93% of the original placements,
- * and a deformer whose drawables span several parts can land in any of them - which is why it
- * never overrides s15.  A CMO3-origin document never reaches here: it carries the real
- * membership on ACParameterControllableSource.parentGuid.
+ * Without it, a MOC3 whose s15 is absent or entirely -1 converts to a flat org tree with an
+ * unusable parts panel; the grouping is recovered from the one signal still present, since a
+ * deformer's drawables almost always live in the deformer's own part.  This is INFERENCE, not recovery: measured against the corpus twins (each model's editor-written
+ * CMO3 against its own bake) it reproduced 81-93% of the original placements, which is why it never
+ * overrides s15.
  *
  * @param List deformers      The imported deformers, none of which resolved a part.
  * @param List drawables      The imported drawables.
@@ -187,6 +183,7 @@ internal fun inferDeformerParts(
 	val parentById = deformers.associate { deformer -> deformer.id to deformer.parent }
 	val directParts = HashMap<DeformerId, MutableList<PartId>>()
 	val subtreeParts = HashMap<DeformerId, MutableList<PartId>>()
+
 	for (drawable in drawables) {
 		val partId = partByDrawable[drawable.id] ?: continue
 		val ownerId = drawable.parentDeformerId ?: continue
@@ -195,6 +192,7 @@ internal fun inferDeformerParts(
 		// parts below it; the visited set guards a malformed cyclic chain.
 		var ancestorId: DeformerId? = ownerId
 		val visited = HashSet<DeformerId>()
+
 		while (ancestorId != null && visited.add(ancestorId)) {
 			subtreeParts.getOrPut(ancestorId) { ArrayList() }.add(partId)
 			ancestorId = parentById[ancestorId]
@@ -212,6 +210,7 @@ internal fun inferDeformerParts(
 
 	return deformers.map { deformer ->
 		val inferred = plurality(directParts[deformer.id]) ?: plurality(subtreeParts[deformer.id])
+
 		if (inferred == null) {
 			deformer
 		} else {
@@ -239,9 +238,11 @@ internal fun inferDeformerParts(
  */
 private fun soleDrawableByDeformer(mocDocument: MocDocument): Map<Int, Int> {
 	val deformerCount = mocDocument.deformers.size
+
 	if (deformerCount == 0) {
 		return emptyMap()
 	}
+
 	val ambiguous = -1
 	val direct = HashMap<Int, Int>()
 	val subtree = HashMap<Int, Int>()
@@ -260,26 +261,34 @@ private fun soleDrawableByDeformer(mocDocument: MocDocument): Map<Int, Int> {
 	) {
 		into[deformerIndex] = if (deformerIndex in into) ambiguous else drawableIndex
 	}
+
 	for ((drawableIndex, artMesh) in mocDocument.artMeshes.withIndex()) {
 		var ancestorIndex = artMesh.parentDeformerIndex
+
 		if (ancestorIndex !in 0 until deformerCount) {
 			continue
 		}
+
 		record(direct, ancestorIndex, drawableIndex)
 		// Walk to the root so an ancestor that deforms no drawable directly still sees the meshes
 		// below it; the visited set guards a malformed cyclic chain.
 		val visited = HashSet<Int>()
+
 		while (ancestorIndex in 0 until deformerCount && visited.add(ancestorIndex)) {
 			record(subtree, ancestorIndex, drawableIndex)
 			ancestorIndex = mocDocument.deformers[ancestorIndex].parentDeformerIndex
 		}
 	}
+
 	val resolved = HashMap<Int, Int>(deformerCount)
+
 	for (deformerIndex in 0 until deformerCount) {
 		val drawableIndex = direct[deformerIndex] ?: subtree[deformerIndex] ?: continue
+
 		if (drawableIndex != ambiguous) {
 			resolved[deformerIndex] = drawableIndex
 		}
 	}
+
 	return resolved
 }

@@ -26,22 +26,29 @@ internal fun runDiff(arguments: List<String>): Int {
 	if (arguments.size != 2) {
 		throw CliUsageException("Usage: diff <a> <b>")
 	}
+
 	val baseline = importPuppet(loadInput(arguments[0]))
 	val edited = importPuppet(loadInput(arguments[1]))
 	val diff = diffPuppetModels(baseline, edited)
+
 	if (diff.isEmpty) {
 		println("identical")
+
 		return 0
 	}
+
 	printCategory("parameters", diff.parameters)
 	printCategory("parameterGroups", diff.parameterGroups)
 	printCategory("parts", diff.parts)
 	printCategory("deformers", diff.deformers)
 	printCategory("drawables", diff.drawables)
+
 	if (diff.glues.isNotEmpty()) {
 		println("[glues]")
+
 		for (glueDiff in diff.glues) {
 			val key = "${glueDiff.meshA.raw}~${glueDiff.meshB.raw}#${glueDiff.ordinal}"
+
 			when (glueDiff) {
 				is GlueDiff.Created -> println("+ $key")
 				is GlueDiff.Deleted -> println("- $key")
@@ -49,10 +56,12 @@ internal fun runDiff(arguments: List<String>): Int {
 			}
 		}
 	}
+
 	if (diff.document.isNotEmpty()) {
 		println("[document]")
 		println("~ ${diff.document.sorted()}")
 	}
+
 	return 0
 }
 
@@ -66,7 +75,9 @@ private fun <TId, TField : Comparable<TField>> printCategory(label: String, diff
 	if (diffs.isEmpty()) {
 		return
 	}
+
 	println("[$label]")
+
 	for (entityDiff in diffs) {
 		when (entityDiff) {
 			is EntityDiff.Created -> println("+ ${formatEntityId(entityDiff.id)}")

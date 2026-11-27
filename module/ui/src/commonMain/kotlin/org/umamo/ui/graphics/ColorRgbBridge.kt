@@ -5,9 +5,7 @@ import org.umamo.runtime.model.ColorRgb
 
 /**
  * Converts the model's [ColorRgb] (three 0..1 float channels, no alpha) to a Compose [Color], forced
- * opaque.  The composite tint colors are stored as [ColorRgb]; the UI edits them through Compose's
- * [Color] and the hex helpers ([formatHexColor] / [parseHexColor]), so this is the model-to-UI half of
- * that bridge.
+ * opaque - the model-to-UI half of the bridge the UI edits composite tint colors through.
  *
  * @return Color The opaque Compose color with the same red / green / blue.
  */

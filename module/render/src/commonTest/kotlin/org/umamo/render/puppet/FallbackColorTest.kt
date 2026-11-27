@@ -25,10 +25,12 @@ class FallbackColorTest {
 		for (id in listOf("", "a", "some_long_drawable_id", "ParamAngleX", "0")) {
 			val color = fallbackColorFor(id)
 			assertEquals(4, color.size, "RGBA")
+
 			for (channelIndex in 0..2) {
 				assertTrue(color[channelIndex] >= 0.35f, "$id channel $channelIndex is at or above the floor")
 				assertTrue(color[channelIndex] <= 0.95f, "$id channel $channelIndex is at or below floor + span")
 			}
+
 			assertEquals(0.85f, color[3], "alpha is fixed")
 		}
 	}

@@ -3,8 +3,8 @@ package org.umamo.render
 import org.junit.Assume
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.cmo3AtlasIngest
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasIngest
 import org.umamo.runtime.model.AtlasTileId
 import java.io.File
 import kotlin.test.Test
@@ -36,12 +36,15 @@ class SourceLayerPlanCorpusTest {
 		var mappedTotal = 0
 		var decodedTotal = 0
 		val lines = mutableListOf<String>()
+
 		for (file in files) {
 			val root = Cmo3.read(file).root as? CModelSource ?: continue
 			val puppet = Cmo3Import.fromModelSource(root).let { model -> model.copy(rendersFromSourceLayers = true) }
+
 			if (puppet.atlas.tiles.isEmpty()) {
 				continue
 			}
+
 			val plan = buildLayerDrawPlan(puppet)
 			val meshed = puppet.drawables.count { drawable -> drawable.mesh != null }
 			mappedTotal += plan.drawsByDrawableId.size
@@ -59,6 +62,7 @@ class SourceLayerPlanCorpusTest {
 					"pagesAddressed=${puppet.atlas.storedUvsAddressPages}",
 			)
 		}
+
 		lines.take(40).forEach { line -> println("[plan] $line") }
 		assertTrue(mappedTotal > 0, "no corpus drawable mapped to artwork; the plan is empty everywhere")
 		assertTrue(decodedTotal > 0, "no mapped layer decoded; the renderer would never engage the mode")

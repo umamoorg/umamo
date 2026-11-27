@@ -58,7 +58,7 @@ class Moc3ExportIdFitTest {
 			// Bound to a page, so the only notice a rig here can raise is about its ids.
 			texturePage = 0,
 			mesh =
-				DrawableMesh(
+				DrawableMesh.withLocalEqualToCanvas(
 					positions = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
 					uvs = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
 					indices = intArrayOf(0, 1, 2),
@@ -75,6 +75,7 @@ class Moc3ExportIdFitTest {
 	private fun puppetWithDrawableIds(ids: List<String>): PuppetModel {
 		val partId = PartId("Part1")
 		val drawables = ids.map { id -> drawable(id, partId) }
+
 		return PuppetModel(
 			parameters = emptyList(),
 			parts = listOf(Part(id = partId, name = "Part1", children = drawables.map { OrgChild.Drawable(it.id) })),
@@ -104,12 +105,14 @@ class Moc3ExportIdFitTest {
 
 		val writtenIds = lowered.document.artMeshes.map { artMesh -> artMesh.id }
 		assertEquals(2, writtenIds.toSet().size, "the two drawables were written under one id: $writtenIds")
+
 		for (writtenId in writtenIds) {
 			assertTrue(
 				writtenId.encodeToByteArray().size < Sections.ID_STRIDE,
 				"\"$writtenId\" does not fit a ${Sections.ID_STRIDE}-byte id record",
 			)
 		}
+
 		// Each shortening is reported against the id the RIG carries, so the rigger can find the object
 		// the notice is about; the written name is on the reason.
 		val subjects =

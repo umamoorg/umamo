@@ -1,7 +1,7 @@
 package org.umamo.runtime.model
 
 /**
- * A copy of this model with [PuppetModel.renderRoot] recomputed from the current org tree. Every edit that
+ * A copy of this model with [PuppetModel.renderRoot] recomputed from the current org tree.  Every edit that
  * changes the org tree (a move, a delete) ends with this, so draw order stays a consistent derivation of
  * the tree rather than something the edit has to maintain by hand.
  *
@@ -10,17 +10,11 @@ package org.umamo.runtime.model
 fun PuppetModel.withDerivedRenderRoot(): PuppetModel = copy(renderRoot = deriveRenderRoot())
 
 /**
- * Derives the draw-order group tree ([PuppetModel.renderRoot]) from the organizational tree. The org tree
- * ([PuppetModel.rootChildren] / [Part.children]) is the single source of truth for hierarchy + panel
- * order; draw order is a pure function of it plus the explicit draw-order levers ([Part.groupMode] /
- * [Part.drawOrder] / [Part.channelGrids], and each drawable's keyformed draw order). This walks the org
- * tree to materialise the structure the renderer consumes, so any org-tree edit yields correct draw order
- * by recomputing it - there is no parallel render structure to drift out of sync.
- *
- * Mirrors Cubism: panel order is top = front, so the render tree (back-to-front) walks each child list
- * reversed; a grouped or isolated part becomes a [RenderGroup] boundary (carrying its part draw order
- * and grid), a pass-through part is transparent (its children hoist into the enclosing group). A safety
- * net appends any drawable the org walk missed, so the render never silently drops a mesh.
+ * Derives the draw-order group tree ([PuppetModel.renderRoot]) from the organizational tree, the single
+ * source of truth for hierarchy and panel order, so any org-tree edit yields correct draw order by
+ * recomputing it rather than maintaining a parallel render structure.  Mirrors Cubism: a grouped or
+ * isolated part becomes a [RenderGroup] boundary, and a pass-through part hoists its children into the
+ * enclosing group.
  *
  * @return RenderGroup The derived render-order root.
  */
@@ -37,28 +31,45 @@ fun PuppetModel.deriveRenderRoot(): RenderGroup {
 	// building it per composite would cost O(parts * masked composites) on every model mutation.
 	val maskSubtrees by lazy { drawablesByPartSubtree() }
 
+	/**
+	 * A part's active composite, with its part masks expanded into the drawables they cover.
+	 *
+	 * @param Part part The part.
+	 * @return PartComposite? The composite, or null when the part has none active.
+	 */
 	fun resolvedComposite(part: Part): PartComposite? {
 		val composite = part.activeComposite ?: return null
+
 		if (composite.maskedByParts.isEmpty()) {
 			return composite
 		}
+
 		// maskedByParts is CLEARED, not just expanded: PartComposite documents that the render tree sees the
 		// expansion and never these ids, so leaving them would let any consumer that later honors them apply
 		// the same drawables twice.
 		return composite.copy(maskedBy = flattenedMasks(composite, maskSubtrees), maskedByParts = emptyList())
 	}
 
+	/**
+	 * Appends a child list's render nodes back to front, nesting each grouping part and hoisting a pass-through
+	 * part's children.
+	 *
+	 * @param List<OrgChild> children The child list, in panel order.
+	 * @param ArrayList<RenderNode> into The list that takes the nodes.
+	 */
 	fun collect(children: List<OrgChild>, into: ArrayList<RenderNode>) {
 		// Panel order is top = front; render order is back-to-front, so walk reversed.
 		for (child in children.asReversed()) {
 			when (child) {
-				is OrgChild.Drawable ->
+				is OrgChild.Drawable -> {
 					if (child.id in drawableIds) {
 						into.add(RenderDrawable(child.id))
 					}
+				}
 
 				is OrgChild.Part -> {
 					val part = partById[child.id] ?: continue
+
 					if (part.groupMode is PartGroupMode.PassThrough) {
 						collect(part.children, into) // transparent: hoist its children up
 					} else {
@@ -87,6 +98,11 @@ fun PuppetModel.deriveRenderRoot(): RenderGroup {
 	// so the render never silently drops a mesh.
 	val placed = HashSet<DrawableId>()
 
+	/**
+	 * Records every drawable a render node places.
+	 *
+	 * @param RenderNode node The node to walk.
+	 */
 	fun collectPlaced(node: RenderNode) {
 		when (node) {
 			is RenderDrawable -> placed.add(node.id)
@@ -95,6 +111,7 @@ fun PuppetModel.deriveRenderRoot(): RenderGroup {
 	}
 	collectPlaced(root)
 	val missing = drawables.map { it.id }.filter { it !in placed }.map { RenderDrawable(it) }
+
 	return if (missing.isEmpty()) {
 		root
 	} else {

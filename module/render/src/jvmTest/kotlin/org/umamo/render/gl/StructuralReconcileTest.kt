@@ -29,7 +29,7 @@ import kotlin.test.assertTrue
  * Proves [PuppetRenderer.updateModel]'s STRUCTURAL reconcile: a session-created drawable (e.g. an
  * Object-mode duplicate) must reach the GPU, not just have position VBOs patched on drawables it already
  * knew about, or it renders blank; likewise a remesh must re-upload the element buffer, or the
- * newly-referenced geometry never draws. Renders flat-color art into an offscreen FBO and asserts by
+ * newly-referenced geometry never draws.  Renders flat-color art into an offscreen FBO and asserts by
  * covered-pixel mass that:
  *
  * - a drawable ADDED after init (the duplicate) draws, and its removal (the undo) stops drawing it;
@@ -59,7 +59,7 @@ class StructuralReconcileTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions, quadUvs, indices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, quadUvs, indices),
 			// A single zero-delta keyform so the drawable is "keyed" (an unkeyed drawable is skipped).
 			geometryGrid = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size))))),
 			textureSourceId = textureSourceId,
@@ -182,15 +182,18 @@ class StructuralReconcileTest {
 	private fun coveredMass(frame: ByteBuffer, background: ByteBuffer): Int {
 		val threshold = 20
 		var count = 0
+
 		for (pixelIndex in 0 until viewportSize * viewportSize) {
 			val byteIndex = pixelIndex * 4
 			val deltaRed = abs((frame.get(byteIndex).toInt() and 0xFF) - (background.get(byteIndex).toInt() and 0xFF))
 			val deltaGreen = abs((frame.get(byteIndex + 1).toInt() and 0xFF) - (background.get(byteIndex + 1).toInt() and 0xFF))
 			val deltaBlue = abs((frame.get(byteIndex + 2).toInt() and 0xFF) - (background.get(byteIndex + 2).toInt() and 0xFF))
+
 			if (maxOf(deltaRed, deltaGreen, deltaBlue) > threshold) {
 				count++
 			}
 		}
+
 		return count
 	}
 
@@ -198,6 +201,7 @@ class StructuralReconcileTest {
 	private fun readPixels(width: Int, height: Int): ByteBuffer {
 		val buffer = BufferUtils.createByteBuffer(width * height * 4)
 		GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer)
+
 		return buffer
 	}
 
@@ -211,6 +215,7 @@ class StructuralReconcileTest {
 		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR)
 		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR)
 		GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, colorTexture, 0)
+
 		return framebuffer
 	}
 }

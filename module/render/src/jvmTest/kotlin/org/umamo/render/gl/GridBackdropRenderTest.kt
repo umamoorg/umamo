@@ -3,6 +3,8 @@ package org.umamo.render.gl
 import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
+import org.umamo.format.raster.RasterImage
+import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
@@ -23,6 +25,8 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import java.nio.ByteBuffer
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -41,7 +45,7 @@ class GridBackdropRenderTest {
 	private val paramA = ParameterId("A")
 
 	// A small keyed quad tucked into a corner so its pixels never overlap the sampled center rows/columns.
-	private fun model(originX: Float = 0f, originY: Float = 0f): PuppetModel {
+	private fun model(originX: Float = 0f, originZ: Float = 0f): PuppetModel {
 		val positions = floatArrayOf(150f, 150f, 180f, 150f, 150f, 180f, 180f, 180f)
 		val drawable =
 			Drawable(
@@ -50,9 +54,10 @@ class GridBackdropRenderTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(positions, FloatArray(positions.size), intArrayOf(0, 1, 2, 1, 3, 2)),
+				mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), intArrayOf(0, 1, 2, 1, 3, 2)),
 				geometryGrid = KeyformGrid(listOf(KeyformAxis(paramA, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size))))),
 			)
+
 		return PuppetModel(
 			parameters = listOf(Parameter(paramA, "A", -1f, 1f, 0f)),
 			parts = emptyList(),
@@ -63,7 +68,7 @@ class GridBackdropRenderTest {
 			canvasWidth = 0f,
 			canvasHeight = 0f,
 			worldOriginX = originX,
-			worldOriginY = originY,
+			worldOriginZ = originZ,
 		)
 	}
 
@@ -85,10 +90,10 @@ class GridBackdropRenderTest {
 		val framebuffer = (target as GlRenderTarget).framebuffer
 
 		// 1:1 camera centered on the world origin: world x = 0 is the center column, x = +-scale sit scale
-		// pixels either side.  Sample a row OFF the horizontal y = 0 line (else every column reads that
+		// pixels either side.  Sample a row OFF the horizontal Z = 0 line (else every column reads that
 		// line's red) and clear of the corner probe quad.
 		val center = viewportSize / 2
-		val row = center + gridScale.toInt() / 2 // world y = ~half a cell: no horizontal line here
+		val row = center + gridScale.toInt() / 2 // world Z = ~half a cell: no horizontal line here
 		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
 		renderer.render(target, viewportSize, viewportSize)
@@ -115,7 +120,7 @@ class GridBackdropRenderTest {
 		// origin, so the major line lands there, NOT at world 0.
 		val halfCell = gridScale / 2f
 		val device = GlRenderDevice()
-		val renderer = PuppetRenderer(model(originX = halfCell, originY = 0f), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+		val renderer = PuppetRenderer(model(originX = halfCell, originZ = 0f), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 		renderer.initGl()
 		highContrastGrid(renderer)
 		renderer.setPose(emptyMap())
@@ -132,20 +137,124 @@ class GridBackdropRenderTest {
 		assertTrue(!hasRedNear(frame, center, row, radius = 3), "world x = 0 is a mid-cell gap when the origin is offset")
 	}
 
+	/**
+	 * A UV scene's grid paints the surround color outside its surface and the border in a band just outside
+	 * the surface's edge, while the 2D grid of the same renderer paints neither.  A transparent 100-texel
+	 * layer is the surface, centered by the camera, so it covers columns and top-first rows 150 to 250 and
+	 * world x lands at column 150 + x.
+	 */
+	@Test
+	fun aSurfaceBoundedGridPaintsTheSurround() {
+		requireHeadlessGl("[grid-backdrop]")
+		val device = GlRenderDevice()
+		val renderer = PuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+		renderer.initGl()
+		renderer.setGrid(
+			GridColors(0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, surroundRed = 0f, surroundGreen = 0f, surroundBlue = 1f, frameRed = 0f, frameGreen = 1f, frameBlue = 0f, frameWidthPx = 2f),
+			gridScale,
+			subdivisions = 1,
+		)
+		renderer.setPose(emptyMap())
+		renderer.setCamera(ViewportCamera(50f, 50f, 1f))
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val surface = DecodedImage(ByteArray(100 * 100 * 4), 100, 100)
+
+		renderer.renderUnderlayImage(target, surface, viewportSize, viewportSize)
+		val uvFrame = device.readPixels(target)
+		val surroundPixel = listOf(0, 0, 255, 255)
+		val framePixel = listOf(0, 255, 0, 255)
+		assertEquals(surroundPixel, uvFrame.at(20, 200), "far left of the surface is the surround")
+		assertEquals(surroundPixel, uvFrame.at(200, 380), "far below it too")
+		assertEquals(framePixel, uvFrame.at(149, 200), "the column just outside the left edge is the border")
+		assertEquals(framePixel, uvFrame.at(148, 200), "two pixels wide")
+		assertEquals(surroundPixel, uvFrame.at(146, 200), "and no wider")
+		assertEquals(framePixel, uvFrame.at(200, 250), "the row just below the bottom edge is the border")
+		val inside = uvFrame.at(200, 175)
+		assertTrue(inside[1] < 60 && inside[2] < 60, "inside the surface is the grid's own fill, read $inside")
+
+		renderer.render(target, viewportSize, viewportSize)
+		val puppetFrame = device.readPixels(target)
+		val farLeft = puppetFrame.at(20, 175)
+		assertTrue(farLeft[1] < 60 && farLeft[2] < 60, "the 2D grid has no surround, read $farLeft")
+	}
+
+	/**
+	 * A UV scene's grid draws its major lines at the area's scale, in texels, anchored at the image's corner:
+	 * two scales over one 100-texel layer put the lines at different columns, and an edge that falls mid-cell
+	 * gets no line of its own.  The layer sits at columns 150 to 250 (world x at column 150 + x) as in the
+	 * surround test; one subdivision, so only the major lines show, red on black.
+	 */
+	@Test
+	fun aUvGridDrawsItsMajorLinesAtTheAreasScale() {
+		requireHeadlessGl("[grid-backdrop]")
+		val device = GlRenderDevice()
+		val renderer = PuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+		renderer.initGl()
+		renderer.setPose(emptyMap())
+		renderer.setCamera(ViewportCamera(50f, 50f, 1f))
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val surface = DecodedImage(ByteArray(100 * 100 * 4), 100, 100)
+		val redOnBlack = GridColors(0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f)
+		val row = 175
+
+		renderer.setGrid(redOnBlack, 40f, subdivisions = 1)
+		renderer.renderUnderlayImage(target, surface, viewportSize, viewportSize)
+		val atForty = device.readPixels(target)
+		assertTrue(atForty.hasRedNear(190, row) && atForty.hasRedNear(230, row), "at a scale of 40 the lines fall 40 texels from the corner")
+		assertFalse(atForty.hasRedNear(210, row), "and 60 texels in is mid-cell")
+
+		renderer.setGrid(redOnBlack, 30f, subdivisions = 1)
+		renderer.renderUnderlayImage(target, surface, viewportSize, viewportSize)
+		val atThirty = device.readPixels(target)
+		assertTrue(atThirty.hasRedNear(180, row) && atThirty.hasRedNear(210, row) && atThirty.hasRedNear(240, row), "at a scale of 30 the lines fall 30 texels apart")
+		assertFalse(atThirty.hasRedNear(190, row), "where the 40-scale line was, nothing")
+	}
+
+	/**
+	 * True when any pixel within [radius] columns of [column] on [row] reads clearly red (a major grid line),
+	 * in a frame read top row first.
+	 *
+	 * @param Int column The column.
+	 * @param Int row The row from the top.
+	 * @param Int radius How many columns either side to probe.
+	 * @return Boolean True when a red line is there.
+	 */
+	private fun RasterImage.hasRedNear(column: Int, row: Int, radius: Int = 2): Boolean =
+		(column - radius..column + radius).any { probe ->
+			val pixel = at(probe, row)
+			pixel[0] > pixel[1] + 60 && pixel[0] > pixel[2] + 60
+		}
+
+	/**
+	 * One pixel's channels, top row first.
+	 *
+	 * @param Int column The column.
+	 * @param Int row The row from the top.
+	 * @return List<Int> Red, green, blue, alpha in 0..255.
+	 */
+	private fun RasterImage.at(column: Int, row: Int): List<Int> {
+		val offset = (row * viewportSize + column) * 4
+
+		return (0 until 4).map { channelIndex -> rgba[offset + channelIndex].toInt() and 0xFF }
+	}
+
 	/** True when any pixel within [radius] columns of [col] on [row] reads clearly red (a major grid line). */
 	private fun hasRedNear(frame: ByteBuffer, col: Int, row: Int, radius: Int = 2): Boolean {
 		for (probe in col - radius..col + radius) {
 			if (probe < 0 || probe >= viewportSize) {
 				continue
 			}
+
 			val pixel = (row * viewportSize + probe) * 4
 			val red = frame.get(pixel).toInt() and 0xFF
 			val green = frame.get(pixel + 1).toInt() and 0xFF
 			val blue = frame.get(pixel + 2).toInt() and 0xFF
+
 			if (red > green + 60 && red > blue + 60) {
 				return true
 			}
 		}
+
 		return false
 	}
 
@@ -153,6 +262,7 @@ class GridBackdropRenderTest {
 	private fun readPixels(width: Int, height: Int): ByteBuffer {
 		val buffer = BufferUtils.createByteBuffer(width * height * 4)
 		GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer)
+
 		return buffer
 	}
 }

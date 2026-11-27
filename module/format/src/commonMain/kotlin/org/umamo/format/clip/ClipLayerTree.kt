@@ -58,7 +58,7 @@ private const val VISIBILITY_SHOWN_BIT = 1L
 // default for a new folder.  Only meaningful on folder rows; observed in several samples.
 private const val COMPOSITE_THROUGH = 30L
 
-// CLIP: Layer.LayerType - verified across the corpus (see docs/CLIP.md §5).  1 and 3 are raster
+// CLIP: Layer.LayerType - verified across the corpus (see docs/format/CLIP.md §4b).  1 and 3 are raster
 // layers (pixels persist); 0 is an object layer (vector/text, distinguished by TextLayerType); 1584
 // is the Paper/fill layer; 4098 is a procedural adjustment/correction layer.  None of 0/1584/4098
 // carry a persisted raster.
@@ -78,24 +78,27 @@ private const val LAYER_TYPE_ADJUSTMENT = 4098L
 private fun layerKindOf(row: ClipLayerRow, textLayerIds: Set<Long>): SourceLayerKind =
 	when (row.type) {
 		LAYER_TYPE_RASTER_PLAIN, LAYER_TYPE_RASTER_VARIANT -> SourceLayerKind.Raster
+
 		// CLIP: a text layer is in textLayerIds (TextLayerType set); other object layers are vector.
 		LAYER_TYPE_OBJECT -> if (row.mainId in textLayerIds) SourceLayerKind.Text else SourceLayerKind.Vector
+
 		LAYER_TYPE_FILL -> SourceLayerKind.Fill
+
 		LAYER_TYPE_ADJUSTMENT -> SourceLayerKind.Adjustment
+
 		else -> SourceLayerKind.Unknown
 	}
 
 /**
  * Builds the neutral, ordered [SourceLayer] list from the CLIP layer table.
  *
- * EN: The layer tree is encoded as MainId links: a node's LayerFirstChildIndex points at its first
- *     child and LayerNextIndex at its next sibling (0 terminates each chain).  We descend from
- *     Canvas.CanvasRootFolder (a synthetic root that is never emitted) and flatten depth-first.  The
- *     firstChild/nextSibling walk visits the bottom-most layer first (verified: the root's first
- *     child in the corpus is "Paper", Clip Studio's default background), so the produced list is
- *     bottom-to-top - the painter's-algorithm order the compositor expects, matching the KRA reader.
- *     Folders contribute only their name to the slash-joined groupPath; only leaf layers are emitted.
- * JA: MainId のリンク（FirstChild/NextSibling）でツリーを深さ優先に平坦化し, 下から上の順で葉のみ出力する.
+ * The layer tree is encoded as MainId links: a node's LayerFirstChildIndex points at its first
+ * child and LayerNextIndex at its next sibling (0 terminates each chain).  We descend from
+ * Canvas.CanvasRootFolder (a synthetic root that is never emitted) and flatten depth-first.  The
+ * firstChild/nextSibling walk visits the bottom-most layer first (verified: the root's first
+ * child in the corpus is "Paper", Clip Studio's default background), so the produced list is
+ * bottom-to-top - the painter's-algorithm order the compositor expects, matching the KRA reader.
+ * Folders contribute only their name to the slash-joined groupPath; only leaf layers are emitted.
  *
  * @param ClipCanvas canvas        The document geometry and root-folder id.
  * @param List rows                All layer rows (in any order; indexed internally by MainId).
@@ -114,6 +117,7 @@ internal fun buildSourceTree(
 	val groups = ArrayList<SourceGroup>()
 
 	val rootRow = rowsByMainId[canvas.rootFolderId]
+
 	if (rootRow != null) {
 		collectTree(rootRow.firstChildIndex, rowsByMainId, parentPath = "", visited = HashSet(), outLeaves = leavesBottomToTop, outGroups = groups)
 	}
@@ -131,6 +135,7 @@ internal fun buildSourceTree(
 				textLayerIds = textLayerIds,
 			)
 		}
+
 	return ClipTree(layers = layers, groups = groups)
 }
 
@@ -160,15 +165,18 @@ private fun collectTree(
 	outGroups: MutableList<SourceGroup>,
 ) {
 	var currentMainId = startMainId
+
 	while (currentMainId != 0L) {
 		if (!visited.add(currentMainId)) {
 			// A cyclic LayerNextIndex would otherwise loop forever; stop defensively.
 			break
 		}
+
 		val row = rowsByMainId[currentMainId] ?: break
 		// CLIP: a node is a group if the folder bit is set; treat "has children" as a group too, so a
 		// folder whose bit we misread still recurses rather than being emitted as a bogus drawable.
 		val isGroup = (row.folder and LAYER_FOLDER_BIT) != 0L || row.firstChildIndex != 0L
+
 		if (isGroup) {
 			val childPath = if (parentPath.isEmpty()) row.name else "$parentPath/${row.name}"
 			outGroups.add(toSourceGroup(row, childPath))
@@ -176,6 +184,7 @@ private fun collectTree(
 		} else {
 			outLeaves.add(ClipLeaf(row, parentPath))
 		}
+
 		currentMainId = row.nextIndex
 	}
 }
@@ -218,6 +227,7 @@ private fun toSourceLayer(row: ClipLayerRow, groupPath: String, order: Int, rast
 	// offset keeps downstream dimensions valid (mirrors the KRA reader's empty-layer placeholder).
 	val bounds = raster?.bounds ?: LayerBounds(left = row.offsetX.toInt(), top = row.offsetY.toInt(), width = 1, height = 1)
 	val pixels = raster?.raster ?: LayerRaster(width = 1, height = 1, rgba = ByteArray(4))
+
 	return ClipSourceLayer(
 		id = LayerId(stableId),
 		name = row.name,

@@ -3,10 +3,11 @@ package org.umamo.render
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.Deformer
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -40,10 +41,11 @@ class BlendBindingParityTest {
 					moc3Root?.walkTopDown()?.firstOrNull { it.isFile && it.name == "$prefix.moc3" } ?: return@mapNotNull null
 				prefix to (cmo3File to moc3File)
 			}
+
 		if (pairs.isEmpty()) {
-			println("cmo3.probe/moc3.samples not present; skipping blend-binding parity")
-			return
+			skipTest("cmo3.probe/moc3.samples not present; skipping blend-binding parity")
 		}
+
 		for ((name, files) in pairs) {
 			val (cmo3File, moc3File) = files
 			val cmo3Root = Cmo3.read(cmo3File).root as? CModelSource ?: error("$name: root is not a CModelSource")
@@ -55,6 +57,7 @@ class BlendBindingParityTest {
 			var maxMeshDelta = 0f
 			var maxScalarDelta = 0f
 			val moc3DrawablesById = fromMoc3.drawables.associateBy { it.id }
+
 			for (cmo3Drawable in fromCmo3.drawables) {
 				val moc3Drawable = moc3DrawablesById[cmo3Drawable.id] ?: continue
 				meshBindingPairs +=
@@ -62,10 +65,12 @@ class BlendBindingParityTest {
 						var maxComponentDelta = 0f
 						val componentCount = minOf(cmo3Form.positionDeltas.size, moc3Form.positionDeltas.size)
 						assertEquals(cmo3Form.positionDeltas.size, moc3Form.positionDeltas.size, "$name: mesh form size")
+
 						for (componentIndex in 0 until componentCount) {
 							maxComponentDelta =
 								maxOf(maxComponentDelta, abs(cmo3Form.positionDeltas[componentIndex] - moc3Form.positionDeltas[componentIndex]))
 						}
+
 						maxMeshDelta = maxOf(maxMeshDelta, maxComponentDelta)
 						maxScalarDelta = maxOf(maxScalarDelta, abs(cmo3Form.drawOrder - moc3Form.drawOrder))
 						maxScalarDelta = maxOf(maxScalarDelta, abs(cmo3Form.opacity - moc3Form.opacity))
@@ -81,28 +86,34 @@ class BlendBindingParityTest {
 			val cmo3DeformersById = fromCmo3.deformers.associateBy { it.id }
 			val moc3DeformersById = fromMoc3.deformers.associateBy { it.id }
 			val comparedDeformerPairs = HashSet<Pair<Any, Any>>()
+
 			for (cmo3Drawable in fromCmo3.drawables) {
 				val moc3Drawable = moc3DrawablesById[cmo3Drawable.id] ?: continue
 				var cmo3ParentId = cmo3Drawable.parentDeformerId
 				var moc3ParentId = moc3Drawable.parentDeformerId
+
 				while (cmo3ParentId != null && moc3ParentId != null) {
 					val cmo3Deformer = cmo3DeformersById[cmo3ParentId] ?: break
 					val moc3Deformer = moc3DeformersById[moc3ParentId] ?: break
+
 					if (!comparedDeformerPairs.add(cmo3Deformer.id to moc3Deformer.id)) {
 						break
 					}
+
 					when (cmo3Deformer) {
 						is Deformer.Warp -> {
 							val moc3Warp = moc3Deformer as Deformer.Warp
 							warpBindingPairs +=
 								compareBindingLists(name, "warp ${cmo3Deformer.id.raw}", cmo3Deformer.blendShapes, moc3Warp.blendShapes) { cmo3Form, moc3Form ->
 									assertEquals(cmo3Form.controlPoints.size, moc3Form.controlPoints.size, "$name: warp form size")
+
 									for (componentIndex in cmo3Form.controlPoints.indices) {
 										maxControlPointDelta =
 											maxOf(maxControlPointDelta, abs(cmo3Form.controlPoints[componentIndex] - moc3Form.controlPoints[componentIndex]))
 									}
 								}
 						}
+
 						is Deformer.Rotation -> {
 							val moc3Rotation = moc3Deformer as Deformer.Rotation
 							rotationBindingPairs +=
@@ -114,6 +125,7 @@ class BlendBindingParityTest {
 								}
 						}
 					}
+
 					cmo3ParentId = cmo3Deformer.parent
 					moc3ParentId = moc3Deformer.parent
 				}
@@ -158,6 +170,7 @@ class BlendBindingParityTest {
 	): Int {
 		assertEquals(cmo3Bindings.size, moc3Bindings.size, "$modelName: binding count on $objectLabel")
 		val moc3ByParameter = moc3Bindings.associateBy { it.parameterId }
+
 		for (cmo3Binding in cmo3Bindings) {
 			val moc3Binding = moc3ByParameter[cmo3Binding.parameterId]
 			assertTrue(moc3Binding != null, "$modelName: $objectLabel missing moc3 binding for ${cmo3Binding.parameterId.raw}")
@@ -181,14 +194,17 @@ class BlendBindingParityTest {
 				moc3Binding.limits.map { limit -> limit.parameterId to limit.points }.sortedBy { it.first.raw },
 				"$modelName: limit curves on $objectLabel/${cmo3Binding.parameterId.raw}",
 			)
+
 			for (formIndex in cmo3Binding.forms.indices) {
 				val cmo3Form = cmo3Binding.forms[formIndex]
 				val moc3Form = moc3Binding.forms[formIndex]
+
 				if (cmo3Form != null && moc3Form != null) {
 					compareForms(cmo3Form, moc3Form)
 				}
 			}
 		}
+
 		return cmo3Bindings.size
 	}
 }

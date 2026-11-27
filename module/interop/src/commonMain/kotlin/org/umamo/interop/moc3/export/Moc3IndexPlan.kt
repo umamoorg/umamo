@@ -37,16 +37,36 @@ class Moc3IndexPlan private constructor(
 	private val drawableIndexById: Map<DrawableId, Int>,
 	private val parameterIndexById: Map<ParameterId, Int>,
 ) {
-	/** The file index of [id], or -1 when it names nothing (the moc's own "absent" encoding). */
+	/**
+	 * The file index of [id], or -1 when it names nothing (the moc's own "absent" encoding).
+	 *
+	 * @param PartId? id The part, or null.
+	 * @return Int The file index, or -1.
+	 */
 	fun partIndex(id: PartId?): Int = id?.let { partIndexById[it] } ?: -1
 
-	/** The file index of [id], or -1 when it names nothing. */
+	/**
+	 * The file index of [id], or -1 when it names nothing.
+	 *
+	 * @param DeformerId? id The deformer, or null.
+	 * @return Int The file index, or -1.
+	 */
 	fun deformerIndex(id: DeformerId?): Int = id?.let { deformerIndexById[it] } ?: -1
 
-	/** The file index of [id], or -1 when it names nothing. */
+	/**
+	 * The file index of [id], or -1 when it names nothing.
+	 *
+	 * @param DrawableId? id The drawable, or null.
+	 * @return Int The file index, or -1.
+	 */
 	fun drawableIndex(id: DrawableId?): Int = id?.let { drawableIndexById[it] } ?: -1
 
-	/** The file index of [id], or -1 when it names nothing. */
+	/**
+	 * The file index of [id], or -1 when it names nothing.
+	 *
+	 * @param ParameterId? id The parameter, or null.
+	 * @return Int The file index, or -1.
+	 */
 	fun parameterIndex(id: ParameterId?): Int = id?.let { parameterIndexById[it] } ?: -1
 
 	companion object {
@@ -67,6 +87,7 @@ class Moc3IndexPlan private constructor(
 			// or every part after it - and every drawable's owning-part reference - names the wrong one.
 			val orderedParts = partsParentFirst(puppet).filter { part -> part.id in exportableParts }
 			val orderedDeformers = deformersParentFirst(puppet.deformers)
+
 			return Moc3IndexPlan(
 				parts = orderedParts,
 				deformers = orderedDeformers,
@@ -104,26 +125,36 @@ class Moc3IndexPlan private constructor(
 			val ordered = ArrayList<Part>(puppet.parts.size)
 			val visited = HashSet<PartId>()
 
+			/**
+			 * Appends the parts in a child list and under them, depth first, each once.
+			 *
+			 * @param List<OrgChild> children The child list to walk.
+			 */
 			fun walk(children: List<OrgChild>) {
 				for (child in children) {
 					if (child !is OrgChild.Part) {
 						continue
 					}
+
 					val part = partById[child.id] ?: continue
+
 					// The guard also breaks a malformed cycle rather than recursing forever.
 					if (!visited.add(part.id)) {
 						continue
 					}
+
 					ordered.add(part)
 					walk(part.children)
 				}
 			}
 			walk(puppet.rootChildren)
+
 			for (part in puppet.parts) {
 				if (visited.add(part.id)) {
 					ordered.add(part)
 				}
 			}
+
 			return ordered
 		}
 
@@ -143,13 +174,20 @@ class Moc3IndexPlan private constructor(
 			val ordered = ArrayList<Deformer>(deformers.size)
 			val visited = HashSet<DeformerId>()
 
+			/**
+			 * Appends a deformer and then its children, depth first, each once.
+			 *
+			 * @param Deformer deformer The deformer to visit.
+			 */
 			fun walk(deformer: Deformer) {
 				if (!visited.add(deformer.id)) {
 					return
 				}
+
 				ordered.add(deformer)
 				childrenByParent[deformer.id]?.forEach(::walk)
 			}
+
 			// Roots are deformers with no parent, plus any whose parent id does not resolve - an
 			// unresolvable parent is treated as root exactly as the import treats it.
 			for (deformer in deformers) {
@@ -157,10 +195,12 @@ class Moc3IndexPlan private constructor(
 					walk(deformer)
 				}
 			}
+
 			// Anything still unvisited sits in a parent cycle; emit it so nothing is dropped.
 			for (deformer in deformers) {
 				walk(deformer)
 			}
+
 			return ordered
 		}
 	}

@@ -24,6 +24,7 @@ class BinaryInt64KeyingTest {
 	private fun rawBytes(value: Long, key: Int): ByteArray {
 		val writer = BinaryWriter()
 		writer.writeInt64(value, key)
+
 		return writer.toByteArray()
 	}
 

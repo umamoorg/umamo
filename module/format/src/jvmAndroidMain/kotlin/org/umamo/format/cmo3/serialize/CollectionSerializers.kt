@@ -20,11 +20,13 @@ internal class EnumSerializer(private val tag: String, private val enumClass: Cl
 		val element = Element(tag)
 		element.setFieldName(name)
 		element.setAttribute(ATTR_ENUM_VALUE, (value as Enum<*>).name)
+
 		return element
 	}
 
 	override fun createInstance(element: Element, ctx: ReadContext): Any {
 		val constantName = element.getAttributeValue(ATTR_ENUM_VALUE)
+
 		// Class.getEnumConstants() is @Nullable in Java (null for non-enum classes), so Kotlin types it
 		// Array<...>?. This serializer is only ever constructed for an enum class, so the array is
 		// non-null by construction - assert it with !! rather than threading a spurious null path.
@@ -49,24 +51,31 @@ internal class ArraySerializer(
 		element.setFieldName(name)
 		element.setAttribute(ATTR_COUNT, size(value).toString())
 		element.text = encode(value)
+
 		return element
 	}
 
 	override fun createInstance(element: Element, ctx: ReadContext): Any {
 		val text = element.text.trim()
 		val tokens = if (text.isEmpty()) emptyList() else text.split(ARRAY_SEPARATOR)
+
 		return decode(tokens)
 	}
 
 	internal companion object {
-		/** Joins a typed array's elements with the array separator. */
+		/**
+		 * Joins a typed array's elements with the array separator.
+		 *
+		 * @param Sequence<Any?> values The elements to join.
+		 * @return String The joined text.
+		 */
 		fun join(values: Sequence<Any?>): String = values.joinToString(ARRAY_SEPARATOR)
 	}
 }
 
 /**
  * Serializer for sets: `<tag count="n" xs.n="field">` with positional item children (no xs.n).
- * Covers LinkedHashSet ("linked_set"). Reads into the [factory] type to preserve order.
+ * Covers LinkedHashSet ("linked_set").  Reads into the [factory] type to preserve order.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Primitive & collection tags</a>
  */
@@ -77,6 +86,7 @@ internal class SetSerializer(private val tag: String, private val factory: () ->
 		element.setFieldName(name)
 		element.setAttribute(ATTR_COUNT, set.size.toString())
 		for (item in set) element.addContent(ctx.createElementFromObject(null, item))
+
 		return element
 	}
 
@@ -84,15 +94,16 @@ internal class SetSerializer(private val tag: String, private val factory: () ->
 		val out = factory()
 		@Suppress("UNCHECKED_CAST")
 		for (child in element.children as List<Element>) out.add(ctx.createObjectFromElement(child))
+
 		return out
 	}
 }
 
 /**
  * Serializer for maps: `<tag count="n" [keyType="string"]>` with `<entry>` children, each holding a
- * `key` and `value` child. Covers HashMap ("hash_map") and LinkedHashMap ("linked_map").
+ * `key` and `value` child.  Covers HashMap ("hash_map") and LinkedHashMap ("linked_map").
  *
- * EN: Reads into a LinkedHashMap so entry order is preserved for faithful re-emit.
+ * Reads into a LinkedHashMap so entry order is preserved for faithful re-emit.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Primitive & collection tags</a>
  */
@@ -108,6 +119,7 @@ internal class MapSerializer(
 		// CMO3: string-keyed maps carry keyType="string" and store each value as <Value xs.n="key">;
 		// object-keyed maps omit keyType and wrap each pair in <entry><key/><value/></entry>.
 		val stringKeyed = map.isEmpty() || map.keys.all { it is String }
+
 		if (stringKeyed) {
 			element.setAttribute(ATTR_KEY_TYPE, "string")
 			for ((key, mapValue) in map) element.addContent(ctx.createElementFromObject(key as String?, mapValue))
@@ -119,6 +131,7 @@ internal class MapSerializer(
 				element.addContent(entry)
 			}
 		}
+
 		return element
 	}
 
@@ -127,6 +140,7 @@ internal class MapSerializer(
 
 		@Suppress("UNCHECKED_CAST")
 		val children = element.children as List<Element>
+
 		if (element.getAttributeValue(ATTR_KEY_TYPE) == "string") {
 			for (valueElement in children) {
 				val key = valueElement.getAttributeValue(ATTR_NAME)
@@ -134,7 +148,10 @@ internal class MapSerializer(
 			}
 		} else {
 			for (entry in children) {
-				if (entry.name != TAG_ENTRY) continue
+				if (entry.name != TAG_ENTRY) {
+					continue
+				}
+
 				@Suppress("UNCHECKED_CAST")
 				val parts = entry.children as List<Element>
 				val keyElement = parts.firstOrNull { it.getAttributeValue(ATTR_NAME) == NAME_KEY }
@@ -143,6 +160,7 @@ internal class MapSerializer(
 					valueElement?.let { ctx.createObjectFromElement(it) }
 			}
 		}
+
 		return out
 	}
 }

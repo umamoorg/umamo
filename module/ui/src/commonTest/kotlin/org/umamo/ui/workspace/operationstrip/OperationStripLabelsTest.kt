@@ -1,0 +1,116 @@
+package org.umamo.ui.workspace.operationstrip
+
+import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.OperatorParameter
+import org.umamo.edit.ProportionalFalloff
+import org.umamo.edit.TargetShape
+import org.umamo.edit.mesh.MergeTarget
+import org.umamo.edit.mesh.latticeSizeParameters
+import org.umamo.edit.mesh.latticeSplitParameters
+import org.umamo.edit.mesh.mergeParameters
+import org.umamo.edit.structure.rehomeParameters
+import org.umamo.edit.structure.warpCreationParameters
+import org.umamo.edit.transform.ProportionalRows
+import org.umamo.edit.transform.ToShapeSettings
+import org.umamo.edit.transform.TransformGestureParameters
+import org.umamo.edit.transform.TransformRowSpace
+import org.umamo.edit.transform.slideParameters
+import org.umamo.edit.transform.toShapeParameters
+import org.umamo.edit.transform.transformParameters
+import org.umamo.format.atlas.AtlasPackOptions
+import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.interop.art.mesh.ArtMeshPreset
+import org.umamo.ui.model.artwork.addArtworkParameters
+import org.umamo.ui.model.artwork.matchArtworkParameters
+import org.umamo.ui.model.mesh.MeshGenerationOptions
+import org.umamo.ui.model.mesh.QuadMeshOptions
+import org.umamo.ui.model.mesh.meshGenerationParameters
+import org.umamo.ui.model.repack.repackParameters
+import org.umamo.ui.viewport.uv.PlacementDragStatus
+import org.umamo.ui.viewport.uv.placementParameters
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/**
+ * Pins the operation strip's row descriptions: every row the strip can show has one, no two rows share
+ * one by accident, and a choice entry's key never picks one up.
+ *
+ * The rows come from the operations' own row builders rather than from a hand-kept key list, so an
+ * operation that grows a row fails here until the row has a description to show.
+ */
+class OperationStripLabelsTest {
+	/**
+	 * Every row every adjustable operation registers: the repack, the three placement gestures, adding and
+	 * matching artwork, each modal transform in both of its spaces with the proportional rows on, the
+	 * vertex slide, To Shape, the merge, the lattice resize and subdivision, a re-parent's Keep in Place, Create
+	 * Warp Deformer, Generate Mesh from Art, and Generate Quad Mesh.
+	 */
+	private val everyRow: List<OperatorParameter> =
+		buildList {
+			addAll(repackParameters(AtlasPackOptions()))
+
+			for (kind in listOf(MeshOperatorKind.Grab, MeshOperatorKind.Rotate, MeshOperatorKind.Scale)) {
+				addAll(placementParameters(PlacementDragStatus(kind, 0, 0, 0f, 1f, 1f, 0, false), 1024, 1024))
+
+				for (space in TransformRowSpace.entries) {
+					addAll(transformParameters(kind, TransformGestureParameters.IDENTITY, space, ProportionalRows(true, ProportionalFalloff.Smooth, 50f, false)))
+				}
+			}
+
+			addAll(addArtworkParameters(SourceArtImportOptions(), placed = true))
+			addAll(matchArtworkParameters(0.8f, SourceArtImportOptions()))
+			addAll(slideParameters(0.5f))
+			addAll(toShapeParameters(ToShapeSettings(TargetShape.Cylinder)))
+			addAll(mergeParameters(MergeTarget.AtCenter))
+			addAll(latticeSizeParameters(4, 4))
+			addAll(latticeSplitParameters(2, 2))
+			addAll(rehomeParameters(keepInPlace = true))
+			addAll(warpCreationParameters(5, 5, 10f, quad = true))
+			addAll(meshGenerationParameters(MeshGenerationOptions.of(ArtMeshPreset.Standard), minimumAlphaThreshold = 1))
+			addAll(QuadMeshOptions().rows(minimumAlphaThreshold = 1))
+		}
+
+	/** The distinct label keys of [everyRow], the unit a description is looked up by. */
+	private val everyLabelKey: List<String> = everyRow.map { row -> row.labelKey }.distinct()
+
+	/** A row with no description would show its label and nothing to explain it. */
+	@Test
+	fun everyRowHasADescription() {
+		for (labelKey in everyLabelKey) {
+			assertNotNull(operatorParameterDescriptionRes(labelKey), "the strip row $labelKey has no description")
+		}
+	}
+
+	/**
+	 * Two rows mapped to one description is a copy-paste slip: the keys are distinct precisely because the
+	 * rows mean different things, even where two share a label (a placement's Move Y and a transform's).
+	 */
+	@Test
+	fun noTwoRowsShareADescription() {
+		val descriptions = everyLabelKey.mapNotNull { labelKey -> operatorParameterDescriptionRes(labelKey) }
+		assertEquals(descriptions.size, descriptions.distinct().size, "two strip rows share one description")
+	}
+
+	/**
+	 * A choice entry's key names one option in a dropdown, not a row, so it describes nothing; resolving
+	 * one would mean a prefixed key collided with a row's.
+	 */
+	@Test
+	fun choiceEntriesHaveNoDescription() {
+		val entryKeys = everyRow.filterIsInstance<OperatorParameter.ChoiceParameter>().flatMap { row -> row.choices.mapNotNull { choice -> choice.labelKey } }
+		assertTrue(entryKeys.isNotEmpty(), "the strip has choice rows whose entries carry label keys")
+
+		for (entryKey in entryKeys) {
+			assertNull(operatorParameterDescriptionRes(entryKey), "the choice entry $entryKey resolved a row description")
+		}
+	}
+
+	/** An unknown key describes nothing rather than borrowing another row's text. */
+	@Test
+	fun anUnknownKeyHasNoDescription() {
+		assertNull(operatorParameterDescriptionRes("not.a.row"))
+	}
+}

@@ -41,6 +41,7 @@ public object JpegReader : ReadOnlyRasterCodec {
 	override fun read(bytes: ByteArray): RasterImage {
 		require(matches(bytes)) { "Not a JPEG (bad signature)" }
 		val decoded = decodeJpeg(bytes)
+
 		return RasterImage(decoded.width, decoded.height, expandToRgba(decoded))
 	}
 
@@ -53,8 +54,10 @@ public object JpegReader : ReadOnlyRasterCodec {
 	private fun expandToRgba(decoded: JpegImage): ByteArray {
 		val pixelCount = decoded.width * decoded.height
 		val rgba = ByteArray(pixelCount * 4)
+
 		for (pixelIndex in 0 until pixelCount) {
 			val destination = pixelIndex * 4
+
 			if (decoded.componentCount == 1) {
 				val gray = decoded.samples[pixelIndex]
 				rgba[destination] = gray
@@ -66,8 +69,10 @@ public object JpegReader : ReadOnlyRasterCodec {
 				rgba[destination + 1] = decoded.samples[source + 1]
 				rgba[destination + 2] = decoded.samples[source + 2]
 			}
+
 			rgba[destination + 3] = 0xFF.toByte()
 		}
+
 		return rgba
 	}
 }

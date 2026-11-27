@@ -1,12 +1,17 @@
 package org.umamo.edit
 
+import org.umamo.edit.keyform.captureKeysOnTracks
+import org.umamo.edit.keyform.channelValueAt
+import org.umamo.edit.keyform.isChannelKeyedOn
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
@@ -93,12 +98,9 @@ class PendingChannelEditTest {
 	@Test
 	fun capturingConsumesIt() {
 		val editorSession = session()
-		val parameter = editorSession.model.value.parameters.single()
 		editorSession.setPendingChannelEdit(target, ChannelValue.Scalar(0.75f))
 
-		val pending = editorSession.pendingChannelEdits.value.getValue(target)
-		editorSession.captureChannelKey(target, parameter, pending)
-		editorSession.clearPendingChannelEdits()
+		editorSession.captureKeysOnTracks(listOf(KeyformTrackRef.Channel(target)), angleX, KeyformAim.Pose)
 
 		assertTrue(editorSession.pendingChannelEdits.value.isEmpty())
 		assertTrue(editorSession.model.value.isChannelKeyedOn(target, angleX), "the channel is now keyed")
@@ -115,7 +117,7 @@ class PendingChannelEditTest {
 		val editorSession = session()
 		val multiplyTarget = KeyableTarget(KeyformOwner.Drawable(drawableId), FormChannel.MULTIPLY_COLOR)
 		editorSession.setPendingChannelEdit(target, ChannelValue.Scalar(0.75f))
-		editorSession.setPendingChannelEdit(multiplyTarget, ChannelValue.Color(org.umamo.runtime.model.ColorRgb(1f, 0f, 0f)))
+		editorSession.setPendingChannelEdit(multiplyTarget, ChannelValue.Color(ColorRgb(1f, 0f, 0f)))
 
 		assertEquals(2, editorSession.pendingChannelEdits.value.size)
 	}
@@ -127,15 +129,12 @@ class PendingChannelEditTest {
 	@Test
 	fun capturingOneTargetKeepsOthersPending() {
 		val editorSession = session()
-		val parameter = editorSession.model.value.parameters.single()
 		val multiplyTarget = KeyableTarget(KeyformOwner.Drawable(drawableId), FormChannel.MULTIPLY_COLOR)
-		val multiplyValue = ChannelValue.Color(org.umamo.runtime.model.ColorRgb(1f, 0f, 0f))
+		val multiplyValue = ChannelValue.Color(ColorRgb(1f, 0f, 0f))
 		editorSession.setPendingChannelEdit(target, ChannelValue.Scalar(0.75f))
 		editorSession.setPendingChannelEdit(multiplyTarget, multiplyValue)
 
-		val pending = editorSession.pendingChannelEdits.value.getValue(target)
-		editorSession.captureChannelKey(target, parameter, pending)
-		editorSession.clearPendingChannelEdit(target)
+		editorSession.captureKeysOnTracks(listOf(KeyformTrackRef.Channel(target)), angleX, KeyformAim.Pose)
 
 		assertEquals(
 			mapOf<KeyableTarget, ChannelValue>(multiplyTarget to multiplyValue),

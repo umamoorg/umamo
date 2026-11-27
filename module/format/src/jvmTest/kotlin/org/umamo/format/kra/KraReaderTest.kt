@@ -1,12 +1,13 @@
 package org.umamo.format.kra
 
 import org.umamo.format.art.isEffectivelyVisible
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * End-to-end reader test against a real .kra. Corpus-gated: it uses -Dkra.sample=<file> when given,
+ * End-to-end reader test against a real .kra.  Corpus-gated: it uses -Dkra.sample=<file> when given,
  * else auto-discovers a sample under test/corpus/krita/ by walking up from the working directory; if
  * neither is present it self-skips so CI stays green without a committed corpus.
  *
@@ -25,24 +26,29 @@ class KraReaderTest {
 			return listOfNotNull(File(path).takeIf(File::isFile))
 		}
 		var directory: File? = File(System.getProperty("user.dir"))
+
 		while (directory != null) {
 			val corpus = File(directory, "test/corpus/krita")
+
 			if (corpus.isDirectory) {
 				return corpus.listFiles { file -> file.extension.equals("kra", ignoreCase = true) }
 					?.sortedBy { it.name } ?: emptyList()
 			}
+
 			directory = directory.parentFile
 		}
+
 		return emptyList()
 	}
 
 	@Test
 	fun readsLayersFromRealKra() {
 		val samples = locateSamples()
+
 		if (samples.isEmpty()) {
-			println("no kra.sample and no test/corpus/krita samples; skipping KRA reader test")
-			return
+			skipTest("no kra.sample and no test/corpus/krita samples; skipping KRA reader test")
 		}
+
 		for (sample in samples) {
 			checkSample(sample)
 		}
@@ -83,13 +89,17 @@ class KraReaderTest {
 			art.layers.any { layer ->
 				var hasAlpha = false
 				var byteIndex = 3
+
 				while (byteIndex < layer.raster.rgba.size) {
 					if (layer.raster.rgba[byteIndex].toInt() != 0) {
 						hasAlpha = true
+
 						break
 					}
+
 					byteIndex += 4
 				}
+
 				hasAlpha
 			}
 		assertTrue(anyVisible, "${sample.name}: at least one layer has non-transparent pixels")
@@ -97,9 +107,11 @@ class KraReaderTest {
 		// Group surfacing: every emitted folder has a non-blank path, and every layer that claims an
 		// enclosing folder resolves to one - proving the group list and groupPath wiring stay aligned.
 		val groupPaths = art.groups.map { group -> group.path }.toSet()
+
 		for (group in art.groups) {
 			assertTrue(group.path.isNotBlank(), "${sample.name}: group '${group.name}' has a path")
 		}
+
 		for (layer in art.layers) {
 			assertTrue(
 				layer.groupPath.isEmpty() || layer.groupPath in groupPaths,
@@ -108,6 +120,7 @@ class KraReaderTest {
 			// The cascade helper must run cleanly over real data (no path/parse surprises).
 			art.isEffectivelyVisible(layer)
 		}
+
 		println("checked ${sample.name}: ${art.widthPx}x${art.heightPx}, ${art.layers.size} layers, ${art.groups.size} groups")
 	}
 }

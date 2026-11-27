@@ -1,5 +1,6 @@
 package org.umamo.format.jpeg
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -23,16 +24,20 @@ class JpegDecodeCorpusTest {
 			return listOfNotNull(File(path).takeIf(File::isFile))
 		}
 		var directory: File? = File(System.getProperty("user.dir"))
+
 		while (directory != null) {
 			val corpus = File(directory, "test/corpus")
+
 			if (corpus.isDirectory) {
 				return listOf(corpus, File(corpus, "jpeg"))
 					.filter(File::isDirectory)
 					.flatMap { folder -> folder.listFiles { file -> file.isFile && isJpeg(file) }?.toList() ?: emptyList() }
 					.sortedBy { it.name }
 			}
+
 			directory = directory.parentFile
 		}
+
 		return emptyList()
 	}
 
@@ -47,10 +52,11 @@ class JpegDecodeCorpusTest {
 	@Test
 	fun decodesEveryCorpusJpeg() {
 		val samples = locateSamples()
+
 		if (samples.isEmpty()) {
-			println("no jpeg.sample and no test/corpus JPEGs; skipping JPEG corpus test")
-			return
+			skipTest("no jpeg.sample and no test/corpus JPEGs; skipping JPEG corpus test")
 		}
+
 		for (sample in samples) {
 			val bytes = sample.readBytes()
 			assertTrue(JpegReader.matches(bytes), "${sample.name}: detected as JPEG by magic")

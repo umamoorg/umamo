@@ -13,11 +13,14 @@ import androidx.compose.ui.graphics.toArgb
  */
 fun parseHexColor(text: String): Color? {
 	val cleaned = text.trim().removePrefix("#")
+
 	// Reject signs and whitespace that toLongOrNull would tolerate: hex digits only.
 	if (!cleaned.all { character -> character.isDigit() || character in 'a'..'f' || character in 'A'..'F' }) {
 		return null
 	}
+
 	val packed = cleaned.toLongOrNull(16) ?: return null
+
 	return when (cleaned.length) {
 		8 -> Color(packed and 0xFFFFFFFFL)
 		6 -> Color(packed or 0xFF000000L)
@@ -34,5 +37,6 @@ fun parseHexColor(text: String): Color? {
  */
 fun formatHexColor(color: Color): String {
 	val packed = color.toArgb().toLong() and 0xFFFFFFFFL
+
 	return "#" + packed.toString(16).uppercase().padStart(8, '0')
 }

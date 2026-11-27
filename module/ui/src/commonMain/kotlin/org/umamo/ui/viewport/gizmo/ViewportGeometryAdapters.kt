@@ -1,0 +1,281 @@
+package org.umamo.ui.viewport.gizmo
+
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.IntSize
+import org.umamo.edit.ElementTopology
+import org.umamo.edit.MeshElement
+import org.umamo.render.ViewportCamera
+import org.umamo.render.pick.screenToWorldX
+import org.umamo.render.pick.screenToWorldZ
+import org.umamo.render.pick.worldToScreenX
+import org.umamo.render.pick.worldToScreenY
+
+/*
+ * Compose-typed adapters over the pure screen-space geometry in :render's ScreenSpacePick.kt: the
+ * overlays speak Offset / IntSize / MeshElement, the geometry speaks plain floats and ordinals, and
+ * this file is the only place the two meet.  Every function here is a thin projection or an
+ * ordinal-to-element mapping - the actual math lives (and is tested) in :render, where the UV editor
+ * reuses it through its own camera.
+ */
+
+/** Pointer distance (px) within which a click selects a vertex or an edge. */
+internal const val HIT_RADIUS_PX = 10f
+
+/**
+ * Projects an evaluator world-space position into screen pixels for the given camera and area size.
+ * The vertical axis flips between the spaces (screen y grows downward, world Z grows upward).
+ *
+ * @param Float worldX The world-space x.
+ * @param Float worldZ The world-space z (up).
+ * @param ViewportCamera camera The area camera.
+ * @param IntSize size The area size in pixels.
+ * @return Offset The screen pixel position.
+ */
+internal fun worldToScreen(worldX: Float, worldZ: Float, camera: ViewportCamera, size: IntSize): Offset =
+	Offset(
+		worldToScreenX(worldX, camera, size.width),
+		worldToScreenY(worldZ, camera, size.height),
+	)
+
+/**
+ * Maps a screen point back to an evaluator world-space position - the exact inverse of [worldToScreen].
+ *
+ * @param Float screenX The screen x in pixels.
+ * @param Float screenY The screen y in pixels.
+ * @param ViewportCamera camera The area camera.
+ * @param IntSize size The area size in pixels.
+ * @return Pair<Float, Float> The (x, y) world-space position.
+ */
+internal fun screenToWorld(screenX: Float, screenY: Float, camera: ViewportCamera, size: IntSize): Pair<Float, Float> =
+	screenToWorldX(screenX, camera, size.width) to screenToWorldZ(screenY, camera, size.height)
+
+/**
+ * Flattens an edge list into the interleaved endpoint array ScreenSpacePick consumes (two vertex
+ * indices per edge, in the list's order, so a returned ordinal indexes straight back into [edges]).
+ *
+ * @param List<MeshElement.Edge> edges The mesh's unique edges.
+ * @return IntArray The interleaved (low, high) endpoint pairs.
+ */
+private fun edgeEndpointsOf(edges: List<MeshElement.Edge>): IntArray {
+	val endpoints = IntArray(edges.size * 2)
+
+	for (edgeOrdinal in edges.indices) {
+		endpoints[edgeOrdinal * 2] = edges[edgeOrdinal].endpointLow
+		endpoints[edgeOrdinal * 2 + 1] = edges[edgeOrdinal].endpointHigh
+	}
+
+	return endpoints
+}
+
+/**
+ * The vertex index under [pointer] within [HIT_RADIUS_PX], or null.  Picks the nearest within the radius.
+ *
+ * @param FloatArray positions The interleaved world posed positions.
+ * @param Offset pointer The cursor in screen pixels.
+ * @param ViewportCamera camera The area camera.
+ * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The vertices that cannot be hit, by index, or null for none.
+ * @return Int? The hit vertex index, or null.
+ */
+internal fun hitTestVertex(positions: FloatArray, pointer: Offset, camera: ViewportCamera, size: IntSize, excluded: BooleanArray? = null): Int? =
+	org.umamo.render.pick.hitTestVertex(positions, pointer.x, pointer.y, HIT_RADIUS_PX, camera, size.width, size.height, excluded)
+
+/**
+ * The edge under [pointer] within [HIT_RADIUS_PX], or null.  Picks the nearest by point-to-segment
+ * distance in screen space.
+ *
+ * @param FloatArray positions The interleaved world posed positions.
+ * @param List<MeshElement.Edge> edges The mesh's unique edges.
+ * @param Offset pointer The cursor in screen pixels.
+ * @param ViewportCamera camera The area camera.
+ * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The edges that cannot be hit, by ordinal in [edges], or null for none.
+ * @return MeshElement.Edge? The hit edge, or null.
+ */
+internal fun hitTestEdge(
+	positions: FloatArray,
+	edges: List<MeshElement.Edge>,
+	pointer: Offset,
+	camera: ViewportCamera,
+	size: IntSize,
+	excluded: BooleanArray? = null,
+): MeshElement.Edge? =
+	org.umamo.render.pick
+		.hitTestEdge(positions, edgeEndpointsOf(edges), pointer.x, pointer.y, HIT_RADIUS_PX, camera, size.width, size.height, excluded)
+		?.let { edgeOrdinal -> edges[edgeOrdinal] }
+
+/**
+ * The face under [pointer], or null.  When a deformed mesh overlaps itself, the face with the
+ * nearest centroid wins.
+ *
+ * @param FloatArray positions The interleaved world posed positions.
+ * @param ElementTopology topology The mesh's topology (its faces).
+ * @param Offset pointer The cursor in screen pixels.
+ * @param ViewportCamera camera The area camera.
+ * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The faces that cannot be hit, by ordinal, or null for none.
+ * @return MeshElement.Face? The hit face, or null.
+ */
+internal fun hitTestFace(
+	positions: FloatArray,
+	topology: ElementTopology,
+	pointer: Offset,
+	camera: ViewportCamera,
+	size: IntSize,
+	excluded: BooleanArray? = null,
+): MeshElement.Face? =
+	org.umamo.render.pick
+		.hitTestFace(positions, topology.faceCorners, topology.cornersPerFace, pointer.x, pointer.y, camera, size.width, size.height, excluded)
+		?.let { faceOrdinal -> MeshElement.Face(faceOrdinal) }
+
+/**
+ * The set of vertices whose screen projection lies inside the rectangle spanned by [cornerA] and
+ * [cornerB] (a rubber-band box select).
+ *
+ * @param FloatArray positions The interleaved world posed positions.
+ * @param Offset cornerA One box corner in screen pixels.
+ * @param Offset cornerB The opposite box corner.
+ * @param ViewportCamera camera The area camera.
+ * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The vertices the box leaves out, by index, or null for none.
+ * @return Set<Int> The enclosed vertex indices.
+ */
+internal fun verticesInBox(positions: FloatArray, cornerA: Offset, cornerB: Offset, camera: ViewportCamera, size: IntSize, excluded: BooleanArray? = null): Set<Int> =
+	org.umamo.render.pick
+		.verticesInBox(positions, cornerA.x, cornerA.y, cornerB.x, cornerB.y, camera, size.width, size.height)
+		.withoutExcluded(excluded)
+
+/**
+ * The set of edges fully enclosed by the box (both endpoints inside) - Blender's edge box-select rule.
+ *
+ * @param FloatArray positions The interleaved world posed positions.
+ * @param List<MeshElement.Edge> edges The mesh's unique edges.
+ * @param Offset cornerA One box corner in screen pixels.
+ * @param Offset cornerB The opposite box corner.
+ * @param ViewportCamera camera The area camera.
+ * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The edges the box leaves out, by ordinal in [edges], or null for none.
+ * @return Set<MeshElement> The enclosed edges.
+ */
+internal fun edgesInBox(
+	positions: FloatArray,
+	edges: List<MeshElement.Edge>,
+	cornerA: Offset,
+	cornerB: Offset,
+	camera: ViewportCamera,
+	size: IntSize,
+	excluded: BooleanArray? = null,
+): Set<MeshElement> =
+	org.umamo.render.pick
+		.edgesInBox(positions, edgeEndpointsOf(edges), cornerA.x, cornerA.y, cornerB.x, cornerB.y, camera, size.width, size.height)
+		.withoutExcluded(excluded)
+		.map { edgeOrdinal -> edges[edgeOrdinal] }
+		.toSet()
+
+/**
+ * The set of faces whose screen centroid lies inside the box - matching the centroid dot drawn as the
+ * face-mode click affordance.
+ *
+ * @param FloatArray positions The interleaved world posed positions.
+ * @param ElementTopology topology The mesh's topology (its faces).
+ * @param Offset cornerA One box corner in screen pixels.
+ * @param Offset cornerB The opposite box corner.
+ * @param ViewportCamera camera The area camera.
+ * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The faces the box leaves out, by ordinal, or null for none.
+ * @return Set<MeshElement> The enclosed faces.
+ */
+internal fun facesInBox(
+	positions: FloatArray,
+	topology: ElementTopology,
+	cornerA: Offset,
+	cornerB: Offset,
+	camera: ViewportCamera,
+	size: IntSize,
+	excluded: BooleanArray? = null,
+): Set<MeshElement> =
+	org.umamo.render.pick
+		.facesInBox(positions, topology.faceCorners, topology.cornersPerFace, cornerA.x, cornerA.y, cornerB.x, cornerB.y, camera, size.width, size.height)
+		.withoutExcluded(excluded)
+		.map { faceOrdinal -> MeshElement.Face(faceOrdinal) }
+		.toSet<MeshElement>()
+
+/**
+ * The set of vertices whose screen projection lies within [radiusPx] of [center] - the Circle-select
+ * brush.
+ *
+ * @param FloatArray positions The interleaved world posed positions.
+ * @param Offset center The brush center in screen pixels.
+ * @param Float radiusPx The brush radius in screen pixels.
+ * @param ViewportCamera camera The area camera.
+ * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The vertices the brush leaves out, by index, or null for none.
+ * @return Set<Int> The enclosed vertex indices.
+ */
+internal fun verticesInCircle(positions: FloatArray, center: Offset, radiusPx: Float, camera: ViewportCamera, size: IntSize, excluded: BooleanArray? = null): Set<Int> =
+	org.umamo.render.pick
+		.verticesInCircle(positions, center.x, center.y, radiusPx, camera, size.width, size.height)
+		.withoutExcluded(excluded)
+
+/**
+ * The set of edges the brush touches (the disc overlaps the segment in screen space).
+ *
+ * @param FloatArray positions The interleaved world posed positions.
+ * @param List<MeshElement.Edge> edges The mesh's unique edges.
+ * @param Offset center The brush center in screen pixels.
+ * @param Float radiusPx The brush radius in screen pixels.
+ * @param ViewportCamera camera The area camera.
+ * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The edges the brush leaves out, by ordinal in [edges], or null for none.
+ * @return Set<MeshElement> The touched edges.
+ */
+internal fun edgesInCircle(
+	positions: FloatArray,
+	edges: List<MeshElement.Edge>,
+	center: Offset,
+	radiusPx: Float,
+	camera: ViewportCamera,
+	size: IntSize,
+	excluded: BooleanArray? = null,
+): Set<MeshElement> =
+	org.umamo.render.pick
+		.edgesInCircle(positions, edgeEndpointsOf(edges), center.x, center.y, radiusPx, camera, size.width, size.height)
+		.withoutExcluded(excluded)
+		.map { edgeOrdinal -> edges[edgeOrdinal] }
+		.toSet()
+
+/**
+ * The set of faces whose screen centroid lies within [radiusPx] of [center] - matching the centroid dot
+ * the face-mode overlay draws.
+ *
+ * @param FloatArray positions The interleaved world posed positions.
+ * @param ElementTopology topology The mesh's topology (its faces).
+ * @param Offset center The brush center in screen pixels.
+ * @param Float radiusPx The brush radius in screen pixels.
+ * @param ViewportCamera camera The area camera.
+ * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The faces the brush leaves out, by ordinal, or null for none.
+ * @return Set<MeshElement> The touched faces.
+ */
+internal fun facesInCircle(
+	positions: FloatArray,
+	topology: ElementTopology,
+	center: Offset,
+	radiusPx: Float,
+	camera: ViewportCamera,
+	size: IntSize,
+	excluded: BooleanArray? = null,
+): Set<MeshElement> =
+	org.umamo.render.pick
+		.facesInCircle(positions, topology.faceCorners, topology.cornersPerFace, center.x, center.y, radiusPx, camera, size.width, size.height)
+		.withoutExcluded(excluded)
+		.map { faceOrdinal -> MeshElement.Face(faceOrdinal) }
+		.toSet<MeshElement>()
+
+/**
+ * These ordinals less the ones [excluded] marks, or this set itself when nothing is excluded.
+ *
+ * @param BooleanArray? excluded The ordinals to leave out, or null for none.
+ * @return Set<Int> The ordinals kept.
+ */
+private fun Set<Int>.withoutExcluded(excluded: BooleanArray?): Set<Int> = if (excluded == null) this else filterNotTo(HashSet()) { ordinal -> excluded[ordinal] }

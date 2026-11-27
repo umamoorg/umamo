@@ -1,0 +1,481 @@
+package org.umamo.edit.transform
+
+import org.umamo.edit.DepthSurface
+import kotlin.math.cos
+import kotlin.math.sin
+
+/**
+ * Pure transforms over an interleaved mesh-position array (x0, y0, x1, y1, ..., matching
+ * [org.umamo.runtime.model.DrawableMesh]) for the modal G / S / R operators.  Each returns a NEW array and
+ * never touches its input, upholding the copy-on-write discipline.
+ *
+ * The functions are coordinate-space agnostic: the positions are in the caller's space, and every pivot, target, and
+ * translation is a point or offset in that same space.  In the 2D viewport that is world space (x right, y world Z,
+ * up); in the UV editor it is display texels (x right, y up).  Scale factors and angles are unitless.  The depth
+ * rotation alone is world-only, since it reads world Y as depth.
+ */
+object MeshTransforms {
+	/**
+	 * The median pivot for scale / rotate: the mean (centroid) of the selected vertices' positions, in the
+	 * array's coordinate space.  Returns (0, 0) when nothing is selected (no operator runs in that case).
+	 *
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
+	 * @param Set<Int> indices The selected vertex indices.
+	 * @return Pair<Float, Float> The (x, y) centroid of the selected vertices, in the positions' space.
+	 */
+	fun medianPivot(positions: FloatArray, indices: Set<Int>): Pair<Float, Float> {
+		if (indices.isEmpty()) {
+			return 0f to 0f
+		}
+
+		var sumX = 0f
+		var sumY = 0f
+
+		for (vertexIndex in indices) {
+			sumX += positions[vertexIndex * 2]
+			sumY += positions[vertexIndex * 2 + 1]
+		}
+
+		val count = indices.size.toFloat()
+
+		return (sumX / count) to (sumY / count)
+	}
+
+	/**
+	 * The combined median pivot across several interleaved position arrays: the centroid of every vertex of
+	 * every array, so a denser mesh pulls the pivot toward itself as [medianPivot] does within one mesh.  The
+	 * shared anchor an Object-mode Scale / Rotate turns all selected drawables about.
+	 *
+	 * @param Collection<FloatArray> positionsList The interleaved (x, y) position arrays, one per selected drawable, all in one
+	 *   space.
+	 * @return Pair<Float, Float> The (x, y) centroid across all arrays' vertices, in their space.
+	 */
+	fun combinedCentroid(positionsList: Collection<FloatArray>): Pair<Float, Float> {
+		var sumX = 0f
+		var sumY = 0f
+		var vertexCount = 0
+
+		for (positions in positionsList) {
+			var slotIndex = 0
+
+			while (slotIndex + 1 < positions.size) {
+				sumX += positions[slotIndex]
+				sumY += positions[slotIndex + 1]
+				vertexCount++
+				slotIndex += 2
+			}
+		}
+
+		if (vertexCount == 0) {
+			return 0f to 0f
+		}
+
+		val count = vertexCount.toFloat()
+
+		return (sumX / count) to (sumY / count)
+	}
+
+	/**
+	 * Collapses the selected vertices onto one point ([targetX], [targetY]) - Blender's pile-up snap
+	 * semantics (Selection to Cursor / Selection to Active).  Unlike [translateVertices], the vertices
+	 * do not keep their offsets from each other; every one lands exactly on the target.
+	 *
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
+	 * @param Set<Int> indices The selected vertex indices.
+	 * @param Float targetX The x every selected vertex lands on, in the positions' space.
+	 * @param Float targetY The y every selected vertex lands on, in the positions' space.
+	 * @return FloatArray A new positions array with the selected vertices piled onto the target.
+	 */
+	fun collapseVertices(positions: FloatArray, indices: Set<Int>, targetX: Float, targetY: Float): FloatArray {
+		val result = positions.copyOf()
+
+		for (vertexIndex in indices) {
+			result[vertexIndex * 2] = targetX
+			result[vertexIndex * 2 + 1] = targetY
+		}
+
+		return result
+	}
+
+	/**
+	 * Scales the selected vertices about the pivot ([pivotX], [pivotY]) by [factor] (uniform on both axes).
+	 *
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
+	 * @param Set<Int> indices The selected vertex indices.
+	 * @param Float factor The uniform scale factor, unitless (1 leaves them unchanged).
+	 * @param Float pivotX The pivot's x (the scale anchor), in the positions' space.
+	 * @param Float pivotY The pivot's y, in the positions' space.
+	 * @return FloatArray A new positions array with the selected vertices scaled.
+	 */
+	fun scaleVertices(positions: FloatArray, indices: Set<Int>, factor: Float, pivotX: Float, pivotY: Float): FloatArray {
+		val result = positions.copyOf()
+
+		for (vertexIndex in indices) {
+			val x = result[vertexIndex * 2]
+			val y = result[vertexIndex * 2 + 1]
+			result[vertexIndex * 2] = pivotX + (x - pivotX) * factor
+			result[vertexIndex * 2 + 1] = pivotY + (y - pivotY) * factor
+		}
+
+		return result
+	}
+
+	/**
+	 * Scales the selected vertices about the pivot ([pivotX], [pivotY]) with independent per-axis
+	 * factors - the axis-locked variant of [scaleVertices] (an X-locked scale passes factorY = 1 and
+	 * vice versa).
+	 *
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
+	 * @param Set<Int> indices The selected vertex indices.
+	 * @param Float factorX The scale factor along x, unitless (1 leaves x unchanged).
+	 * @param Float factorY The scale factor along y, unitless (1 leaves y unchanged).
+	 * @param Float pivotX The pivot's x (the scale anchor), in the positions' space.
+	 * @param Float pivotY The pivot's y, in the positions' space.
+	 * @return FloatArray A new positions array with the selected vertices scaled.
+	 */
+	fun scaleVerticesAxis(positions: FloatArray, indices: Set<Int>, factorX: Float, factorY: Float, pivotX: Float, pivotY: Float): FloatArray {
+		val result = positions.copyOf()
+
+		for (vertexIndex in indices) {
+			val x = result[vertexIndex * 2]
+			val y = result[vertexIndex * 2 + 1]
+			result[vertexIndex * 2] = pivotX + (x - pivotX) * factorX
+			result[vertexIndex * 2 + 1] = pivotY + (y - pivotY) * factorY
+		}
+
+		return result
+	}
+
+	/**
+	 * Rotates the selected vertices about the pivot ([pivotX], [pivotY]) by [radians].
+	 *
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
+	 * @param Set<Int> indices The selected vertex indices.
+	 * @param Float radians The rotation angle in radians.
+	 * @param Float pivotX The pivot's x (the rotation center), in the positions' space.
+	 * @param Float pivotY The pivot's y, in the positions' space.
+	 * @return FloatArray A new positions array with the selected vertices rotated.
+	 */
+	fun rotateVertices(positions: FloatArray, indices: Set<Int>, radians: Float, pivotX: Float, pivotY: Float): FloatArray {
+		val result = positions.copyOf()
+		val cosAngle = cos(radians)
+		val sinAngle = sin(radians)
+
+		for (vertexIndex in indices) {
+			val offsetX = result[vertexIndex * 2] - pivotX
+			val offsetY = result[vertexIndex * 2 + 1] - pivotY
+			result[vertexIndex * 2] = pivotX + offsetX * cosAngle - offsetY * sinAngle
+			result[vertexIndex * 2 + 1] = pivotY + offsetX * sinAngle + offsetY * cosAngle
+		}
+
+		return result
+	}
+
+	/**
+	 * Turns the selected vertices about the pivot ([pivotX], [pivotZ]) by [radians] about [axis], in depth (see
+	 * DepthRotation.kt): each point is lifted to its depth under [surface], rotated in 3D about the pivot sitting at
+	 * [pivotDepth], and projected back onto the plane, its turned depth handed back beside it.  A turn about Z (positive
+	 * turns the front toward +x) moves only x, one about X (positive tilts the front toward -z, down) only z, and Flat is
+	 * exact and affine - a squash by the cosine and a slide of the depth times the sine.  [RotationAxis.Y] is the in-plane
+	 * turn, exactly [rotateVertices], and keeps every depth.
+	 *
+	 * @param PointsInDepth points The world positions (the second component is world Z, up) and their depths.
+	 * @param Set<Int> indices The selected vertex indices.
+	 * @param RotationAxis axis The axis to turn about.
+	 * @param Float radians The turn angle in radians.
+	 * @param Float pivotDepth The pivot's depth along world Y, positive into the screen.
+	 * @param DepthSurface surface How deep the points sit before the turn.
+	 * @param Float pivotX The pivot's world X.
+	 * @param Float pivotZ The pivot's world Z (the positions' second component).
+	 * @return PointsInDepth New arrays with the selected vertices turned.
+	 */
+	fun rotateVerticesInDepth(
+		points: PointsInDepth,
+		indices: Set<Int>,
+		axis: RotationAxis,
+		radians: Float,
+		pivotDepth: Float,
+		surface: DepthSurface,
+		pivotX: Float,
+		pivotZ: Float,
+	): PointsInDepth {
+		if (axis == RotationAxis.Y) {
+			return PointsInDepth(rotateVertices(points.positions, indices, radians, pivotX, pivotZ), points.depths)
+		}
+
+		val turned = PointsInDepth(points.positions.copyOf(), points.depths.copyOf())
+		val cosAngle = cos(radians)
+		val sinAngle = sin(radians)
+
+		for (vertexIndex in indices) {
+			rotateVertexInDepth(turned, vertexIndex, axis, cosAngle, sinAngle, pivotDepth, surface, pivotX, pivotZ)
+		}
+
+		return turned
+	}
+
+	/**
+	 * [rotateVerticesInDepth] over points on the art plane, a mesh's or the UV editor's, whose turned depth nothing keeps.
+	 *
+	 * @param FloatArray positions The interleaved world positions (the second component is world Z, up).
+	 * @param Set<Int> indices The selected vertex indices.
+	 * @param RotationAxis axis The axis to turn about.
+	 * @param Float radians The turn angle in radians.
+	 * @param Float pivotDepth The pivot's depth along world Y, positive into the screen.
+	 * @param DepthSurface surface How deep the points sit before the turn.
+	 * @param Float pivotX The pivot's world X.
+	 * @param Float pivotZ The pivot's world Z (the positions' second component).
+	 * @return FloatArray A new positions array with the selected vertices turned.
+	 */
+	fun rotateVerticesInDepth(
+		positions: FloatArray,
+		indices: Set<Int>,
+		axis: RotationAxis,
+		radians: Float,
+		pivotDepth: Float,
+		surface: DepthSurface,
+		pivotX: Float,
+		pivotZ: Float,
+	): FloatArray = rotateVerticesInDepth(onTheArtPlane(positions), indices, axis, radians, pivotDepth, surface, pivotX, pivotZ).positions
+
+	/**
+	 * Turns the influenced vertices in depth by their share of [radians], each about its own influence's pivot - the
+	 * proportional-editing companion of [rotateVerticesInDepth], weighting the ANGLE as [rotateVerticesWeighted] does, with
+	 * the same pivot depth and surface for every vertex.
+	 *
+	 * @param PointsInDepth points The world positions (the second component is world Z, up) and their depths.
+	 * @param Map<Int, ProportionalInfluence> influences Vertex index to its influence (weight in [0, 1], pivot in world space).
+	 * @param RotationAxis axis The axis to turn about.
+	 * @param Float radians The full turn angle in radians (each vertex turns weight x this).
+	 * @param Float pivotDepth The pivot's depth along world Y, positive into the screen.
+	 * @param DepthSurface surface How deep the points sit before the turn.
+	 * @return PointsInDepth New arrays with the influenced vertices turned.
+	 */
+	fun rotateVerticesInDepthWeighted(
+		points: PointsInDepth,
+		influences: Map<Int, ProportionalInfluence>,
+		axis: RotationAxis,
+		radians: Float,
+		pivotDepth: Float,
+		surface: DepthSurface,
+	): PointsInDepth {
+		if (axis == RotationAxis.Y) {
+			return PointsInDepth(rotateVerticesWeighted(points.positions, influences, radians), points.depths)
+		}
+
+		val turned = PointsInDepth(points.positions.copyOf(), points.depths.copyOf())
+
+		for ((vertexIndex, influence) in influences) {
+			val weightedRadians = radians * influence.weight
+			rotateVertexInDepth(turned, vertexIndex, axis, cos(weightedRadians), sin(weightedRadians), pivotDepth, surface, influence.pivotX, influence.pivotY)
+		}
+
+		return turned
+	}
+
+	/**
+	 * [rotateVerticesInDepthWeighted] over points on the art plane, whose turned depth nothing keeps.
+	 *
+	 * @param FloatArray positions The interleaved world positions (the second component is world Z, up).
+	 * @param Map<Int, ProportionalInfluence> influences Vertex index to its influence (weight in [0, 1], pivot in world space).
+	 * @param RotationAxis axis The axis to turn about.
+	 * @param Float radians The full turn angle in radians (each vertex turns weight x this).
+	 * @param Float pivotDepth The pivot's depth along world Y, positive into the screen.
+	 * @param DepthSurface surface How deep the points sit before the turn.
+	 * @return FloatArray A new positions array with the influenced vertices turned.
+	 */
+	fun rotateVerticesInDepthWeighted(
+		positions: FloatArray,
+		influences: Map<Int, ProportionalInfluence>,
+		axis: RotationAxis,
+		radians: Float,
+		pivotDepth: Float,
+		surface: DepthSurface,
+	): FloatArray = rotateVerticesInDepthWeighted(onTheArtPlane(positions), influences, axis, radians, pivotDepth, surface).positions
+
+	/**
+	 * [positions] with every point at depth 0, on the art plane.
+	 *
+	 * @param FloatArray positions The interleaved world positions.
+	 * @return PointsInDepth The points.
+	 */
+	private fun onTheArtPlane(positions: FloatArray): PointsInDepth = PointsInDepth(positions, FloatArray(positions.size / 2))
+
+	/**
+	 * Turns one vertex of [points] in place about X or Z: the turn [rotateVerticesInDepth] and its weighted companion
+	 * share, given the angle's cosine and sine.  The turned depth is the pivot's plus the turned offset.
+	 *
+	 * @param PointsInDepth points The world positions (the second component is world Z, up) and depths, written in place.
+	 * @param Int vertexIndex The vertex to turn.
+	 * @param RotationAxis axis X or Z (Y never reaches here).
+	 * @param Float cosAngle The turn angle's cosine.
+	 * @param Float sinAngle The turn angle's sine.
+	 * @param Float pivotDepth The pivot's depth along world Y.
+	 * @param DepthSurface surface How deep the point sits.
+	 * @param Float pivotX The pivot's world X.
+	 * @param Float pivotZ The pivot's world Z (the positions' second component).
+	 */
+	private fun rotateVertexInDepth(
+		points: PointsInDepth,
+		vertexIndex: Int,
+		axis: RotationAxis,
+		cosAngle: Float,
+		sinAngle: Float,
+		pivotDepth: Float,
+		surface: DepthSurface,
+		pivotX: Float,
+		pivotZ: Float,
+	) {
+		val positions = points.positions
+		val offsetX = positions[vertexIndex * 2] - pivotX
+		val offsetZ = positions[vertexIndex * 2 + 1] - pivotZ
+		val offsetDepth = depthOffsetOf(offsetX, offsetZ, points.depths[vertexIndex], pivotDepth, surface, axis)
+
+		// Right-handed with X right, Y into the screen, Z up: about +Z the front (-Y) swings toward +X, and about +X it
+		// swings toward -Z.
+		when (axis) {
+			RotationAxis.Z -> {
+				positions[vertexIndex * 2] = pivotX + offsetX * cosAngle - offsetDepth * sinAngle
+				points.depths[vertexIndex] = pivotDepth + offsetX * sinAngle + offsetDepth * cosAngle
+			}
+
+			RotationAxis.X -> {
+				positions[vertexIndex * 2 + 1] = pivotZ + offsetDepth * sinAngle + offsetZ * cosAngle
+				points.depths[vertexIndex] = pivotDepth + offsetDepth * cosAngle - offsetZ * sinAngle
+			}
+
+			RotationAxis.Y -> {}
+		}
+	}
+
+	/**
+	 * Translates the selected vertices by ([deltaX], [deltaY]).
+	 *
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
+	 * @param Set<Int> indices The selected vertex indices.
+	 * @param Float deltaX The translation's x, in the positions' space.
+	 * @param Float deltaY The translation's y, in the positions' space.
+	 * @return FloatArray A new positions array with the selected vertices moved.
+	 */
+	fun translateVertices(positions: FloatArray, indices: Set<Int>, deltaX: Float, deltaY: Float): FloatArray {
+		val result = positions.copyOf()
+
+		for (vertexIndex in indices) {
+			result[vertexIndex * 2] += deltaX
+			result[vertexIndex * 2 + 1] += deltaY
+		}
+
+		return result
+	}
+
+	/**
+	 * Translates the influenced vertices by their share of ([deltaX], [deltaY]) - the proportional-editing
+	 * companion of [translateVertices]: a weight of 1 moves fully, 0.5 half way.  A translation has no pivot,
+	 * so the influences' pivots go unread.
+	 *
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
+	 * @param Map<Int, ProportionalInfluence> influences Vertex index to its influence (weight in [0, 1]).
+	 * @param Float deltaX The full translation's x, in the positions' space (each vertex takes weight x this).
+	 * @param Float deltaY The full translation's y, in the positions' space.
+	 * @return FloatArray A new positions array with the influenced vertices moved.
+	 */
+	fun translateVerticesWeighted(positions: FloatArray, influences: Map<Int, ProportionalInfluence>, deltaX: Float, deltaY: Float): FloatArray {
+		val result = positions.copyOf()
+
+		for ((vertexIndex, influence) in influences) {
+			result[vertexIndex * 2] += deltaX * influence.weight
+			result[vertexIndex * 2 + 1] += deltaY * influence.weight
+		}
+
+		return result
+	}
+
+	/**
+	 * Moves the selected points by [delta] in depth: the depth companion of [translateVertices], for points that carry
+	 * depth.
+	 *
+	 * @param FloatArray depths One depth per point, in world px along world Y.
+	 * @param Set<Int> indices The selected point indices.
+	 * @param Float delta The move along world Y, positive into the screen.
+	 * @return FloatArray A new depths array with the selected points moved.
+	 */
+	fun translateDepths(depths: FloatArray, indices: Set<Int>, delta: Float): FloatArray {
+		val result = depths.copyOf()
+
+		for (pointIndex in indices) {
+			result[pointIndex] += delta
+		}
+
+		return result
+	}
+
+	/**
+	 * Moves the influenced points by their share of [delta] in depth: the depth companion of
+	 * [translateVerticesWeighted].
+	 *
+	 * @param FloatArray depths One depth per point, in world px along world Y.
+	 * @param Map<Int, ProportionalInfluence> influences Point index to its influence (weight in [0, 1]).
+	 * @param Float delta The full move along world Y (each point takes weight x this).
+	 * @return FloatArray A new depths array with the influenced points moved.
+	 */
+	fun translateDepthsWeighted(depths: FloatArray, influences: Map<Int, ProportionalInfluence>, delta: Float): FloatArray {
+		val result = depths.copyOf()
+
+		for ((pointIndex, influence) in influences) {
+			result[pointIndex] += delta * influence.weight
+		}
+
+		return result
+	}
+
+	/**
+	 * Scales the influenced vertices by their share of the per-axis factors, each about its own influence's
+	 * pivot - the proportional-editing companion of [scaleVerticesAxis]: each vertex lerps from its current
+	 * position toward its fully-scaled position by its weight (equivalently, its effective factor per axis is
+	 * 1 + (factor - 1) x weight).
+	 *
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
+	 * @param Map<Int, ProportionalInfluence> influences Vertex index to its influence (weight in [0, 1], pivot).
+	 * @param Float factorX The full scale factor along x, unitless.
+	 * @param Float factorY The full scale factor along y, unitless.
+	 * @return FloatArray A new positions array with the influenced vertices scaled.
+	 */
+	fun scaleVerticesWeighted(positions: FloatArray, influences: Map<Int, ProportionalInfluence>, factorX: Float, factorY: Float): FloatArray {
+		val result = positions.copyOf()
+
+		for ((vertexIndex, influence) in influences) {
+			val x = result[vertexIndex * 2]
+			val y = result[vertexIndex * 2 + 1]
+			result[vertexIndex * 2] = influence.pivotX + (x - influence.pivotX) * (1f + (factorX - 1f) * influence.weight)
+			result[vertexIndex * 2 + 1] = influence.pivotY + (y - influence.pivotY) * (1f + (factorY - 1f) * influence.weight)
+		}
+
+		return result
+	}
+
+	/**
+	 * Rotates the influenced vertices by their share of [radians], each about its own influence's pivot - the
+	 * proportional-editing companion of [rotateVertices].  The ANGLE is weighted (a half-weight vertex
+	 * turns half the angle along the arc), not the endpoint position: lerping positions would cut the
+	 * chord and collapse the falloff ring toward the pivot on large rotations.
+	 *
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
+	 * @param Map<Int, ProportionalInfluence> influences Vertex index to its influence (weight in [0, 1], pivot).
+	 * @param Float radians The full rotation angle in radians (each vertex turns weight x this).
+	 * @return FloatArray A new positions array with the influenced vertices rotated.
+	 */
+	fun rotateVerticesWeighted(positions: FloatArray, influences: Map<Int, ProportionalInfluence>, radians: Float): FloatArray {
+		val result = positions.copyOf()
+
+		for ((vertexIndex, influence) in influences) {
+			val cosAngle = cos(radians * influence.weight)
+			val sinAngle = sin(radians * influence.weight)
+			val offsetX = result[vertexIndex * 2] - influence.pivotX
+			val offsetY = result[vertexIndex * 2 + 1] - influence.pivotY
+			result[vertexIndex * 2] = influence.pivotX + offsetX * cosAngle - offsetY * sinAngle
+			result[vertexIndex * 2 + 1] = influence.pivotY + offsetX * sinAngle + offsetY * cosAngle
+		}
+
+		return result
+	}
+}

@@ -32,11 +32,13 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 	private fun readVP8Lossless(raster: WebpRaster, topLevel: Boolean, width: Int, height: Int) {
 		var xSize = width
 		val transforms = ArrayList<WebpTransform>()
+
 		while (topLevel && reader.readBit() == 1) {
 			xSize = readTransform(xSize, height, transforms)
 		}
 
 		var colorCacheBits = 0
+
 		if (reader.readBit() == 1) {
 			colorCacheBits = reader.readBits(4).toInt()
 			require(colorCacheBits in 1..11) { "Corrupt WebP: color-cache bits $colorCacheBits out of range" }
@@ -65,6 +67,7 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 	 */
 	private fun readTransform(xSize: Int, ySize: Int, transforms: MutableList<WebpTransform>): Int {
 		var newXSize = xSize
+
 		when (val transformType = reader.readBits(2).toInt()) {
 			WebpTransformType.PREDICTOR, WebpTransformType.COLOR -> {
 				val sizeBits = (reader.readBits(3) + 2).toInt()
@@ -72,6 +75,7 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 				val blockHeight = subSampleSize(ySize, sizeBits)
 				val block = WebpRaster.create(blockWidth, blockHeight)
 				readVP8Lossless(block, topLevel = false, width = blockWidth, height = blockHeight)
+
 				if (transformType == WebpTransformType.PREDICTOR) {
 					transforms.add(0, PredictorTransform(block, sizeBits))
 				} else {
@@ -79,7 +83,9 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 				}
 			}
 
-			WebpTransformType.SUBTRACT_GREEN -> transforms.add(0, SubtractGreenTransform())
+			WebpTransformType.SUBTRACT_GREEN -> {
+				transforms.add(0, SubtractGreenTransform())
+			}
 
 			WebpTransformType.COLOR_INDEXING -> {
 				val colorTableSize = reader.readBits(8).toInt() + 1 // 1..256
@@ -92,10 +98,12 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 					}
 				val colorTable = ByteArray(safeColorTableSize * 4)
 				readVP8Lossless(WebpRaster.over(colorTable, colorTableSize, 1), topLevel = false, width = colorTableSize, height = 1)
+
 				// The color table is subtraction-coded to reduce entropy; resolve it.
 				for (byteIndex in 4 until colorTable.size) {
 					colorTable[byteIndex] = (colorTable[byteIndex] + colorTable[byteIndex - 4]).toByte()
 				}
+
 				val widthBits =
 					when {
 						colorTableSize > 16 -> 0
@@ -107,8 +115,11 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 				transforms.add(0, ColorIndexingTransform(colorTable, widthBits))
 			}
 
-			else -> throw IllegalArgumentException("Invalid WebP VP8L transform type $transformType")
+			else -> {
+				throw IllegalArgumentException("Invalid WebP VP8L transform type $transformType")
+			}
 		}
+
 		return newXSize
 	}
 
@@ -133,6 +144,7 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 			val metaRaster = WebpRaster.create(huffmanXSize, huffmanYSize)
 			readVP8Lossless(metaRaster, topLevel = false, width = huffmanXSize, height = huffmanYSize)
 			var maxCode = Int.MIN_VALUE
+
 			for (blockY in 0 until huffmanYSize) {
 				for (blockX in 0 until huffmanXSize) {
 					// The meta group index is (red << 8) | green of the decoded meta pixel.
@@ -140,11 +152,13 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 					maxCode = maxOf(maxCode, code)
 				}
 			}
+
 			huffmanGroupNum = maxCode + 1
 			huffmanMetaCodes = metaRaster
 		}
 
 		val huffmanGroups = Array(huffmanGroupNum) { WebpHuffmanCodeGroup(reader, colorCacheBits) }
+
 		return WebpHuffmanInfo(huffmanMetaCodes, metaCodeBits, huffmanGroups)
 	}
 
@@ -164,12 +178,14 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 
 		var x = 0
 		var y = 0
+
 		while (y < height) {
 			if ((x and huffmanMask) == 0 && huffmanInfo.huffmanMetaCodes != null) {
 				currentGroup = huffmanInfo.huffmanGroups[metaGroupIndex(huffmanInfo, x, y)]
 			}
 
 			val code = currentGroup.mainCode.readSymbol(reader)
+
 			if (code < 256) {
 				decodeLiteral(raster, colorCache, currentGroup, rgba, x, y, code)
 				x++
@@ -178,9 +194,11 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 				val linear = y * width + x + length
 				x = linear % width
 				y = linear / width
+
 				if (y < height && huffmanInfo.huffmanMetaCodes != null) {
 					currentGroup = huffmanInfo.huffmanGroups[metaGroupIndex(huffmanInfo, x, y)]
 				}
+
 				continue
 			} else {
 				decodeCached(raster, colorCache!!, rgba, x, y, code)
@@ -206,11 +224,20 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 		val meta = huffmanInfo.huffmanMetaCodes!!
 		val blockX = x shr huffmanInfo.metaCodeBits
 		val blockY = y shr huffmanInfo.metaCodeBits
+
 		return (meta.getSample(blockX, blockY, 0) shl 8) or meta.getSample(blockX, blockY, 1)
 	}
 
 	/**
 	 * Decodes a literal pixel: green is the main code, red/blue/alpha come from their own trees.
+	 *
+	 * @param WebpRaster raster The raster being filled.
+	 * @param WebpColorCache? colorCache The color cache to feed, or null when the image has none.
+	 * @param WebpHuffmanCodeGroup group The Huffman code group for this pixel.
+	 * @param ByteArray rgba A four-byte scratch buffer for the pixel.
+	 * @param Int x The pixel's column.
+	 * @param Int y The pixel's row.
+	 * @param Int green The green value, already decoded.
 	 */
 	private fun decodeLiteral(raster: WebpRaster, colorCache: WebpColorCache?, group: WebpHuffmanCodeGroup, rgba: ByteArray, x: Int, y: Int, green: Int) {
 		val red = group.redCode.readSymbol(reader)
@@ -226,6 +253,13 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 
 	/**
 	 * Decodes a color-cache reference into pixel (x, y).
+	 *
+	 * @param WebpRaster raster The raster being filled.
+	 * @param WebpColorCache colorCache The color cache to read.
+	 * @param ByteArray rgba A four-byte scratch buffer for the pixel.
+	 * @param Int x The pixel's column.
+	 * @param Int y The pixel's row.
+	 * @param Int code The symbol that names the cache entry.
 	 */
 	private fun decodeCached(raster: WebpRaster, colorCache: WebpColorCache, rgba: ByteArray, x: Int, y: Int, code: Int) {
 		val argb = colorCache.lookup(code - 256 - 24)
@@ -239,6 +273,16 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 	/**
 	 * Decodes an LZ77 backward reference starting at (x, y), copying `length` pixels from the resolved
 	 * source position, and returns the copied length.
+	 *
+	 * @param WebpRaster raster The raster being filled.
+	 * @param WebpColorCache? colorCache The color cache, or null when the image has none.
+	 * @param Int width The image width in pixels.
+	 * @param WebpHuffmanCodeGroup group The Huffman code group for this pixel.
+	 * @param ByteArray rgba A four-byte scratch buffer for the pixel.
+	 * @param Int code The symbol that carries the length prefix.
+	 * @param Int x The column the copy starts at.
+	 * @param Int y The row the copy starts at.
+	 * @return Int The number of pixels copied.
 	 */
 	private fun decodeBackwardReference(raster: WebpRaster, colorCache: WebpColorCache?, width: Int, group: WebpHuffmanCodeGroup, rgba: ByteArray, code: Int, x: Int, y: Int): Int {
 		val length = lz77decode(code - 256)
@@ -250,6 +294,7 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 
 		var sourceX: Int
 		var sourceY: Int
+
 		if (distanceCode > 120) {
 			val distance = distanceCode - 120
 			sourceY = y - (distance / width)
@@ -259,6 +304,7 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 			sourceX = x - (8 - (packed and 0xf))
 			sourceY = y - (packed shr 4)
 		}
+
 		if (sourceX < 0) {
 			sourceY--
 			sourceX += width
@@ -266,6 +312,7 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 			sourceX -= width
 			sourceY++
 		}
+
 		require(sourceY >= 0 && sourceY < raster.height) { "Corrupt WebP: backward reference outside image" }
 
 		var copyX = x
@@ -273,22 +320,27 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 		var readX = sourceX
 		var readY = sourceY
 		var remainingLength = length
+
 		while (remainingLength > 0) {
 			if (copyX == width) {
 				copyX = 0
 				copyY++
 			}
+
 			raster.getPixel(readX, readY, rgba)
 			readX++
 			raster.setPixel(copyX, copyY, rgba)
+
 			if (readX == width) {
 				readX = 0
 				readY++
 			}
+
 			colorCache?.insert(((rgba[3].toInt() and 0xff) shl 24) or ((rgba[0].toInt() and 0xff) shl 16) or ((rgba[1].toInt() and 0xff) shl 8) or (rgba[2].toInt() and 0xff))
 			copyX++
 			remainingLength--
 		}
+
 		return length
 	}
 
@@ -302,8 +354,10 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 		if (prefixCode < 4) {
 			return prefixCode + 1
 		}
+
 		val extraBits = (prefixCode - 2) shr 1
 		val offset = (2 + (prefixCode and 1)) shl extraBits
+
 		return offset + reader.readBits(extraBits).toInt() + 1
 	}
 

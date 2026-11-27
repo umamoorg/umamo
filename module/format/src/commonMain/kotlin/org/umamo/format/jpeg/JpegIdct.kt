@@ -62,9 +62,11 @@ internal object JpegIdct {
 				coefficients[column + 56] == 0
 			) {
 				val dcValue = coefficients[column] shl PASS1_BITS
+
 				for (row in 0 until 8) {
 					workspace[column + row * 8] = dcValue
 				}
+
 				continue
 			}
 
@@ -139,9 +141,11 @@ internal object JpegIdct {
 				workspace[rowBase + 7] == 0
 			) {
 				val dcSample = clampToSample(descale(workspace[rowBase], PASS1_BITS + 3))
+
 				for (column in 0 until 8) {
 					output[outputRow + column] = dcSample
 				}
+
 				continue
 			}
 
@@ -211,6 +215,7 @@ internal object JpegIdct {
 	 */
 	private fun clampToSample(value: Int): Byte {
 		val shifted = value + 128
+
 		return when {
 			shifted < 0 -> 0
 			shifted > 255 -> 255.toByte()

@@ -3,6 +3,7 @@ package org.umamo.format.moc3
 import org.umamo.format.moc3.encode.MocEncoder
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.Section
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -42,13 +43,15 @@ class MocBakeFreshCoverageTest {
 	@Test
 	fun freshBakeCoversEverySectionExceptTheKnownGaps() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping fresh bake coverage test")
-			return
+			skipTest("moc3.samples not present; skipping fresh bake coverage test")
 		}
+
 		val missingOverall = LinkedHashSet<String>()
 		var totalProduced = 0
 		var totalPresent = 0
+
 		for (file in files) {
 			val model = MocCodec.read(file.readBytes())
 			val document = Moc3.decode(model)
@@ -62,12 +65,14 @@ class MocBakeFreshCoverageTest {
 			val presentIndices = (0 until model.sectionCount).filter { (model.section(it)?.size ?: 0) > 0 }
 			totalPresent += presentIndices.size
 			totalProduced += presentIndices.count { it in produced }
+
 			for (index in presentIndices) {
 				if (index !in produced) {
 					missingOverall.add(nameByIndex[index]?.name ?: "index $index")
 				}
 			}
 		}
+
 		assertEquals(
 			knownUnproduced.map { it.name }.toSortedSet(),
 			missingOverall.toSortedSet(),

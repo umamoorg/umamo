@@ -45,6 +45,7 @@ class MocDeformerBindingTest {
 	private fun intsOf(sections: Map<Int, ByteArray>, section: Section, version: MocVersion): IntArray {
 		val bytes = sections.getValue(section.indexIn(version))
 		val reader = LittleEndianReader(bytes)
+
 		return IntArray(bytes.size / 4) { reader.readInt32() }
 	}
 
@@ -138,6 +139,7 @@ class MocDeformerBindingTest {
 		val localIndices = intsOf(sections, Section.DEFORMER_LOCAL_INDEX, version)
 
 		assertEquals(document.deformers.size, unified.size, "unified binding column covers every deformer")
+
 		for (deformerIndex in document.deformers.indices) {
 			// Type 0 is a warp, anything else a rotation; the per-type column is addressed by s18.
 			val perType =

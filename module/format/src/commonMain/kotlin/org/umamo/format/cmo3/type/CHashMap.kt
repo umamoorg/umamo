@@ -1,9 +1,9 @@
 package org.umamo.format.cmo3.type
 
 /**
- * A map that serializes as `<hash_map>` but preserves insertion/read order. The editor writes
+ * A map that serializes as `<hash_map>` but preserves insertion/read order.  The editor writes
  * hash_map entries in JVM-hash order; reading into a plain HashMap and re-emitting would reorder
- * them (Enum/object keys hash by identity), breaking byte-identity. Reading into this order-keeping
+ * them (Enum/object keys hash by identity), breaking byte-identity.  Reading into this order-keeping
  * type re-emits entries in their original document order.
  *
  * Delegates to a backing LinkedHashMap rather than extending it, for the same reason as [CArrayList]:

@@ -1,0 +1,280 @@
+package org.umamo.edit.transform
+
+import org.umamo.edit.ElementTopology
+import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.ProportionalEditState
+import org.umamo.edit.TransformPivotMode
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.drawableId
+
+/**
+ * How Individual Origins ([TransformPivotMode.IndividualOrigins]) partitions one mesh into pivot groups.
+ *
+ * The two editing contexts read the same pivot mode differently, which the mode's own docblock already
+ * describes: in Edit and the UV editor a mesh's covered vertices split into connectivity islands, each
+ * turning about its own centroid; in Object mode a whole object turns about its single centroid.  Making
+ * that an explicit parameter of [buildModalTransformCapture] keeps the one difference visible instead of
+ * hiding it in two copies of the group-derivation code.
+ */
+enum class IndividualOriginScope {
+	/** Split the covered set into connectivity islands (Edit mode, the UV editor). */
+	ConnectivityIsland,
+
+	/** One group for the whole covered set, about its centroid (Object mode). */
+	WholeMesh,
+}
+
+/**
+ * One mesh offered to [buildModalTransformCapture], before its pivots are resolved.
+ *
+ * The positions are frozen in whatever space the gesture runs in - world-posed for the viewport overlays,
+ * texel display for the UV editor - and the covered indices are the union of vertices the mesh's selected
+ * elements span (every vertex, for an Object-mode whole-object transform).  A source whose covered set is
+ * empty is a bystander: a mesh in the edit with nothing selected, which only a halo can move.
+ *
+ * @property ElementOwner owner The drawable or warp these points belong to (the capture's per-mesh key).
+ * @property FloatArray positions The frozen interleaved positions the operator transforms and the pivots
+ *   are measured in.  The builder does not copy it - the caller freezes (copies) it before handing it over, or
+ *   hands over an array nothing writes into.
+ * @property ElementTopology topology The mesh's topology, sized to [positions] (connectivity for islands and the
+ *   geodesic proportional falloff).  An Object-mode whole-object source connects nothing.
+ * @property Set<Int> coveredIndices The vertices the selection covers on this mesh.
+ */
+class ModalCaptureSource(
+	val owner: ElementOwner,
+	val positions: FloatArray,
+	val topology: ElementTopology,
+	val coveredIndices: Set<Int>,
+)
+
+/**
+ * One mesh inside an in-flight modal transform: its frozen source geometry plus the pivot groups its
+ * covered vertices turn about, and the proportional-editing halo re-derived from the same frozen positions.
+ * A bystander - a mesh in the edit with nothing selected - has no covered vertices and no groups, and moves
+ * only where a halo reaches it.
+ *
+ * [influence] and [movedIndices] are the only mutable state, because a mid-gesture radius or falloff change
+ * re-derives them - always from [positions], never from a live preview, so the influence ring can never
+ * feed back on its own output.
+ *
+ * @property ElementOwner owner The drawable or warp this entry belongs to.
+ * @property FloatArray positions The frozen positions the operator transforms (shared by reference from the
+ *   source - never mutated).
+ * @property Set<Int> coveredIndices The vertices the selection covers on this mesh.
+ * @property ElementTopology topology The mesh's topology.
+ * @property List<TransformPivotGroup> groups The pivot groups the covered vertices turn about.
+ */
+class ModalCaptureEntry internal constructor(
+	val owner: ElementOwner,
+	val positions: FloatArray,
+	val coveredIndices: Set<Int>,
+	val topology: ElementTopology,
+	val groups: List<TransformPivotGroup>,
+) {
+	/** The drawable these points belong to, or null for a lattice. */
+	val drawableId: DrawableId? get() = owner.drawableId
+
+	/** The proportional-editing halo: influenced unselected vertices to weight and pivot, empty when proportional is off. */
+	var influence: Map<Int, ProportionalInfluence> = emptyMap()
+		private set
+
+	/** Every vertex the gesture moves: the covered set, plus the influenced halo when proportional is on. */
+	var movedIndices: Set<Int> = coveredIndices
+		private set
+
+	/**
+	 * Takes a halo the capture derived from the FROZEN positions, and the moved set it implies.
+	 *
+	 * @param Map<Int, ProportionalInfluence> halo The influenced unselected vertices, empty for none.
+	 */
+	internal fun assignInfluence(halo: Map<Int, ProportionalInfluence>) {
+		influence = halo
+		movedIndices =
+			if (halo.isEmpty()) {
+				coveredIndices
+			} else {
+				coveredIndices + halo.keys
+			}
+	}
+}
+
+/**
+ * The captured state of an in-flight modal transform, frozen when the operator latches so the whole drag is
+ * atomic across the meshes it moves.  Shared by the Edit, Object, and UV gizmo overlays: each freezes its
+ * own-space geometry into [ModalCaptureSource]s, resolves its own active-element and cursor anchors, and
+ * hands both to [buildModalTransformCapture]; what comes back is identical in shape across all three.
+ *
+ * Overlays that need extra per-mesh data the shared capture does not carry (the Edit and Object overlays'
+ * deformer-chain mapping, the UV editor's page dimensions) hold it in a map keyed on
+ * [ModalCaptureEntry.owner] rather than a second index-aligned list.
+ *
+ * @property List<ModalCaptureEntry> entries The meshes the gesture can move: one per source with covered
+ *   vertices, then one per bystander, each in source order, all with positions in one shared space.
+ * @property Pair<Float, Float> anchor The point in the gesture's space that factors and angles measure
+ *   against (and the shared-pivot modes turn about); the HUD's pivot marker draws here.
+ * @property MeshOperatorKind operatorKind The operator that latched, frozen so the commit names the
+ *   operation that actually ran rather than re-reading a latch that may already have cleared.
+ */
+class ModalTransformCapture internal constructor(
+	val entries: List<ModalCaptureEntry>,
+	val anchor: Pair<Float, Float>,
+	val operatorKind: MeshOperatorKind,
+) {
+	/** The Rotate gesture's angle accumulator (unwrapped per-move increments; see RotationAngleTracker). */
+	val rotationTracker = RotationAngleTracker()
+
+	/** The captured owners, in capture order. */
+	val owners: List<ElementOwner> get() = entries.map { entry -> entry.owner }
+
+	/**
+	 * Re-derives every mesh's proportional halo from the frozen originals, on latch and again on a mid-gesture
+	 * radius or falloff change.  A straight-line halo reaches across meshes, a bystander included, while
+	 * Connected Only never leaves its own mesh (Blender's rule).
+	 *
+	 * @param ProportionalEditState? state The proportional configuration, or null to clear the halos.
+	 * @param Float radius The influence radius in the gesture space's units (unused when [state] is null).
+	 */
+	fun applyProportional(state: ProportionalEditState?, radius: Float) {
+		val halos =
+			when {
+				state == null -> {
+					entries.map { emptyMap() }
+				}
+
+				state.connectedOnly -> {
+					entries.map { entry -> proportionalInfluencesConnected(entry.positions, entry.groups, radius, state.falloff, entry.topology) }
+				}
+
+				else -> {
+					proportionalInfluences(entries.map { entry -> ProportionalMesh(entry.positions, entry.groups) }, radius, state.falloff)
+				}
+			}
+
+		for ((entryIndex, entry) in entries.withIndex()) {
+			entry.assignInfluence(halos[entryIndex])
+		}
+	}
+}
+
+/**
+ * Where a selection turns: the shared anchor its factors and angles measure against, and each moving source's pivot
+ * groups.  What [resolvePivotGroups] gives every point edit that follows the pivot mode, a modal gesture's capture and
+ * To Shape alike.
+ *
+ * @property Pair<Float, Float> anchor The shared anchor in the sources' space.
+ * @property Map<ElementOwner, List<TransformPivotGroup>> groupsByOwner Each source with covered vertices to the pivot
+ *   groups they turn about, in source order; a bystander has no entry.
+ */
+class PivotResolution internal constructor(
+	val anchor: Pair<Float, Float>,
+	val groupsByOwner: Map<ElementOwner, List<TransformPivotGroup>>,
+)
+
+/**
+ * Resolves the anchor and each moving source's pivot groups per the active [pivotMode]: one shared group per source
+ * about the anchor, or under Individual Origins one group per connectivity island (or per whole source) about its own
+ * centroid.  What differs between the callers arrives pre-resolved as [activeAnchor] and [cursorAnchor].
+ *
+ * @param List<ModalCaptureSource> sources The meshes offered, their positions in one shared space.
+ * @param TransformPivotMode pivotMode The active pivot mode (which anchor, and single vs per-island groups).
+ * @param IndividualOriginScope individualOriginScope How Individual Origins partitions a mesh.
+ * @param Pair<Float, Float>? activeAnchor The Active-Element anchor the caller resolved, (x, y) in the sources' space, or
+ *   null to fall back to the median.
+ * @param Pair<Float, Float>? cursorAnchor The Cursor anchor the caller resolved, (x, y) in the sources' space, or null to
+ *   fall back to the median.
+ * @return PivotResolution? The anchor and groups, or null when no source had covered vertices.
+ */
+fun resolvePivotGroups(
+	sources: List<ModalCaptureSource>,
+	pivotMode: TransformPivotMode,
+	individualOriginScope: IndividualOriginScope,
+	activeAnchor: Pair<Float, Float>?,
+	cursorAnchor: Pair<Float, Float>?,
+): PivotResolution? {
+	val moving = sources.filter { source -> source.coveredIndices.isNotEmpty() }
+
+	if (moving.isEmpty()) {
+		return null
+	}
+
+	// The covered-vertex mean across every moving mesh - the shared median anchor, and the fallback for the
+	// Active-Element and Cursor modes.  Object mode covers every vertex, so this equals its combined
+	// centroid (MeshTransforms.combinedCentroid) up to summation order.
+	var coveredSumX = 0f
+	var coveredSumY = 0f
+	var coveredCount = 0
+
+	for (source in moving) {
+		for (vertexIndex in source.coveredIndices) {
+			coveredSumX += source.positions[vertexIndex * 2]
+			coveredSumY += source.positions[vertexIndex * 2 + 1]
+			coveredCount++
+		}
+	}
+
+	val median = (coveredSumX / coveredCount) to (coveredSumY / coveredCount)
+	val anchor =
+		when (pivotMode) {
+			TransformPivotMode.MedianPoint, TransformPivotMode.IndividualOrigins -> median
+			TransformPivotMode.ActiveElement -> activeAnchor ?: median
+			TransformPivotMode.Cursor -> cursorAnchor ?: median
+		}
+	val groupsByOwner = LinkedHashMap<ElementOwner, List<TransformPivotGroup>>(moving.size)
+
+	for (source in moving) {
+		groupsByOwner[source.owner] =
+			when {
+				pivotMode == TransformPivotMode.IndividualOrigins && individualOriginScope == IndividualOriginScope.ConnectivityIsland -> {
+					TransformPivots.islandGroups(source.positions, source.coveredIndices, source.topology)
+				}
+
+				pivotMode == TransformPivotMode.IndividualOrigins -> {
+					// WholeMesh: the drawable turns about its own centroid (the object-mode island).
+					val ownCentroid = MeshTransforms.medianPivot(source.positions, source.coveredIndices)
+					TransformPivots.sharedGroup(source.coveredIndices, ownCentroid.first, ownCentroid.second)
+				}
+
+				else -> {
+					TransformPivots.sharedGroup(source.coveredIndices, anchor.first, anchor.second)
+				}
+			}
+	}
+
+	return PivotResolution(anchor, groupsByOwner)
+}
+
+/**
+ * Builds a [ModalTransformCapture] from the meshes a gesture will move, resolving the shared anchor and each
+ * mesh's pivot groups per the active [pivotMode] ([resolvePivotGroups]), shared by every gizmo overlay.  What differs
+ * between the overlays arrives pre-resolved as [activeAnchor] and [cursorAnchor]; a source with no covered vertices
+ * becomes a bystander that only a straight-line proportional halo can move.
+ *
+ * @param List<ModalCaptureSource> sources The meshes offered, their positions in one shared space.
+ * @param TransformPivotMode pivotMode The active pivot mode (which anchor, and single vs per-island groups).
+ * @param IndividualOriginScope individualOriginScope How Individual Origins partitions a mesh.
+ * @param MeshOperatorKind operatorKind The operator that latched (frozen onto the capture).
+ * @param Pair<Float, Float>? activeAnchor The Active-Element anchor the caller resolved, (x, y) in the sources' space, or
+ *   null to fall back to the median.
+ * @param Pair<Float, Float>? cursorAnchor The Cursor anchor the caller resolved, (x, y) in the sources' space, or null to
+ *   fall back to the median.
+ * @return ModalTransformCapture? The capture, or null when no source had covered vertices (no gesture runs).
+ */
+fun buildModalTransformCapture(
+	sources: List<ModalCaptureSource>,
+	pivotMode: TransformPivotMode,
+	individualOriginScope: IndividualOriginScope,
+	operatorKind: MeshOperatorKind,
+	activeAnchor: Pair<Float, Float>?,
+	cursorAnchor: Pair<Float, Float>?,
+): ModalTransformCapture? {
+	val pivots = resolvePivotGroups(sources, pivotMode, individualOriginScope, activeAnchor, cursorAnchor) ?: return null
+	val (moving, bystanders) = sources.partition { source -> source.coveredIndices.isNotEmpty() }
+	val selectedEntries =
+		moving.map { source ->
+			ModalCaptureEntry(source.owner, source.positions, source.coveredIndices, source.topology, pivots.groupsByOwner.getValue(source.owner))
+		}
+	val bystanderEntries = bystanders.map { bystander -> ModalCaptureEntry(bystander.owner, bystander.positions, emptySet(), bystander.topology, emptyList()) }
+
+	return ModalTransformCapture(selectedEntries + bystanderEntries, pivots.anchor, operatorKind)
+}

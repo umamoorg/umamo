@@ -11,10 +11,9 @@ import kotlin.test.assertTrue
  * Structural invariants of the [Section] registry itself, independent of any corpus file.
  *
  * The registry is the single source of truth for what a `.moc3` contains: one entry per section
- * index, carrying its element type, sizing rule, and per-version slot.  A second untyped registry of
- * bare index constants used to sit beside it, and the sections named only there were invisible to
- * both the typed decode and the lossless gate - so "is this index modeled?" had two answers.  These
- * tests keep it to one.
+ * index, carrying its element type, sizing rule, and per-version slot.  A section named anywhere else
+ * (a bare index constant, say) would be invisible to both the typed decode and the lossless gate, so
+ * "is this index modeled?" would have two answers.  These tests keep it to one.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §section map</a>
  */
@@ -29,11 +28,14 @@ class SectionRegistryTest {
 	fun noTwoSectionsShareAnIndexInAnyVersion() {
 		for (version in MocVersion.entries) {
 			val owners = HashMap<Int, Section>()
+
 			for (section in Section.entries) {
 				val index = section.indexIn(version)
+
 				if (index < 0) {
 					continue
 				}
+
 				val existing = owners.put(index, section)
 				assertEquals(null, existing, "${version.label}: index $index claimed by both $existing and $section")
 			}
@@ -76,18 +78,24 @@ class SectionRegistryTest {
 	@Test
 	fun sectionIndicesNeverMoveOnceIntroduced() {
 		val versions = MocVersion.entries.sortedBy { it.byteValue }
+
 		for (section in Section.entries) {
 			var introduced = -1
+
 			for (version in versions) {
 				val index = section.indexIn(version)
+
 				if (index < 0) {
 					// Absent after being present would mean the format REMOVED a section; none does.
 					assertTrue(introduced < 0, "$section disappears again at ${version.label}")
+
 					continue
 				}
+
 				if (introduced < 0) {
 					introduced = index
 				}
+
 				assertEquals(introduced, index, "$section moves from $introduced to $index at ${version.label}")
 			}
 		}

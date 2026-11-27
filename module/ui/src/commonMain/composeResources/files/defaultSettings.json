@@ -17,9 +17,11 @@
 		"layout": {
 			"workspaces": []
 		},
-		"viewport": {
-			"showToolbar": true,
-			"showSidebar": false
+		"parameters": {
+			"repeatControl": "dial"
+		},
+		"preferences": {
+			"collapsedSections": []
 		}
 	},
 	"viewport": {
@@ -33,6 +35,10 @@
 			"scale": 100.0,
 			"subdivisions": 10
 		},
+		"uvGrid": {
+			"scale": 256.0,
+			"subdivisions": 8
+		},
 		"rendering": {
 			"supersample": true,
 			"supersampleWhileResizing": true
@@ -41,22 +47,39 @@
 			"vertexIdle": "#FFFF00EC",
 			"vertexSelected": "#FFFF7A00",
 			"vertexActive": "#FF7DE400",
-			"vertexOffKey": "#66888888",
 			"edgeIdle": "#99000000",
 			"edgeSelected": "#FFFF7A00",
 			"edgeActive": "#FF7DE400",
-			"edgeOffKey": "#44888888",
 			"faceIdle": "#22000000",
 			"faceSelected": "#66FF7A00",
-			"faceActive": "#FF7DE400",
-			"faceOffKey": "#44888888"
-		}
+			"faceActive": "#FF7DE400"
+		},
+		"deformer": {
+			"latticeIdle": "#80FFFFFF",
+			"latticeSelected": "#FF338CFF",
+			"latticeActive": "#FF7DE400",
+			"latticePending": "#FFDF8431",
+			"latticeHover": "#FFFF00EC"
+		},
+		"showToolbar": true,
+		"showSidebar": true
 	},
 	"import": {
 		"parameterTemplate": "humanoid",
-		"watchMode": "auto"
+		"alignment": "center",
+		"watchMode": "auto",
+		"deleteArtIgnoresLayer": false,
+		"layerPositionsFromWorldAxes": false,
+		"birthMesh": "automatic"
+	},
+	"meshGeneration": {
+		"preset": "standard"
 	},
 	"app": {
-		"launchCount": 0
+		"launchCount": 0,
+		"showLowMemoryNotice": true,
+		"checkForUpdates": true,
+		"lastUpdateCheck": 0,
+		"skippedUpdateVersion": ""
 	}
 }

@@ -9,6 +9,7 @@ import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.format.moc3.moc.Section
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -55,22 +56,26 @@ class Moc3ExportCountInfoTest {
 	private fun intsOf(sections: Map<Int, ByteArray>, section: Section, version: MocVersion): IntArray {
 		val bytes = sections[section.indexIn(version)] ?: return IntArray(0)
 		val reader = LittleEndianReader(bytes)
+
 		return IntArray(bytes.size / 4) { reader.readInt32() }
 	}
 
 	@Test
 	fun freshlyExportedDocumentsDeclareTheSectionsTheyCarry() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping export CountInfo gate")
-			return
+			skipTest("moc3.samples not present; skipping export CountInfo gate")
 		}
+
 		val failures = ArrayList<String>()
 		var covered = 0
 		var withKeyPositions = 0
+
 		for (file in files) {
 			val source = Moc3.decode(MocCodec.read(file.readBytes()))
 			val puppet = Moc3Import.fromMocDocument(source, displayInfo = null)
+
 			for (targetVersion in listOf(source.version, MocVersion.V53)) {
 				val exported = Moc3Export.toMocDocument(puppet, targetVersion).document
 				val lowered = MocLowering.lower(exported)
@@ -79,37 +84,46 @@ class Moc3ExportCountInfoTest {
 				covered++
 
 				val keyPositions = lowered[Section.KEY_POSITIONS.indexIn(targetVersion)] ?: ByteArray(0)
+
 				if (keyPositions.isNotEmpty()) {
 					withKeyPositions++
 				}
+
 				if (countInfo[14] * 4 != keyPositions.size) {
 					failures.add(
 						"$label: CountInfo[14] declares ${countInfo[14]} floats but KEY_POSITIONS carries" +
 							" ${keyPositions.size / 4}",
 					)
 				}
+
 				val bindingStart = intsOf(lowered, Section.KEYFORM_BINDING_START, targetVersion)
+
 				if (countInfo[12] != bindingStart.size) {
 					failures.add(
 						"$label: CountInfo[12] declares ${countInfo[12]} bindings but s73 carries ${bindingStart.size}",
 					)
 				}
+
 				// 103/104 address runs INSIDE the buffer field 14 sizes, so a run ending past the declared
 				// extent reads off the end of the arena the runtime just allocated.
 				val keyStart = intsOf(lowered, Section.PARAM_KEY_START, targetVersion)
 				val keyCount = intsOf(lowered, Section.PARAM_KEY_COUNT, targetVersion)
+
 				if (keyStart.isNotEmpty()) {
 					val lastRunEnd = keyStart.last() + keyCount.last()
+
 					if (lastRunEnd > countInfo[14]) {
 						failures.add("$label: parameter key runs end at $lastRunEnd, past the declared ${countInfo[14]}")
 					}
 				}
+
 				// The bake has to survive its own writer: an over-long offset table or a section whose
 				// declared count exceeds its slice fails here rather than inside the official core.
 				val baked = MocEncoder.bakeFresh(targetVersion, exported)
 				MocCodec.read(baked)
 			}
 		}
+
 		failures.forEach { failureMessage -> println("[export-countinfo] FAIL $failureMessage") }
 		assertTrue(failures.isEmpty(), "exported CountInfo disagrees with its sections:\n" + failures.joinToString("\n"))
 		println("[export-countinfo] $covered exports checked, $withKeyPositions with a non-empty KEY_POSITIONS")

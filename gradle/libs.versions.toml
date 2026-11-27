@@ -1,17 +1,24 @@
 # Version catalog — single source of truth for dependency + plugin versions.
-# バージョンカタログ：依存とプラグインのバージョンを一元管理する。
 # Why: Gradle's typed `libs.*` accessors beat scattered string versions in each
 # build script — one place to bump, compile-checked references.
 [versions]
-kotlin = "2.4.10"
+kotlin = "2.4.20"
 agp = "9.3.0"
 composeMultiplatform = "1.11.1"
 ktlint = "14.2.0"
+# The ktlint ENGINE the plugin above runs, pinned rather than left to the plugin's default (an older 1.5.0):
+# gradle/ktlint-rules compiles Umamo's own rule set against this engine's API, so the API it builds against
+# and the engine that loads it must be the same release.  1.x is the ceiling for now: 2.x publishes under
+# the io.github.ktlint.core group, and the plugin only loads com.pinterest.ktlint.
+ktlintEngine = "1.8.0"
+# The SLF4J the ktlint engine logs through.  The engine's CLI jar bundles a binding, but the bare engine the
+# rule set's tests drive does not, and its logger fails to initialize without one.
+slf4j = "2.0.17"
 lwjgl = "3.4.2"
 androidxActivity = "1.13.0"
 # JDOM 1.x (package org.jdom) — the exact XML library the Cubism editor uses. Pinned to 1.1.x
 # so XMLOutputter + Format.getPrettyFormat() reproduce main.xml byte-for-byte; JDOM2 (org.jdom2)
-# would re-order/re-format and break the round-trip. See docs/formats/CMO3.md §3.
+# would re-order/re-format and break the round-trip. See docs/format/CMO3.md §3.
 jdom = "1.1.3"
 kotlinxSerialization = "1.11.0"
 # okio — the de-facto multiplatform filesystem (Kotlin stdlib has no common File). Backs :storage's
@@ -19,9 +26,13 @@ kotlinxSerialization = "1.11.0"
 okio = "3.17.0"
 # kotlinx-coroutines — for :settings' change-event SharedFlow (the reactive spine the UI/History want).
 kotlinxCoroutines = "1.11.0"
+# atomicfu — the common lock :storage's session log file writes under (the stdlib has none outside the
+# JVM).  Pinned to the version the Compose runtime already puts on the desktop classpath, so declaring
+# it adds no second copy.
+atomicfu = "0.28.0"
 # kotlinx-datetime — the local wall clock the CAFF zip timestamp needs. The Kotlin stdlib has a common
 # Clock but no time ZONE, and a DOS timestamp is local time, so this is the smallest thing that closes
-# the gap without reintroducing an expect/actual. See docs/formats/CMO3.md §1.
+# the gap without reintroducing an expect/actual. See docs/format/CMO3.md §1.
 kotlinxDatetime = "0.8.0"
 # FileKit — multiplatform native file pickers (desktop + Android one API). Replaces the AWT FileDialog
 # in :storage so the picker is OS-native everywhere and Android SAF comes for free. See module/storage.
@@ -73,6 +84,7 @@ okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 # okio's in-memory FileSystem for tests — :settings unit tests run with no real disk.
 okio-fakefilesystem = { module = "com.squareup.okio:okio-fakefilesystem", version.ref = "okio" }
 kotlinxCoroutinesCore = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfu" }
 kotlinxDatetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 kotlinxCoroutinesTest = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 # FileKit dialogs — open/save pickers (FileKit.openFilePicker/openFileSaver) plus the PlatformFile type
@@ -93,8 +105,20 @@ sqldelightNativeDriver = { module = "app.cash.sqldelight:native-driver", version
 # modules apply, so what build-logic compiles against and what the modules get can never drift.
 kotlinGradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 
+# ktlint's rule API, for Umamo's own rule set in gradle/ktlint-rules: the core (Rule, the AST helpers), the
+# CLI's rule set provider contract, and, for its tests, the engine they drive the rules through and the
+# standard rules a test runs beside them.
+ktlintRuleEngineCore = { module = "com.pinterest.ktlint:ktlint-rule-engine-core", version.ref = "ktlintEngine" }
+ktlintCliRulesetCore = { module = "com.pinterest.ktlint:ktlint-cli-ruleset-core", version.ref = "ktlintEngine" }
+ktlintRuleEngine = { module = "com.pinterest.ktlint:ktlint-rule-engine", version.ref = "ktlintEngine" }
+ktlintRulesetStandard = { module = "com.pinterest.ktlint:ktlint-ruleset-standard", version.ref = "ktlintEngine" }
+slf4jNop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
+
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+# Plain Kotlin/JVM, for gradle/ktlint-rules only: a ktlint rule set is a JVM jar the engine loads, never a
+# multiplatform library.
+kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 # Since Kotlin 2.0 the Compose compiler ships as a Kotlin Gradle plugin, version-locked
 # to Kotlin itself (replaces the old standalone composeCompiler version matrix).
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

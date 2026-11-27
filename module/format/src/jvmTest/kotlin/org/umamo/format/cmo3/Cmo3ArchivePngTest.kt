@@ -4,6 +4,7 @@ import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.type.FileRef
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -24,11 +25,7 @@ class Cmo3ArchivePngTest {
 
 	@Test
 	fun anAddedPngRoundTripsAndKeepsMainXmlLast() {
-		val file =
-			sample ?: run {
-				println("cmo3.sample not present; skipping archive png test")
-				return
-			}
+		val file = sample ?: skipTest("cmo3.sample not present; skipping archive png test")
 		val model = Cmo3.read(file)
 		val donorPng = assertNotNull(model.extractLayerPng(model.imageResources().first()))
 		val mintedPath = model.nextImageFileBufPath()
@@ -61,19 +58,23 @@ class Cmo3ArchivePngTest {
 
 	@Test
 	fun thePathAllocatorContinuesPastTheRetainedMax() {
-		val file = sample ?: return
+		val file = sample ?: skipTest("cmo3.sample not present; skipping archive png test")
 		val model = Cmo3.read(file)
 		val highestRetained =
 			model.archive.entries
 				.mapNotNull { entry ->
 					when {
-						entry.path == "imageFileBuf.png" -> -1
-						else ->
+						entry.path == "imageFileBuf.png" -> {
+							-1
+						}
+
+						else -> {
 							entry.path
 								.removePrefix("imageFileBuf_")
 								.removeSuffix(".png")
 								.takeIf { middle -> "imageFileBuf_$middle.png" == entry.path }
 								?.toIntOrNull()
+						}
 					}
 				}.maxOrNull()
 
@@ -86,7 +87,7 @@ class Cmo3ArchivePngTest {
 
 	@Test
 	fun aRemovedEntryLeavesTheOthersServed() {
-		val file = sample ?: return
+		val file = sample ?: skipTest("cmo3.sample not present; skipping archive png test")
 		val model = Cmo3.read(file)
 		val resources = model.imageResources()
 		val removed = resources.first()

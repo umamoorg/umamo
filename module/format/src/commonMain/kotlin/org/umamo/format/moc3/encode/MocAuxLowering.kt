@@ -24,19 +24,23 @@ internal fun auxiliarySections(context: MocLoweringContext): Map<Int, ByteArray>
 		val weights = ArrayList<Float>()
 		val indices = ArrayList<Short>()
 		val intensities = ArrayList<Float>()
+
 		for (glue in doc.glues) {
 			vertexStart.add(weights.size)
 			glueVertexCount.add(glue.pairs.size * 2)
+
 			for (pair in glue.pairs) {
 				weights.add(pair.weightA)
 				weights.add(pair.weightB)
 				indices.add(pair.vertexA.toShort())
 				indices.add(pair.vertexB.toShort())
 			}
+
 			keyOffset.add(intensities.size)
 			keyCount.add(glue.intensityKeyforms.size)
 			glue.intensityKeyforms.forEach { intensities.add(it) }
 		}
+
 		sink.putInts(Section.GLUE_VERTEX_START, vertexStart)
 		sink.putInts(Section.GLUE_VERTEX_COUNT, glueVertexCount)
 		sink.putInts(Section.GLUE_KEY_OFFSET, keyOffset)
@@ -53,14 +57,17 @@ internal fun auxiliarySections(context: MocLoweringContext): Map<Int, ByteArray>
 		val childKind = ArrayList<Int>()
 		val childIndex = ArrayList<Int>()
 		val childGroupIndex = ArrayList<Int>()
+
 		for (group in groups) {
 			childCount.add(group.children.size)
+
 			for (child in group.children) {
 				childKind.add(child.kind)
 				childIndex.add(child.index)
 				childGroupIndex.add(child.groupIndex)
 			}
 		}
+
 		sink.putInts(Section.RENDER_ORDER_CHILD_COUNT, childCount)
 		sink.putInts(Section.RENDER_ORDER_CHILD_KIND, childKind)
 		sink.putInts(Section.RENDER_ORDER_CHILD_INDEX, childIndex)
@@ -68,7 +75,11 @@ internal fun auxiliarySections(context: MocLoweringContext): Map<Int, ByteArray>
 
 		// Per-group render count (83) and child draw-order extent (84/85), which the runtime reads.  A kind-0 child's draw order is its
 		// mesh's; a kind-1 child's is its sub-group part's; the render count recurses into sub-groups and
-		// counts an extra slot for a sub-group part that owns an offscreen. Draw order = floor(0.001+value).
+		// counts an extra slot for a sub-group part that owns an offscreen.  Draw order = floor(0.001+value).
+		//
+		// MOC3 §5.6: the extent spans every keyform of every child, so it covers each draw order the
+		// keyform grid can blend to.  The runtime shares render orders between drawables, or fails its
+		// update outright, once a posed child leaves the stored extent (DrawOrderExtentOracleTest).
 		val ownerParts = doc.offscreens.map { it.ownerPartIndex }.toHashSet()
 		val renderCountMemo = HashMap<Int, Int>()
 
@@ -90,32 +101,35 @@ internal fun auxiliarySections(context: MocLoweringContext): Map<Int, ByteArray>
 			}
 
 		/**
-		 * The integer draw order of one render-order [child] (its mesh's, or its sub-group part's).
+		 * The integer draw orders one render-order [child] holds across its keyforms (its mesh's, or its sub-group part's).
 		 *
 		 * @param RenderOrderChild child A render-order child.
-		 * @return Int The floored draw order (`floor(0.001 + value)`).
+		 * @return List<Int> The floored draw order (`floor(0.001 + value)`) of each keyform.
 		 */
-		fun childDrawOrder(child: RenderOrderChild): Int {
-			val drawOrderValue =
+		fun childDrawOrders(child: RenderOrderChild): List<Int> {
+			val drawOrderValues =
 				if (child.kind == 0) {
-					doc.artMeshes[child.index].keyforms.first().drawOrder
+					doc.artMeshes[child.index].keyforms.map { keyform -> keyform.drawOrder }
 				} else {
-					doc.parts[child.index].drawOrderKeyforms.first()
+					doc.parts[child.index].drawOrderKeyforms.toList()
 				}
-			return (0.001f + drawOrderValue).toInt()
+
+			return drawOrderValues.map { drawOrderValue -> (0.001f + drawOrderValue).toInt() }
 		}
 
 		val renderCounts = ArrayList<Int>()
 		val maxDraw = ArrayList<Int>()
 		val minDraw = ArrayList<Int>()
+
 		for (groupIndex in groups.indices) {
 			renderCounts.add(renderCount(groupIndex))
-			val childOrders = groups[groupIndex].children.map(::childDrawOrder)
+			val childOrders = groups[groupIndex].children.flatMap(::childDrawOrders)
 			// MOC3 §5.6: an EMPTY group stores the max/min fold identities (-INT_MAX / INT_MAX),
 			// not a 500 default - probed on the ModelWithOffscreen family's childless groups.
 			maxDraw.add(childOrders.maxOrNull() ?: -Int.MAX_VALUE)
 			minDraw.add(childOrders.minOrNull() ?: Int.MAX_VALUE)
 		}
+
 		sink.putInts(Section.RENDER_ORDER_GROUP_RENDER_COUNT, renderCounts)
 		sink.putInts(Section.RENDER_ORDER_GROUP_MAX_DRAW_ORDER, maxDraw)
 		sink.putInts(Section.RENDER_ORDER_GROUP_MIN_DRAW_ORDER, minDraw)
@@ -129,11 +143,13 @@ internal fun auxiliarySections(context: MocLoweringContext): Map<Int, ByteArray>
 		sink.putInts(Section.OFFSCREEN_MASK_COUNT, doc.offscreens.map { it.maskCount })
 		// 152: the per-part inverse of OFFSCREEN_OWNER_PART (-1 for offscreen-less parts).
 		val offscreenByPart = IntArray(doc.parts.size) { -1 }
+
 		for ((offscreenIndex, offscreen) in doc.offscreens.withIndex()) {
 			if (offscreen.ownerPartIndex in offscreenByPart.indices) {
 				offscreenByPart[offscreen.ownerPartIndex] = offscreenIndex
 			}
 		}
+
 		sink.putInts(Section.OFFSCREEN_BY_PART, offscreenByPart.toList())
 		// 160 gets the SAME inverse map, and it must be written: the runtime reads it as a per-part
 		// offscreen index, so leaving it empty makes it read the neighbouring section's bytes as part
@@ -148,11 +164,14 @@ internal fun auxiliarySections(context: MocLoweringContext): Map<Int, ByteArray>
 		// 158: cumulative mask base (the scan of 159; MOC3 §5.6, OffscreenKeyformProbeTest).
 		val maskBases = ArrayList<Int>()
 		var maskBaseCursor = 0
+
 		for (offscreen in doc.offscreens) {
 			maskBases.add(maskBaseCursor)
 			maskBaseCursor += offscreen.maskCount
 		}
+
 		sink.putInts(Section.OFFSCREEN_MASK_BASE, maskBases)
+
 		// Keyform tables only when the typed extraction populated them (else carried).
 		if (doc.offscreens.all { it.keyforms.isNotEmpty() }) {
 			val offscreenOpacities = doc.offscreens.flatMap { offscreen -> offscreen.keyforms.map { it.opacity } }
@@ -164,5 +183,6 @@ internal fun auxiliarySections(context: MocLoweringContext): Map<Int, ByteArray>
 			sink.putInts(Section.OFFSCREEN_KEYFORM_SCREEN_ROW, identityRows)
 		}
 	}
+
 	return sink.toMap()
 }

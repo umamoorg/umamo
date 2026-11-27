@@ -2,11 +2,9 @@ package org.umamo.runtime.model
 
 /**
  * A straight-alpha-free RGB color channel triple, 0..1 per channel - the multiply/screen color
- * payload of a layer composite. Channels are the editor hex value / 255 as float32 (CMO3
- * `CFloatColor` red/green/blue; MOC3 color-table rows 108-113 carry the identical floats). The
+ * payload of a layer composite.  Channels are the editor hex value / 255 as float32 (CMO3
+ * `CFloatColor` red/green/blue; MOC3 color-table rows 108-113 carry the identical floats).  The
  * source formats' alpha attribute is always 1.0 in every observed sample, so it is not modeled.
- *
- * 乗算色／スクリーン色の RGB 値（0..1）。
  */
 data class ColorRgb(
 	val red: Float,
@@ -26,7 +24,7 @@ data class ColorRgb(
 	 *
 	 * Additive accumulation (blend-shape color deltas, the deformer screen composition) can leave the
 	 * range at the ends of a keyed span, and the clamp belongs AFTER the whole sum rather than per
-	 * term - clamping each contribution would bias a record whose neighbours pull the other way.
+	 * term - clamping each contribution would bias a record whose neighbors pull the other way.
 	 *
 	 * @return ColorRgb The clamped color.
 	 */

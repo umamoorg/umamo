@@ -23,6 +23,7 @@ internal fun structuralSections(context: MocLoweringContext): Map<Int, ByteArray
 	sink.putFloats(Section.PARAM_MIN, doc.parameters.map { it.minimumValue })
 	sink.putFloats(Section.PARAM_DEFAULT, doc.parameters.map { it.defaultValue })
 	sink.putInts(Section.PARAM_REPEAT, doc.parameters.map { if (it.repeats) 1 else 0 })
+
 	if (doc.parameters.any { it.type != null }) {
 		sink.putInts(Section.PARAM_TYPE, doc.parameters.map { it.type!!.number })
 	}
@@ -58,6 +59,7 @@ internal fun structuralSections(context: MocLoweringContext): Map<Int, ByteArray
 	sink.putInts(Section.ARTMESH_KEYFORM_COUNT, doc.artMeshes.map { doc.keyformBinding(it.keyformBindingIndex)?.gridSize ?: 1 })
 	sink.putFloatConcat(Section.ARTMESH_UV_DATA, doc.artMeshes) { it.vertexUvs }
 	sink.putShortConcat(Section.ARTMESH_INDEX_DATA, doc.artMeshes) { it.triangleIndices }
+
 	// The mask-index block holds (moc 6) the offscreens' mask lists as a PREFIX, then the
 	// drawables' mask lists (MOC3 §5.6 section 80; s158 offsets from the block start - pinned on
 	// Model A against the CMO3 clip lists).  The prefix synthesizes from the typed
@@ -65,12 +67,15 @@ internal fun structuralSections(context: MocLoweringContext): Map<Int, ByteArray
 	// carries the section instead.
 	if (doc.offscreens.all { it.maskIndices.size == it.maskCount }) {
 		val maskIndexValues = ArrayList<Int>()
+
 		for (offscreen in doc.offscreens) {
 			offscreen.maskIndices.forEach { maskIndexValues.add(it) }
 		}
+
 		for (mesh in doc.artMeshes) {
 			mesh.maskDrawableIndices.forEach { maskIndexValues.add(it) }
 		}
+
 		sink.putInts(Section.MASK_INDEX_DATA, maskIndexValues)
 	}
 
@@ -88,6 +93,7 @@ internal fun structuralSections(context: MocLoweringContext): Map<Int, ByteArray
 	run {
 		var nextWarpLocal = 0
 		var nextRotationLocal = 0
+
 		for ((deformerIndex, deformer) in doc.deformers.withIndex()) {
 			localIndex[deformerIndex] = if (deformer is WarpDeformer) nextWarpLocal++ else nextRotationLocal++
 		}

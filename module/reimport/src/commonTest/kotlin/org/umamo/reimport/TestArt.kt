@@ -22,6 +22,7 @@ internal class TestLayer(
 	override val groupPath: String = "",
 	override val kind: SourceLayerKind = SourceLayerKind.Raster,
 	override val idIsStable: Boolean = true,
+	override val visible: Boolean = true,
 ) : SourceLayer {
 	override val id: LayerId = LayerId(id)
 	override val opacity: Float = 1f
@@ -59,11 +60,13 @@ internal class TestGroup(
  */
 internal fun solidRaster(width: Int, height: Int, value: Byte): LayerRaster {
 	val rgba = ByteArray(width * height * 4)
+
 	for (pixel in 0 until width * height) {
 		rgba[pixel * 4] = value
 		rgba[pixel * 4 + 1] = value
 		rgba[pixel * 4 + 2] = value
 		rgba[pixel * 4 + 3] = 0xFF.toByte()
 	}
+
 	return LayerRaster(width, height, rgba)
 }

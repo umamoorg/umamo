@@ -10,11 +10,6 @@ import org.umamo.runtime.model.RenderNode
  * Builds the runtime render-order tree from the moc's explicit render-order groups (group 0 is the
  * root), or null when the document carries none (degenerate; the caller derives from the org tree).
  *
- * A kind-0 child is a drawable leaf; a kind-1 child is a "Group by Draw Order" part whose sub-group
- * record is [org.umamo.format.moc3.model.RenderOrderChild.groupIndex].  A visited set guards a
- * malformed cyclic group reference, and drawables the stored tree never places are appended at the
- * root (the renderer draws exclusively from this tree, so a missing leaf would never render).
- *
  * Runs BEFORE the part import, and reads the same part attributes it does - a grouped part's draw
  * order, tracks, and composite appear on both its render group and its runtime `Part` - which is why
  * those live in `Moc3PartImport` as plain functions over the context rather than being computed here.
@@ -24,20 +19,34 @@ import org.umamo.runtime.model.RenderNode
  */
 internal fun importRenderRoot(context: Moc3ImportContext): RenderGroup? {
 	val mocDocument = context.mocDocument
+
 	if (mocDocument.renderOrderGroups.isEmpty()) {
 		return null
 	}
+
 	val visitedGroups = HashSet<Int>()
 
+	/**
+	 * Builds the render nodes of a render-order group, recursing into draw-order groups and visiting each group
+	 * once.
+	 *
+	 * @param Int groupIndex The group's index in the render-order group list.
+	 * @return List<RenderNode> The group's nodes, empty for an unknown or already visited group.
+	 */
 	fun childrenOf(groupIndex: Int): List<RenderNode> {
 		val group = mocDocument.renderOrderGroups.getOrNull(groupIndex) ?: return emptyList()
+
 		if (!visitedGroups.add(groupIndex)) {
 			return emptyList()
 		}
+
 		return group.children.mapNotNull { child ->
 			when (child.kind) {
 				// MOC3 §5.6 render-order child kind 0: a drawable leaf.
-				0 -> context.drawableIdsByFileIndex.getOrNull(child.index)?.let(::RenderDrawable)
+				0 -> {
+					context.drawableIdsByFileIndex.getOrNull(child.index)?.let(::RenderDrawable)
+				}
+
 				// Kind 1: a draw-order group part; its members live in the referenced sub-group record.
 				1 -> {
 					val part = mocDocument.parts.getOrNull(child.index) ?: return@mapNotNull null
@@ -51,7 +60,9 @@ internal fun importRenderRoot(context: Moc3ImportContext): RenderGroup? {
 					)
 				}
 
-				else -> null
+				else -> {
+					null
+				}
 			}
 		}
 	}
@@ -66,6 +77,7 @@ internal fun importRenderRoot(context: Moc3ImportContext): RenderGroup? {
 	val placedDrawableIds = placedLeaves.toHashSet()
 	val missingLeaves =
 		context.drawableIdsByFileIndex.filter { drawableId -> drawableId !in placedDrawableIds }.map(::RenderDrawable)
+
 	return if (missingLeaves.isEmpty()) {
 		root
 	} else {
@@ -101,7 +113,6 @@ internal fun panelIndexesFrom(renderRoot: RenderGroup?): Map<DrawableId, Int> =
  *
  * @param RenderNode            node The subtree root.
  * @param ArrayList<DrawableId> into The destination leaf list.
- * @return Unit
  */
 private fun collectRenderLeaves(
 	node: RenderNode,

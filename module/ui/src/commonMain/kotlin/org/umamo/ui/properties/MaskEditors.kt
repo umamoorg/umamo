@@ -2,180 +2,132 @@ package org.umamo.ui.properties
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.setDrawableMaskedBy
-import org.umamo.edit.setPartComposite
-import org.umamo.runtime.model.Deformer
+import org.umamo.edit.relation.RelationSlot
+import org.umamo.edit.relation.masksOf
+import org.umamo.edit.relation.relationAdmitter
 import org.umamo.runtime.model.Drawable
-import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.Part
-import org.umamo.runtime.model.PartComposite
-import org.umamo.runtime.model.PartId
-import org.umamo.ui.kit.RelationListField
+import org.umamo.ui.action.rememberCommandMenu
+import org.umamo.ui.kit.field.RelationListField
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.UmamoIcon
+import org.umamo.ui.transform.bindRelation
 import org.umamo.ui.workspace.LocalRelationPick
-import org.umamo.ui.workspace.PickKind
+import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 import org.umamo.ui.workspace.pickingFor
 
 /*
- * The clip-mask relation lists - a part composite's masks and a drawable's own.  Both are add / remove
- * lists over the shared RelationListField, and both resolve their picks against the LIVE model rather than
- * the value captured in composition (an armed eyedropper resolves long after it was armed).
+ * The clip-mask relation lists - a part composite's masks and a drawable's own.  Both are add / remove lists over the
+ * shared RelationListField, on one slot each: the add field and its eyedropper bind into the list's slot, and a row
+ * removes through its own.  Every write goes through bindRelation, which reads the LIVE model, so an eyedropper that
+ * resolves long after it was armed never reverts an edit made in between.
  */
 
-/**
- * The drawables eligible to be added as clip masks for a composite: every drawable not already applied.
- * Any drawable is a valid mask target (the model has no is-mask flag), so the candidate set is simply the
- * complement of [current].  Pure, so the "add mask" menu contents are unit-testable.
- *
- * @param List drawables Every drawable in the model.
- * @param List current The mask ids already applied to the composite.
- * @return List The drawables not yet masking, in model order.
- */
-internal fun maskCandidates(drawables: List<Drawable>, current: List<DrawableId>): List<Drawable> {
-	val applied = current.toSet()
-	return drawables.filter { drawable -> drawable.id !in applied }
-}
+/** The "Masked By" relation list's name in the editor entry's `listHeights` (UMA §7.3); a part's and a drawable's share it. */
+private const val MASKED_BY_LIST_NAME = "maskedBy"
 
 /**
- * One entry in a composite's clip-mask list.  A drawable clips directly; a part stands for every drawable
- * in its subtree and is resolved to them only in the derived render tree, so the mask follows the part as
+ * One entry in a clip-mask list: the drawable or part that clips, with its display name.  A part stands for every
+ * drawable in its subtree and is resolved to them only in the derived render tree, so the mask follows the part as
  * its children change (see [org.umamo.runtime.model.PartComposite.maskedByParts]).
- */
-private sealed interface MaskEntry {
-	/** The entry's display name. */
-	val name: String
-
-	/** A drawable whose alpha clips directly. */
-	data class OfDrawable(val id: DrawableId, override val name: String) : MaskEntry
-
-	/** A part standing for its descendant drawables. */
-	data class OfPart(val id: PartId, override val name: String) : MaskEntry
-}
-
-/**
- * A mask entry's stable row identity.  The wrapping entry is rebuilt every recomposition, and the display
- * name is source-art data that repeats, so the underlying id is the only thing that identifies a row.
  *
- * @return Any The entry's stable key.
+ * @property SelectionTarget target The drawable or part, which is also the row's stable identity.
+ * @property String name The display name.
  */
-private fun MaskEntry.key(): Any =
-	when (this) {
-		is MaskEntry.OfDrawable -> id
-		is MaskEntry.OfPart -> id
-	}
+private data class MaskEntry(val target: SelectionTarget, val name: String)
 
 /**
  * The type glyph for a mask entry, so drawable and part masks read apart in the list.
  *
  * @return UmamoIcon The entry's type icon.
  */
-private fun MaskEntry.glyph(): UmamoIcon =
-	when (this) {
-		is MaskEntry.OfDrawable -> LocalUmamoIcons.mesh
-		is MaskEntry.OfPart -> LocalUmamoIcons.part
+private fun MaskEntry.glyph(): UmamoIcon = if (target is SelectionTarget.Part) LocalUmamoIcons.part else LocalUmamoIcons.mesh
+
+/**
+ * The entries a mask list offers to add for [slot]: every drawable, then every part, the slot admits.
+ *
+ * @param PropertyContext context The context supplying the model.
+ * @param RelationSlot.Masks slot The list.
+ * @return List<MaskEntry> The candidates, drawables first, each in model order.
+ */
+private fun maskCandidatesOf(context: PropertyContext, slot: RelationSlot.Masks): List<MaskEntry> {
+	val admits = context.puppet.relationAdmitter(slot)
+	val drawables = context.puppet.drawables.map { drawable -> MaskEntry(SelectionTarget.Drawable(drawable.id), drawable.name.ifBlank { drawable.id.raw }) }
+	val parts = context.puppet.parts.map { part -> MaskEntry(SelectionTarget.Part(part.id), part.name.ifBlank { part.id.raw }) }
+
+	return (drawables + parts).filter { entry -> admits(entry.target) }
+}
+
+/**
+ * The entries [slot]'s owner is masked by, named from the model; an id naming nothing is left out.
+ *
+ * @param PropertyContext context The context supplying the model.
+ * @param RelationSlot.Masks slot The list.
+ * @return List<MaskEntry> The entries, in stored order.
+ */
+private fun maskEntriesOf(context: PropertyContext, slot: RelationSlot.Masks): List<MaskEntry> =
+	context.puppet.masksOf(slot.owner).mapNotNull { target ->
+		when (target) {
+			is SelectionTarget.Drawable -> context.puppet.drawables.firstOrNull { drawable -> drawable.id == target.id }?.let { masker -> MaskEntry(target, masker.name.ifBlank { masker.id.raw }) }
+			is SelectionTarget.Part -> context.puppet.parts.firstOrNull { part -> part.id == target.id }?.let { masker -> MaskEntry(target, masker.name.ifBlank { masker.id.raw }) }
+			is SelectionTarget.Deformer -> null
+		}
 	}
 
 /**
- * The isolated part composite's clip-mask editor: a scrollable, resizable list of the drawables and parts
- * clipping the layer, over a search field whose eyedropper takes a mask straight from the viewport or the
- * outliner.  Every edit routes the whole updated composite through setPartComposite, so it is one undo step
- * and survives a mode round-trip like the other composite fields.  Masks are a set (order does not affect
- * coverage), so the list is not reorderable.
+ * One clip-mask list over [slot]: a scrollable, resizable list of what clips the owner, over a search field whose
+ * eyedropper takes a mask straight from the viewport or the outliner.  Each add or removal is one undo step.  Masks
+ * are a set (order does not affect coverage), so the list is not reorderable.
  *
- * A viewport click resolves to the drawable it hits; picking a whole part is done from the list or the
- * outliner, since the viewport hit test is drawable-only.
- *
- * @param Part part The part whose composite is edited.
- * @param PartComposite composite The active (Isolated) composite being edited.
+ * @param RelationSlot.Masks slot The list, which is also the add field's identity.
+ * @param StringResource descriptionRes What the list means, as the label's tooltip.
  * @param PropertyContext context The context supplying the model and session.
  */
 @Composable
-internal fun PartMaskEditor(part: Part, composite: PartComposite, context: PropertyContext) {
+private fun MaskList(slot: RelationSlot.Masks, descriptionRes: StringResource, context: PropertyContext) {
 	val session = context.session
 	val relationPick = LocalRelationPick.current
-	val owner = "part.maskedBy:${part.id.raw}"
-	// Every write re-reads the part's CURRENT composite rather than the one captured in this composition.
-	// An armed eyedropper resolves LONG after it was armed and the panel stays editable in between, so
-	// closing over `composite` would silently revert any opacity / color edit made while the pick was in
-	// flight - one undo step that quietly undoes two others.
-	val mutateComposite: (PartComposite.() -> PartComposite) -> Unit = { change ->
-		val live = session?.model?.value?.parts?.firstOrNull { it.id == part.id }?.activeComposite
-		if (live != null) {
-			session.setPartComposite(part.id, live.change())
-		}
-	}
-
-	val entries =
-		buildList {
-			for (maskId in composite.maskedBy) {
-				context.puppet.drawables.firstOrNull { it.id == maskId }?.let { masker ->
-					add(MaskEntry.OfDrawable(masker.id, masker.name.ifBlank { masker.id.raw }))
-				}
-			}
-			for (maskPartId in composite.maskedByParts) {
-				context.puppet.parts.firstOrNull { it.id == maskPartId }?.let { masker ->
-					add(MaskEntry.OfPart(masker.id, masker.name.ifBlank { masker.id.raw }))
-				}
-			}
-		}
-	val candidates =
-		buildList {
-			for (candidate in maskCandidates(context.puppet.drawables, composite.maskedBy)) {
-				add(MaskEntry.OfDrawable(candidate.id, candidate.name.ifBlank { candidate.id.raw }))
-			}
-			// A part cannot mask itself (it would clip the very layer it composites).
-			for (candidate in context.puppet.parts) {
-				if (candidate.id != part.id && candidate.id !in composite.maskedByParts) {
-					add(MaskEntry.OfPart(candidate.id, candidate.name.ifBlank { candidate.id.raw }))
-				}
-			}
-		}
-	val addEntry: (MaskEntry) -> Unit = { entry ->
-		when (entry) {
-			is MaskEntry.OfDrawable -> mutateComposite { copy(maskedBy = (maskedBy + entry.id).distinct()) }
-			// A part masking itself would clip the very layer it composites; the candidate list excludes it,
-			// and the eyedropper has to refuse it too or the outliner becomes a way around the guard.
-			is MaskEntry.OfPart -> if (entry.id != part.id) mutateComposite { copy(maskedByParts = (maskedByParts + entry.id).distinct()) }
-		}
-	}
-
-	RelationListBlock(stringResource(Res.string.properties_field_masked_by)) {
+	// Asked as the binding lands; mask edits register no strip, but the write path takes the area all the same.
+	val stripArea = LocalOperationStripArea.current
+	val viewState = LocalPropertiesViewState.current
+	RelationListBlock(stringResource(Res.string.properties_field_masked_by), description = stringResource(descriptionRes)) {
 		RelationListField(
-			entries = entries,
-			candidates = candidates,
+			entries = maskEntriesOf(context, slot),
+			candidates = maskCandidatesOf(context, slot),
 			label = { entry -> entry.name },
-			keyOf = { entry -> entry.key() },
+			keyOf = { entry -> entry.target },
 			icon = { entry -> entry.glyph() },
-			onAdd = addEntry,
-			onRemove = { entry ->
-				when (entry) {
-					is MaskEntry.OfDrawable -> mutateComposite { copy(maskedBy = maskedBy - entry.id) }
-					is MaskEntry.OfPart -> mutateComposite { copy(maskedByParts = maskedByParts - entry.id) }
-				}
-			},
+			onAdd = { entry -> session?.bindRelation(slot, entry.target, stripArea()) },
+			onRemove = { entry -> session?.bindRelation(RelationSlot.Mask(slot.owner, entry.target), null, stripArea()) },
 			modifier = Modifier.fillMaxWidth(),
-			onPick = {
-				relationPick.arm(setOf(PickKind.Drawable, PickKind.Part), owner) { target ->
-					when (target) {
-						is SelectionTarget.Drawable -> addEntry(MaskEntry.OfDrawable(target.id, target.id.raw))
-						is SelectionTarget.Part -> addEntry(MaskEntry.OfPart(target.id, target.id.raw))
-						is SelectionTarget.Deformer -> {}
-					}
-				}
-			},
-			picking = relationPick.pickingFor(owner),
+			height = viewState?.listHeights?.get(MASKED_BY_LIST_NAME),
+			onHeightChange = { dragged -> viewState?.listHeights?.set(MASKED_BY_LIST_NAME, dragged) },
+			onPick = session?.let { live -> { relationPick.armFor(slot, live, stripArea) } },
+			picking = relationPick.pickingFor(slot),
 			addPlaceholder = stringResource(Res.string.properties_mask_add),
 			removeDescription = stringResource(Res.string.properties_mask_remove),
 			pickDescription = stringResource(Res.string.properties_relation_pick),
+			entryMenu = { entry -> rememberCommandMenu(relationEntryMenu(RelationSlot.Mask(slot.owner, entry.target))) },
 		)
 	}
+}
+
+/**
+ * The isolated part composite's clip-mask editor: the drawables and parts clipping the layer.  A viewport click
+ * resolves to the drawable it hits; picking a whole part is done from the list or the outliner, since a click on art
+ * means the drawable here.
+ *
+ * @param Part part The part whose composite is edited (shown only while it is Isolated).
+ * @param PropertyContext context The context supplying the model and session.
+ */
+@Composable
+internal fun PartMaskEditor(part: Part, context: PropertyContext) {
+	MaskList(RelationSlot.Masks(SelectionTarget.Part(part.id)), Res.string.properties_field_masked_by_part_description, context)
 }
 
 /**
@@ -188,43 +140,5 @@ internal fun PartMaskEditor(part: Part, composite: PartComposite, context: Prope
  */
 @Composable
 internal fun DrawableMaskEditor(drawable: Drawable, context: PropertyContext) {
-	val session = context.session
-	val relationPick = LocalRelationPick.current
-	val owner = "drawable.maskedBy:${drawable.id.raw}"
-	val entries = drawable.maskedBy.mapNotNull { maskId -> context.puppet.drawables.firstOrNull { it.id == maskId } }
-	val candidates = maskCandidates(context.puppet.drawables, drawable.maskedBy).filterNot { it.id == drawable.id }
-	// Live read for the same reason as PartMaskEditor's mutateComposite: an armed pick resolves later, and
-	// the captured list would revert any mask added in the meantime.
-	val addMask: (DrawableId) -> Unit = { maskId ->
-		val live = session?.model?.value?.drawables?.firstOrNull { it.id == drawable.id }?.maskedBy
-		if (live != null) {
-			session.setDrawableMaskedBy(drawable.id, (live + maskId).distinct())
-		}
-	}
-
-	RelationListBlock(stringResource(Res.string.properties_field_masked_by)) {
-		RelationListField(
-			entries = entries,
-			candidates = candidates,
-			label = { masker -> masker.name.ifBlank { masker.id.raw } },
-			keyOf = { masker -> masker.id },
-			icon = { LocalUmamoIcons.mesh },
-			onAdd = { masker -> addMask(masker.id) },
-			onRemove = { masker -> session?.setDrawableMaskedBy(drawable.id, drawable.maskedBy - masker.id) },
-			modifier = Modifier.fillMaxWidth(),
-			onPick = {
-				relationPick.arm(setOf(PickKind.Drawable), owner) { target ->
-					(target as? SelectionTarget.Drawable)?.let { picked ->
-						if (picked.id != drawable.id) {
-							addMask(picked.id)
-						}
-					}
-				}
-			},
-			picking = relationPick.pickingFor(owner),
-			addPlaceholder = stringResource(Res.string.properties_mask_add),
-			removeDescription = stringResource(Res.string.properties_mask_remove),
-			pickDescription = stringResource(Res.string.properties_relation_pick),
-		)
-	}
+	MaskList(RelationSlot.Masks(SelectionTarget.Drawable(drawable.id)), Res.string.properties_field_masked_by_description, context)
 }

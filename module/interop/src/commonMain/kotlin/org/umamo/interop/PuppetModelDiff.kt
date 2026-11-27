@@ -11,6 +11,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.Parameter
@@ -24,6 +25,8 @@ import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.holdsOnlyTheRest
+import org.umamo.runtime.model.latticeDepthsEqual
 import org.umamo.runtime.model.lineageRoot
 
 /*
@@ -36,12 +39,13 @@ import org.umamo.runtime.model.lineageRoot
  *
  * Completeness is the load-bearing property: any semantic difference between the two models MUST
  * surface in some field below, because an edit the diff misses is an edit the export silently drops.
- * Comparisons are bit-exact (FloatArray.contentEquals semantics; raw bits for loose scalars) - the
- * diff's job is to detect that anything changed, not to judge whether the change is significant.
+ * Comparisons are bit-exact (FloatArray.contentEquals semantics; raw bits for loose scalars; a mesh keyform
+ * by the absolutes it rebuilds, see meshGeometryEqual) - the diff's job is to detect that anything
+ * changed, not to judge whether the change is significant.
  */
 
 /** The changed aspects of a [Parameter]. */
-enum class ParameterField { NAME, RANGE, KIND }
+enum class ParameterField { NAME, RANGE, KIND, REPEAT, NOTE }
 
 /** The changed aspects of a [ParameterNode.Group]. */
 enum class ParameterGroupField { NAME, INITIALLY_OPEN, CHILDREN }
@@ -55,6 +59,7 @@ enum class DeformerField {
 	NAME,
 	PARENT,
 	PART,
+	VISIBLE,
 	SELECTABLE,
 	LATTICE,
 	QUAD_TRANSFORM,
@@ -63,6 +68,7 @@ enum class DeformerField {
 	CHANNELS,
 	STATICS,
 	BLEND_SHAPES,
+	DEPTH, // Warp deformer lattice depth.  This is an UMA format only feature.
 }
 
 /** The changed aspects of a [Drawable]. */
@@ -97,6 +103,12 @@ enum class AtlasTileField {
 
 	/** Its name, pixel size, or source binding: what the art itself is, not where it was packed. */
 	METADATA,
+
+	/**
+	 * Its pixels: a reload superseded the tile with a new one over repainted art.  Reported on its own, since
+	 * a repaint can keep the name, the size, and the place, and nothing else in the model then differs.
+	 */
+	PIXELS,
 }
 
 /** The changed document-level aspects of a [PuppetModel]. */
@@ -242,118 +254,193 @@ private inline fun <TEntity, TId, TField> diffEntities(
 	val baselineById = baselineEntities.associateBy(idOf)
 	val editedById = editedEntities.associateBy(idOf)
 	val diffs = ArrayList<EntityDiff<TId, TField>>()
+
 	for (baselineEntity in baselineEntities) {
 		val entityId = idOf(baselineEntity)
 		val editedEntity = editedById[entityId]
+
 		if (editedEntity == null) {
 			diffs.add(EntityDiff.Deleted(entityId))
+
 			continue
 		}
+
 		if (baselineEntity === editedEntity) {
 			continue
 		}
+
 		val fields = changedFields(baselineEntity, editedEntity)
+
 		if (fields.isNotEmpty()) {
 			diffs.add(EntityDiff.Changed(entityId, fields))
 		}
 	}
+
 	for (editedEntity in editedEntities) {
 		val entityId = idOf(editedEntity)
+
 		if (entityId !in baselineById) {
 			diffs.add(EntityDiff.Created(entityId))
 		}
 	}
+
 	return diffs
 }
 
+/**
+ * Lists the fields that differ between two versions of a parameter.
+ *
+ * @param Parameter baseline The parameter before the edit.
+ * @param Parameter edited The parameter after it.
+ * @return Set<ParameterField> The changed fields, empty when nothing differs.
+ */
 private fun parameterFields(baseline: Parameter, edited: Parameter): Set<ParameterField> =
 	buildSet {
 		if (baseline.name != edited.name) {
 			add(ParameterField.NAME)
 		}
+
 		if (!floatEq(baseline.min, edited.min) || !floatEq(baseline.max, edited.max) || !floatEq(baseline.default, edited.default)) {
 			add(ParameterField.RANGE)
 		}
+
 		if (baseline.kind != edited.kind) {
 			add(ParameterField.KIND)
 		}
+
+		if (baseline.repeat != edited.repeat) {
+			add(ParameterField.REPEAT)
+		}
+
+		if (baseline.note != edited.note) {
+			add(ParameterField.NOTE)
+		}
 	}
 
+/**
+ * Lists the fields that differ between two versions of a parameter group.
+ *
+ * @param ParameterNode.Group baseline The group before the edit.
+ * @param ParameterNode.Group edited The group after it.
+ * @return Set<ParameterGroupField> The changed fields, empty when nothing differs.
+ */
 private fun parameterGroupFields(baseline: ParameterNode.Group, edited: ParameterNode.Group): Set<ParameterGroupField> =
 	buildSet {
 		if (baseline.name != edited.name) {
 			add(ParameterGroupField.NAME)
 		}
+
 		if (baseline.initiallyOpen != edited.initiallyOpen) {
 			add(ParameterGroupField.INITIALLY_OPEN)
 		}
+
 		if (nodeIdentities(baseline.children) != nodeIdentities(edited.children)) {
 			add(ParameterGroupField.CHILDREN)
 		}
 	}
 
+/**
+ * Lists the fields that differ between two versions of a part.
+ *
+ * @param Part baseline The part before the edit.
+ * @param Part edited The part after it.
+ * @return Set<PartField> The changed fields, empty when nothing differs.
+ */
 private fun partFields(baseline: Part, edited: Part): Set<PartField> =
 	buildSet {
 		if (baseline.name != edited.name) {
 			add(PartField.NAME)
 		}
+
 		if (baseline.isVisible != edited.isVisible) {
 			add(PartField.VISIBLE)
 		}
+
 		if (baseline.isSketch != edited.isSketch) {
 			add(PartField.SKETCH)
 		}
+
 		if (baseline.isSelectable != edited.isSelectable) {
 			add(PartField.SELECTABLE)
 		}
+
 		if (baseline.groupMode != edited.groupMode) {
 			add(PartField.GROUP_MODE)
 		}
+
 		if (baseline.drawOrder != edited.drawOrder) {
 			add(PartField.DRAW_ORDER)
 		}
+
 		if (baseline.children != edited.children) {
 			add(PartField.CHILDREN)
 		}
+
 		if (!channelGridsEqual(baseline.channelGrids, edited.channelGrids)) {
 			add(PartField.CHANNELS)
 		}
+
 		if (baseline.composite != edited.composite) {
 			add(PartField.COMPOSITE)
 		}
 	}
 
+/**
+ * Lists the fields that differ between two versions of a deformer.
+ *
+ * @param Deformer baseline The deformer before the edit.
+ * @param Deformer edited The deformer after it.
+ * @return Set<DeformerField> The changed fields, empty when nothing differs.
+ */
 private fun deformerFields(baseline: Deformer, edited: Deformer): Set<DeformerField> =
 	buildSet {
 		if (baseline::class != edited::class) {
 			// A kind swap under one id has no edit op; surfacing it beats mis-reading field diffs.
 			add(DeformerField.KIND)
+
 			return@buildSet
 		}
+
 		if (baseline.name != edited.name) {
 			add(DeformerField.NAME)
 		}
+
 		if (baseline.parent != edited.parent) {
 			add(DeformerField.PARENT)
 		}
+
 		if (baseline.partId != edited.partId) {
 			add(DeformerField.PART)
 		}
+
+		if (baseline.isVisible != edited.isVisible) {
+			add(DeformerField.VISIBLE)
+		}
+
 		if (baseline.isSelectable != edited.isSelectable) {
 			add(DeformerField.SELECTABLE)
 		}
+
 		when (baseline) {
 			is Deformer.Warp -> {
 				val editedWarp = edited as Deformer.Warp
+
 				if (baseline.rows != editedWarp.rows || baseline.columns != editedWarp.columns) {
 					add(DeformerField.LATTICE)
 				}
+
 				if (baseline.isQuadTransform != editedWarp.isQuadTransform) {
 					add(DeformerField.QUAD_TRANSFORM)
 				}
+
 				if (!gridEquals(baseline.geometryGrid, editedWarp.geometryGrid, ::warpLatticeFormEqual)) {
 					add(DeformerField.GEOMETRY)
 				}
+
+				if (!gridDepthsEqual(baseline.geometryGrid, editedWarp.geometryGrid)) {
+					add(DeformerField.DEPTH)
+				}
+
 				if (
 					!floatEq(baseline.opacity, editedWarp.opacity) ||
 					baseline.multiplyColor != editedWarp.multiplyColor ||
@@ -361,6 +448,7 @@ private fun deformerFields(baseline: Deformer, edited: Deformer): Set<DeformerFi
 				) {
 					add(DeformerField.STATICS)
 				}
+
 				if (!blendShapesEqual(baseline.blendShapes, editedWarp.blendShapes, ::warpFormEqual)) {
 					add(DeformerField.BLEND_SHAPES)
 				}
@@ -368,12 +456,15 @@ private fun deformerFields(baseline: Deformer, edited: Deformer): Set<DeformerFi
 
 			is Deformer.Rotation -> {
 				val editedRotation = edited as Deformer.Rotation
+
 				if (!floatEq(baseline.baseAngle, editedRotation.baseAngle)) {
 					add(DeformerField.BASE_ANGLE)
 				}
+
 				if (!gridEquals(baseline.geometryGrid, editedRotation.geometryGrid, ::rotationPivotFormEqual)) {
 					add(DeformerField.GEOMETRY)
 				}
+
 				if (
 					!floatEq(baseline.opacity, editedRotation.opacity) ||
 					baseline.multiplyColor != editedRotation.multiplyColor ||
@@ -383,11 +474,13 @@ private fun deformerFields(baseline: Deformer, edited: Deformer): Set<DeformerFi
 				) {
 					add(DeformerField.STATICS)
 				}
+
 				if (!blendShapesEqual(baseline.blendShapes, editedRotation.blendShapes, ::rotationFormEqual)) {
 					add(DeformerField.BLEND_SHAPES)
 				}
 			}
 		}
+
 		if (!channelGridsEqual(baseline.channelGrids, edited.channelGrids)) {
 			add(DeformerField.CHANNELS)
 		}
@@ -396,15 +489,11 @@ private fun deformerFields(baseline: Deformer, edited: Deformer): Set<DeformerFi
 /**
  * Diffs the atlas inventory, comparing only the tiles BOTH models carry.
  *
- * Set membership is deliberately not a difference here.  A tile is the art the document holds, which
- * arrives and leaves with an import rather than with an edit - and the two models being compared do not
- * always track it the same way: a MOC3-origin conversion synthesizes model images into the graph that
- * its puppet, which never had layered art, does not know about.  Reporting those as deletions would
- * describe an edit nobody made, on a path with nothing to reconcile.
- *
- * That is safe precisely because no edit can add or remove art today.  When re-import can (it is the
- * whole point of that phase), this grows the created/deleted arms together with the lowering that
- * serves them, rather than reporting a difference nothing acts on.
+ * Set membership is deliberately not a difference: a tile arrives and leaves with an import rather than
+ * an edit, and a MOC3-origin conversion synthesizes model images into the graph that its puppet does not
+ * know about, so reporting those as deletions would describe an edit nobody made.  Art added since the
+ * import needs no entry either - the drawables over it arrive as Created entries, and the atlas-web
+ * reconcile mints a layer web for every edited tile the graph has no image for.
  *
  * @param List baseline The graph-derived tiles.
  * @param List edited   The session's tiles.
@@ -415,6 +504,7 @@ private fun diffAtlasTiles(baseline: List<AtlasTile>, edited: List<AtlasTile>): 
 	// A reloaded tile is a new tile whose lineage root is the baseline's id; it is the same art to the
 	// graph, compared under the root so the reload reads as that tile changing.
 	val editedByRoot = edited.filter { tile -> tile.replaces != null }.associateBy { tile -> tile.id.lineageRoot }
+
 	return baseline.mapNotNull { baselineTile ->
 		val editedTile = editedById[baselineTile.id] ?: editedByRoot[baselineTile.id] ?: return@mapNotNull null
 		val fields = atlasTileFields(baselineTile, editedTile)
@@ -434,6 +524,13 @@ private fun atlasTileFields(baseline: AtlasTile, edited: AtlasTile): Set<AtlasTi
 		if (baseline.placement != edited.placement) {
 			add(AtlasTileField.PLACEMENT)
 		}
+
+		// A tile's pixels never change under its id, and a reload mints a new id only for a layer whose art
+		// changed - so an edited tile standing in for the baseline's under another id is new pixels.
+		if (baseline.id != edited.id) {
+			add(AtlasTileField.PIXELS)
+		}
+
 		if (
 			baseline.name != edited.name ||
 			baseline.width != edited.width ||
@@ -444,54 +541,76 @@ private fun atlasTileFields(baseline: AtlasTile, edited: AtlasTile): Set<AtlasTi
 		}
 	}
 
+/**
+ * Lists the fields that differ between two versions of a drawable.
+ *
+ * @param Drawable baseline The drawable before the edit.
+ * @param Drawable edited The drawable after it.
+ * @return Set<DrawableField> The changed fields, empty when nothing differs.
+ */
 private fun drawableFields(baseline: Drawable, edited: Drawable): Set<DrawableField> =
 	buildSet {
 		if (baseline.name != edited.name) {
 			add(DrawableField.NAME)
 		}
+
 		if (baseline.parentDeformerId != edited.parentDeformerId) {
 			add(DrawableField.PARENT_DEFORMER)
 		}
+
 		if (baseline.blendMode != edited.blendMode) {
 			add(DrawableField.BLEND_MODE)
 		}
+
 		if (baseline.alphaBlendMode != edited.alphaBlendMode) {
 			add(DrawableField.ALPHA_BLEND_MODE)
 		}
+
 		if (baseline.maskedBy != edited.maskedBy) {
 			add(DrawableField.MASKED_BY)
 		}
+
 		if (baseline.invertMask != edited.invertMask) {
 			add(DrawableField.INVERT_MASK)
 		}
+
 		if (baseline.culling != edited.culling) {
 			add(DrawableField.CULLING)
 		}
+
 		if (baseline.isVisible != edited.isVisible) {
 			add(DrawableField.VISIBLE)
 		}
+
 		if (baseline.isSelectable != edited.isSelectable) {
 			add(DrawableField.SELECTABLE)
 		}
+
 		if (baseline.textureSourceId != edited.textureSourceId) {
 			add(DrawableField.TEXTURE_SOURCE)
 		}
+
 		// Absence is "not tracked", not "unbound", for the same reason the page list is only compared
 		// when there is an atlas: a drawable the model carries no art for says nothing about the art the
 		// graph carries for it.
 		// Compared under the lineage root: a drawable carried onto its tile's reload replacement still
 		// samples the same art as far as the graph knows.
 		val editedTileId = edited.atlasTileId
+
 		if (editedTileId != null && baseline.atlasTileId?.lineageRoot != editedTileId.lineageRoot) {
 			add(DrawableField.ATLAS_TILE)
 		}
+
 		addAll(meshFields(baseline.mesh, edited.mesh))
-		if (!gridEquals(restOnlyAsUnkeyed(baseline.geometryGrid), restOnlyAsUnkeyed(edited.geometryGrid), ::meshDeltaFormEqual)) {
+
+		if (!meshGeometryEqual(baseline, edited)) {
 			add(DrawableField.GEOMETRY)
 		}
+
 		if (!channelGridsEqual(baseline.channelGrids, edited.channelGrids)) {
 			add(DrawableField.CHANNELS)
 		}
+
 		if (
 			!floatEq(baseline.drawOrder, edited.drawOrder) ||
 			!floatEq(baseline.opacity, edited.opacity) ||
@@ -500,16 +619,22 @@ private fun drawableFields(baseline: Drawable, edited: Drawable): Set<DrawableFi
 		) {
 			add(DrawableField.STATICS)
 		}
-		if (!blendShapesEqual(baseline.blendShapes, edited.blendShapes, ::meshFormEqual)) {
+
+		val baselineLocal = baseline.mesh?.localPositions
+		val editedLocal = edited.mesh?.localPositions
+		// The same bindings over a moved base are moved blend forms, so the shared-list shortcut holds only for one base.
+		val blendFormEqual = { baselineForm: MeshForm, editedForm: MeshForm -> meshFormEqual(baselineLocal, baselineForm, editedLocal, editedForm) }
+
+		if (!blendShapesEqual(baseline.blendShapes, edited.blendShapes, blendFormEqual, sameInstanceIsEqual = baselineLocal === editedLocal)) {
 			add(DrawableField.BLEND_SHAPES)
 		}
 	}
 
 /**
- * The mesh aspect of a drawable diff.  A vertex-count or triangulation change (or a mesh appearing/
- * disappearing) is MESH_TOPOLOGY; with topology intact, moved vertices are MESH_POSITIONS and
- * remapped texels MESH_UVS - the split the lowering dispatches on, since topology forces a full
- * GEditableMesh2 rebuild while the others patch arrays in place.
+ * The mesh aspect of a drawable diff, split the way the lowering dispatches: a topology change forces a full
+ * GEditableMesh2 rebuild, while moved positions or remapped UVs patch arrays in place.  The keyform-space base
+ * (`DrawableMesh.localPositions`) is not a mesh field: what it changes is the keyforms, so it surfaces as
+ * GEOMETRY and BLEND_SHAPES through [meshGeometryEqual].
  *
  * @param DrawableMesh? baseline The baseline's mesh.
  * @param DrawableMesh? edited   The edited model's mesh.
@@ -519,57 +644,86 @@ private fun meshFields(baseline: DrawableMesh?, edited: DrawableMesh?): Set<Draw
 	if (baseline === edited) {
 		return emptySet()
 	}
+
 	if (baseline == null || edited == null) {
 		return setOf(DrawableField.MESH_TOPOLOGY)
 	}
+
 	if (baseline.vertexCount != edited.vertexCount || !baseline.indices.contentEquals(edited.indices)) {
 		return setOf(DrawableField.MESH_TOPOLOGY)
 	}
+
 	return buildSet {
 		if (!baseline.positions.contentEquals(edited.positions)) {
 			add(DrawableField.MESH_POSITIONS)
 		}
+
 		if (!baseline.uvs.contentEquals(edited.uvs)) {
 			add(DrawableField.MESH_UVS)
 		}
 	}
 }
 
+/**
+ * Diffs the glue lists, keying each glue by its ordered mesh pair and its ordinal among the glues of that pair.
+ *
+ * @param List<Glue> baselineGlues The glues before the edit.
+ * @param List<Glue> editedGlues The glues after it.
+ * @return List<GlueDiff> One diff per glue that was added, removed, or changed.
+ */
 private fun diffGlues(baselineGlues: List<Glue>, editedGlues: List<Glue>): List<GlueDiff> {
 	if (baselineGlues === editedGlues) {
 		return emptyList()
 	}
+
 	// A glue has no id: key by the ordered mesh pair, with an ordinal among same-pair glues.
 	val baselineByPair = baselineGlues.groupBy { glue -> glue.meshA to glue.meshB }
 	val editedByPair = editedGlues.groupBy { glue -> glue.meshA to glue.meshB }
 	val diffs = ArrayList<GlueDiff>()
+
 	for ((pair, baselineList) in baselineByPair) {
 		val editedList = editedByPair[pair].orEmpty()
+
 		for (ordinal in baselineList.indices) {
 			val editedGlue = editedList.getOrNull(ordinal)
+
 			if (editedGlue == null) {
 				diffs.add(GlueDiff.Deleted(pair.first, pair.second, ordinal))
+
 				continue
 			}
+
 			val fields = glueFields(baselineList[ordinal], editedGlue)
+
 			if (fields.isNotEmpty()) {
 				diffs.add(GlueDiff.Changed(pair.first, pair.second, ordinal, fields))
 			}
 		}
 	}
+
 	for ((pair, editedList) in editedByPair) {
 		val baselineCount = baselineByPair[pair].orEmpty().size
+
 		for (ordinal in baselineCount until editedList.size) {
 			diffs.add(GlueDiff.Created(pair.first, pair.second, ordinal))
 		}
 	}
+
 	return diffs
 }
 
+/**
+ * Lists the fields that differ between two versions of a glue.
+ *
+ * @param Glue baseline The glue before the edit.
+ * @param Glue edited The glue after it.
+ * @return Set<GlueField> The changed fields, empty when nothing differs.
+ */
 private fun glueFields(baseline: Glue, edited: Glue): Set<GlueField> {
 	if (baseline === edited) {
 		return emptySet()
 	}
+
 	return buildSet {
 		val pairsEqual =
 			baseline.pairs.size == edited.pairs.size &&
@@ -581,32 +735,46 @@ private fun glueFields(baseline: Glue, edited: Glue): Set<GlueField> {
 						floatEq(baselinePair.weightA, editedPair.weightA) &&
 						floatEq(baselinePair.weightB, editedPair.weightB)
 				}
+
 		if (!pairsEqual) {
 			add(GlueField.PAIRS)
 		}
+
 		if (!channelGridsEqual(baseline.channelGrids, edited.channelGrids)) {
 			add(GlueField.CHANNELS)
 		}
+
 		if (!floatEq(baseline.intensity, edited.intensity)) {
 			add(GlueField.INTENSITY)
 		}
 	}
 }
 
+/**
+ * Lists the document-level fields that differ between two models.
+ *
+ * @param PuppetModel baseline The model before the edit.
+ * @param PuppetModel edited The model after it.
+ * @return Set<DocumentField> The changed fields, empty when nothing differs.
+ */
 private fun documentFields(baseline: PuppetModel, edited: PuppetModel): Set<DocumentField> =
 	buildSet {
 		if (!floatEq(baseline.canvasWidth, edited.canvasWidth) || !floatEq(baseline.canvasHeight, edited.canvasHeight)) {
 			add(DocumentField.CANVAS_SIZE)
 		}
-		if (!floatEq(baseline.worldOriginX, edited.worldOriginX) || !floatEq(baseline.worldOriginY, edited.worldOriginY)) {
+
+		if (!floatEq(baseline.worldOriginX, edited.worldOriginX) || !floatEq(baseline.worldOriginZ, edited.worldOriginZ)) {
 			add(DocumentField.WORLD_ORIGIN)
 		}
+
 		if (baseline.runtimeTarget != edited.runtimeTarget) {
 			add(DocumentField.RUNTIME_TARGET)
 		}
+
 		if (baseline.rendersFromSourceLayers != edited.rendersFromSourceLayers) {
 			add(DocumentField.SOURCE_LAYER_DISPLAY)
 		}
+
 		// The page LIST, not the tiles on it: a page appearing, disappearing, or resizing changes what
 		// every placement on it means, and no per-tile diff would say so.
 		//
@@ -616,20 +784,25 @@ private fun documentFields(baseline: PuppetModel, edited: PuppetModel): Set<Docu
 		if (edited.atlas.tiles.isNotEmpty() && baseline.atlas.pages != edited.atlas.pages) {
 			add(DocumentField.ATLAS_PAGES)
 		}
+
 		// Document order of the flat parameter list is semantic in CMO3: combined (2D) pairs are
 		// encoded positionally (the Y axis is the next source after its combined X).
 		if (baseline.parameters.map(Parameter::id) != edited.parameters.map(Parameter::id)) {
 			add(DocumentField.PARAMETER_ORDER)
 		}
+
 		if (baseline.parameterLinks != edited.parameterLinks) {
 			add(DocumentField.PARAMETER_LINKS)
 		}
+
 		if (nodeIdentities(baseline.parameterTree) != nodeIdentities(edited.parameterTree)) {
 			add(DocumentField.PARAMETER_TREE)
 		}
+
 		if (baseline.rootChildren != edited.rootChildren) {
 			add(DocumentField.ROOT_CHILDREN)
 		}
+
 		// The file each source record points at - its name, path, and modification time - and nothing
 		// else about the record: the inventory and the hashes change on every reload and have no CMO3
 		// home, so they must not turn a reload into a document change the export cannot lower.  Only
@@ -650,6 +823,7 @@ private fun documentFields(baseline: PuppetModel, edited: PuppetModel): Set<Docu
  */
 private fun sourceFilesChanged(baseline: PuppetModel, edited: PuppetModel): Boolean {
 	val baselineById = baseline.sources.associateBy { source -> source.id }
+
 	return edited.sources.any { source ->
 		val before = baselineById[source.id] ?: return@any false
 		before.name != source.name || before.path != source.path || before.lastModified != source.lastModified
@@ -672,9 +846,20 @@ private fun nodeIdentities(nodes: List<ParameterNode>): List<String> =
 		}
 	}
 
+/**
+ * Lists every group in a parameter tree, nested ones included, each parent before its children.
+ *
+ * @param List<ParameterNode> tree The parameter tree.
+ * @return List<ParameterNode.Group> The groups, in depth-first order.
+ */
 private fun flattenGroups(tree: List<ParameterNode>): List<ParameterNode.Group> {
 	val groups = ArrayList<ParameterNode.Group>()
 
+	/**
+	 * Adds every group in a node list, each before its own children.
+	 *
+	 * @param List<ParameterNode> nodes The node list to walk.
+	 */
 	fun walk(nodes: List<ParameterNode>) {
 		for (node in nodes) {
 			if (node is ParameterNode.Group) {
@@ -684,102 +869,220 @@ private fun flattenGroups(tree: List<ParameterNode>): List<ParameterNode.Group> 
 		}
 	}
 	walk(tree)
+
 	return groups
 }
 
 /*
  * Bit-exact equality helpers.  Two independent imports of the same graph produce bit-identical
  * floats, so raw-bits comparison never yields a false diff there - while an edit that flips only a
- * sign bit (0.0 vs -0.0) still surfaces.  Every helper takes the `===` fast path first: the common
- * call compares a model against itself or against structurally shared sub-objects.
+ * sign bit (0.0 vs -0.0) still surfaces.  Every helper takes the `===` fast path first (a keyform helper
+ * only when the two drawables share one base, since one grid over a moved base is moved keyforms): the
+ * common call compares a model against itself or against structurally shared sub-objects.
  */
 
+/**
+ * Compares two floats by their exact bits.
+ *
+ * @param Float baseline The value before the edit.
+ * @param Float edited The value after it.
+ * @return Boolean True when the bits match, so 0.0 and -0.0 differ.
+ */
 private fun floatEq(baseline: Float, edited: Float): Boolean = baseline.toRawBits() == edited.toRawBits()
 
 /**
- * A drawable's geometry grid with the rest-only shape read as unkeyed: an axis-less grid holding one
- * cell of zero deltas IS the unkeyed drawable, since both mean "the base mesh, nothing keyed".  The
- * two spellings arise from the formats - every CMO3 source carries a default form, so an unkeyed
- * drawable exports as that one cell and re-imports as this grid - and neither is an edit of the
- * other, so the diff must not call it one.
+ * Whether two drawables' keyform geometry is the same: the same axes and keys, and every cell rebuilding the same
+ * absolute floats, `localPositions + Δ`, against each drawable's own base.
  *
- * @param KeyformGrid? grid The drawable's geometry grid.
- * @return KeyformGrid? The grid, or null when it is the rest-only shape.
+ * Absolutes rather than raw deltas, because the absolutes are the geometry: a base move with its deltas left
+ * alone moves every keyform and is an edit, while two delta arrays that rebuild the same floats from bases that
+ * differ by the same amount are not.  A CMO3 round trip relies on that - the file stores absolutes, the import
+ * derives each delta from them, and a delta re-derived from a rebuilt float can differ in its last bit from the
+ * one it was rebuilt from while giving the float back exactly.
+ *
+ * @param Drawable baseline The baseline's drawable.
+ * @param Drawable edited   The edited drawable.
+ * @return Boolean True when the keyform geometry is unchanged.
  */
-private fun restOnlyAsUnkeyed(grid: KeyformGrid<MeshDeltaForm>?): KeyformGrid<MeshDeltaForm>? {
-	if (grid == null || grid.axes.isNotEmpty() || grid.cells.size != 1) {
-		return grid
+private fun meshGeometryEqual(baseline: Drawable, edited: Drawable): Boolean {
+	val baselineLocal = baseline.mesh?.localPositions
+	val editedLocal = edited.mesh?.localPositions
+	val baselineRestOnly = baseline.geometryGrid.holdsOnlyTheRest()
+	val editedRestOnly = edited.geometryGrid.holdsOnlyTheRest()
+
+	if (baselineRestOnly || editedRestOnly) {
+		if (baselineRestOnly != editedRestOnly) {
+			return false
+		}
+
+		return baselineLocal === editedLocal || (baselineLocal != null && editedLocal != null && rawBitsEqual(baselineLocal, editedLocal))
 	}
-	val deltas = grid.cells.single().form.positionDeltas
-	return if (deltas.all { delta -> delta == 0f }) null else grid
+
+	// One grid over a moved base is a moved set of keyforms, so the shared-grid shortcut holds only for one base.
+	val cellEqual = { baselineForm: MeshDeltaForm, editedForm: MeshDeltaForm -> rebuildsEqual(baselineLocal, baselineForm.positionDeltas, editedLocal, editedForm.positionDeltas) }
+
+	return gridEquals(baseline.geometryGrid, edited.geometryGrid, cellEqual, sameInstanceIsEqual = baselineLocal === editedLocal)
 }
 
+/**
+ * Whether two float arrays hold the same bits.
+ *
+ * @param FloatArray baseline The baseline's array.
+ * @param FloatArray edited   The edited array.
+ * @return Boolean True when every component matches bit for bit.
+ */
+private fun rawBitsEqual(baseline: FloatArray, edited: FloatArray): Boolean =
+	baseline.size == edited.size && baseline.indices.all { componentIndex -> floatEq(baseline[componentIndex], edited[componentIndex]) }
+
+/**
+ * Whether two keyforms rebuild the same absolute floats, `local + Δ` per component over the base's whole length,
+ * each against its own base, so a base that moves past the end of a short delta array is a moved keyform too.
+ *
+ * @param FloatArray? baselineLocal  The baseline's base.
+ * @param FloatArray  baselineDeltas The baseline's deltas.
+ * @param FloatArray? editedLocal    The edited base.
+ * @param FloatArray  editedDeltas   The edited deltas.
+ * @return Boolean True when the rebuilt keyforms match bit for bit.
+ */
+private fun rebuildsEqual(baselineLocal: FloatArray?, baselineDeltas: FloatArray, editedLocal: FloatArray?, editedDeltas: FloatArray): Boolean {
+	if (baselineLocal === editedLocal && baselineDeltas === editedDeltas) {
+		return true
+	}
+
+	if (baselineLocal == null || editedLocal == null || baselineLocal.size < baselineDeltas.size || editedLocal.size < editedDeltas.size) {
+		return baselineDeltas.contentEquals(editedDeltas)
+	}
+
+	if (baselineLocal.size != editedLocal.size) {
+		return false
+	}
+
+	return baselineLocal.indices.all { componentIndex ->
+		floatEq(rebuiltComponent(baselineLocal, baselineDeltas, componentIndex), rebuiltComponent(editedLocal, editedDeltas, componentIndex))
+	}
+}
+
+/**
+ * One component of the keyform [deltas] rebuild over [local]: `local + Δ`, or the base alone past the end of the
+ * deltas, as positionsFromDeltas rebuilds it, without the array that function allocates.
+ *
+ * @param FloatArray local          The base.
+ * @param FloatArray deltas         The deltas.
+ * @param Int        componentIndex The component.
+ * @return Float The rebuilt component.
+ */
+private fun rebuiltComponent(local: FloatArray, deltas: FloatArray, componentIndex: Int): Float =
+	if (componentIndex < deltas.size) local[componentIndex] + deltas[componentIndex] else local[componentIndex]
+
+/**
+ * Tells whether two keyform grids are equal: the same axes and keys, and equal forms cell by cell.
+ *
+ * @param KeyformGrid<TForm>? baseline The grid before the edit, or null.
+ * @param KeyformGrid<TForm>? edited The grid after it, or null.
+ * @param Function formEqual Compares two forms.
+ * @param Boolean sameInstanceIsEqual Whether one shared instance counts as equal without its forms being compared.
+ * @return Boolean True when the grids are equal.
+ */
 private fun <TForm> gridEquals(
 	baseline: KeyformGrid<TForm>?,
 	edited: KeyformGrid<TForm>?,
 	formEqual: (TForm, TForm) -> Boolean,
+	sameInstanceIsEqual: Boolean = true,
 ): Boolean {
-	if (baseline === edited) {
+	if (baseline === edited && (sameInstanceIsEqual || baseline == null)) {
 		return true
 	}
+
 	if (baseline == null || edited == null) {
 		return false
 	}
+
 	if (baseline.axes.size != edited.axes.size || baseline.cells.size != edited.cells.size) {
 		return false
 	}
+
 	for (axisIndex in baseline.axes.indices) {
 		val baselineAxis = baseline.axes[axisIndex]
 		val editedAxis = edited.axes[axisIndex]
+
 		if (baselineAxis.parameterId != editedAxis.parameterId || !baselineAxis.keys.contentEquals(editedAxis.keys)) {
 			return false
 		}
 	}
+
 	// Cells compare by coordinate, not list position: the import and the edit ops are both free to
 	// order cells differently without that being a semantic change.
 	val baselineByCoordinate = HashMap<List<Int>, TForm>(baseline.cells.size)
+
 	for (cell in baseline.cells) {
 		baselineByCoordinate[cell.coordinate.toList()] = cell.form
 	}
+
 	for (cell in edited.cells) {
 		val baselineForm = baselineByCoordinate[cell.coordinate.toList()] ?: return false
+
 		if (!formEqual(baselineForm, cell.form)) {
 			return false
 		}
 	}
+
 	return true
 }
 
+/**
+ * Tells whether two sets of channel tracks are equal: the same channels, each with an equal grid.
+ *
+ * @param ChannelGrids baseline The tracks before the edit.
+ * @param ChannelGrids edited The tracks after it.
+ * @return Boolean True when they are equal.
+ */
 private fun channelGridsEqual(baseline: ChannelGrids, edited: ChannelGrids): Boolean {
 	if (baseline === edited) {
 		return true
 	}
+
 	if (baseline.gridsByChannel.keys != edited.gridsByChannel.keys) {
 		return false
 	}
+
 	for ((channel, baselineGrid) in baseline.gridsByChannel) {
 		val editedGrid = edited.gridsByChannel.getValue(channel)
-		if (!gridEquals(baselineGrid, editedGrid) { baselineValue, editedValue -> baselineValue == editedValue }) {
+
+		if (!gridEquals(baselineGrid, editedGrid, { baselineValue, editedValue -> baselineValue == editedValue })) {
 			return false
 		}
 	}
+
 	return true
 }
 
+/**
+ * Tells whether two blend-shape binding lists are equal, binding by binding and form by form.
+ *
+ * @param List<BlendShapeBinding<TForm>> baseline The bindings before the edit.
+ * @param List<BlendShapeBinding<TForm>> edited The bindings after it.
+ * @param Function formEqual Compares two forms.
+ * @param Boolean sameInstanceIsEqual Whether one shared list counts as equal without its forms being compared.
+ * @return Boolean True when they are equal.
+ */
 private fun <TForm : Any> blendShapesEqual(
 	baseline: List<BlendShapeBinding<TForm>>,
 	edited: List<BlendShapeBinding<TForm>>,
 	formEqual: (TForm, TForm) -> Boolean,
+	sameInstanceIsEqual: Boolean = true,
 ): Boolean {
-	if (baseline === edited) {
+	if (baseline === edited && sameInstanceIsEqual) {
 		return true
 	}
+
 	if (baseline.size != edited.size) {
 		return false
 	}
+
 	for (bindingIndex in baseline.indices) {
 		val baselineBinding = baseline[bindingIndex]
 		val editedBinding = edited[bindingIndex]
+
 		if (
 			baselineBinding.parameterId != editedBinding.parameterId ||
 			!baselineBinding.keys.contentEquals(editedBinding.keys) ||
@@ -789,29 +1092,70 @@ private fun <TForm : Any> blendShapesEqual(
 		) {
 			return false
 		}
+
 		for (formIndex in baselineBinding.forms.indices) {
 			val baselineForm = baselineBinding.forms[formIndex]
 			val editedForm = editedBinding.forms[formIndex]
+
 			if (baselineForm == null || editedForm == null) {
 				if (baselineForm !== editedForm) {
 					return false
 				}
+
 				continue
 			}
+
 			if (!formEqual(baselineForm, editedForm)) {
 				return false
 			}
 		}
 	}
+
 	return true
 }
 
-private fun meshDeltaFormEqual(baseline: MeshDeltaForm, edited: MeshDeltaForm): Boolean =
-	baseline === edited || baseline.positionDeltas.contentEquals(edited.positionDeltas)
-
+/**
+ * Tells whether two warp lattice forms hold the same control points; their depth is its own field, compared by
+ * [gridDepthsEqual].
+ *
+ * @param WarpLatticeForm baseline The form before the edit.
+ * @param WarpLatticeForm edited The form after it.
+ * @return Boolean True when they are equal.
+ */
 private fun warpLatticeFormEqual(baseline: WarpLatticeForm, edited: WarpLatticeForm): Boolean =
 	baseline === edited || baseline.controlPoints.contentEquals(edited.controlPoints)
 
+/**
+ * Whether two warp grids hold the same depth at every keyform, a flat lattice reading as all 0.
+ *
+ * @param KeyformGrid? baseline The grid before the edit.
+ * @param KeyformGrid? edited The grid after it.
+ * @return Boolean True when every keyform sits at the same depth.
+ */
+private fun gridDepthsEqual(baseline: KeyformGrid<WarpLatticeForm>?, edited: KeyformGrid<WarpLatticeForm>?): Boolean {
+	val baselineByCoordinate = baseline?.cells.orEmpty().associate { cell -> cell.coordinate.toList() to cell.form }
+	val editedByCoordinate = edited?.cells.orEmpty().associate { cell -> cell.coordinate.toList() to cell.form }
+
+	for (coordinate in baselineByCoordinate.keys + editedByCoordinate.keys) {
+		val baselineForm = baselineByCoordinate[coordinate]
+		val editedForm = editedByCoordinate[coordinate]
+		val pointCount = ((editedForm ?: baselineForm)?.controlPoints?.size ?: 0) / 2
+
+		if (!latticeDepthsEqual(baselineForm?.depth ?: LatticeDepth.Flat, editedForm?.depth ?: LatticeDepth.Flat, pointCount)) {
+			return false
+		}
+	}
+
+	return true
+}
+
+/**
+ * Tells whether two rotation pivot forms hold the same origin, angle, and scale.
+ *
+ * @param RotationPivotForm baseline The form before the edit.
+ * @param RotationPivotForm edited The form after it.
+ * @return Boolean True when they are equal.
+ */
 private fun rotationPivotFormEqual(baseline: RotationPivotForm, edited: RotationPivotForm): Boolean =
 	baseline === edited ||
 		(
@@ -821,16 +1165,32 @@ private fun rotationPivotFormEqual(baseline: RotationPivotForm, edited: Rotation
 				floatEq(baseline.scale, edited.scale)
 		)
 
-private fun meshFormEqual(baseline: MeshForm, edited: MeshForm): Boolean =
-	baseline === edited ||
+/**
+ * Whether two mesh blend forms are the same: the same rebuilt absolutes ([rebuildsEqual]) and the same channels.
+ *
+ * @param FloatArray? baselineLocal The baseline drawable's base.
+ * @param MeshForm    baseline      The baseline's form.
+ * @param FloatArray? editedLocal   The edited drawable's base.
+ * @param MeshForm    edited        The edited form.
+ * @return Boolean True when the forms match.
+ */
+private fun meshFormEqual(baselineLocal: FloatArray?, baseline: MeshForm, editedLocal: FloatArray?, edited: MeshForm): Boolean =
+	(baseline === edited && baselineLocal === editedLocal) ||
 		(
-			baseline.positionDeltas.contentEquals(edited.positionDeltas) &&
+			rebuildsEqual(baselineLocal, baseline.positionDeltas, editedLocal, edited.positionDeltas) &&
 				floatEq(baseline.drawOrder, edited.drawOrder) &&
 				floatEq(baseline.opacity, edited.opacity) &&
 				baseline.multiplyColor == edited.multiplyColor &&
 				baseline.screenColor == edited.screenColor
 		)
 
+/**
+ * Tells whether two warp forms hold the same control points, opacity, and colors.
+ *
+ * @param WarpForm baseline The form before the edit.
+ * @param WarpForm edited The form after it.
+ * @return Boolean True when they are equal.
+ */
 private fun warpFormEqual(baseline: WarpForm, edited: WarpForm): Boolean =
 	baseline === edited ||
 		(
@@ -840,6 +1200,13 @@ private fun warpFormEqual(baseline: WarpForm, edited: WarpForm): Boolean =
 				baseline.screenColor == edited.screenColor
 		)
 
+/**
+ * Tells whether two rotation forms hold the same pivot, flips, opacity, and colors.
+ *
+ * @param RotationForm baseline The form before the edit.
+ * @param RotationForm edited The form after it.
+ * @return Boolean True when they are equal.
+ */
 private fun rotationFormEqual(baseline: RotationForm, edited: RotationForm): Boolean =
 	baseline === edited ||
 		(

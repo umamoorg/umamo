@@ -1,0 +1,186 @@
+package org.umamo.ui.workspace.spaces.uv
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.EditorMode
+import org.umamo.ui.kit.BelowAnchorPositionProvider
+import org.umamo.ui.kit.chip.DropdownChip
+import org.umamo.ui.kit.container.OverflowRowScope
+import org.umamo.ui.kit.menu.Menu
+import org.umamo.ui.kit.menu.MenuItem
+import org.umamo.ui.model.LocalPuppet
+import org.umamo.ui.model.LocalPuppetTextures
+import org.umamo.ui.model.documentIsOpen
+import org.umamo.ui.resources.*
+import org.umamo.ui.viewport.uv.atlasPageIndexFor
+import org.umamo.ui.viewport.uv.uvProportionalRadiusRange
+import org.umamo.ui.viewport.uv.uvProportionalRadiusSeed
+import org.umamo.ui.workspace.AreaScope
+import org.umamo.ui.workspace.spaces.MeshSelectModeButtons
+import org.umamo.ui.workspace.spaces.OverlaysHeaderControl
+import org.umamo.ui.workspace.spaces.PivotModeDropdown
+import org.umamo.ui.workspace.spaces.ProportionalEditControls
+import org.umamo.ui.workspace.spaces.ProportionalSizeField
+import org.umamo.ui.workspace.spaces.SnapDropdown
+import org.umamo.ui.workspace.spaces.SnapMenuKind
+
+/**
+ * The UV editor's space-specific header strip: the texture selector and the layer picker, then the edit
+ * controls the 2D viewport's header also mounts, so the two surfaces stay one behavior.
+ *
+ * The shared controls drive the SHARED session state (the selection and its select mode are one, Blender's
+ * UV sync selection): switching to face mode here switches the viewport too, by design.  The texture
+ * selector, the proportional size row, and the overlays control instead read and write the area's own
+ * [UvEditorViewState], so two UV editors pin independently.
+ *
+ * @param AreaScope scope The hosting area's scope carrying the shared view state.
+ */
+internal fun OverflowRowScope.uvEditorHeaderControls(scope: AreaScope) {
+	val viewState = scope.spaceState(UV_EDITOR_VIEW_STATE_KEY) { UvEditorViewState() }
+	item("textureSelector") {
+		// The vanish gate: without a document there are no pages to choose, and the space body is a
+		// placeholder anyway - an item that renders nothing measures zero.
+		if (documentIsOpen()) {
+			UvTextureSelectorDropdown(viewState)
+		}
+	}
+	item("layerPicker") {
+		// Only worth offering when the document retains artwork to search.
+		if (LocalPuppet.current?.atlas?.tiles?.isNotEmpty() == true) {
+			UvLayerPickerChip()
+		}
+	}
+	// The UV editor is view-only in Pose mode, so its element controls show in Edit mode alone.
+	item("selectMode") { MeshSelectModeButtons(shownIn = { mode -> mode == EditorMode.Edit }) }
+	flexibleSpace()
+	item("pivot") { PivotModeDropdown() }
+	item("snap") { SnapDropdown(SnapMenuKind.UvEditor) }
+	item("proportional") { ProportionalEditControls(size = uvProportionalSizeField(viewState.proportionalRadii), shownIn = { mode -> mode == EditorMode.Edit }) }
+	flexibleSpace()
+	item("overlays") {
+		if (documentIsOpen()) {
+			OverlaysHeaderControl(viewState.overlays)
+		}
+	}
+}
+
+/**
+ * The texture selector: a label chip naming what the space shows, opening a menu of Follow Selection, the
+ * source-layer view, and the atlas pages.  Choosing a row writes the area's [UvEditorViewState] directly:
+ * a per-area view choice, not a session operation, so no registry dispatch (the uv.page.* palette commands
+ * are the separate, hovered-area-routed path onto the same state).
+ *
+ * @param UvEditorViewState viewState The area's shared texture-selection state.
+ */
+@Composable
+private fun UvTextureSelectorDropdown(viewState: UvEditorViewState) {
+	val model = LocalPuppet.current ?: return
+	val textures = LocalPuppetTextures.current
+	val atlases = textures?.atlases.orEmpty()
+	val hasSourceArt = model.atlas.tiles.isNotEmpty()
+	val storedSelection = viewState.textureSelection
+	// The face names what the body actually resolves: a pin the current textures cannot satisfy, or a
+	// layer view this document has no artwork for, both fall back to following the selection.
+	val effectiveSelection =
+		when {
+			storedSelection is UvTextureSelection.PinnedPage && storedSelection.pageIndex in atlases.indices -> storedSelection
+			storedSelection is UvTextureSelection.SourceLayer && hasSourceArt -> storedSelection
+			else -> UvTextureSelection.FollowSelection
+		}
+	val currentLabel =
+		when (effectiveSelection) {
+			is UvTextureSelection.PinnedPage -> stringResource(Res.string.uv_texture_selector_page, effectiveSelection.pageIndex + 1)
+			UvTextureSelection.SourceLayer -> stringResource(Res.string.uv_texture_selector_layer)
+			UvTextureSelection.FollowSelection -> stringResource(Res.string.uv_texture_selector_follow)
+		}
+	// The inventory rows' meshed-drawable counts.  Each drawable resolves its page through
+	// atlasPageIndexFor (the textureSourceId indirection); inverting the raw-id atlas map instead
+	// would miss session-created duplicates sharing a source.
+	val meshedCountByPage =
+		remember(model, textures) {
+			val counts = IntArray(atlases.size)
+
+			if (textures != null) {
+				for (drawable in model.drawables) {
+					if (drawable.mesh != null) {
+						val pageIndex = atlasPageIndexFor(drawable, textures)
+
+						if (pageIndex != null && pageIndex in counts.indices) {
+							counts[pageIndex] = counts[pageIndex] + 1
+						}
+					}
+				}
+			}
+
+			counts
+		}
+	var expanded by remember { mutableStateOf(false) }
+	// Follow Selection first, then the source-layer row when there is artwork behind it, then one row
+	// per page; with neither the menu is the Follow row alone.  The menu's own dismiss closes the popup,
+	// so onSelect need not toggle `expanded`.
+	val followRow =
+		MenuItem.Action(
+			label = stringResource(Res.string.uv_texture_selector_follow),
+			onSelect = { viewState.textureSelection = UvTextureSelection.FollowSelection },
+		)
+	val pageRows =
+		atlases.mapIndexed { pageIndex, page ->
+			MenuItem.Action(
+				label =
+					stringResource(
+						Res.string.uv_texture_selector_page_row,
+						pageIndex + 1,
+						page.width,
+						page.height,
+						meshedCountByPage[pageIndex],
+					),
+				onSelect = { viewState.textureSelection = UvTextureSelection.PinnedPage(pageIndex) },
+			)
+		}
+	// Offered only when the document retains source artwork; a MOC3 origin has none.
+	val layerRow =
+		if (hasSourceArt) {
+			MenuItem.Action(
+				label = stringResource(Res.string.uv_texture_selector_layer),
+				onSelect = { viewState.textureSelection = UvTextureSelection.SourceLayer },
+			)
+		} else {
+			null
+		}
+	DropdownChip(
+		expanded = expanded,
+		onExpandRequest = { expanded = true },
+		contentDescription = currentLabel,
+		label = currentLabel,
+	) {
+		Menu(
+			items = listOfNotNull(followRow, layerRow) + pageRows,
+			onDismissRequest = { expanded = false },
+			positionProvider = BelowAnchorPositionProvider,
+		)
+	}
+}
+
+/**
+ * The UV editor's Proportional Size row: the radius of the surface the area shows, in texels, seeded from
+ * the surface's size before any gesture has resized it - the number a gesture would start from - and
+ * clamped as the mid-gesture wheel clamps it.
+ *
+ * @param UvProportionalRadii radii The area's per-surface radii.
+ * @return ProportionalSizeField? The row, or null while the area shows no surface.
+ */
+@Composable
+private fun uvProportionalSizeField(radii: UvProportionalRadii): ProportionalSizeField? {
+	val surface = radii.shownSurface ?: return null
+	val radiusState = radii.stateFor(surface)
+
+	return ProportionalSizeField(
+		value = radiusState.value ?: uvProportionalRadiusSeed(surface.displayWidth, surface.displayHeight),
+		onValueChange = { radius -> radiusState.value = radius },
+		range = uvProportionalRadiusRange(surface.displayWidth, surface.displayHeight),
+	)
+}

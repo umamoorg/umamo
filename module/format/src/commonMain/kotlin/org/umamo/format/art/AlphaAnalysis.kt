@@ -81,16 +81,12 @@ public class AlphaContour(
  * Analyzes the opaque region of an RGBA8888 straight-alpha raster (top row first): pixel-tight
  * trimmed bounds, opaque pixel count, and the traced boundary contours, optionally simplified.
  *
- * Despite the file's "alpha analysis" theme this is NOT an Edelsbrunner alpha shape (no
- * Delaunay parameter); it is a threshold mask description: a scan for bounds and count, a
- * marching-squares style boundary trace on the pixel-corner lattice, and Douglas-Peucker
- * simplification.  Output is fully deterministic for a given input, which downstream repacking
- * relies on.
+ * This is a threshold-mask description, not an Edelsbrunner alpha shape.  Output is fully
+ * deterministic for a given input, which downstream repacking relies on.
  *
- * Returns null if and only if no pixel meets [alphaThreshold] — including the 0x0 raster and
- * the 1x1 transparent placeholders the CLIP/KRA readers emit for empty layers.  Slivers with
- * real opaque pixels (1 px wide or tall) are reported with their true bounds; excluding them
- * is consumer policy, so a genuine hairline art layer is never dropped here.
+ * Returns null if and only if no pixel meets [alphaThreshold], including the 1x1 transparent
+ * placeholders the CLIP/KRA readers emit for empty layers.  A 1 px sliver keeps its true bounds:
+ * excluding it is consumer policy, so a genuine hairline art layer is never dropped here.
  *
  * @param Int width Raster width in pixels; may be 0.
  * @param Int height Raster height in pixels; may be 0.
@@ -129,30 +125,38 @@ public fun analyzeAlpha(
 	var minColumn = Int.MAX_VALUE
 	var maxColumn = -1
 	var pixelIndex = 0
+
 	for (rowIndex in 0 until height) {
 		for (columnIndex in 0 until width) {
 			// The `and 0xFF` is load-bearing: Kotlin Byte is signed, so alpha 128..255 reads
 			// negative without it and a >= threshold compare silently drops those pixels.
 			val alpha = rgba[pixelIndex * 4 + 3].toInt() and 0xFF
+
 			if (alpha >= alphaThreshold) {
 				opaquePixelCount++
 				maskWords[pixelIndex ushr 6] = maskWords[pixelIndex ushr 6] or (1L shl (pixelIndex and 63))
+
 				if (rowIndex < minRow) {
 					minRow = rowIndex
 				}
+
 				if (rowIndex > maxRow) {
 					maxRow = rowIndex
 				}
+
 				if (columnIndex < minColumn) {
 					minColumn = columnIndex
 				}
+
 				if (columnIndex > maxColumn) {
 					maxColumn = columnIndex
 				}
 			}
+
 			pixelIndex++
 		}
 	}
+
 	if (opaquePixelCount == 0) {
 		return null
 	}
@@ -172,6 +176,7 @@ public fun analyzeAlpha(
 				// simplifyClosedRing returns the input array itself when nothing can drop;
 				// reuse the contour object then instead of re-wrapping the same ring.
 				val simplifiedPoints = simplifyClosedRing(contour.points, contourEpsilon)
+
 				if (simplifiedPoints === contour.points) {
 					contour
 				} else {
@@ -181,6 +186,7 @@ public fun analyzeAlpha(
 		} else {
 			exactContours
 		}
+
 	return AlphaAnalysis(opaqueBounds, opaquePixelCount, contours)
 }
 

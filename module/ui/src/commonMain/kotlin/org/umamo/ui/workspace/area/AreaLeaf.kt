@@ -1,0 +1,275 @@
+package org.umamo.ui.workspace.area
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.resources.stringResource
+import org.umamo.ui.kit.Surface
+import org.umamo.ui.kit.menu.ContextMenuArea
+import org.umamo.ui.kit.menu.MenuItem
+import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoCursors
+import org.umamo.ui.theme.LocalUmamoShapes
+import org.umamo.ui.theme.umamoPointerIcon
+import org.umamo.ui.workspace.AreaScope
+import org.umamo.ui.workspace.LocalHoveredSurfaceTracker
+import org.umamo.ui.workspace.LocalSpaceRegistry
+import org.umamo.ui.workspace.editorstate.LocalAreaViewStates
+import org.umamo.ui.workspace.layout.AreaCommand
+import org.umamo.ui.workspace.layout.LeafArea
+import org.umamo.ui.workspace.layout.SplitOrientation
+import org.umamo.ui.workspace.operationstrip.OperationStripHost
+import org.umamo.ui.workspace.stampsHoveredSurface
+
+/** The square hit size of each corner drag handle (matches Blender's small corner widget). */
+private val CORNER_HANDLE_SIZE_HEIGHT = 20.dp
+private val CORNER_HANDLE_SIZE_WIDTH = 15.dp
+
+/**
+ * One leaf area: its header above the current space's content, with four corner drag handles for the
+ * Blender-style join, dock, and split gesture.  The content is resolved from [LocalSpaceRegistry] by the
+ * area's [LeafArea.space].
+ *
+ * The leaf reports its on-screen rectangle to the shared [LocalAreaDragController] (content-local, the
+ * one space the drag overlay also uses) and evicts it on dispose, so a leaf consumed by a join cleans
+ * up after itself.
+ *
+ * @param LeafArea area The area to render.
+ * @param Function onCommand Sink for the header's and the corner gesture's structural edits.
+ * @param Modifier modifier The layout modifier.
+ */
+@Composable
+fun AreaLeaf(area: LeafArea, onCommand: (AreaCommand) -> Unit, modifier: Modifier = Modifier) {
+	val registry = LocalSpaceRegistry.current
+	// The open document's holder owns the scope, so a workspace tab switch - which disposes this leaf - does not
+	// cost the space its state; with no document (previews, tests) the leaf keeps one of its own.
+	val areaViewStates = LocalAreaViewStates.current
+	val scope = remember(area.id, areaViewStates) { areaViewStates?.scopeFor(area.id) ?: AreaScope(area.id) }
+	val colors = LocalUmamoColors.current
+	val shapes = LocalUmamoShapes.current
+	val interaction = remember { MutableInteractionSource() }
+	val hovered by interaction.collectIsHoveredAsState()
+	val borderColor =
+		when {
+			hovered -> colors.panelBorderHover
+			else -> colors.panelBorder
+		}
+	val dragController = LocalAreaDragController.current
+
+	// The right-click context menu carries the area's structural actions plus a Change Editor Type
+	// submenu of every registered space.  Built here (in composition) so each label can be localized.
+	val contextItems =
+		listOf(
+			MenuItem.Action(
+				label = stringResource(Res.string.area_split_left_right),
+				onSelect = { onCommand(AreaCommand.SplitArea(area.id, SplitOrientation.Horizontal)) },
+			),
+			MenuItem.Action(
+				label = stringResource(Res.string.area_split_top_bottom),
+				onSelect = { onCommand(AreaCommand.SplitArea(area.id, SplitOrientation.Vertical)) },
+			),
+			MenuItem.Separator,
+			MenuItem.Submenu(
+				label = stringResource(Res.string.area_change_editor),
+				items =
+					registry.all.map { descriptor ->
+						MenuItem.Action(
+							label = stringResource(descriptor.title),
+							onSelect = { onCommand(AreaCommand.SwitchSpace(area.id, descriptor.kind)) },
+							icon = descriptor.icon,
+						)
+					},
+			),
+			MenuItem.Separator,
+			MenuItem.Action(
+				label = stringResource(Res.string.area_close),
+				onSelect = { onCommand(AreaCommand.CloseArea(area.id)) },
+			),
+		)
+
+	// Drop this leaf's captured rectangle when it leaves composition (e.g. it was consumed by a join);
+	// keyed on the stable id (the leaf lives under key(id) in AreaTree), like the viewport host's unregister.
+	if (dragController != null) {
+		DisposableEffect(area.id) {
+			onDispose { dragController.removeBounds(area.id) }
+		}
+	}
+
+	// Release the pointer claim on the same trigger, so a closed or joined-away area stops being the
+	// answer to "which area does the pointer mean" - the tracker's eviction half, next to the one above.
+	val hoveredTracker = LocalHoveredSurfaceTracker.current
+
+	if (hoveredTracker != null) {
+		DisposableEffect(hoveredTracker, area.id) {
+			onDispose { hoveredTracker.releaseArea(area.id) }
+		}
+		// Both stamps assert the KIND the area had when touched, and a space change leaves the leaf alive
+		// under the same id - so the change itself settles them, without waiting for a pointer event over
+		// the area, which a header-dropdown switch followed by a key press or a command elsewhere never
+		// sends.  The outgoing kind's strip-host and viewport claims are released first: a document-wide
+		// operation fired from a panel would otherwise be routed to this area, whose host refuses a
+		// non-hosting kind, and its strip would show nowhere; Export Image would frame a viewport that is
+		// gone.  Then the area is re-stamped under the kind it hosts now, when it is
+		// the one the pointer last touched, so dispatch, the status bar, and the palette read the new space.
+		DisposableEffect(hoveredTracker, area.id, area.space) {
+			hoveredTracker.restampKind(area.id, area.space)
+			onDispose { hoveredTracker.releaseKindClaims(area.id) }
+		}
+	}
+
+	Box(
+		modifier =
+			modifier
+				.fillMaxSize()
+				// One stamp for every space: the leaf knows its own kind, so a space cannot forget to
+				// report itself and a new SpaceKind is covered the day it is added.  On the leaf rather
+				// than the body so the HEADER counts as hovering the area - the outliner's search field
+				// lives there, and using it has to read as "the pointer is on the outliner".
+				.stampsHoveredSurface(hoveredTracker, area.id, area.space)
+				.onGloballyPositioned { leafCoords ->
+					val content = dragController?.contentCoords
+
+					if (content != null && content.isAttached && leafCoords.isAttached) {
+						dragController.putBounds(area.id, content.localBoundingBoxOf(leafCoords))
+					}
+				},
+	) {
+		ContextMenuArea(items = contextItems, modifier = Modifier.fillMaxSize()) {
+			Surface(
+				modifier = Modifier.fillMaxSize().hoverable(interaction),
+				border = BorderStroke(1.dp, borderColor),
+				shape = shapes.large,
+			) {
+				Column(modifier = Modifier.fillMaxSize()) {
+					AreaHeader(area = area, scope = scope, onCommand = onCommand)
+					Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+						// The operation settings strip is hosted here, under the header and over the space body,
+						// so its inset reaches the space's own bottom-left chrome; the host itself shows the strip
+						// only in a work surface (hostsOperationStrip).
+						OperationStripHost(areaId = area.id, kind = area.space) {
+							registry.descriptor(area.space).content(scope)
+						}
+					}
+				}
+			}
+		}
+
+		// Corner handles last so they sit above the content for hit-testing.  They only capture a real drag
+		// (touch-slop), so a plain tap still falls through to header controls underneath the top corners.
+		if (dragController != null) {
+			for (corner in AreaCorner.entries) {
+				AreaCornerHandle(
+					controller = dragController,
+					areaId = area.id,
+					corner = corner,
+					onCommand = onCommand,
+				)
+			}
+		}
+	}
+}
+
+/**
+ * One corner drag handle: a small, invisible hit target showing the move cursor on hover and, on a real
+ * drag, driving the shared [controller] through a corner drag.  Pointer positions are converted from this
+ * handle's local space into the controller's content-local space via the captured coordinates, so the
+ * drag is tracked correctly even after the pointer leaves the handle.
+ *
+ * @param AreaDragController controller The shared corner-drag state.
+ * @param String areaId The owning leaf's id (the drag's source).
+ * @param AreaCorner corner Which corner this handle is.
+ * @param Function onCommand Sink for the resulting command on release.
+ */
+@Composable
+private fun BoxScope.AreaCornerHandle(
+	controller: AreaDragController,
+	areaId: String,
+	corner: AreaCorner,
+	onCommand: (AreaCommand) -> Unit,
+) {
+	var handleCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+	Box(
+		modifier =
+			Modifier
+				.align(corner.toAlignment())
+				.size(width = CORNER_HANDLE_SIZE_WIDTH, height = CORNER_HANDLE_SIZE_HEIGHT)
+				.onGloballyPositioned { handleCoords = it }
+				.pointerHoverIcon(umamoPointerIcon(LocalUmamoCursors.nsewScroll))
+				.pointerInput(areaId) {
+					detectDragGestures(
+						onDragStart = { startOffset ->
+							contentLocalOf(controller, handleCoords, startOffset)?.let { pointer ->
+								controller.beginDrag(areaId, corner, pointer)
+							}
+						},
+						onDrag = { change, _ ->
+							change.consume()
+							contentLocalOf(controller, handleCoords, change.position)?.let { pointer ->
+								controller.updateDrag(pointer)
+							}
+						},
+						onDragEnd = { controller.endDrag()?.let { command -> onCommand(command) } },
+						onDragCancel = { controller.cancelDrag() },
+					)
+				},
+	)
+}
+
+/**
+ * Converts a handle-local pointer [offset] into the controller's content-local space, or null when the
+ * coordinates are not both attached (a transient layout state).
+ *
+ * @param AreaDragController controller Holds the content-space coordinates.
+ * @param LayoutCoordinates? handleCoords The corner handle's coordinates.
+ * @param Offset offset The pointer position in handle-local space.
+ * @return Offset? The pointer in content-local space, or null.
+ */
+private fun contentLocalOf(
+	controller: AreaDragController,
+	handleCoords: LayoutCoordinates?,
+	offset: Offset,
+): Offset? {
+	val content = controller.contentCoords
+
+	if (content == null || handleCoords == null || !content.isAttached || !handleCoords.isAttached) {
+		return null
+	}
+
+	return content.localPositionOf(handleCoords, offset)
+}
+
+/**
+ * Maps a corner to the Box alignment that pins a handle there.
+ *
+ * @return Alignment The matching corner alignment.
+ */
+private fun AreaCorner.toAlignment(): Alignment =
+	when (this) {
+		AreaCorner.TopLeft -> Alignment.TopStart
+		AreaCorner.TopRight -> Alignment.TopEnd
+		AreaCorner.BottomLeft -> Alignment.BottomStart
+		AreaCorner.BottomRight -> Alignment.BottomEnd
+	}

@@ -17,23 +17,20 @@ import org.umamo.runtime.model.PuppetModel
 
 /**
  * The inventory a refresh records: [fresh] as read, plus every [previous] row whose key the fresh art
- * lacks and a tile still binds, marked not present.  A previous row already not present stays so, and
- * a lost row nothing binds is dropped - there is no binding left to review.
+ * lacks and a tile still binds, marked not present and whether a Replace Artwork lost it
+ * ([ArtSourceLayer.replaced]).  A lost row nothing binds is dropped - there is no binding left to review.
  *
- * A plan that pulls art for some tiles and not others (a relink, an accepted match) names the bound
- * keys it left alone in [untouchedKeys]: their previous rows are kept over the fresh ones, so a change
- * to those layers the plan did not carry into their tiles is still seen by the next reload instead of
- * being recorded as already taken.
- *
- * A row that reads as erased keeps the canvas frame its art last had: an art program saves an erased
- * layer with a collapsed rectangle, and the tile still holds the art from the frame before, so a
- * reload that finds the art back (an undo in the art program) measures it against that frame rather
- * than against the collapse - which would carry every coordinate by the bogus difference.
+ * The rows of [untouchedKeys] keep their previous state, so a change the plan did not carry into their
+ * tiles is still seen by the next reload.  A row that reads as erased keeps the canvas frame its art
+ * last had: an art program saves an erased layer with a collapsed rectangle, and a reload that finds
+ * the art back would otherwise carry every coordinate by the bogus difference.  The rigger's ignore mark
+ * ([ArtSourceLayer.ignored]) is the document's, not the file's, so a fresh row carries its previous row's.
  *
  * @param List<ArtSourceLayer> previous      The inventory as the document held it.
  * @param List<ArtSourceLayer> fresh         The inventory of the art as just read.
  * @param Set<String>          boundKeys     The keys the tiles bound to this file carry after the plan.
  * @param Set<String>          untouchedKeys The bound keys whose tiles the plan did not update.
+ * @param Boolean              lostByReplacement Whether the rows lost in this refresh were lost to a Replace Artwork.
  * @return List<ArtSourceLayer> The rows to record, the fresh ones first in their order, then the kept lost ones in theirs.
  */
 fun inventoryWithMissing(
@@ -41,24 +38,35 @@ fun inventoryWithMissing(
 	fresh: List<ArtSourceLayer>,
 	boundKeys: Set<String>,
 	untouchedKeys: Set<String> = emptySet(),
+	lostByReplacement: Boolean = false,
 ): List<ArtSourceLayer> {
 	val previousByKey = previous.associateBy { row -> row.key }
 	val freshKeys = fresh.mapTo(HashSet()) { row -> row.key }
 	val refreshed =
 		fresh.map { row ->
 			val previousRow = previousByKey[row.key]
+			val carried = if (previousRow?.ignored == true) row.copy(ignored = true) else row
+
 			when {
-				row.key in untouchedKeys && previousRow != null && previousRow.present -> previousRow
+				row.key in untouchedKeys && previousRow != null && previousRow.present -> {
+					previousRow
+				}
+
 				// The previous row already holds the last frame with art when it was itself erased.
-				row.empty && previousRow != null ->
-					row.copy(left = previousRow.left, top = previousRow.top, width = previousRow.width, height = previousRow.height)
-				else -> row
+				row.empty && previousRow != null -> {
+					carried.copy(left = previousRow.left, top = previousRow.top, width = previousRow.width, height = previousRow.height)
+				}
+
+				else -> {
+					carried
+				}
 			}
 		}
 	val lost =
 		previous
 			.filter { row -> row.key !in freshKeys && row.key in boundKeys }
-			.map { row -> if (row.present) row.copy(present = false) else row }
+			.map { row -> if (row.present) row.copy(present = false, replaced = lostByReplacement) else row }
+
 	return refreshed + lost
 }
 
@@ -77,10 +85,11 @@ private fun missingRowFor(row: ArtSourceLayer?, tile: AtlasTile): ArtSourceLayer
 /**
  * The best candidate for every binding to [sourceId] its inventory does not list as present - or lists
  * as erased to nothing - keyed by the lost layer's key.  The candidates are the file's present layers
- * with art that no tile is bound to - never a bound one, since on the model alone nothing tells a
- * re-created layer's fresh drawable from any other untouched drawable; the proposal that names a
- * bound layer comes only from a reload that scored the binding before it minted the layer.  Without
- * rasters the ranking rests on the inventory alone; with them the matcher compares pixels too.
+ * with art that no tile is bound to and the rigger has not ignored - never a bound one, since on the
+ * model alone nothing tells a re-created layer's fresh drawable from any other untouched drawable; the
+ * proposal that names a bound layer comes only from a reload that scored the binding before it minted
+ * the layer.  Without rasters the ranking rests on the inventory alone; with them the matcher compares
+ * pixels too.
  *
  * @param PuppetModel  model             The document's model.
  * @param ArtSourceId  sourceId          The file whose lost layers are scored.
@@ -99,40 +108,48 @@ fun suggestionsFor(
 	val source = model.sources.firstOrNull { candidate -> candidate.id == sourceId } ?: return emptyMap()
 	val boundTiles = model.atlas.tiles.filter { tile -> tile.source?.sourceId == sourceId }
 	val tileByKey = HashMap<String, AtlasTileId>()
+
 	for (tile in boundTiles) {
 		val key = tile.source?.layerKey ?: continue
 		tileByKey.putIfAbsent(key, tile.id)
 	}
+
 	val candidates =
 		source.layers
-			.filter { row -> row.present && !row.empty && row.key !in tileByKey && row.width > 0 && row.height > 0 }
+			.filter { row -> row.present && !row.empty && !row.ignored && row.key !in tileByKey && row.width > 0 && row.height > 0 }
 			.map { row -> MatchCandidate(row) { candidateRasterOf(row.key) } }
+
 	if (candidates.isEmpty()) {
 		return emptyMap()
 	}
+
 	val rowByKey = source.layers.associateBy { row -> row.key }
 	val suggestions = LinkedHashMap<String, LayerMatch>()
+
 	for (tile in boundTiles) {
 		val key = tile.source?.layerKey ?: continue
+
 		if (key in suggestions || tileByKey[key] != tile.id) {
 			continue
 		}
+
 		val row = rowByKey[key]
+
 		if (row != null && row.present && !row.empty) {
 			continue
 		}
+
 		val best = matcher.rank(missingRowFor(row, tile), missingRasterOf(tile.id), candidates).firstOrNull() ?: continue
 		suggestions[key] = best
 	}
+
 	return suggestions
 }
 
 /**
- * The suggestions for [sourceId]'s unresolved bindings against its art as just read: the record's
- * inventory refreshed with [inventory] first - the lost rows kept, and every bound layer's previous row
- * kept too, since nothing here carries a change into a tile - so a file never reloaded still scores,
- * then [suggestionsFor] over that.  What the reload planner scores before it mints, and what an
- * operation that read the file publishes for the review chips.
+ * The suggestions for [sourceId]'s unresolved bindings against its art as just read, so a file never
+ * reloaded still scores - what the reload planner scores before it mints, and what an operation that
+ * read the file publishes for the review chips.
  *
  * @param PuppetModel          model             The model as it stands.
  * @param ArtSourceId          sourceId          The file.
@@ -152,8 +169,10 @@ fun suggestionsAgainstRead(
 ): Map<String, LayerMatch> {
 	val source = model.sources.firstOrNull { candidate -> candidate.id == sourceId } ?: return emptyMap()
 	val boundKeys = model.atlas.tiles.filter { tile -> tile.source?.sourceId == sourceId }.mapNotNullTo(HashSet()) { tile -> tile.source?.layerKey }
+	// Every bound row keeps its previous state, since scoring carries no change into a tile.
 	val refreshed = source.copy(layers = inventoryWithMissing(source.layers, inventory, boundKeys, untouchedKeys = boundKeys))
 	val scoringModel = model.copy(sources = model.sources.map { candidate -> if (candidate.id == sourceId) refreshed else candidate })
+
 	return suggestionsFor(scoringModel, sourceId, missingRasterOf, candidateRasterOf, matcher)
 }
 
@@ -169,21 +188,23 @@ fun suggestionsAgainstRead(
 fun confidentMatches(suggestions: Map<String, LayerMatch>, threshold: Float): Map<String, String> {
 	val takenCandidates = HashSet<String>()
 	val accepted = LinkedHashMap<String, String>()
+
 	for ((lostKey, match) in suggestions.entries.sortedByDescending { (_, match) -> match.score }) {
 		if (match.score < threshold || !takenCandidates.add(match.key)) {
 			continue
 		}
+
 		accepted[lostKey] = match.key
 	}
+
 	return accepted
 }
 
 /**
- * The tiles a rebinding onto [candidateKey] may retire: every tile of [sourceId] bound to that key
- * other than [except] whose drawables carry no rig work - the fresh drawable a reload minted for the
- * layer before the lost layer's rig work claimed it.  A tile with rig work over it stays bound; two
- * tiles then share the layer, which a person sorts out.  What the Sources space shows against a
- * proposal naming a bound layer, and what a match re-checks before it retires anything.
+ * The tiles a rebinding onto [candidateKey] may retire: those of [sourceId] bound to that key whose
+ * drawables carry no rig work, such as the fresh drawable a reload minted for the layer before the lost
+ * layer's rig work claimed it.  A tile with rig work over it stays bound, two tiles then sharing the
+ * layer for a person to sort out.
  *
  * @param PuppetModel      model        The model the rebinding applies to.
  * @param ArtSourceId      sourceId     The file.
@@ -191,10 +212,8 @@ fun confidentMatches(suggestions: Map<String, LayerMatch>, threshold: Float): Ma
  * @param Set<AtlasTileId> except       The tiles doing the claiming.
  * @return List<AtlasTileId> The tiles to retire, in atlas order.
  */
-fun retirableTiles(model: PuppetModel, sourceId: ArtSourceId, candidateKey: String, except: Set<AtlasTileId>): List<AtlasTileId> {
-	val row = model.sources.firstOrNull { source -> source.id == sourceId }?.layers?.firstOrNull { layer -> layer.key == candidateKey }
-	return model.atlas.tiles
+fun retirableTiles(model: PuppetModel, sourceId: ArtSourceId, candidateKey: String, except: Set<AtlasTileId>): List<AtlasTileId> =
+	model.atlas.tiles
 		.filter { tile -> tile.id !in except && tile.source?.sourceId == sourceId && tile.source?.layerKey == candidateKey }
-		.filter { tile -> model.tileCarriesNoRigWork(tile.id, row) }
+		.filter { tile -> model.tileCarriesNoRigWork(tile.id) }
 		.map { tile -> tile.id }
-}

@@ -9,15 +9,9 @@ import org.umamo.format.cmo3.xml.XmlCodec
  * The parsed model document (main.xml): the `<root>` graph plus its `<?version?>`/`<?import?>`
  * processing instructions, with navigable views over the shared pool and the main root.
  *
- * EN: This is the backbone the reflective serializer plugs into. It wraps the live JDOM
- *     [document], so [write] re-emits byte-identically (verbatim fallback) even before any class
- *     is typed; the parsed accessors (versions/imports/shared/main) drive the typed layer.
- *     The serializer model: `<root>` holds a
- *     `<shared>` pool of referenceable objects (each `xs.id`/`xs.idx`) and a `<main>` root; uses
- *     reference each def via `xs.ref`. To keep byte-identity while only some classes are typed, the
- *     writer must REUSE the `xs.id`/`xs.idx` and `<shared>` ordering captured here rather than
- *     recompute the editor's global refId/writtenIndex counters.
- * JA: main.xml を表すモデル文書。JDOM をそのまま保持するため、未対応クラスでも write はバイト一致する。
+ * It wraps the live JDOM [document], so [write] re-emits it byte-identically while unmodified.  The
+ * serializer model: `<root>` holds a `<shared>` pool of referenceable objects (each `xs.id`/`xs.idx`)
+ * and a `<main>` root; uses reference each def via `xs.ref`.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Payload: main.xml</a>
  */
@@ -45,22 +39,31 @@ public class ModelDocument private constructor(
 
 		val parsedVersions = LinkedHashMap<String, Int>()
 		val parsedImports = ArrayList<String>()
+
 		// PIs live as document content before the root element.
 		for (content in document.content) {
-			if (content !is ProcessingInstruction) continue
+			if (content !is ProcessingInstruction) {
+				continue
+			}
+
 			when (content.target) {
 				PI_VERSION -> {
 					// data is "ClassName:version"
 					val data = content.data
 					val separator = data.lastIndexOf(':')
+
 					if (separator > 0) {
 						val className = data.substring(0, separator)
 						data.substring(separator + 1).trim().toIntOrNull()?.let { parsedVersions[className] = it }
 					}
 				}
-				PI_IMPORT -> parsedImports.add(content.data.trim())
+
+				PI_IMPORT -> {
+					parsedImports.add(content.data.trim())
+				}
 			}
 		}
+
 		versions = parsedVersions
 		imports = parsedImports
 
@@ -71,11 +74,16 @@ public class ModelDocument private constructor(
 		mainElements = (rootElement.getChild(MAIN_ELEMENT)?.children as List<Element>?).orEmpty()
 	}
 
-	/** Schema version of [className] as declared by a `<?version?>` PI, or null. */
+	/**
+	 * Schema version of [className] as declared by a `<?version?>` PI, or null.
+	 *
+	 * @param String className The serialized class name.
+	 * @return Int? The declared version, or null when the document declares none.
+	 */
 	public fun versionOf(className: String): Int? = versions[className]
 
 	/**
-	 * Re-emits the document to bytes. Byte-identical to the source while the underlying JDOM is
+	 * Re-emits the document to bytes.  Byte-identical to the source while the underlying JDOM is
 	 * unmodified (verbatim fallback); reflects edits once the typed layer mutates [document].
 	 *
 	 * @return ByteArray UTF-8 XML in the editor's exact format.
@@ -98,8 +106,3 @@ public class ModelDocument private constructor(
 		public fun parse(bytes: ByteArray): ModelDocument = ModelDocument(XmlCodec.parse(bytes))
 	}
 }
-
-// TODO(diagnostics): when the reflective serializer materialises typed objects, route any element
-// whose tag has no registered typed serializer through the verbatim fallback AND emit a diagnostic
-// (configurable sink) naming the unimplemented tag + its stack path - so new Live2D format additions
-// are visible rather than silently passed through.

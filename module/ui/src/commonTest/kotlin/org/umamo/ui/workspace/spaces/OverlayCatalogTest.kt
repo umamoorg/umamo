@@ -1,0 +1,239 @@
+package org.umamo.ui.workspace.spaces
+
+import org.umamo.render.FrameOverlays
+import org.umamo.ui.viewport.GridConfig
+import org.umamo.ui.viewport.OverlaySurface
+import org.umamo.ui.viewport.ViewportOverlayState
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/**
+ * Pins the overlays popover's catalog and the state it edits: which rows each surface offers, that a row reads
+ * and writes its one flag, and that the Show Overlays master gates every effect while leaving each flag as set.
+ */
+class OverlayCatalogTest {
+	/**
+	 * The 2D viewport offers every row; the UV editor every row but the axes, the selection tint, the deformers,
+	 * and the wireframe, which its surface has none of.  Both offer the wireframe's Opacity field, the UV editor's
+	 * under a Geometry heading with no row of its own; the deformers' Opacity sits under the 2D viewport's Objects
+	 * rows alone, and the Back-Facing Opacity under its Lattice row.
+	 */
+	@Test
+	fun eachSurfaceOffersItsRowsAndFieldsInSectionOrder() {
+		assertEquals(
+			listOf(
+				OverlayToggle.Grid,
+				OverlayToggle.Axes,
+				OverlayToggle.Cursor,
+				OverlayToggle.Info,
+				OverlayToggle.SelectionTint,
+				OverlayToggle.Deformers,
+				OverlayToggle.Wireframe,
+				OverlayToggle.CullHidden,
+				OverlayToggle.DimBackFacing,
+			),
+			overlayRowsFor(OverlaySurface.Viewport2D),
+		)
+		assertEquals(listOf(OverlayToggle.Grid, OverlayToggle.Cursor, OverlayToggle.Info), overlayRowsFor(OverlaySurface.UvEditor))
+		assertEquals(OverlaySection.Guides, OverlayToggle.Grid.section)
+		assertEquals(OverlaySection.Guides, OverlayToggle.Axes.section)
+		assertEquals(OverlaySection.Guides, OverlayToggle.Cursor.section)
+		assertEquals(OverlaySection.Text, OverlayToggle.Info.section)
+		assertEquals(OverlaySection.Objects, OverlayToggle.SelectionTint.section)
+		assertEquals(OverlaySection.Objects, OverlayToggle.Deformers.section)
+		assertEquals(OverlaySection.Geometry, OverlayToggle.Wireframe.section)
+		assertEquals(OverlaySection.Geometry, OverlayToggle.CullHidden.section)
+		assertEquals(OverlaySection.Lattice, OverlayToggle.DimBackFacing.section)
+		assertEquals(listOf(OverlaySection.Guides, OverlaySection.Text, OverlaySection.Objects, OverlaySection.Geometry, OverlaySection.Lattice), OverlaySection.entries)
+		assertEquals(listOf(OverlayField.WireframeOpacity, OverlayField.DeformerOpacity, OverlayField.BackFacingOpacity), overlayFieldsFor(OverlaySurface.Viewport2D))
+		assertEquals(listOf(OverlayField.WireframeOpacity), overlayFieldsFor(OverlaySurface.UvEditor), "the UV editor's islands fade by the same field, and it draws no lattice")
+		assertEquals(OverlaySection.Geometry, OverlayField.WireframeOpacity.section)
+		assertEquals(OverlaySection.Objects, OverlayField.DeformerOpacity.section, "under the Deformers row")
+		assertEquals(OverlaySection.Lattice, OverlayField.BackFacingOpacity.section, "under the Dim Back-Facing row")
+	}
+
+	/** The Dim Back-Facing row reads and writes its flag, and the master gates its effect. */
+	@Test
+	fun theDimBackFacingRowReadsAndWritesItsFlagUnderTheMaster() {
+		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
+		assertTrue(OverlayToggle.DimBackFacing.isOn(state), "it starts on")
+		assertTrue(state.effectiveDimBackFacing)
+
+		OverlayToggle.DimBackFacing.set(state, false)
+		assertFalse(state.dimBackFacing)
+		assertFalse(state.isAtDefaults, "off is a deviation the area saves")
+		assertTrue(state.showSelectionTint && state.cullHiddenWireframe, "every other row is untouched")
+
+		OverlayToggle.DimBackFacing.set(state, true)
+		state.showOverlays = false
+		assertFalse(state.effectiveDimBackFacing, "the master hides its effect")
+		assertTrue(state.dimBackFacing, "while the flag stays as set")
+
+		state.dimBackFacing = false
+		state.reset()
+		assertTrue(state.dimBackFacing, "a reset turns it back on")
+	}
+
+	/** The back-facing opacity is the area's own: off its default it is a deviation the area saves, and a reset returns it. */
+	@Test
+	fun theBackFacingOpacityIsADeviationAResetReturns() {
+		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
+		assertEquals(FrameOverlays.DEFAULT_BACK_FACING_OPACITY, state.backFacingOpacity, "it starts at the default")
+		assertTrue(state.isAtDefaults)
+
+		state.backFacingOpacity = 0.55f
+		assertFalse(state.isAtDefaults)
+
+		state.reset()
+		assertEquals(FrameOverlays.DEFAULT_BACK_FACING_OPACITY, state.backFacingOpacity)
+	}
+
+	/** The selection tint row reads and writes its flag and no other. */
+	@Test
+	fun theSelectionTintRowReadsAndWritesItsFlag() {
+		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
+		assertTrue(OverlayToggle.SelectionTint.isOn(state), "the tint starts on")
+
+		OverlayToggle.SelectionTint.set(state, false)
+
+		assertFalse(state.showSelectionTint)
+		assertFalse(OverlayToggle.SelectionTint.isOn(state))
+		assertTrue(state.showGrid && state.showAxes && state.showCursor && state.showInfo && state.cullHiddenWireframe, "every other row is untouched")
+		assertFalse(state.showWireframe)
+
+		assertTrue(OverlayToggle.CullHidden.isOn(state), "culling starts on")
+		OverlayToggle.CullHidden.set(state, false)
+		assertFalse(state.cullHiddenWireframe)
+		assertFalse(state.showWireframe, "and flips nothing else")
+	}
+
+	/** The deformers row starts off and reads and writes its flag and no other. */
+	@Test
+	fun theDeformersRowReadsAndWritesItsFlag() {
+		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
+		assertFalse(OverlayToggle.Deformers.isOn(state), "every deformer starts hidden")
+
+		OverlayToggle.Deformers.set(state, true)
+
+		assertTrue(state.showDeformers && OverlayToggle.Deformers.isOn(state))
+		assertTrue(state.effectiveDeformers)
+		assertFalse(state.showWireframe, "and flips nothing else")
+		assertTrue(state.showSelectionTint)
+		state.showOverlays = false
+		assertFalse(state.effectiveDeformers, "the master hides it")
+		assertTrue(state.showDeformers, "and keeps its flag")
+	}
+
+	/** The grid, axis, and wireframe rows read and write their own flags. */
+	@Test
+	fun theGridAxisAndWireframeRowsReadAndWriteTheirFlags() {
+		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
+		OverlayToggle.Grid.set(state, false)
+		assertFalse(state.showGrid)
+		assertFalse(OverlayToggle.Grid.isOn(state))
+		assertTrue(state.showAxes && OverlayToggle.Axes.isOn(state), "the axes are untouched")
+		OverlayToggle.Axes.set(state, false)
+		assertFalse(state.showAxes)
+		assertTrue(state.showCursor && state.showInfo, "and so are the other rows")
+		assertFalse(OverlayToggle.Wireframe.isOn(state), "the wireframe row starts off")
+		OverlayToggle.Wireframe.set(state, true)
+		assertTrue(state.showWireframe && OverlayToggle.Wireframe.isOn(state))
+		assertFalse(state.showGrid || state.showAxes, "and flips nothing else")
+	}
+
+	/** A row reads and writes its own flag and no other. */
+	@Test
+	fun aRowReadsAndWritesItsOwnFlagOnly() {
+		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
+		assertTrue(OverlayToggle.Cursor.isOn(state) && OverlayToggle.Info.isOn(state))
+
+		OverlayToggle.Cursor.set(state, false)
+
+		assertFalse(state.showCursor)
+		assertFalse(OverlayToggle.Cursor.isOn(state))
+		assertTrue(state.showInfo && OverlayToggle.Info.isOn(state), "the other row is untouched")
+		OverlayToggle.Info.set(state, false)
+		OverlayToggle.Cursor.set(state, true)
+		assertTrue(state.showCursor)
+		assertFalse(state.showInfo)
+	}
+
+	/** The master gates every effect and keeps every flag, so switching it back restores the set. */
+	@Test
+	fun theMasterGatesEveryEffectAndKeepsEachFlag() {
+		val state = ViewportOverlayState(OverlaySurface.UvEditor)
+		state.showWireframe = true
+
+		state.showOverlays = false
+
+		assertFalse(state.effectiveCursor || state.effectiveInfo || state.effectiveGrid || state.effectiveAxes || state.effectiveWireframe || state.effectiveSelectionTint || state.effectiveCullHiddenWireframe)
+		assertTrue(state.showCursor && state.showInfo && state.showGrid && state.showAxes && state.showWireframe && state.showSelectionTint && state.cullHiddenWireframe, "the flags keep what the rigger set")
+		assertTrue(OverlayToggle.Cursor.isOn(state), "a row shows its flag, not its effect")
+		state.showOverlays = true
+		assertTrue(state.effectiveCursor && state.effectiveInfo && state.effectiveGrid && state.effectiveAxes && state.effectiveWireframe && state.effectiveSelectionTint && state.effectiveCullHiddenWireframe)
+	}
+
+	/** Everything is on by default but the wireframe and the deformers, both opacities are whole, and a reset returns there. */
+	@Test
+	fun defaultsAreEverythingOnButTheWireframe() {
+		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
+		assertTrue(state.isAtDefaults)
+		assertTrue(state.showOverlays && state.showGrid && state.showAxes && state.showCursor && state.showInfo && state.showSelectionTint && state.cullHiddenWireframe)
+		assertFalse(state.showWireframe)
+		assertEquals(1f, state.wireframeOpacity)
+
+		state.showGrid = false
+		assertFalse(state.isAtDefaults)
+		state.reset()
+		assertTrue(state.isAtDefaults)
+
+		state.wireframeOpacity = 0.5f
+		assertFalse(state.isAtDefaults, "an opacity off whole is a deviation")
+		state.showSelectionTint = false
+		state.cullHiddenWireframe = false
+		assertFalse(state.isAtDefaults, "culling off is a deviation")
+		state.reset()
+		assertTrue(state.isAtDefaults, "a reset returns the opacity, the tint, and the culling too")
+		assertEquals(1f, state.wireframeOpacity)
+		assertTrue(state.showSelectionTint && state.cullHiddenWireframe)
+
+		assertFalse(state.showDeformers, "every deformer is hidden by default")
+		state.showDeformers = true
+		assertFalse(state.isAtDefaults, "showing every deformer is a deviation")
+		state.reset()
+		assertFalse(state.showDeformers, "which a reset returns")
+
+		assertEquals(1f, state.deformerOpacity, "the lattices draw whole by default")
+		state.deformerOpacity = 0.4f
+		assertFalse(state.isAtDefaults, "fading them is a deviation")
+		state.reset()
+		assertEquals(1f, state.deformerOpacity, "which a reset returns")
+	}
+
+	/** The area's grid is its own over the application's, whole on both surfaces, each surface seeded with its own default. */
+	@Test
+	fun theGridIsTheAreasOwnOverTheApplications() {
+		val application = GridConfig(100f, 10)
+		val viewport = ViewportOverlayState(OverlaySurface.Viewport2D)
+		assertEquals(application, viewport.grid, "a fresh 2D viewport resolves the world grid's default, 100 in 10")
+		assertEquals(application, viewport.gridOver(application), "following, the application's grid")
+
+		viewport.gridGeometry = GridConfig(50f, 4)
+		assertEquals(GridConfig(50f, 4), viewport.gridOver(application), "its own replaces it whole")
+		viewport.applicationGrid = application
+		assertEquals(GridConfig(50f, 4), viewport.grid, "and is what the area's readers resolve")
+		assertFalse(viewport.isAtDefaults, "an own grid is a deviation")
+		viewport.reset()
+		assertNull(viewport.gridGeometry, "a reset returns the area to following")
+		assertTrue(viewport.isAtDefaults)
+
+		val uvEditor = ViewportOverlayState(OverlaySurface.UvEditor)
+		assertEquals(GridConfig(256f, 8), uvEditor.grid, "a fresh UV editor resolves the UV grid's default, 256 texels in 8")
+		assertTrue(uvEditor.isAtDefaults, "which is following, not an own grid")
+		uvEditor.gridGeometry = GridConfig(50f, 4)
+		assertEquals(GridConfig(50f, 4), uvEditor.gridOver(application), "a UV editor's own grid is its own whole, the scale in texels")
+	}
+}

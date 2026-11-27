@@ -27,7 +27,7 @@ class AtlasPairingTest {
 			canvasWidth = 10f,
 			canvasHeight = 10f,
 			worldOriginX = 5f,
-			worldOriginY = 5f,
+			worldOriginZ = 5f,
 			atlas = atlas,
 		)
 

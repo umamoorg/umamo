@@ -2,6 +2,7 @@ package org.umamo.format.clip
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import org.umamo.format.art.SourceLayerKind
+import org.umamo.format.clip.db.ClipDatabase
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -28,16 +29,20 @@ class ClipSyntheticReaderTest {
 	 */
 	private fun syntheticDatabaseBytes(insertStatements: List<String>): ByteArray {
 		val temporaryDatabasePath = Files.createTempFile("umamo-clip-synthetic", ".sqlite3")
+
 		try {
 			val driver = JdbcSqliteDriver("jdbc:sqlite:$temporaryDatabasePath")
+
 			try {
-				org.umamo.format.clip.db.ClipDatabase.Schema.create(driver)
+				ClipDatabase.Schema.create(driver)
+
 				for (statement in insertStatements) {
 					driver.execute(null, statement, 0)
 				}
 			} finally {
 				driver.close()
 			}
+
 			return Files.readAllBytes(temporaryDatabasePath)
 		} finally {
 			Files.deleteIfExists(temporaryDatabasePath)
@@ -78,6 +83,7 @@ class ClipSyntheticReaderTest {
 		val folderBits = if (isFolder) 0x10L else 0L
 		val layerType = if (isFolder) 0L else 1L
 		val uuidLiteral = if (uuid != null) "'$uuid'" else "NULL"
+
 		return "INSERT INTO Layer (MainId, LayerName, LayerFolder, LayerType, LayerVisibility, LayerOpacity, " +
 			"LayerComposite, LayerClip, LayerOffsetX, LayerOffsetY, LayerFirstChildIndex, LayerNextIndex, " +
 			"LayerUuid, LayerRenderMipmap, LayerRenderOffscrOffsetX, LayerRenderOffscrOffsetY, " +
@@ -99,6 +105,7 @@ class ClipSyntheticReaderTest {
 					layerInsert(mainId = 5, name = "LayerB", visibility = 2, uuid = "uuid-b"),
 				),
 			)
+
 		return syntheticClipContainer(
 			listOf(
 				"CHNKHead" to byteArrayOf(0, 0, 0, 0),

@@ -41,19 +41,25 @@ val KeyformGrid<*>.cellCount: Int
 val KeyformGrid<*>.isDense: Boolean
 	get() {
 		val expectedCellCount = cellCount
+
 		if (expectedCellCount <= 0 || cells.size != expectedCellCount) {
 			return false
 		}
+
 		val seenIndices = HashSet<Int>(cells.size)
+
 		for (cell in cells) {
 			if (cell.coordinate.size != axes.size) {
 				return false
 			}
+
 			val linearIndex = linearIndexOf(cell.coordinate)
+
 			if (linearIndex < 0 || linearIndex >= expectedCellCount || !seenIndices.add(linearIndex)) {
 				return false
 			}
 		}
+
 		return true
 	}
 
@@ -67,33 +73,66 @@ fun KeyformGrid<*>.axisIndexOf(parameterId: ParameterId): Int = axes.indexOfFirs
 
 /**
  * This grid with the axis for [parameterId] removed, collapsing that dimension to the key nearest
- * [keepKeyValue]. Returns this same instance when the grid has no such axis (so a caller can skip
- * untouched entities by identity), or null when removing the axis leaves no axes at all (the entity
- * becomes unkeyed). The surviving cells are those whose coordinate on the dropped axis is the kept key
- * index, each re-projected to the N-1 coordinate; the form payloads are carried through untouched.
+ * [keepKeyValue].
  *
  * The kept slice is the NEAREST key, not an interpolated one, so collapsing an axis whose kept value
  * falls between keys discards the interpolated pose rather than baking it.
  *
  * @param ParameterId parameterId The axis parameter to remove.
  * @param Float keepKeyValue The parameter value whose nearest key slice survives (the deleted default).
- * @return KeyformGrid The collapsed grid, this if the axis was absent, or null if no axes remain.
+ * @return KeyformGrid The collapsed grid, this same instance if the axis was absent (so a caller can skip
+ *   untouched entities by identity), or null if no axes remain.
  */
 fun <TForm> KeyformGrid<TForm>.withAxisCollapsed(parameterId: ParameterId, keepKeyValue: Float): KeyformGrid<TForm>? {
 	val axisIndex = axisIndexOf(parameterId)
+
 	if (axisIndex < 0) {
 		return this
 	}
+
 	val newAxes = axes.filterIndexed { index, _ -> index != axisIndex }
+
 	if (newAxes.isEmpty()) {
 		return null
 	}
+
 	val keepIndex = nearestKeyIndex(axes[axisIndex].keys, keepKeyValue)
 	val newCells =
 		cells
 			.filter { cell -> cell.coordinate[axisIndex] == keepIndex }
 			.map { cell -> KeyformCell(cell.coordinate.withElementRemoved(axisIndex), cell.form) }
+
 	return KeyformGrid(newAxes, newCells)
+}
+
+/**
+ * This grid with the axis for [parameterId] collapsed as [withAxisCollapsed] collapses it, except that
+ * removing the LAST axis keeps the kept slice as a one-cell grid with no axes instead of dropping the grid.
+ *
+ * For a geometry grid, whose cells are the owner's shape (a warp's lattice, a rotation's pivot, a
+ * drawable's look at the kept value), so dropping the grid would lose it.  A one-cell grid with no axes is
+ * the shape every static object already has, so every consumer reads it.
+ *
+ * @param ParameterId parameterId  The axis parameter to remove.
+ * @param Float       keepKeyValue The parameter value whose nearest key slice survives.
+ * @return KeyformGrid? The collapsed grid, this if the axis was absent, or null only when the last axis's kept
+ *   slice has no cell (a sparse grid), so there is no form to keep.
+ */
+fun <TForm> KeyformGrid<TForm>.withAxisCollapsedKeepingCell(parameterId: ParameterId, keepKeyValue: Float): KeyformGrid<TForm>? {
+	val axisIndex = axisIndexOf(parameterId)
+
+	if (axisIndex < 0) {
+		return this
+	}
+
+	if (axes.size > 1) {
+		return withAxisCollapsed(parameterId, keepKeyValue)
+	}
+
+	val keepIndex = nearestKeyIndex(axes[axisIndex].keys, keepKeyValue)
+	val kept = cells.firstOrNull { cell -> cell.coordinate[axisIndex] == keepIndex } ?: return null
+
+	return KeyformGrid(emptyList(), listOf(KeyformCell(IntArray(0), kept.form)))
 }
 
 /**
@@ -109,9 +148,11 @@ fun <TForm> KeyformGrid<TForm>.withAxisCollapsed(parameterId: ParameterId, keepK
  */
 fun KeyformGrid<*>.keyIndexAt(parameterId: ParameterId, value: Float): Int {
 	val axisIndex = axisIndexOf(parameterId)
+
 	if (axisIndex < 0) {
 		return -1
 	}
+
 	return axes[axisIndex].keys.indexOfFirst { key -> abs(key - value) < EPS_KEY }
 }
 
@@ -136,39 +177,44 @@ class CollapsedChannels(
  * kept slice's value of any track that drops entirely.
  *
  * The whole-owner counterpart of [withAxisCollapsed], so deleting a parameter scrubs every track in one
- * walk rather than needing a hand-written case per channel - a hand-rolled enumeration is exactly the kind
- * of list a channel like a glue's intensity grid could quietly be left off.  A track left with no axes is
- * dropped, and the value of its kept slice is returned
- * in [CollapsedChannels.lifted] for the caller to write into the owner's static.  A sparse grid missing
- * its kept cell lifts nothing (the static keeps its current value).  Returns this same grids instance
- * (with an empty lifted map) when no track referenced the parameter.
+ * walk rather than a hand-written case per channel.  A sparse grid missing its kept cell lifts nothing.
  *
  * @param ParameterId parameterId The axis parameter to remove from every track.
  * @param Float keepKeyValue The parameter value whose nearest key slice survives.
- * @return CollapsedChannels The scrubbed tracks plus the lifted slice values.
+ * @return CollapsedChannels The scrubbed tracks plus the lifted slice values, or this same grids instance
+ *   with nothing lifted when no track referenced the parameter.
  */
 fun ChannelGrids.withAxisCollapsedLifting(parameterId: ParameterId, keepKeyValue: Float): CollapsedChannels {
 	var changed = false
 	val scrubbed = LinkedHashMap<FormChannel, KeyformGrid<ChannelValue>>(gridsByChannel.size)
 	val lifted = LinkedHashMap<FormChannel, ChannelValue>()
+
 	for ((channel, grid) in gridsByChannel) {
 		val collapsed = grid.withAxisCollapsed(parameterId, keepKeyValue)
+
 		if (collapsed === grid) {
 			scrubbed[channel] = grid
+
 			continue
 		}
+
 		changed = true
+
 		if (collapsed != null) {
 			scrubbed[channel] = collapsed
+
 			continue
 		}
+
 		val axisIndex = grid.axisIndexOf(parameterId)
 		val keepIndex = nearestKeyIndex(grid.axes[axisIndex].keys, keepKeyValue)
 		val keptCell = grid.cells.firstOrNull { cell -> cell.coordinate.getOrNull(axisIndex) == keepIndex }
+
 		if (keptCell != null) {
 			lifted[channel] = keptCell.form
 		}
 	}
+
 	return if (changed) CollapsedChannels(ChannelGrids(scrubbed), lifted) else CollapsedChannels(this, emptyMap())
 }
 
@@ -183,15 +229,19 @@ private fun nearestKeyIndex(keys: FloatArray, value: Float): Int {
 	if (keys.isEmpty()) {
 		return 0
 	}
+
 	var bestIndex = 0
 	var bestDistance = abs(keys[0] - value)
+
 	for (keyIndex in 1 until keys.size) {
 		val distance = abs(keys[keyIndex] - value)
+
 		if (distance < bestDistance) {
 			bestDistance = distance
 			bestIndex = keyIndex
 		}
 	}
+
 	return bestIndex
 }
 
@@ -204,11 +254,13 @@ private fun nearestKeyIndex(keys: FloatArray, value: Float): Int {
 private fun IntArray.withElementRemoved(removeIndex: Int): IntArray {
 	val result = IntArray(size - 1)
 	var writeIndex = 0
+
 	for (readIndex in indices) {
 		if (readIndex != removeIndex) {
 			result[writeIndex] = this[readIndex]
 			writeIndex++
 		}
 	}
+
 	return result
 }

@@ -5,24 +5,25 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.umamo.edit.EditorSession
-import org.umamo.edit.setAtlasPlacements
+import org.umamo.edit.atlas.setAtlasPlacements
 import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.cmo3AtlasPages
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
 import org.umamo.render.DecodedImage
 import org.umamo.render.derivedTileTrim
 import org.umamo.render.encodeAtlasPng
 import org.umamo.render.placementFootprint
 import org.umamo.runtime.model.AtlasPlacement
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
-import org.umamo.ui.model.AtlasRepackHost
-import org.umamo.ui.model.AtlasRepackReport
+import org.umamo.testkit.skipTest
 import org.umamo.ui.model.SessionAtlasPages
-import org.umamo.ui.model.repackPageSizeOf
-import org.umamo.ui.model.runAtlasRepack
+import org.umamo.ui.model.repack.AtlasRepackHost
+import org.umamo.ui.model.repack.AtlasRepackReport
+import org.umamo.ui.model.repack.repackPageSizeOf
+import org.umamo.ui.model.repack.runAtlasRepack
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -49,6 +50,7 @@ class LivePlacementMoveGateTest {
 
 	private fun pixelBytes(image: DecodedImage, x: Int, y: Int): ByteArray {
 		val offset = (y * image.width + x) * 4
+
 		return image.rgba.copyOfRange(offset, offset + 4)
 	}
 
@@ -66,10 +68,11 @@ class LivePlacementMoveGateTest {
 	fun aLivePlacementMoveExportsTheMovedArrangement() =
 		runBlocking {
 			val file = sample
+
 			if (file == null) {
-				println("cmo3.sample not present; skipping the live placement move gate")
-				return@runBlocking
+				skipTest("cmo3.sample not present; skipping the live placement move gate")
 			}
+
 			val load = loadDocument(file.readBytes(), file.name, file.path)
 			val document = assertIs<Cmo3Document>(assertIs<DocumentLoad.Loaded>(load).document)
 			val session = EditorSession(document.puppet, document.liveParams.values)
@@ -115,7 +118,7 @@ class LivePlacementMoveGateTest {
 			val turnedPlacement = assertNotNull(turner.placement).copy(rotationDegrees = 30f, scaleX = 0.75f, scaleY = 0.75f)
 			val moverDrawable = repacked.drawables.first { drawable -> drawable.atlasTileId == mover.id && (drawable.mesh?.uvs?.size ?: 0) >= 2 }
 			val artUvsBefore =
-				applyUvAffine(assertNotNull(moverDrawable.mesh).uvs, assertNotNull(repacked.atlas.storedToArtAffineForTile(mover.id)))
+				applyAffine(assertNotNull(moverDrawable.mesh).uvs, assertNotNull(repacked.atlas.storedToArtAffineForTile(mover.id)))
 
 			session.setAtlasPlacements(mapOf(mover.id to movedPlacement, turner.id to turnedPlacement))
 
@@ -124,10 +127,11 @@ class LivePlacementMoveGateTest {
 			assertEquals(movedPlacement, moved.atlas.tileById.getValue(mover.id).placement)
 			assertEquals(turnedPlacement, moved.atlas.tileById.getValue(turner.id).placement)
 			val artUvsAfter =
-				applyUvAffine(
+				applyAffine(
 					assertNotNull(moved.drawables.first { drawable -> drawable.id == moverDrawable.id }.mesh).uvs,
 					assertNotNull(moved.atlas.storedToArtAffineForTile(mover.id)),
 				)
+
 			for (componentIndex in artUvsBefore.indices) {
 				assertTrue(
 					abs(artUvsBefore[componentIndex] - artUvsAfter[componentIndex]) < 1e-4f,
@@ -166,16 +170,20 @@ class LivePlacementMoveGateTest {
 			assertPlacementClose(turnedPlacement, reimported.atlas.tileById[turner.id]?.placement, turner.name)
 			val editedUvs = moved.drawables.associate { drawable -> drawable.id to drawable.mesh?.uvs }
 			var uvMismatches = 0
+
 			for (drawable in reimported.drawables) {
 				val expected = editedUvs[drawable.id] ?: continue
+
 				if (!expected.contentEquals(drawable.mesh?.uvs)) {
 					uvMismatches++
 				}
 			}
+
 			assertEquals(0, uvMismatches, "drawables whose exported uvs differ from the session's")
 			val exportedPages = cmo3AtlasPages(reread.root as CModelSource) { resource -> reread.extractLayerPng(resource) }.pageBytes
 			val expectedPages = effective.atlases.map { pageImage -> encodeAtlasPng(pageImage) }
 			assertEquals(expectedPages.size, exportedPages.size, "exported page count")
+
 			for ((pageIndex, bytes) in exportedPages.withIndex()) {
 				assertTrue(expectedPages.any { expected -> expected.contentEquals(bytes) }, "exported page $pageIndex is not one of the resolver's pages")
 			}

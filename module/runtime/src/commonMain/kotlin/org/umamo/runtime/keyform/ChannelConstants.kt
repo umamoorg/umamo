@@ -52,6 +52,7 @@ fun Map<FormChannel, ChannelValue>.flagOr(channel: FormChannel, fallback: Boolea
  */
 fun Map<FormChannel, ChannelValue>.integralDrawOrderOrNull(): Int? {
 	val lifted = (this[FormChannel.DRAW_ORDER] as? ChannelValue.Scalar) ?: return null
+
 	return lifted.value.toInt().takeIf { candidate -> candidate.toFloat() == lifted.value }
 }
 

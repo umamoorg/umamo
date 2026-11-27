@@ -33,9 +33,10 @@ import org.umamo.runtime.model.ParameterId
  * A cell missing from a sparse track contributes nothing rather than falling back, matching how the
  * bundled blend has always treated an unresolvable cell.
  *
- * @param FormChannel channel     The scalar channel to sample.
- * @param Float       staticValue The owner's static value for this channel.
- * @param Function    paramValue  Current value for a given parameter id.
+ * @param FormChannel   channel     The scalar channel to sample.
+ * @param Float         staticValue The owner's static value for this channel.
+ * @param Function      paramValue  Current value for a given parameter id.
+ * @param ChannelValue? override    A pending unkeyed edit that wins over the track and the static.
  * @return Float The blended value, or [staticValue].
  */
 fun ChannelGrids.scalarAt(
@@ -52,9 +53,10 @@ fun ChannelGrids.scalarAt(
 /**
  * The blended value of a COLOR channel at the given pose, or [staticValue] when untracked or out of range.
  *
- * @param FormChannel channel     The color channel to sample.
- * @param ColorRgb    staticValue The owner's static color for this channel.
- * @param Function    paramValue  Current value for a given parameter id.
+ * @param FormChannel   channel     The color channel to sample.
+ * @param ColorRgb      staticValue The owner's static color for this channel.
+ * @param Function      paramValue  Current value for a given parameter id.
+ * @param ChannelValue? override    A pending unkeyed edit that wins over the track and the static.
  * @return ColorRgb The blended color, or [staticValue].
  */
 fun ChannelGrids.colorAt(
@@ -70,12 +72,14 @@ fun ChannelGrids.colorAt(
 	var red = 0f
 	var green = 0f
 	var blue = 0f
+
 	for (corner in corners) {
 		val color = (cells[corner.linearIndex]?.form as? ChannelValue.Color)?.color ?: continue
 		red += corner.weight * color.red
 		green += corner.weight * color.green
 		blue += corner.weight * color.blue
 	}
+
 	return ColorRgb(red, green, blue)
 }
 
@@ -86,9 +90,10 @@ fun ChannelGrids.colorAt(
  * lower key on every axis, so corner 0 is the floor cell, which is the same cell the bundled rotation
  * blend has always read its reflection flags from.
  *
- * @param FormChannel channel     The flag channel to sample.
- * @param Boolean     staticValue The owner's static flag for this channel.
- * @param Function    paramValue  Current value for a given parameter id.
+ * @param FormChannel   channel     The flag channel to sample.
+ * @param Boolean       staticValue The owner's static flag for this channel.
+ * @param Function      paramValue  Current value for a given parameter id.
+ * @param ChannelValue? override    A pending unkeyed edit that wins over the track and the static.
  * @return Boolean The floor cell's flag, or [staticValue].
  */
 fun ChannelGrids.flagAt(
@@ -102,6 +107,7 @@ fun ChannelGrids.flagAt(
 	val corners = gridCorners(grid, paramValue) ?: return staticValue
 	val floorCorner = corners.firstOrNull() ?: return staticValue
 	val cells = cellsByLinearIndex(grid)
+
 	return (cells[floorCorner.linearIndex]?.form as? ChannelValue.Flag)?.flag ?: staticValue
 }
 
@@ -128,20 +134,20 @@ fun ChannelGrids.scalarOrNull(
 	val corners = gridCorners(grid, paramValue) ?: return null
 	val cells = cellsByLinearIndex(grid)
 	var total = 0f
+
 	for (corner in corners) {
 		val value = (cells[corner.linearIndex]?.form as? ChannelValue.Scalar)?.value ?: continue
 		total += corner.weight * value
 	}
+
 	return total
 }
 
 /**
  * Every axis of every channel track, in channel order.
  *
- * The panel's effective-parameter walk and key-mark scan must union geometry's axes with every channel
- * track's, or an opacity-only track becomes invisible to the parameter list.  This is the one flatten
- * every walk shares; a walk that inlined its own copy instead would silently drift out of sync the
- * moment a channel-only axis (e.g. a glue intensity track) is added.
+ * The panel's effective-parameter walk and key-mark scan union these with geometry's axes, so an
+ * opacity-only track stays visible to the parameter list.
  *
  * @return List<KeyformAxis> The axes of every track.
  */

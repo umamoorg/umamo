@@ -12,8 +12,9 @@ import kotlin.math.pow
  * is a list of labelled rows carrying marks along a horizontal axis, and that is all it knows - which is
  * what lets the keyform sheet (marks along a parameter's min..max) and the eventual animation dope sheet
  * (keys along a frame range) share it instead of growing two of everything.  The constraint is easy to
- * erode one convenient import at a time, so it is worth checking: `grep -r Parameter\\|Keyform\\|Puppet`
- * over this package must come back empty.
+ * erode one convenient import at a time, so it is worth checking: the only org.umamo packages this one may
+ * import are org.umamo.ui.kit and org.umamo.ui.theme, so `grep -r '^import org.umamo' over it must show
+ * nothing else.
  */
 
 /**
@@ -62,9 +63,11 @@ data class TrackAxis(
 	 */
 	fun ticks(minimumTickCount: Int = 4): List<Float> {
 		val extent = abs(span)
+
 		if (extent == 0f || minimumTickCount <= 0) {
 			return listOf(start)
 		}
+
 		val roughStep = extent / minimumTickCount
 		val magnitude = 10f.pow(floor(log10(roughStep.toDouble())).toFloat())
 		val step =
@@ -73,9 +76,11 @@ data class TrackAxis(
 				roughStep / magnitude >= 2f -> 2f * magnitude
 				else -> magnitude
 			}
+
 		if (step <= 0f) {
 			return listOf(start)
 		}
+
 		val lower = minOf(start, end)
 		val upper = maxOf(start, end)
 		val firstTick = floor(lower / step) * step
@@ -83,13 +88,16 @@ data class TrackAxis(
 		var tick = firstTick
 		// Bounded independently of the arithmetic so a pathological step can never spin here.
 		var guard = 0
+
 		while (tick <= upper + step * 0.5f && guard < 1024) {
 			if (tick >= lower - step * 0.5f) {
 				values.add(tick)
 			}
+
 			tick += step
 			guard++
 		}
+
 		return values
 	}
 }
@@ -138,6 +146,7 @@ data class TrackWindow(
 		// Hold the anchor at the same fraction of the visible width, then push the result back inside the
 		// domain - zooming out near an end walks the window inward rather than off the edge.
 		val newStart = (anchor - (anchor - start) * (newSpan / span)).coerceIn(0f, 1f - newSpan)
+
 		return TrackWindow(newStart, newStart + newSpan)
 	}
 
@@ -149,6 +158,7 @@ data class TrackWindow(
 	 */
 	fun pannedBy(fraction: Float): TrackWindow {
 		val newStart = (start + fraction).coerceIn(0f, 1f - span)
+
 		return TrackWindow(newStart, newStart + span)
 	}
 
@@ -159,9 +169,9 @@ data class TrackWindow(
 		/**
 		 * The tightest the window may zoom, as a fraction of the domain.
 		 *
-		 * A thousandth of a -30..30 axis is 0.06 units across the whole panel, which separates keys the
-		 * evaluator itself treats as distinct (EPS_KEY is 0.001) by hundreds of pixels.  Tighter than that
-		 * buys nothing and starts losing float precision in the pixel mapping.
+		 * A thousandth of a -30..30 axis is 0.06 units across the whole panel, which separates keys an owner
+		 * itself treats as distinct (its key epsilon is of that order) by hundreds of pixels.  Tighter than
+		 * that buys nothing and starts losing float precision in the pixel mapping.
 		 */
 		const val MIN_SPAN: Float = 0.001f
 	}
@@ -170,9 +180,9 @@ data class TrackWindow(
 /**
  * The shape a mark is drawn with, which is how a row distinguishes kinds of key at a glance.
  *
- * The keyform sheet uses [Circle] for a keyform-grid key and [Square] for a blend-shape key, matching the
- * marks the parameter slider already draws.  [Diamond] is reserved for the animation dope sheet's keys so
- * the two sheets stay visually distinct when both are open.
+ * An owner assigns the shapes to its kinds of key: the keyform sheet draws its two kinds as [Circle] and
+ * [Square], matching the marks its slider already draws.  [Diamond] is reserved for the animation dope
+ * sheet's keys so the two sheets stay visually distinct when both are open.
  */
 enum class TrackKeyShape {
 	Circle,
@@ -195,17 +205,30 @@ enum class TrackKeyShape {
  * @property Int keyIndex The mark's ordinal within its row's track.
  * @property Float position The mark's domain value (a parameter value, a frame, …).
  * @property TrackKeyShape shape How to draw it.
- * @property Boolean selected Whether it is part of the current key selection.
- * @property Boolean editable Whether it may be selected, dragged, or removed; a blend-shape binding key may
- *   not, which is why [summarizedMarks] leaves it out of a group's summary rather than folding it in.
+ * @property TrackMarkSelection selection How much of what it stands for is in the current key selection.
+ * @property Boolean editable Whether it may be selected, dragged, or removed; an owner's read-only kind of
+ *   key may not, which is why [summarizedMarks] leaves it out of a group's summary rather than folding it in.
  */
 data class TrackKeyMark(
 	val keyIndex: Int,
 	val position: Float,
 	val shape: TrackKeyShape = TrackKeyShape.Circle,
-	val selected: Boolean = false,
+	val selection: TrackMarkSelection = TrackMarkSelection.Unselected,
 	val editable: Boolean = true,
 )
+
+/**
+ * How much of what a mark stands for is in the current key selection.
+ *
+ * A plain mark stands for one key, so it is one of the two ends.  A summary mark stands for every key
+ * stacked at its position, and [PartlySelected] is what it shows when only some of them are, since either
+ * end would misreport what an edit of the selection is about to act on.
+ */
+enum class TrackMarkSelection {
+	Unselected,
+	PartlySelected,
+	Selected,
+}
 
 /**
  * The domain window a mark may be dragged within: the axis, end to end.
@@ -255,6 +278,9 @@ enum class TrackRowTone {
  * @property TrackRowTone tone The row's color band.
  * @property List<TrackKeyMark> marks The row's marks, in any order.
  * @property List<TrackRow> children Rows nested under this one, shown only while it is expanded.
+ * @property Float? pendingAt Where along the axis the row holds an edit not yet keyed, drawn as a hollow mark in the
+ *   modified color; null for none.  Not a key - it neither picks nor drags - only a reminder that keying there
+ *   would store something new.
  */
 data class TrackRow(
 	val key: String,
@@ -263,6 +289,7 @@ data class TrackRow(
 	val tone: TrackRowTone = TrackRowTone.Primary,
 	val marks: List<TrackKeyMark> = emptyList(),
 	val children: List<TrackRow> = emptyList(),
+	val pendingAt: Float? = null,
 )
 
 /**
@@ -292,24 +319,46 @@ data class TrackRowLine(
 fun flattenTrackRows(rows: List<TrackRow>, expandedKeys: Set<String>): List<TrackRowLine> {
 	val lines = ArrayList<TrackRowLine>()
 
+	/**
+	 * Adds a row's line, then its children's when the row is expanded.
+	 *
+	 * @param TrackRow row The row to add.
+	 * @param Int depth The row's nesting depth.
+	 */
 	fun visit(row: TrackRow, depth: Int) {
 		val expandable = row.children.isNotEmpty()
 		val expanded = expandable && row.key in expandedKeys
 		lines.add(TrackRowLine(row, depth, expandable, expanded))
+
 		if (expanded) {
 			for (child in row.children) {
 				visit(child, depth + 1)
 			}
 		}
 	}
+
 	for (row in rows) {
 		visit(row, 0)
 	}
+
 	return lines
 }
 
 /**
- * Every mark under [row] and its whole subtree, deduplicated by position and shape.
+ * The marks [line]'s lane draws: a collapsed group's summary, or the row's own marks.
+ *
+ * Expanded, a group shows only its own marks, since its children are on screen carrying theirs.  A leaf
+ * shows its own marks unfiltered and at their own ordinals: routing it through the summary would drop any
+ * non-editable mark it carries and renumber the rest.  Anything that hit-tests a lane by what is on screen
+ * reads its marks here, so it agrees with the draw.
+ *
+ * @param TrackRowLine line The displayed row.
+ * @return List<TrackKeyMark> The marks on its lane.
+ */
+fun shownMarks(line: TrackRowLine): List<TrackKeyMark> = if (line.expandable && !line.expanded) summarizedMarks(line.row) else line.row.marks
+
+/**
+ * Every editable mark under [row] and its whole subtree, one per position.
  *
  * What a collapsed group row draws, so folding a subtree away still shows WHERE its keys are rather than
  * hiding them entirely - the summary behaviour Blender's dope sheet has at every level.
@@ -320,17 +369,27 @@ fun flattenTrackRows(rows: List<TrackRow>, expandedKeys: Set<String>): List<Trac
 fun summarizedMarks(row: TrackRow): List<TrackKeyMark> {
 	val byPosition = LinkedHashMap<Float, TrackKeyMark>()
 
+	/**
+	 * Gathers the editable marks of a row and of every row under it, one per position.
+	 *
+	 * @param TrackRow current The row to visit.
+	 */
 	fun visit(current: TrackRow) {
 		for (mark in current.marks) {
 			// Only an EDITABLE child key can be summarized: a summary mark is a handle on the keys beneath
 			// it, so one standing partly on keys nothing can move would move only some of what it shows.
 			if (mark.editable) {
-				byPosition.getOrPut(mark.position) { mark }
+				// The first mark at a position lends the summary its shape, but the selection is every
+				// mark's there, so the summary reads the same whichever track comes first.
+				val held = byPosition[mark.position]
+				byPosition[mark.position] = held?.copy(selection = combinedSelection(held.selection, mark.selection)) ?: mark
 			}
 		}
+
 		current.children.forEach(::visit)
 	}
 	visit(row)
+
 	// Renumbered to its position in the SUMMARY.  The winner's own ordinal is meaningless across the group
 	// (two channels keyed at one value can hold different ordinals), whereas a summary ordinal is a stable
 	// name the owner can map back to the whole set of keys it stands for.
@@ -338,6 +397,16 @@ fun summarizedMarks(row: TrackRow): List<TrackKeyMark> {
 		mark.copy(keyIndex = ordinal)
 	}
 }
+
+/**
+ * The selection of a summary mark standing for marks of [first] and [second] selection.
+ *
+ * @param TrackMarkSelection first The selection of what the summary already stands for.
+ * @param TrackMarkSelection second The selection of the mark joining it.
+ * @return TrackMarkSelection Either end when both agree on it, else partly selected.
+ */
+private fun combinedSelection(first: TrackMarkSelection, second: TrackMarkSelection): TrackMarkSelection =
+	if (first == second) first else TrackMarkSelection.PartlySelected
 
 /**
  * The mark nearest [domainValue] within [tolerance], or null - the shared hit test for clicking a mark.
@@ -352,12 +421,15 @@ fun summarizedMarks(row: TrackRow): List<TrackKeyMark> {
 fun nearestMark(marks: List<TrackKeyMark>, domainValue: Float, tolerance: Float): TrackKeyMark? {
 	var best: TrackKeyMark? = null
 	var bestDistance = tolerance
+
 	for (mark in marks) {
 		val distance = abs(mark.position - domainValue)
+
 		if (distance <= bestDistance) {
 			bestDistance = distance
 			best = mark
 		}
 	}
+
 	return best
 }

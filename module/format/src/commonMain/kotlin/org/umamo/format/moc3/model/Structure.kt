@@ -1,7 +1,7 @@
 package org.umamo.format.moc3.model
 
 /**
- * A part (visibility/draw-order group). [drawOrderKeyforms] holds the part's draw order per keyform
+ * A part (visibility/draw-order group).  [drawOrderKeyforms] holds the part's draw order per keyform
  * of [keyformBindingIndex]'s grid (a single value when the part is static).
  */
 public data class Part(
@@ -41,7 +41,7 @@ public data class GlueVertexPair(
 )
 
 /**
- * A glue: seam-welds two art meshes' shared vertices. [intensityKeyforms] modulate the weld strength
+ * A glue: seam-welds two art meshes' shared vertices.  [intensityKeyforms] modulate the weld strength
  * over [keyformBindingIndex]'s grid (a single value when static).
  */
 public data class Glue(

@@ -24,11 +24,11 @@ import org.umamo.runtime.model.partByDrawable
  *    [Moc3ImportContext.pointSpaceOf]).  The one unit seam: a rotation parented to the root or a warp
  *    carries the px→model factor in its keyform scale, so those scales multiply by ppu to land in the
  *    runtime's pixel world; rotation-parented rotations keep their scale verbatim.  One caveat: the
- *    runtime's rest mesh (Drawable.mesh.positions) is canvas-space EDITING geometry in the CMO3
- *    convention, which a MOC does not store - this import leaves the rest mesh in parent space (exact
- *    for evaluation, since the base cancels out of the keyform blend), and `:render`'s
- *    restMeshesToCanvasSpace finishes the job by evaluating the default pose (the document loader
- *    applies it).
+ *    runtime's canvas mesh (DrawableMesh.positions) is canvas-space EDITING geometry in the CMO3
+ *    convention, which a MOC does not store - this import gives both arrays the parent-space base
+ *    (DrawableMesh.localPositions, the only one evaluation reads), and `:render`'s
+ *    restMeshesToCanvasSpace derives the canvas mesh by evaluating the default pose (the document
+ *    loader applies it).
  *  - Names.  The binary stores ids (deformers included, §5.6 s11) but no display names; parameter/part
  *    names come from cdi3.json when present, and everything else falls back to the format id - the same
  *    rule `Cmo3Import` uses for an unnamed source.  A deformer's authored label is lost for good (the
@@ -36,18 +36,14 @@ import org.umamo.runtime.model.partByDrawable
  *    deforms when exactly one is in reach: "Warp40 (ArtMesh5)".
  *  - Blend shapes.  MOC3 records store per-key DELTAS relative to the object's grid form at the
  *    DEFAULT pose (MOC3.md §5.6), while the runtime `BlendShapeBinding` keeps grid-convention
- *    forms (MeshForm rest-relative; Warp/RotationForm absolute) and the evaluator re-subtracts
- *    that same grid-at-default reference.  The mapping therefore ADDS the reference back when
- *    synthesizing each form - computed with the shared org.umamo.runtime.eval sampling helpers,
- *    the exact functions the evaluator later calls, so the round trip cancels to ULP.  Delta
- *    geometry converts like the grid keyforms minus the origin term (a delta in root space scales
- *    by ppu only; lattice/rotation-local deltas pass through; the rotation-scale ppu seam applies
- *    to scale deltas too).  Neutral form slots import as null (the stored neutral row is all-zero).
- *    PART-owned records carry only a draw-order delta (a part has no other blendable channel) and
- *    ingest onto [org.umamo.runtime.model.Part.blendShapes].  Offscreens ingest into
- *    [org.umamo.runtime.model.PartComposite] per owner part (packed blend int, flags, mask indices)
- *    - the part's group mode becomes Isolated - with the keyformed opacity/color channels merged
- *    into the part's `PartForm` grid (they ride the same cells, MOC3 §5.6).
+ *    forms and the evaluator re-subtracts that same grid-at-default reference.  The mapping
+ *    therefore ADDS the reference back when synthesizing each form - computed with the shared
+ *    org.umamo.runtime.eval sampling helpers, the exact functions the evaluator later calls, so the
+ *    round trip cancels to ULP.
+ *
+ * Offscreens have no runtime object of their own: each ingests into its owner part's
+ * [org.umamo.runtime.model.PartComposite], making the part Isolated, with its keyformed
+ * opacity/color channels merged into the part's grid (they ride the same cells, MOC3 §5.6).
  *
  * This object is only the orchestrator.  The work sits in per-concern producers beside it -
  * [importParameters], [importParameterLinks], [importParameterTree], [importDeformers],
@@ -114,7 +110,7 @@ object Moc3Import {
 				canvasWidth = context.canvas?.width ?: 0f,
 				canvasHeight = context.canvas?.height ?: 0f,
 				worldOriginX = context.canvasOriginX,
-				worldOriginY = -context.canvasOriginY,
+				worldOriginZ = -context.canvasOriginY,
 				// Retained purely so an export can invert this import's space conversions; the evaluator and
 				// the renderer never read it.  The CANVAS's own value, not the 1f identity that
 				// Moc3ImportContext.canvasMapping substitutes for a canvas-less model - an export has to be
@@ -144,6 +140,7 @@ object Moc3Import {
 			} else {
 				withDeformerParts.copy(renderRoot = withDeformerParts.deriveRenderRoot())
 			}
+
 		return if (compactChannels) withRenderRoot.withChannelsCompacted() else withRenderRoot
 	}
 }

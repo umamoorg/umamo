@@ -6,6 +6,7 @@ import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.format.FileKind
+import org.umamo.format.FileRole
 import org.umamo.format.FormatCodec
 import org.umamo.format.FormatRegistry
 import org.umamo.format.art.SourceArt
@@ -13,17 +14,27 @@ import org.umamo.format.binary.contentHashOf
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.rasterToSourceArt
 import org.umamo.interop.art.ArtSourceDescriptor
+import org.umamo.interop.art.ArtworkAnchor
+import org.umamo.interop.art.BirthMeshMode
+import org.umamo.interop.art.BirthMesher
 import org.umamo.interop.art.SourceArtImport
 import org.umamo.interop.art.SourceArtImportNotice
 import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.interop.art.SourceArtImportResult
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
-import org.umamo.ui.model.AtlasRepackRefusalReason
-import org.umamo.ui.model.describeImportNotice
-import org.umamo.ui.model.packModelAtOpen
+import org.umamo.ui.model.artwork.LoggedSourceFilePresence
+import org.umamo.ui.model.artwork.SourceFilePresence
+import org.umamo.ui.model.artwork.describeImportNotice
+import org.umamo.ui.model.artwork.resolveBirths
+import org.umamo.ui.model.repack.AtlasRepackRefusalReason
+import org.umamo.ui.model.repack.packModelAtOpen
+import org.umamo.ui.progress.ProgressHandle
+import org.umamo.ui.progress.ProgressLabels
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.initialLiveParams
 
@@ -48,16 +59,20 @@ class ArtDocument(
 ) : PuppetDocument
 
 /**
- * The options an artwork import runs with under [template].  The bridge takes the resolved parameter
- * list and knows nothing about templates, so the template-to-parameters step happens once here for
- * every caller: the shell resolves the preference into it, and the loaders default through it so a
- * caller with no setting to read still seeds the configured default.
+ * The options an artwork import runs with under [template], [anchor], and [birthMesh].  The bridge
+ * takes the resolved parameter list and knows nothing about templates, so the template-to-parameters
+ * step happens once here for every caller.
  *
- * @param ParameterTemplate template The parameter set to seed.
+ * @param ParameterTemplate template  The parameter set to seed.
+ * @param ArtworkAnchor     anchor    Where a later file is anchored on the rig's canvas.
+ * @param BirthMeshMode     birthMesh The mesh each new drawable starts with.
  * @return SourceArtImportOptions The import options.
  */
-fun artworkImportOptions(template: ParameterTemplate = ParameterTemplate.Default): SourceArtImportOptions =
-	SourceArtImportOptions(parameters = template.parameters)
+fun artworkImportOptions(
+	template: ParameterTemplate = ParameterTemplate.Default,
+	anchor: ArtworkAnchor = ArtworkAnchor.Default,
+	birthMesh: BirthMeshMode = BirthMeshMode.Quad,
+): SourceArtImportOptions = SourceArtImportOptions(parameters = template.parameters, anchor = anchor, birthMesh = birthMesh)
 
 /**
  * A layered artwork file, or a flat raster wrapped as one layer, read for the artwork paths: the
@@ -84,11 +99,38 @@ class ReadArtwork(
  * @return Long? The time in epoch milliseconds, or null.
  */
 fun fileModifiedAtMillis(path: String): Long? {
-	if (path.contains("://")) {
+	if (!isFileSystemPath(path)) {
 		return null
 	}
+
 	return runCatching { FileSystem.SYSTEM.metadataOrNull(path.toPath())?.lastModifiedAtMillis }.getOrNull()
 }
+
+/**
+ * The file-presence probe the Sources space, the artwork operations, and the watcher all read: an okio
+ * existence check over a real path.  A uri and a path the file system refuses both read as unknown
+ * rather than missing - the space must never accuse a file it could not check.  One logged instance
+ * for the app's life, so a path is named in the log once and again only when its answer changes.
+ *
+ * The check itself runs on the IO dispatcher and nothing else does, so a caller on the interface's
+ * thread never waits on the disk, and the log and the last answers stay in the caller's context.  The
+ * catch sits inside the hop: around it, it would take a cancellation for a failed check.
+ */
+internal val systemSourceFilePresence: SourceFilePresence =
+	LoggedSourceFilePresence { path ->
+		if (isFileSystemPath(path)) {
+			withContext(Dispatchers.IO) { runCatching { FileSystem.SYSTEM.exists(path.toPath()) }.getOrNull() }
+		} else {
+			null
+		}
+	}::probe
+
+/**
+ * The picker filter for File > Import > Artwork: every layered and flat-raster format the registry reads,
+ * its `.jpeg` and `.tif` aliases included.  Derived from the registry rather than listed here, so a new art
+ * format reaches the picker by being registered.
+ */
+internal val artworkImportExtensions: List<String> = FormatRegistry.extensionsFor(FileRole.Artwork)
 
 /**
  * Reads [bytes] as artwork when they are one of the art formats the registry knows (PSD / CLIP / KRA,
@@ -101,6 +143,7 @@ fun fileModifiedAtMillis(path: String): Long? {
  */
 fun readArtwork(bytes: ByteArray, name: String): ReadArtwork? {
 	val codec = FormatRegistry.detect(bytes, name) ?: return null
+
 	return runCatching { artworkOf(codec, bytes, name)?.let { art -> ReadArtwork(art, codec.kind, contentHashOf(bytes)) } }
 		.getOrElse { failure ->
 			UmamoLog.error("failed to read artwork $name", failure)
@@ -118,9 +161,10 @@ fun readArtwork(bytes: ByteArray, name: String): ReadArtwork? {
  * @return ReadArtwork? The art and its format, or null.
  */
 suspend fun readArtworkAt(path: String): ReadArtwork? {
-	if (path.contains("://")) {
+	if (!isFileSystemPath(path)) {
 		return null
 	}
+
 	val bytes =
 		withContext(Dispatchers.IO) {
 			runCatching { FileSystem.SYSTEM.read(path.toPath()) { readByteArray() } }
@@ -132,6 +176,7 @@ suspend fun readArtworkAt(path: String): ReadArtwork? {
 	val name = path.toPath().name
 	val lastModified = withContext(Dispatchers.IO) { fileModifiedAtMillis(path) }
 	val read = withContext(Dispatchers.Default) { readArtwork(bytes, name) } ?: return null
+
 	return ReadArtwork(read.art, read.kind, read.contentHash, lastModified)
 }
 
@@ -154,12 +199,8 @@ internal fun artworkOf(codec: FormatCodec<*>, bytes: ByteArray, name: String): S
 	}
 
 /**
- * Assembles an [ArtDocument] from parsed source art: the bridge builds the unpacked model, the pack
- * at open moves it onto pages, and the rasters the reader decoded become the document's pixel store.
- *
- * Every raster is wrapped into ONE decoded image up front, so the store's cached and uncached reads
- * hand out the same instance for a tile - the identity the renderer's texture cache and the
- * viewport's freshness test compare by.
+ * Assembles an [ArtDocument] from parsed source art, making the birth meshes one after another
+ * ([buildArtDocumentConcurrently] is the parallel form an open from the app runs).
  *
  * Throws nothing of its own - the byte-level [loadDocument] wraps this call, so a reader result that
  * trips the bridge or the pack surfaces as ParseFailed there.
@@ -171,6 +212,7 @@ internal fun artworkOf(codec: FormatCodec<*>, bytes: ByteArray, name: String): S
  * @param SourceArtImportOptions options     The seed parameters, threshold, and margin the import runs with.
  * @param String?                contentHash The whole-file content hash of the bytes the art was read from, recorded on its source.
  * @param Long?                  lastModified The file's modification time when read, recorded on its source; null when unknown.
+ * @param ProgressHandle?        progress     Says when the atlas packs, or null.
  * @return DocumentLoad The loaded document, or NoArtLayers when nothing in the file can be rigged.
  */
 internal fun buildArtDocument(
@@ -181,17 +223,69 @@ internal fun buildArtDocument(
 	options: SourceArtImportOptions,
 	contentHash: String? = null,
 	lastModified: Long? = null,
+	progress: ProgressHandle? = null,
 ): DocumentLoad {
 	val imported = SourceArtImport.fromSourceArt(art, ArtSourceDescriptor(name, path.takeIf { stored -> stored.isNotEmpty() }, kind.extension, contentHash, lastModified), options)
+
+	return finishArtDocument(imported.withBirths(BirthMesher.resolveSequentially(imported.pendingBirths)), name, path, progress)
+}
+
+/**
+ * [buildArtDocument] with the birth meshes made in parallel and counted on [progress]: what an open from
+ * the app runs, off the UI thread.
+ *
+ * @param SourceArt              art          The parsed source art.
+ * @param FileKind               kind         The format it was read from.
+ * @param String                 name         The file name.
+ * @param String                 path         The stored path or URI string recorded on the document.
+ * @param SourceArtImportOptions options      The seed parameters, threshold, margin, and birth mesh.
+ * @param String?                contentHash  The whole-file content hash of the bytes the art was read from.
+ * @param Long?                  lastModified The file's modification time when read; null when unknown.
+ * @param ProgressHandle?        progress     Counts the birth meshes and says when the atlas packs, or null.
+ * @return DocumentLoad The loaded document, or NoArtLayers when nothing in the file can be rigged.
+ */
+internal suspend fun buildArtDocumentConcurrently(
+	art: SourceArt,
+	kind: FileKind,
+	name: String,
+	path: String,
+	options: SourceArtImportOptions,
+	contentHash: String?,
+	lastModified: Long?,
+	progress: ProgressHandle?,
+): DocumentLoad {
+	val imported = SourceArtImport.fromSourceArt(art, ArtSourceDescriptor(name, path.takeIf { stored -> stored.isNotEmpty() }, kind.extension, contentHash, lastModified), options)
+
+	return finishArtDocument(imported.withBirths(resolveBirths(imported.pendingBirths, cache = null, progress)), name, path, progress)
+}
+
+/**
+ * The rest of an artwork open once its drawables have their meshes: the pack at open, the notes, and the
+ * document over the decoded rasters.
+ *
+ * @param SourceArtImportResult imported The import, its births landed.
+ * @param String                name     The file name.
+ * @param String                path     The stored path or URI string recorded on the document.
+ * @param ProgressHandle?       progress Says when the atlas packs, or null.
+ * @return DocumentLoad The loaded document, or NoArtLayers when nothing in the file can be rigged.
+ */
+private fun finishArtDocument(imported: SourceArtImportResult, name: String, path: String, progress: ProgressHandle?): DocumentLoad {
 	if (imported.puppet.drawables.isEmpty()) {
 		for (notice in imported.notices) {
 			UmamoLog.warn("import: ${describeImportNotice(notice)}")
 		}
+
 		UmamoLog.error("failed to import $path: no layer has pixels to rig")
+
 		return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.NoArtLayers, name))
 	}
+
+	// Every raster is wrapped into ONE decoded image up front, so the store's cached and uncached reads hand
+	// out the same instance for a tile - the identity the renderer's texture cache and the viewport's freshness
+	// test compare by.
 	val decodedByTile = imported.rasterByTile.mapValues { (_, raster) -> DecodedImage(raster.rgba, raster.width, raster.height) }
-	val decodeRaster: (org.umamo.runtime.model.AtlasTileId) -> DecodedImage? = { tileId -> decodedByTile[tileId] }
+	val decodeRaster: (AtlasTileId) -> DecodedImage? = { tileId -> decodedByTile[tileId] }
+	progress?.stage(ProgressLabels.ATLAS_PACKING)
 	val packed = packModelAtOpen(imported.puppet, decodeRaster)
 	val notices =
 		imported.notices +
@@ -201,13 +295,16 @@ internal fun buildArtDocument(
 					else -> SourceArtImportNotice.LayerNotPacked(refusal.tileName, refusal.reason.name)
 				}
 			}
+
 	for (notice in notices) {
 		UmamoLog.warn("import: ${describeImportNotice(notice)}")
 	}
+
 	val puppet = packed.model
 	UmamoLog.info(
 		"import: $name -> ${puppet.drawables.size} drawable(s), ${puppet.parts.size} part(s), ${puppet.atlas.pages.size} page(s)," +
 			" ${puppet.parameters.size} parameter(s); ${notices.size} note(s)",
 	)
+
 	return DocumentLoad.Loaded(ArtDocument(path, puppet, packed.textures, SourceArtRasters(decodeRaster), initialLiveParams(puppet), notices))
 }

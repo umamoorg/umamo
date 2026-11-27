@@ -6,9 +6,8 @@ import kotlinx.serialization.Serializable
 /**
  * `*.userdata3.json` - per-object user strings attached to drawables.
  *
- * EN: Keys/order match the `userdata3.json` the editor exports (`Meta` is `UserDataCount` +
- *     `TotalUserDataSize`; the SDK only consumes `Target == "ArtMesh"` entries).
- * JA: ユーザーデータ。
+ * Keys/order match the `userdata3.json` the editor exports (`Meta` is `UserDataCount` +
+ * `TotalUserDataSize`; the SDK only consumes `Target == "ArtMesh"` entries).
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §userdata3.json</a>
  */

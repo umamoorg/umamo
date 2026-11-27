@@ -31,14 +31,18 @@ class KeyformGridShapeTest {
 	private fun KeyformGrid<*>.coordinateOf(linearIndex: Int): IntArray {
 		val coordinate = IntArray(axes.size)
 		var remaining = linearIndex
+
 		for (axisIndex in axes.indices) {
 			val keyCount = axes[axisIndex].keys.size
+
 			if (keyCount <= 0) {
 				continue
 			}
+
 			coordinate[axisIndex] = remaining % keyCount
 			remaining /= keyCount
 		}
+
 		return coordinate
 	}
 
@@ -57,6 +61,7 @@ class KeyformGridShapeTest {
 			(0 until grid.cellCount).map { linearIndex ->
 				KeyformCell(grid.coordinateOf(linearIndex), GlueForm(linearIndex.toFloat()))
 			}
+
 		return KeyformGrid(axes, cells)
 	}
 
@@ -69,13 +74,14 @@ class KeyformGridShapeTest {
 	}
 
 	/**
-	 * The stride folding matches the evaluator's cellsByLinearIndex exactly. Both now share
+	 * The stride folding matches the evaluator's cellsByLinearIndex exactly.  Both now share
 	 * KeyformGrid's own members, so this pins the contract rather than guarding a duplicate.
 	 */
 	@Test
 	fun linearIndexMatchesTheEvaluatorFolding() {
 		for (grid in listOf(denseGrid(3, 2), denseGrid(4, 3, 2), denseGrid(5))) {
 			val evaluatorIndexed = cellsByLinearIndex(grid)
+
 			for (cell in grid.cells) {
 				val shapeIndex = grid.linearIndexOf(cell.coordinate)
 				assertSame(cell, evaluatorIndexed[shapeIndex], "cell ${cell.coordinate.toList()} folds to the same index")
@@ -87,6 +93,7 @@ class KeyformGridShapeTest {
 	@Test
 	fun coordinateRoundTripsThroughLinearIndex() {
 		val grid = denseGrid(4, 3, 2)
+
 		for (linearIndex in 0 until grid.cellCount) {
 			assertEquals(linearIndex, grid.linearIndexOf(grid.coordinateOf(linearIndex)))
 		}

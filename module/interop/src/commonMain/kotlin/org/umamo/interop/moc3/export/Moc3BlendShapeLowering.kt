@@ -114,9 +114,11 @@ internal fun lowerBlendShapes(
 		payloadOf: (TForm?) -> BlendShapeKeyform,
 	) {
 		val parameterIndex = plan.parameterIndex(binding.parameterId)
+
 		if (parameterIndex < 0) {
 			return
 		}
+
 		records.add(
 			BlendShape(
 				target = target,
@@ -129,9 +131,11 @@ internal fun lowerBlendShapes(
 				limits =
 					binding.limits.mapNotNull { limit ->
 						val limitParameter = plan.parameterIndex(limit.parameterId)
+
 						if (limitParameter < 0) {
 							return@mapNotNull null
 						}
+
 						BlendShapeLimit(
 							parameterIndex = limitParameter,
 							keyPositions = limit.points.map { point -> point.value }.toFloatArray(),
@@ -148,6 +152,7 @@ internal fun lowerBlendShapes(
 		if (drawable.blendShapes.isEmpty()) {
 			continue
 		}
+
 		val localIndex = plan.drawableIndex(drawable.id)
 		val space = spaceOfParent(drawable.parentDeformerId)
 		val referenceDeltas = meshGridDefaultDeltas(drawable, defaultValue) ?: FloatArray(0)
@@ -159,6 +164,7 @@ internal fun lowerBlendShapes(
 		val referenceScreen =
 			drawable.channelGrids.colorAt(FormChannel.SCREEN_COLOR, drawable.screenColor, defaultValue)
 		val vertexCount = drawable.mesh?.positions?.size ?: 0
+
 		for (binding in drawable.blendShapes) {
 			addRecord(BlendShapeTarget.ART_MESH, localIndex, binding) { form: MeshForm? ->
 				BlendShapeKeyform.Mesh(
@@ -203,6 +209,7 @@ internal fun lowerBlendShapes(
 				if (deformer.blendShapes.isEmpty()) {
 					continue
 				}
+
 				// Resolved only once the deformer is known to carry blend shapes: `spaceOfParent` is a
 				// lookup the caller supplies, and asking it for every deformer in the rig would pay for a
 				// result that is discarded on all of them in a model with no blend shapes.
@@ -219,6 +226,7 @@ internal fun lowerBlendShapes(
 				val referenceScreen =
 					deformer.channelGrids.colorAt(FormChannel.SCREEN_COLOR, deformer.screenColor, defaultValue)
 				val pointCount = (deformer.rows + 1) * (deformer.columns + 1) * 2
+
 				for (binding in deformer.blendShapes) {
 					addRecord(BlendShapeTarget.WARP, localIndex, binding) { form: WarpForm? ->
 						BlendShapeKeyform.Warp(
@@ -245,10 +253,12 @@ internal fun lowerBlendShapes(
 					}
 				}
 			}
+
 			is Deformer.Rotation -> {
 				if (deformer.blendShapes.isEmpty()) {
 					continue
 				}
+
 				// Resolved after the guard; see the warp branch.
 				val space = spaceOfParent(deformer.parent)
 				// Unified, not kind-local; see the warp branch.
@@ -262,6 +272,7 @@ internal fun lowerBlendShapes(
 				val referenceScreen =
 					deformer.channelGrids.colorAt(FormChannel.SCREEN_COLOR, deformer.screenColor, defaultValue)
 				val scaleFactor = scaleFactorOf(deformer)
+
 				for (binding in deformer.blendShapes) {
 					addRecord(BlendShapeTarget.ROTATION, localIndex, binding) { form: RotationForm? ->
 						val originDelta =
@@ -309,14 +320,17 @@ internal fun lowerBlendShapes(
 		if (part.blendShapes.isEmpty()) {
 			continue
 		}
+
 		val localIndex = plan.partIndex(part.id)
 		val referenceDrawOrder =
 			part.channelGrids.scalarAt(FormChannel.DRAW_ORDER, part.drawOrder.toFloat(), defaultValue)
+
 		for (binding in part.blendShapes) {
 			addRecord(BlendShapeTarget.PART, localIndex, binding) { form: PartForm? ->
 				BlendShapeKeyform.Part(if (form == null) 0f else form.drawOrder - referenceDrawOrder)
 			}
 		}
 	}
+
 	return records
 }

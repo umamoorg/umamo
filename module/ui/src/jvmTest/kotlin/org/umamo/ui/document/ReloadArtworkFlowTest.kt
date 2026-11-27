@@ -6,9 +6,13 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.umamo.edit.DocumentChange
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementEditKind
+import org.umamo.edit.MeshChange
 import org.umamo.edit.OperatorParameter
-import org.umamo.edit.commitArtworkReloaded
-import org.umamo.edit.withAtlasRepack
+import org.umamo.edit.atlas.commitArtworkReloaded
+import org.umamo.edit.atlas.withAtlasRepack
+import org.umamo.edit.mesh.MeshRestPositions
+import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.format.FileKind
 import org.umamo.format.art.LayerBounds
 import org.umamo.interop.art.SourceArtImportOptions
@@ -20,16 +24,16 @@ import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.SourceLayerRef
-import org.umamo.ui.model.AtlasRepackHost
-import org.umamo.ui.model.ImportParameterKeys
-import org.umamo.ui.model.MatchParameterKeys
-import org.umamo.ui.model.RelinkArtworkRequest
-import org.umamo.ui.model.ReloadArtworkRequest
-import org.umamo.ui.model.ReloadArtworkResult
-import org.umamo.ui.model.ReloadEntry
 import org.umamo.ui.model.SessionAtlasPages
-import org.umamo.ui.model.runRelinkArtwork
-import org.umamo.ui.model.runReloadArtwork
+import org.umamo.ui.model.artwork.ImportParameterKeys
+import org.umamo.ui.model.artwork.MatchParameterKeys
+import org.umamo.ui.model.artwork.RelinkArtworkRequest
+import org.umamo.ui.model.artwork.ReloadArtworkRequest
+import org.umamo.ui.model.artwork.ReloadArtworkResult
+import org.umamo.ui.model.artwork.ReloadEntry
+import org.umamo.ui.model.artwork.runRelinkArtwork
+import org.umamo.ui.model.artwork.runReloadArtwork
+import org.umamo.ui.model.repack.AtlasRepackHost
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -122,9 +126,11 @@ class ReloadArtworkFlowTest {
 			val published = sessionAtlasPages.binding.value.textures
 			val derived = assertNotNull(deriveAtlasTextures(withoutBig, document.artRasters, premultipliedAlpha = false))
 			assertEquals(2, published.atlases.size)
+
 			for ((pageIndex, page) in published.atlases.withIndex()) {
 				assertTrue(page.rgba.contentEquals(derived.atlases[pageIndex].rgba), "published page $pageIndex equals its derivation")
 			}
+
 			follower.cancel()
 		}
 
@@ -174,9 +180,11 @@ class ReloadArtworkFlowTest {
 			}
 			val published = sessionAtlasPages.binding.value.textures
 			val derived = assertNotNull(deriveAtlasTextures(reloaded, document.artRasters, premultipliedAlpha = false), "the reloaded model derives")
+
 			for ((pageIndex, page) in published.atlases.withIndex()) {
 				assertTrue(page.rgba.contentEquals(derived.atlases[pageIndex].rgba), "published page $pageIndex equals its derivation")
 			}
+
 			assertTrue(published.atlases.any { page -> page.rgba.any { byte -> byte == 9.toByte() } }, "the pages carry the repainted pixels")
 
 			// An adjustment re-lands the SAME step with wider re-born quads.  Before any undo, which
@@ -228,7 +236,87 @@ class ReloadArtworkFlowTest {
 			val refA = SourceLayerRef(sourceId, "lyid:1", true)
 			assertFalse(runRelinkArtwork(host, RelinkArtworkRequest(pulled.id, refA, art = null, options), areaId = null), "no file, no art")
 			assertEquals(refA, session.model.value.atlas.tileById.getValue(pulled.id).source, "but the binding changed")
+			// Art read from the document's own tiles pulls the same way, and the notice says where it came from.
+			// A's replacement tile still binds A and sits over A's art, so A repainted again lands under its quad.
+			val layerARepaintedAgain = InMemoryLayer("lyid:1", "A", 0, LayerBounds(10, 10, 12, 12), solidRaster(12, 12, 7))
+			assertTrue(runRelinkArtwork(host, RelinkArtworkRequest(listOf(tileA1), refA, InMemoryArt(listOf(layerARepaintedAgain, layerB, layerC)), options, fromDocument = true), areaId = null))
+			assertEquals("notice.relink.pulledFromDocument", session.notice.value?.messageKey)
 			follower.cancel()
+		}
+
+	/**
+	 * A relink whose art lands past the mesh it keeps says so, and with nothing to count it shows no
+	 * counts: the reload's notice would read "0 updated, 0 added" there.
+	 */
+	@Test
+	fun aRelinkWhoseArtOutgrowsItsMeshSaysSoWithoutCounts() =
+		runBlocking {
+			val load = buildArtDocument(InMemoryArt(listOf(layerA, layerB)), FileKind.Psd, "a.psd", "/art/a.psd", options)
+			val document = assertIs<ArtDocument>(assertIs<DocumentLoad.Loaded>(load).document)
+			val session = EditorSession(document.puppet, document.liveParams.values)
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = document.artRasters,
+					sessionAtlasPages = null,
+					premultipliedAlpha = document.textures.premultipliedAlpha,
+					scope = this,
+					report = { report -> error("the relink must not refuse: ${report.refusals.joinToString { "${it.tileName}: ${it.reason}" }}") },
+					rememberOptions = { _, _ -> },
+				)
+			val tileA = AtlasTileId("art-0/lyid:1")
+			val drawableA = session.model.value.drawables.first { drawable -> drawable.atlasTileId == tileA }
+			// A's quad with one corner pulled in: a mesh the rigger made their own, which a relink keeps.
+			val tweaked = assertNotNull(drawableA.mesh).positions.copyOf().also { positions -> positions[4] -= 1f }
+			session.commitMeshPositions(MeshChange.TransformVertices(mapOf(drawableA.id to listOf(2)), ElementEditKind.Grab), mapOf(drawableA.id to MeshRestPositions.shared(tweaked)))
+
+			// B's art sits elsewhere on the canvas, so A's kept mesh covers none of it.
+			assertTrue(runRelinkArtwork(host, RelinkArtworkRequest(tileA, SourceLayerRef(sourceId, "lyid:2", true), InMemoryArt(listOf(layerA, layerB)), options), areaId = null))
+
+			assertEquals("notice.relink.outgrown", session.notice.value?.messageKey)
+			assertTrue(session.notice.value?.arguments.isNullOrEmpty(), "nothing counted, nothing shown as zero")
+		}
+
+	/**
+	 * A layer's eye toggle in the file follows into the drawable over it while that drawable still shows
+	 * the state the file last had - a step of its own, with no tile replaced and nothing packed - and
+	 * follows back when the layer is shown again.
+	 */
+	@Test
+	fun aLayerEyeToggleFollowsIntoTheDrawableAndBack() =
+		runBlocking {
+			val load = buildArtDocument(InMemoryArt(listOf(layerA, layerB)), FileKind.Psd, "a.psd", "/art/a.psd", options)
+			val document = assertIs<ArtDocument>(assertIs<DocumentLoad.Loaded>(load).document)
+			val session = EditorSession(document.puppet, document.liveParams.values)
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = document.artRasters,
+					sessionAtlasPages = null,
+					premultipliedAlpha = document.textures.premultipliedAlpha,
+					scope = this,
+					report = { report -> error("the reload must not refuse: ${report.refusals.joinToString { "${it.tileName}: ${it.reason}" }}") },
+					rememberOptions = { _, _ -> },
+				)
+			val before = session.model.value
+			val tileB = AtlasTileId("art-0/lyid:2")
+			val drawableB = before.drawables.first { drawable -> drawable.atlasTileId == tileB }
+			assertTrue(drawableB.isVisible)
+
+			val layerBHidden = InMemoryLayer("lyid:2", "B", 1, LayerBounds(40, 40, 8, 8), solidRaster(8, 8, 2), visible = false)
+			val hide = ReloadArtworkRequest(listOf(ReloadEntry(sourceId, InMemoryArt(listOf(layerA, layerBHidden)), contentHash = "hash-hidden")), options)
+			assertEquals(ReloadArtworkResult.Applied, runReloadArtwork(host, hide, areaId = null), "an eye toggle alone is a step")
+			val hidden = session.model.value
+			assertFalse(hidden.drawables.first { drawable -> drawable.id == drawableB.id }.isVisible, "the untouched drawable followed the file")
+			assertEquals(before.atlas.tiles.map { tile -> tile.id }, hidden.atlas.tiles.map { tile -> tile.id }, "no tile changed")
+			assertEquals(false, hidden.sources.single().layers.first { layer -> layer.key == "lyid:2" }.visible, "the inventory records the new state")
+
+			val show = ReloadArtworkRequest(listOf(ReloadEntry(sourceId, InMemoryArt(listOf(layerA, layerB)), contentHash = "hash-shown")), options)
+			assertEquals(ReloadArtworkResult.Applied, runReloadArtwork(host, show, areaId = null))
+			assertTrue(session.model.value.drawables.first { drawable -> drawable.id == drawableB.id }.isVisible, "shown again in the file, it follows back")
+			session.undo()
+			session.undo()
+			assertSame(before, session.model.value, "two steps, both undone")
 		}
 
 	@Test

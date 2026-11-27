@@ -48,7 +48,7 @@ class CompositeOptimizationTest {
 	// where the geometry actually rasterizes, Y-negation and all.
 	private val bandQuad = floatArrayOf(-16f, 8f, 16f, 8f, -16f, 30f, 16f, 30f)
 
-	// Rows (top-first) inside and outside the rendered quad band.  Mesh y [8, 30] -> rendered-world y
+	// Rows (top-first) inside and outside the rendered quad band.  Mesh y [8, 30] -> rendered-world Z
 	// [-30, -8] -> top-first rows ~[40, 62]; row 50 is inside, row 12 is well above (outside).
 	private val insideRow = 50
 	private val outsideRow = 12
@@ -68,7 +68,7 @@ class CompositeOptimizationTest {
 			alphaBlendMode = AlphaBlendMode.Over,
 			culling = false,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions, FloatArray(positions.size), frontIndices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), frontIndices),
 			geometryGrid = restGrid(positions.size),
 			isVisible = true,
 		)
@@ -84,7 +84,7 @@ class CompositeOptimizationTest {
 			canvasWidth = 0f,
 			canvasHeight = 0f,
 			worldOriginX = 0f,
-			worldOriginY = 0f,
+			worldOriginZ = 0f,
 		).withDerivedRenderRoot()
 
 	private fun isolated(partId: String, childId: String, composite: PartComposite): Part =
@@ -106,11 +106,13 @@ class CompositeOptimizationTest {
 		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
 		renderer.render(target, viewportSize, viewportSize)
 		val image = device.readPixels(target)
+
 		return IntArray(image.rgba.size) { image.rgba[it].toInt() and 0xFF }
 	}
 
 	private fun pixel(image: IntArray, x: Int, y: Int): IntArray {
 		val offset = (y * viewportSize + x) * 4
+
 		return IntArray(4) { image[offset + it] }
 	}
 
@@ -155,9 +157,11 @@ class CompositeOptimizationTest {
 		val plainImage = renderImage(plain)
 		val wrappedImage = renderImage(wrapped)
 		var maxDiff = 0
+
 		for (index in plainImage.indices) {
 			maxDiff = maxOf(maxDiff, abs(plainImage[index] - wrappedImage[index]))
 		}
+
 		assertTrue(maxDiff <= 1, "flattened identity composite matches plain drawing (max channel diff $maxDiff)")
 	}
 

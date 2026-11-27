@@ -34,7 +34,7 @@ class UnkeyedDrawableRenderTest {
 	private val paramA = ParameterId("A")
 	private val drawableId = DrawableId("M")
 
-	private fun mesh(): DrawableMesh = DrawableMesh(floatArrayOf(10f, 5f, 20f, 7f), FloatArray(0), intArrayOf(0, 1, 0))
+	private fun mesh(): DrawableMesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(10f, 5f, 20f, 7f), FloatArray(0), intArrayOf(0, 1, 0))
 
 	private fun model(drawable: Drawable): PuppetModel =
 		PuppetModel(
@@ -66,7 +66,7 @@ class UnkeyedDrawableRenderTest {
 	}
 
 	/**
-	 * A KEYED drawable whose pose is outside its key range is still hidden. This is the case that must not
+	 * A KEYED drawable whose pose is outside its key range is still hidden.  This is the case that must not
 	 * be confused with the one above - out of range is a deliberate authoring device (the toggle-part
 	 * pattern), and turning it into "render at rest" would make hidden art reappear.
 	 */

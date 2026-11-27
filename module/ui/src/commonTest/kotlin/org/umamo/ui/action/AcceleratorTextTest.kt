@@ -21,6 +21,15 @@ class AcceleratorTextTest {
 		assertEquals("−", keyGlyph("Minus"))
 		assertEquals("Esc", keyGlyph("Escape"))
 		assertEquals("Space", keyGlyph("Space"))
+		assertEquals(",", keyGlyph("Comma"))
+		assertEquals(".", keyGlyph("Period"))
+		assertEquals(";", keyGlyph("Semicolon"))
+		assertEquals("'", keyGlyph("Quote"))
+		assertEquals("[", keyGlyph("BracketLeft"))
+		assertEquals("]", keyGlyph("BracketRight"))
+		assertEquals("\\", keyGlyph("Backslash"))
+		assertEquals("/", keyGlyph("Slash"))
+		assertEquals("`", keyGlyph("Backquote"))
 	}
 
 	/**
@@ -38,6 +47,7 @@ class AcceleratorTextTest {
 	fun formatsPrimaryModifierWithSuppliedLabel() {
 		assertEquals("Ctrl+O", formatAccelerator(KeyChord(keyName = "KeyO", primaryModifier = true), "Ctrl"))
 		assertEquals("⌘+O", formatAccelerator(KeyChord(keyName = "KeyO", primaryModifier = true), "⌘"))
+		assertEquals("Ctrl+,", formatAccelerator(KeyChord(keyName = "Comma", primaryModifier = true), "Ctrl"))
 	}
 
 	/**
@@ -47,6 +57,15 @@ class AcceleratorTextTest {
 	fun ordersModifiersPrimaryAltShiftThenKey() {
 		val chord = KeyChord(keyName = "KeyP", primaryModifier = true, shift = true, alt = true)
 		assertEquals("Ctrl+Alt+Shift+P", formatAccelerator(chord, "Ctrl"))
+	}
+
+	/**
+	 * A literal Control (macOS only) reads as the Control glyph, ahead of the primary modifier.
+	 */
+	@Test
+	fun formatsLiteralControlAsTheControlGlyphFirst() {
+		assertEquals("⌃+Tab", formatAccelerator(KeyChord(keyName = "Tab", controlKey = true), "⌘"))
+		assertEquals("⌃+⌘+Shift+K", formatAccelerator(KeyChord(keyName = "KeyK", primaryModifier = true, shift = true, controlKey = true), "⌘"))
 	}
 
 	/**

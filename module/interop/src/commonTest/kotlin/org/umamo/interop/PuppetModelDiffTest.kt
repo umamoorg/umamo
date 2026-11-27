@@ -8,6 +8,7 @@ import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTile
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
@@ -22,6 +23,7 @@ import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm
+import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterGroupId
@@ -34,6 +36,7 @@ import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.SourceLayerRef
+import org.umamo.runtime.model.reloadTileId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -61,7 +64,7 @@ class PuppetModelDiffTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh =
-				DrawableMesh(
+				DrawableMesh.withLocalEqualToCanvas(
 					positions = floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f),
 					uvs = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
 					indices = intArrayOf(0, 1, 2),
@@ -124,6 +127,7 @@ class PuppetModelDiffTest {
 	/** The field set of a category's single Changed entry, asserting it is the only diff. */
 	private fun <TId, TField> onlyChangedFields(diffs: List<EntityDiff<TId, TField>>): Set<TField> {
 		assertEquals(1, diffs.size)
+
 		return when (val entry = diffs.single()) {
 			is EntityDiff.Changed -> entry.fields
 			else -> fail("expected a Changed entry, got $entry")
@@ -168,6 +172,8 @@ class PuppetModelDiffTest {
 		assertEquals(setOf(ParameterField.NAME), fieldsAfter { entity -> entity.copy(name = "Renamed") })
 		assertEquals(setOf(ParameterField.RANGE), fieldsAfter { entity -> entity.copy(max = 2f) })
 		assertEquals(setOf(ParameterField.KIND), fieldsAfter { entity -> entity.copy(kind = ParameterKind.BLEND_SHAPE) })
+		assertEquals(setOf(ParameterField.REPEAT), fieldsAfter { entity -> entity.copy(repeat = true) })
+		assertEquals(setOf(ParameterField.NOTE), fieldsAfter { entity -> entity.copy(note = "A note") })
 	}
 
 	/** A one-ULP float nudge is a reported change - the diff is bit-exact, never tolerance-based. */
@@ -256,6 +262,7 @@ class PuppetModelDiffTest {
 		assertEquals(setOf(DeformerField.LATTICE), fieldsAfter(warp.copy(rows = 3)))
 		assertEquals(setOf(DeformerField.STATICS), fieldsAfter(warp.copy(opacity = 0.5f)))
 		assertEquals(setOf(DeformerField.PARENT), fieldsAfter(warp.copy(parent = DeformerId("Other"))))
+		assertEquals(setOf(DeformerField.VISIBLE), fieldsAfter(warp.copy(isVisible = false)))
 		val rotationUnderSameId =
 			Deformer.Rotation(
 				id = warp.id,
@@ -281,19 +288,102 @@ class PuppetModelDiffTest {
 		assertEquals(setOf(DrawableField.CHANNELS), fieldsAfter(gridded.copy(channelGrids = opacityTrack(0.25f))))
 		val mesh = gridded.mesh!!
 		val movedVertex =
-			DrawableMesh(
+			DrawableMesh.withLocalEqualToCanvas(
 				positions = floatArrayOf(0f, 0f, 10f, 0f, 5f, 10f),
 				uvs = mesh.uvs,
 				indices = mesh.indices,
 			)
-		assertEquals(setOf(DrawableField.MESH_POSITIONS), fieldsAfter(gridded.copy(mesh = movedVertex)))
+		// The shared array moves the canvas mesh and the keyform-space base together, and the base moves every keyform.
+		assertEquals(setOf(DrawableField.MESH_POSITIONS, DrawableField.GEOMETRY), fieldsAfter(gridded.copy(mesh = movedVertex)))
+		val canvasOnly = DrawableMesh(floatArrayOf(0f, 0f, 10f, 0f, 5f, 10f), mesh.localPositions, mesh.uvs, mesh.indices)
+		assertEquals(setOf(DrawableField.MESH_POSITIONS), fieldsAfter(gridded.copy(mesh = canvasOnly)), "the canvas mesh alone is no keyform change")
+		val localOnly = DrawableMesh(mesh.positions, floatArrayOf(0f, 0f, 10f, 0f, 5f, 10f), mesh.uvs, mesh.indices)
+		assertEquals(setOf(DrawableField.GEOMETRY), fieldsAfter(gridded.copy(mesh = localOnly)), "the keyform-space base alone moves the keyforms")
 		val rewound =
-			DrawableMesh(
+			DrawableMesh.withLocalEqualToCanvas(
 				positions = mesh.positions,
 				uvs = mesh.uvs,
 				indices = intArrayOf(2, 1, 0),
 			)
 		assertEquals(setOf(DrawableField.MESH_TOPOLOGY), fieldsAfter(gridded.copy(mesh = rewound)))
+	}
+
+	/**
+	 * A delta array shorter than its base rebuilds the base alone past its end (the evaluator's tolerance), so a
+	 * base that moves there is a moved keyform, and the diff says so.
+	 */
+	@Test
+	fun aBaseMovePastAShortDeltaArrayIsAGeometryEdit() {
+		val angleY = ParameterId("ParamAngleY")
+		val base = floatArrayOf(0f, 0f, 10f, 0f, 5f, 10f)
+		val mesh = DrawableMesh.withLocalEqualToCanvas(base, floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2))
+		val shortGrid =
+			KeyformGrid(
+				listOf(KeyformAxis(angleY, floatArrayOf(0f, 1f))),
+				listOf(
+					KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(2))),
+					KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(1f, 0f))),
+				),
+			)
+		val baseline = drawable("d1").copy(mesh = mesh, geometryGrid = shortGrid)
+		val movedTail = baseline.copy(mesh = DrawableMesh(mesh.positions, floatArrayOf(0f, 0f, 10f, 0f, 5f, 12f), mesh.uvs, mesh.indices))
+		assertEquals(
+			setOf(DrawableField.GEOMETRY),
+			onlyChangedFields(diffPuppetModels(puppet(drawables = listOf(baseline)), puppet(drawables = listOf(movedTail))).drawables),
+			"the last vertex moved under every keyform",
+		)
+		val sameTail = baseline.copy(mesh = DrawableMesh(mesh.positions, base.copyOf(), mesh.uvs, mesh.indices))
+		assertTrue(diffPuppetModels(puppet(drawables = listOf(baseline)), puppet(drawables = listOf(sameTail))).drawables.isEmpty(), "the same base in another array is no edit")
+	}
+
+	/**
+	 * Keyform geometry compares by the absolute floats each keyform rebuilds, `localPositions + Δ`: two deltas that
+	 * rebuild the same float are the same keyform even when their bits differ, which is what a CMO3 round trip
+	 * produces when a delta is re-derived from a rebuilt float.
+	 */
+	@Test
+	fun deltasThatRebuildTheSameFloatAreTheSameKeyform() {
+		// At 4096 a float steps by 1/2048, so both deltas below rebuild 4096 exactly.
+		val base = floatArrayOf(4096f, 0f, 4106f, 0f, 4096f, 10f)
+		val mesh = DrawableMesh.withLocalEqualToCanvas(base, floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2))
+
+		/**
+		 * A one-axis grid whose second cell moves the first vertex's x by [firstDelta].
+		 *
+		 * @param Float firstDelta The delta.
+		 * @return KeyformGrid The grid.
+		 */
+		fun gridWith(firstDelta: Float): KeyformGrid<MeshDeltaForm> =
+			KeyformGrid(
+				listOf(KeyformAxis(angleX, floatArrayOf(0f, 1f))),
+				listOf(
+					KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(6))),
+					KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(firstDelta, 0f, 0f, 0f, 0f, 0f))),
+				),
+			)
+		val baseline = drawable("d1").copy(mesh = mesh, geometryGrid = gridWith(1e-5f))
+		val reDerived = baseline.copy(geometryGrid = gridWith(2e-5f))
+		assertTrue(diffPuppetModels(puppet(drawables = listOf(baseline)), puppet(drawables = listOf(reDerived))).drawables.isEmpty(), "the same rebuilt floats are no edit")
+		val moved = baseline.copy(geometryGrid = gridWith(0.25f))
+		assertEquals(setOf(DrawableField.GEOMETRY), onlyChangedFields(diffPuppetModels(puppet(drawables = listOf(baseline)), puppet(drawables = listOf(moved))).drawables))
+	}
+
+	/**
+	 * A blend form's deltas are measured from the keyform-space base too, so moving that base alone changes the blend
+	 * shape, and a drawable with no grid reports the base move as its geometry.
+	 */
+	@Test
+	fun aBaseMoveChangesTheBlendShapes() {
+		val withBlend =
+			drawable("d1").copy(
+				blendShapes = listOf(BlendShapeBinding(angleX, floatArrayOf(0f, 1f), 0, listOf(null, MeshForm(floatArrayOf(1f, 0f, 0f, 0f, 0f, 0f))))),
+			)
+		val mesh = withBlend.mesh!!
+		val shifted = withBlend.copy(mesh = DrawableMesh(mesh.positions, floatArrayOf(0.5f, 0f, 10f, 0f, 0f, 10f), mesh.uvs, mesh.indices))
+		assertEquals(
+			setOf(DrawableField.GEOMETRY, DrawableField.BLEND_SHAPES),
+			onlyChangedFields(diffPuppetModels(puppet(drawables = listOf(withBlend)), puppet(drawables = listOf(shifted))).drawables),
+		)
 	}
 
 	/** A glue is keyed by its ORDERED mesh pair - reversing the pair is a delete plus a create. */
@@ -322,6 +412,7 @@ class PuppetModelDiffTest {
 
 		fun fieldsAfter(edited: Glue): Set<GlueField> {
 			val diff = diffPuppetModels(baseline, puppet(drawables = baseline.drawables, glues = listOf(edited))).glues
+
 			return (diff.single() as GlueDiff.Changed).fields
 		}
 		assertEquals(setOf(GlueField.PAIRS), fieldsAfter(Glue(meshA, meshB, listOf(GluePair(0, 0, 0.9f, 0.5f)))))
@@ -406,6 +497,38 @@ class PuppetModelDiffTest {
 		assertTrue(repaged.atlasTiles.isEmpty(), "resizing a page moves no tile")
 
 		assertTrue(diffPuppetModels(baseline, baseline).isEmpty, "an untouched atlas is no difference at all")
+	}
+
+	/**
+	 * A reload is a change to the tile's pixels, reported under the baseline's id, even when the repainted art
+	 * keeps its name, size, and place and the drawables over it follow the replacement - the case in which
+	 * nothing else in the model differs, and an export that saw no difference would write the old pixels.
+	 */
+	@Test
+	fun aReloadIsAPixelChangeEvenAtTheSameSizeAndPlace() {
+		val tileId = AtlasTileId("tile0")
+		val placed = AtlasPlacement(0, 4f, 8f, scaleX = 1f, scaleY = 1f, rotationDegrees = 0f)
+		val tile = AtlasTile(tileId, "Art", 16, 16, placed, source = SourceLayerRef(ArtSourceId("art-0"), "lyid:3", stableKey = true))
+		val baseline =
+			puppet(drawables = listOf(drawable("D1").copy(atlasTileId = tileId))).copy(
+				atlas = PuppetAtlas(listOf(AtlasPage(64, 64)), listOf(tile)),
+			)
+		val replacement = tile.copy(id = reloadTileId(tileId, setOf(tileId)), replaces = tileId)
+
+		val repainted =
+			diffPuppetModels(
+				baseline,
+				baseline.copy(
+					drawables = listOf(baseline.drawables.single().copy(atlasTileId = replacement.id)),
+					atlas = baseline.atlas.copy(tiles = listOf(replacement)),
+				),
+			)
+		assertEquals(listOf(EntityDiff.Changed(tileId, setOf(AtlasTileField.PIXELS))), repainted.atlasTiles)
+		assertTrue(repainted.drawables.isEmpty(), "a drawable carried onto its tile's replacement is not rebound")
+		assertTrue(!repainted.isEmpty, "so the export has the repaint to write")
+
+		val regrown = diffPuppetModels(baseline, baseline.copy(atlas = baseline.atlas.copy(tiles = listOf(replacement.copy(width = 24, height = 24)))))
+		assertEquals(listOf(EntityDiff.Changed(tileId, setOf(AtlasTileField.METADATA, AtlasTileField.PIXELS))), regrown.atlasTiles)
 	}
 
 	/** Rebinding a drawable to different art is a drawable-level difference the export must see. */

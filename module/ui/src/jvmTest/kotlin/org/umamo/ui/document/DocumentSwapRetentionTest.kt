@@ -4,9 +4,9 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterChange
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
-import org.umamo.render.SourceArtRasters
-import org.umamo.ui.model.DrawableThumbnailer
+import org.umamo.testkit.skipTest
 import org.umamo.ui.model.SessionAtlasPages
+import org.umamo.ui.model.thumbnails.DrawableThumbnailer
 import java.io.File
 import java.lang.ref.WeakReference
 import kotlin.test.Test
@@ -39,15 +39,17 @@ class DocumentSwapRetentionTest {
 
 	@Test
 	fun aReplacedDocumentAndItsSessionBecomeUnreachable() {
-		val file = sample ?: return
+		val file = sample ?: skipTest("cmo3.sample not present")
 		val replacedReferences = openUseAndRelease(file)
 		// The incoming document is held strongly across the whole check, as the shell holds its
 		// current document while the previous one is discarded.
 		val currentDocument = loadCmo3Document(file)
 		awaitCollection(replacedReferences)
+
 		for ((label, reference) in replacedReferences) {
 			assertNull(reference.get(), "$label is still strongly reachable after the document swap")
 		}
+
 		assertTrue(currentDocument.puppet.drawables.isNotEmpty(), "the replacement document stays live")
 	}
 
@@ -86,11 +88,9 @@ class DocumentSwapRetentionTest {
 				"DrawableThumbnailer" to WeakReference<Any>(thumbnails),
 				"SessionAtlasPages" to WeakReference<Any>(sessionAtlasPages),
 			)
-		// The shared EMPTY store is a permanent singleton, so it only counts when this document built
-		// its own.
-		if (document.artRasters !== SourceArtRasters.EMPTY) {
-			references.add("SourceArtRasters" to WeakReference<Any>(document.artRasters))
-		}
+		// Every document builds its own raster store, so this one is always the document's to release.
+		references.add("SourceArtRasters" to WeakReference<Any>(document.artRasters))
+
 		return references
 	}
 
@@ -102,6 +102,7 @@ class DocumentSwapRetentionTest {
 	 */
 	private fun loadCmo3Document(file: File): Cmo3Document {
 		val load = loadDocument(file.readBytes(), file.name, file.path)
+
 		return assertIs<Cmo3Document>(assertIs<DocumentLoad.Loaded>(load).document)
 	}
 
@@ -113,11 +114,14 @@ class DocumentSwapRetentionTest {
 	 */
 	private fun awaitCollection(references: List<Pair<String, WeakReference<Any>>>) {
 		val deadlineNanos = System.nanoTime() + GC_WAIT_MILLIS * 1_000_000L
+
 		while (System.nanoTime() < deadlineNanos) {
 			System.gc()
+
 			if (references.all { (_, reference) -> reference.get() == null }) {
 				return
 			}
+
 			Thread.sleep(GC_POLL_MILLIS)
 		}
 	}

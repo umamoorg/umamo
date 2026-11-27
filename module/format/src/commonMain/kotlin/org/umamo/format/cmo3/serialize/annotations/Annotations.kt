@@ -3,8 +3,8 @@ package org.umamo.format.cmo3.serialize.annotations
 /**
  * Marks a property as serialized.
  *
- * EN: The editor serializes a property unless told otherwise; this annotation makes intent explicit
- *     and carries [readOnly] (deserialized but treated as read-only by the editor UI).
+ * The editor serializes a property unless told otherwise; this annotation makes intent explicit
+ * and carries [readOnly] (deserialized but treated as read-only by the editor UI).
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Serializer mechanics</a>
  */
@@ -35,8 +35,8 @@ public annotation class SuppressSerializeSuperClass
  * Pins the serialized element tag for a class (overrides the default simple-name mapping) and,
  * optionally, the schema version emitted as a `<?version tag:version?>` PI.
  *
- * EN: The editor derives the tag from the class (simple name, or an `<?import?>`-qualified name).
- *     We make it explicit per class so the registry and version PIs are driven from the model.
+ * The editor derives the tag from the class (simple name, or an `<?import?>`-qualified name).
+ * We make it explicit per class so the registry and version PIs are driven from the model.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Serializer mechanics</a>
  */

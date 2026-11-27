@@ -62,6 +62,7 @@ enum class Cmo3TargetVersion(val major: Int, val minor: Int, val versionNo: Int)
 			if (versionNo == null) {
 				return null
 			}
+
 			return entries.firstOrNull { it.versionNo == versionNo }
 				?: entries.firstOrNull { it.modernVersionNo == versionNo }
 		}

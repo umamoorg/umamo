@@ -1,0 +1,70 @@
+package org.umamo.ui.workspace.spaces.viewport2d
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
+import org.umamo.ui.action.CommandFamily
+import org.umamo.ui.action.CommandIconButton
+import org.umamo.ui.action.LocalCommands
+import org.umamo.ui.action.ObserveForCommands
+import org.umamo.ui.kit.button.IconButtonAppearance
+import org.umamo.ui.model.LocalEditorSession
+import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoShapes
+
+/** The square size of one toolbar button (generous for pen and touch). */
+private val TOOLBAR_BUTTON_SIZE = 28.dp
+
+/** The glyph size inside a toolbar button. */
+private val TOOLBAR_GLYPH_SIZE = 18.dp
+
+/**
+ * The viewport's floating left tool toolbar (Blender's toolbar, reduced to a strip): the viewport tool family as
+ * the registry lists it, the select tools then the modal transforms.  Each button is its command's - the glyph, the
+ * label, lit while the tool is armed or in flight, and grayed with no open document - so the buttons, shortcuts,
+ * pies, and palette all share one behavior, and the strip still renders, disabled, before the first file opens.
+ *
+ * The caller gates the strip's visibility and mounts it in a [org.umamo.ui.kit.PointerShield], keeping
+ * this composable a pure strip.
+ *
+ * @param Modifier modifier The layout modifier.
+ */
+@Composable
+internal fun ViewportToolbarOverlay(modifier: Modifier = Modifier) {
+	val commands = LocalCommands.current
+	val session = LocalEditorSession.current
+	val colors = LocalUmamoColors.current
+	val shapes = LocalUmamoShapes.current
+	// Each change recomposes the strip, whose buttons then ask their commands which tool is armed or in flight.
+	ObserveForCommands(
+		session?.activeSelectTool?.collectAsState()?.value,
+		session?.activeMeshOperator?.collectAsState()?.value,
+		session?.activeObjectOperator?.collectAsState()?.value,
+	)
+	Column(
+		modifier =
+			modifier
+				.background(colors.panelBackground, shapes.small)
+				.border(width = 1.dp, color = colors.panelBorder, shape = shapes.small)
+				.padding(3.dp),
+		horizontalAlignment = Alignment.CenterHorizontally,
+		verticalArrangement = Arrangement.spacedBy(2.dp),
+	) {
+		for (tool in commands.inGroup(CommandFamily.ViewportTool)) {
+			CommandIconButton(
+				command = tool,
+				appearance = IconButtonAppearance.Filled(shapes.small),
+				size = DpSize(TOOLBAR_BUTTON_SIZE, TOOLBAR_BUTTON_SIZE),
+				glyphSize = TOOLBAR_GLYPH_SIZE,
+			)
+		}
+	}
+}

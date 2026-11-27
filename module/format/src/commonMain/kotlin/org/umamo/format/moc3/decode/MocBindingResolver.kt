@@ -36,6 +36,7 @@ internal class MocBindingResolver(sections: MocSections) {
 		val bindingCountPerParameter = sections.intArray(Section.PARAMETER_BINDING_COUNT)
 		owningParameter = IntArray(bindingCountPerParameter.sum())
 		var bindingSlot = 0
+
 		for (parameterIndex in bindingCountPerParameter.indices) {
 			repeat(bindingCountPerParameter[parameterIndex]) { owningParameter[bindingSlot++] = parameterIndex }
 		}
@@ -104,11 +105,13 @@ internal class MocBindingResolver(sections: MocSections) {
 	 */
 	private fun mainGridKeyTotal(): Int {
 		val keySetsByParameter = HashMap<Int, LinkedHashSet<List<Float>>>()
+
 		for (resolvedBinding in resolved.values) {
 			for (axis in resolvedBinding.axes) {
 				keySetsByParameter.getOrPut(axis.parameterIndex) { LinkedHashSet() }.add(axis.keyPositions.toList())
 			}
 		}
+
 		return keySetsByParameter.values.sumOf { keySets -> keySets.sumOf { it.size } }
 	}
 

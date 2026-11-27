@@ -2,6 +2,8 @@ package org.umamo.interop.moc3.export
 
 import org.umamo.format.moc3.model.KeyformBinding
 import org.umamo.format.moc3.model.Rgb
+import org.umamo.interop.ExportEntityCategory
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.KeyformBundle
 import org.umamo.interop.KeyformBundleResult
 import org.umamo.interop.OutOfSpanPolicy
@@ -12,6 +14,7 @@ import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.ParameterId
 import org.umamo.format.moc3.model.KeyformAxis as MocKeyformAxis
 
 /**
@@ -37,7 +40,7 @@ import org.umamo.format.moc3.model.KeyformAxis as MocKeyformAxis
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */
-class Moc3KeyformPool(private val parameterIndexOf: (org.umamo.runtime.model.ParameterId) -> Int) {
+class Moc3KeyformPool(private val parameterIndexOf: (ParameterId) -> Int) {
 	/** Signature → binding index, so two objects on the same axes share one record. */
 	private val indexBySignature = LinkedHashMap<List<Pair<Int, List<Float>>>, Int>()
 	private val bindings = ArrayList<KeyformBinding>()
@@ -47,7 +50,11 @@ class Moc3KeyformPool(private val parameterIndexOf: (org.umamo.runtime.model.Par
 		intern(emptyList())
 	}
 
-	/** Every interned binding, in index order - what `MocDocument.keyformBindings` is built from. */
+	/**
+	 * Every interned binding, in index order - what `MocDocument.keyformBindings` is built from.
+	 *
+	 * @return List<KeyformBinding> The bindings, in pool index order.
+	 */
 	fun bindings(): List<KeyformBinding> = bindings.toList()
 
 	/**
@@ -90,35 +97,35 @@ class Moc3KeyformPool(private val parameterIndexOf: (org.umamo.runtime.model.Par
 class Moc3ObjectKeyforms(
 	val bindingIndex: Int,
 	val bundle: KeyformBundle,
-) {
-	/**
-	 * Channels the bundling dropped to their static, which the caller turns into notices.
-	 *
-	 * Delegated rather than copied into a field of its own: two stores of one fact let a later change
-	 * filter the demotions in one place and leave the other reading the unfiltered list, with nothing
-	 * in the type system to catch the divergence.
-	 */
-	val demotedChannels: List<FormChannel> get() = bundle.demotedChannels
-}
+)
 
 /**
- * Re-bundles one object and interns its binding.
+ * Re-bundles one object, interns its binding, and reports what the bundling could not keep.
  *
  * MOC3 takes [OutOfSpanPolicy.DemoteChannel] rather than CMO3's reject: every moc object must carry at
  * least one keyform, so declining an owner would mean writing nothing for it and producing a file the
- * runtime cannot load.  Losing one channel's animation is the strictly smaller loss, and the caller
- * turns the demotion into a notice so it is never silent.
+ * runtime cannot load.  Losing one channel's animation is the strictly smaller loss.
  *
- * @param Moc3KeyformPool  pool            The shared binding pool.
- * @param KeyformGrid?     geometryGrid    The object's geometry grid, or null when it has none.
- * @param FormInterpolator geometryBlend   The geometry interpolator.
- * @param ChannelGrids     channels        The object's channel tracks.
- * @param Map              statics         Fallback value per channel the object owns.
- * @param Boolean          requireGeometry Whether a geometry-less object is an error.
- * @return Moc3ObjectKeyforms? The lowered keyforms, or null when unrepresentable.
+ * Both losses are reported here rather than by each caller, so no object kind can take one silently: a
+ * channel demoted to its static, and a set that will not bundle at all, which leaves the caller one
+ * static form to write.
+ *
+ * @param Moc3KeyformPool      pool            The shared binding pool.
+ * @param Moc3ExportNotices    noticeSink      Appended to: demoted channels, and a set that will not bundle.
+ * @param ExportEntityCategory category        The object's category, for those notices.
+ * @param String               subject         The object's id, for those notices.
+ * @param KeyformGrid?         geometryGrid    The object's geometry grid, or null when it has none.
+ * @param FormInterpolator     geometryBlend   The geometry interpolator.
+ * @param ChannelGrids         channels        The object's channel tracks.
+ * @param Map                  statics         Fallback value per channel the object owns.
+ * @param Boolean              requireGeometry Whether a geometry-less object is an error.
+ * @return Moc3ObjectKeyforms? The lowered keyforms, or null when the set would not bundle.
  */
-fun <TGeometry> lowerObjectKeyforms(
+internal fun <TGeometry> lowerObjectKeyforms(
 	pool: Moc3KeyformPool,
+	noticeSink: Moc3ExportNotices,
+	category: ExportEntityCategory,
+	subject: String,
 	geometryGrid: KeyformGrid<TGeometry>?,
 	geometryBlend: FormInterpolator<TGeometry>,
 	channels: ChannelGrids,
@@ -134,11 +141,21 @@ fun <TGeometry> lowerObjectKeyforms(
 			requireGeometry,
 			OutOfSpanPolicy.DemoteChannel,
 		)
-	if (result !is KeyformBundleResult.Bundled) {
-		return null
+
+	return when (result) {
+		is KeyformBundleResult.Bundled -> {
+			for ((channel, cause) in result.bundle.demotedChannels) {
+				noticeSink.unsupported(category, subject, ExportNoticeReason.ChannelDemotedToStatic(channel, cause))
+			}
+
+			Moc3ObjectKeyforms(pool.indexOf(result.bundle), result.bundle)
+		}
+
+		is KeyformBundleResult.Unrepresentable -> {
+			noticeSink.unsupported(category, subject, ExportNoticeReason.KeyformsDemotedToStatic(result.rejection))
+			null
+		}
 	}
-	val bundle = result.bundle
-	return Moc3ObjectKeyforms(pool.indexOf(bundle), bundle)
 }
 
 /**
@@ -190,7 +207,9 @@ fun colorOf(
 	if (!enabled) {
 		return null
 	}
+
 	val value =
 		(bundle?.cells?.getOrNull(cellIndex)?.channels?.get(channel) as? ChannelValue.Color)?.color ?: fallback
+
 	return Rgb(value.red, value.green, value.blue)
 }

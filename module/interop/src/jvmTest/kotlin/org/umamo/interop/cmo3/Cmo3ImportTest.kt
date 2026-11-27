@@ -17,6 +17,7 @@ import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraintSet
 import org.umamo.format.cmo3.model.gen.Type
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.OrgChild
@@ -26,6 +27,7 @@ import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.partByDrawable
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -36,8 +38,8 @@ import kotlin.test.assertTrue
 /**
  * Reads a real `.cmo3` corpus sample, maps it to a `PuppetModel`, and checks the structural tree.
  *
- * Self-contained (no editor jar); skips when the sample is absent. Pass
- * `-Dcmo3.sample=/path/to/Model.cmo3`. The printed summary matches the official editor's Parts/Parameters
+ * Self-contained (no editor jar); skips when the sample is absent.  Pass
+ * `-Dcmo3.sample=/path/to/Model.cmo3`.  The printed summary matches the official editor's Parts/Parameters
  * panels; the assertions verify referential integrity (every GUID cross-reference resolves to a real entity).
  */
 class Cmo3ImportTest {
@@ -46,10 +48,11 @@ class Cmo3ImportTest {
 	@Test
 	fun mapsCorpusModelToStructuralTree() {
 		val file = sample
+
 		if (file == null) {
-			println("cmo3.sample not present; skipping import test")
-			return
+			skipTest("cmo3.sample not present; skipping import test")
 		}
+
 		val root = Cmo3.read(file).root as? CModelSource ?: error("root is not a CModelSource")
 		val puppet = Cmo3Import.fromModelSource(root)
 
@@ -80,8 +83,8 @@ class Cmo3ImportTest {
 		)
 
 		// Golden gate: for the EricaTamamo corpus, assert the exact figures from
-		// test/corpus/EricaTamamo.stats. Other samples get only the sample-agnostic integrity checks
-		// below. (Parameter count is observed - the stats file does not list it.)
+		// test/corpus/EricaTamamo.stats.  Other samples get only the sample-agnostic integrity checks
+		// below.  (Parameter count is observed - the stats file does not list it.)
 		if (file.name.startsWith("EricaTamamo")) {
 			assertEquals(116, puppet.parameters.size, "parameters")
 			// CMO3 combined-parameter pairs: head Angle X/Y and Eyeball X/Y are the model's only links.
@@ -160,19 +163,24 @@ class Cmo3ImportTest {
 			}
 		}
 		checkOrgChildren(puppet.rootChildren, "root")
+
 		for (part in puppet.parts) {
 			checkOrgChildren(part.children, "part ${part.id.raw}")
 		}
+
 		val placedDrawables = puppet.partByDrawable().keys
+
 		for (drawable in puppet.drawables) {
 			assertTrue(drawable.id in placedDrawables, "drawable ${drawable.id.raw} is missing from the org tree")
 			drawable.parentDeformerId?.let {
 				assertTrue(it in deformerIds, "drawable ${drawable.id.raw} -> unknown deformer ${it.raw}")
 			}
+
 			for (mask in drawable.maskedBy) {
 				assertTrue(mask in drawableIds, "drawable ${drawable.id.raw} -> unknown mask ${mask.raw}")
 			}
 		}
+
 		for (deformer in puppet.deformers) {
 			deformer.parent?.let {
 				assertTrue(it in deformerIds, "deformer ${deformer.id.raw} -> unknown parent ${it.raw}")
@@ -216,6 +224,57 @@ class Cmo3ImportTest {
 		assertEquals("ArtMesh9", puppet.drawables.first { it.id.raw == "ArtMesh9" }.name, "unnamed drawable falls back to id")
 		assertEquals("Warp Deformer of Bag front12", puppet.deformers.first { it.id.raw == "Warp1" }.name, "named deformer")
 		assertEquals("Warp9", puppet.deformers.first { it.id.raw == "Warp9" }.name, "unnamed deformer falls back to id")
+	}
+
+	/**
+	 * Corpus-free check that a name written as an empty string is no name.  The editor writes
+	 * `<s xs.n="localName" />` for an art mesh the rigger never named, which reads as an empty string and
+	 * not as an absent one, and a row labelled with nothing cannot be read or told from its neighbours.
+	 */
+	@Test
+	fun anEmptyOrBlankNameFallsBackToTheId() {
+		fun makeId(value: String) = Id("").apply { idstr = value }
+
+		val emptyNamedMesh =
+			CArtMeshSource().apply {
+				id = makeId("ArtMesh7")
+				localName = ""
+			}
+		val spacedMesh =
+			CArtMeshSource().apply {
+				id = makeId("ArtMesh8")
+				localName = " Eye L "
+			}
+		val blankNamedWarp =
+			CWarpDeformerSource().apply {
+				id = makeId("Warp7")
+				localName = "   "
+			}
+
+		val model =
+			CModelSource().apply {
+				drawableSourceSet = CDrawableSourceSet().apply { _sources = arrayListOf(emptyNamedMesh, spacedMesh) }
+				deformerSourceSet = CDeformerSourceSet().apply { _sources = arrayListOf(blankNamedWarp) }
+			}
+
+		val puppet = Cmo3Import.fromModelSource(model)
+
+		assertEquals("ArtMesh7", puppet.drawables.first { it.id.raw == "ArtMesh7" }.name, "an empty name falls back to the id")
+		assertEquals("Warp7", puppet.deformers.first { it.id.raw == "Warp7" }.name, "a blank name falls back to the id")
+		assertEquals(" Eye L ", puppet.drawables.first { it.id.raw == "ArtMesh8" }.name, "a name with text in it is kept as written")
+	}
+
+	/**
+	 * The one rule every named CMO3 object takes its display name by: parameters, parameter groups, parts,
+	 * deformers, and drawables with their id as the fallback, tiles and artwork sources with their guid.
+	 */
+	@Test
+	fun theDisplayNameIsTheObjectsOwnOrItsFallback() {
+		assertEquals("Angle X", displayNameOf("Angle X", "ParamAngleX"))
+		assertEquals("ParamAngleX", displayNameOf(null, "ParamAngleX"), "absent")
+		assertEquals("ParamAngleX", displayNameOf("", "ParamAngleX"), "empty")
+		assertEquals("ParamAngleX", displayNameOf(" \t", "ParamAngleX"), "blank")
+		assertEquals("", displayNameOf("", null), "with neither a name nor a fallback there is nothing to show")
 	}
 
 	/**
@@ -275,16 +334,17 @@ class Cmo3ImportTest {
 	/**
 	 * Probe loop over the whole corpus (`cmo3.probe`, comma-separated; defaults to every corpus
 	 * .cmo3): every model ingests with well-formed blend-shape bindings, and the two blend-shape
-	 * corpus anchors (Model A, Model B) match their golden counts. Skips gracefully without the corpus.
+	 * corpus anchors (Model A, Model B) match their golden counts.  Skips gracefully without the corpus.
 	 */
 	@Test
 	fun blendShapeBindingsAcrossCorpus() {
 		val files =
 			System.getProperty("cmo3.probe")?.split(',')?.map(::File)?.filter { it.isFile }.orEmpty()
+
 		if (files.isEmpty()) {
-			println("cmo3.probe not present; skipping blend-shape corpus probe")
-			return
+			skipTest("cmo3.probe not present; skipping blend-shape corpus probe")
 		}
+
 		for (file in files) {
 			val root = Cmo3.read(file).root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 			val puppet = Cmo3Import.fromModelSource(root)
@@ -303,6 +363,7 @@ class Cmo3ImportTest {
 			)
 
 			val parameterById = puppet.parameters.associateBy { it.id }
+
 			for (binding in bindings) {
 				val parameter = parameterById[binding.parameterId]
 				assertTrue(parameter != null, "${file.name}: binding driver ${binding.parameterId.raw} resolves")
@@ -322,6 +383,7 @@ class Cmo3ImportTest {
 					binding.keys[binding.neutralIndex],
 					"${file.name}: neutral key sits at parameter value 0",
 				)
+
 				// The neutral form is null when inserted (always, in the corpus - a morph authored
 				// exactly at value 0 would occupy the slot but is never read by the evaluator).
 				for (formIndex in binding.forms.indices) {
@@ -329,6 +391,7 @@ class Cmo3ImportTest {
 						assertTrue(binding.forms[formIndex] != null, "${file.name}: non-neutral form present")
 					}
 				}
+
 				for (limit in binding.limits) {
 					assertTrue(parameterById.containsKey(limit.parameterId), "${file.name}: limit constraint parameter resolves")
 					assertTrue(
@@ -345,6 +408,7 @@ class Cmo3ImportTest {
 				assertEquals(118, formCount, "Model A: morph-target form count")
 				assertEquals(0, limitCount, "Model A: no populated blend-weight constraints")
 			}
+
 			if (file.name.startsWith("modelB")) {
 				assertEquals(5, blendShapeParams.size, "Model B: blend-shape parameter count")
 				assertEquals(45, bindings.size, "Model B: binding count")
@@ -352,6 +416,7 @@ class Cmo3ImportTest {
 				assertEquals(44, limitCount, "Model B: limit curve count")
 				assertEquals(88, limitPointCount, "Model B: one point per XML constraint record")
 			}
+
 			// Model C: the corpus constraint + edge-case model. 146 XML morph targets ingest as 145
 			// forms: exactly one is owned by a CPartSource (part blend shapes, a moc v5 feature) and
 			// part morph targets are not ingested yet - deferred with the part/glue target kinds.
@@ -435,6 +500,34 @@ class Cmo3ImportTest {
 		assertNull(binding.forms[1], "inserted neutral has no source form")
 		assertEquals(listOf(-1f, -2f), binding.forms[0]?.controlPoints?.toList(), "form at key -1")
 		assertEquals(listOf(1f, 2f), binding.forms[2]?.controlPoints?.toList(), "form at key +1")
+	}
+
+	/** Corpus-free check that each parameter's isRepeat reaches its repeat flag, set and unset alike. */
+	@Test
+	fun readsEachParametersRepeatFlag() {
+		fun makeId(value: String) = Id("").apply { idstr = value }
+
+		fun makeGuid(value: String) = Guid("").apply { uuid = value }
+
+		val wheel =
+			CParameterSource().apply {
+				guid = makeGuid("param-wheel")
+				id = makeId("ParamWheel")
+				maxValue = 360f
+				isRepeat = true
+			}
+		val angle =
+			CParameterSource().apply {
+				guid = makeGuid("param-angle")
+				id = makeId("ParamAngleX")
+				minValue = -30f
+				maxValue = 30f
+			}
+		val model = CModelSource().apply { parameterSourceSet = CParameterSourceSet().apply { _sources = arrayListOf(wheel, angle) } }
+
+		val repeatById = Cmo3Import.fromModelSource(model).parameters.associate { parameter -> parameter.id.raw to parameter.repeat }
+
+		assertEquals(mapOf("ParamWheel" to true, "ParamAngleX" to false), repeatById)
 	}
 
 	/**

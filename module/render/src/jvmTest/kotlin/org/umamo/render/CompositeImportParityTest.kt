@@ -3,13 +3,14 @@ package org.umamo.render
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -25,7 +26,7 @@ private const val SCALAR_TOLERANCE = 0.001f
  * Imports the offscreen corpus pairs from their `.cmo3` source and baked `.moc3` and asserts the
  * composite surface agrees across the two paths: part composite state (composition enums, clip
  * lists, invert, static channels), the keyformed opacity/color cells, and the drawable-level
- * extended blend + culling. The offscreen counterpart of [Moc3Cmo3ParityTest]. Skips gracefully
+ * extended blend + culling.  The offscreen counterpart of [Moc3Cmo3ParityTest].  Skips gracefully
  * without the corpus.
  */
 class CompositeImportParityTest {
@@ -63,6 +64,10 @@ class CompositeImportParityTest {
 	 * Compares each channel's own track rather than one bundled cell: after the fan-out the channels are
 	 * independent tracks, and comparing them separately is what would catch a fan-out that mis-routed one
 	 * channel's values into another's.
+	 *
+	 * @param ChannelGrids cmo3Channels The CMO3 import's part channel tracks.
+	 * @param ChannelGrids moc3Channels The MOC3 import's part channel tracks.
+	 * @param String       label        The prefix for assertion messages.
 	 */
 	private fun assertChannelTracksMatch(cmo3Channels: ChannelGrids, moc3Channels: ChannelGrids, label: String) {
 		for (channel in listOf(FormChannel.OPACITY, FormChannel.MULTIPLY_COLOR, FormChannel.SCREEN_COLOR)) {
@@ -71,11 +76,13 @@ class CompositeImportParityTest {
 			assertEquals(cmo3Track.axes.size, moc3Track.axes.size, "$label: $channel axis count")
 			assertEquals(cmo3Track.cells.size, moc3Track.cells.size, "$label: $channel cell count")
 			val moc3ByCoordinate = moc3Track.cells.associateBy { cell -> cell.coordinate.toList() }
+
 			for (cmo3Cell in cmo3Track.cells) {
 				val coordinate = cmo3Cell.coordinate.toList()
 				val moc3Cell = assertNotNull(moc3ByCoordinate[coordinate], "$label: $channel cell $coordinate present in moc3")
 				val cmo3Value = cmo3Cell.form
 				val moc3Value = moc3Cell.form
+
 				if (cmo3Value is ChannelValue.Scalar && moc3Value is ChannelValue.Scalar) {
 					assertTrue(
 						abs(cmo3Value.value - moc3Value.value) < SCALAR_TOLERANCE,
@@ -93,6 +100,7 @@ class CompositeImportParityTest {
 	private fun assertCompositeParity(cmo3Puppet: PuppetModel, moc3Puppet: PuppetModel, pairName: String) {
 		val cmo3Parts = cmo3Puppet.parts.associateBy { it.id }
 		var comparedComposites = 0
+
 		for (moc3Part in moc3Puppet.parts) {
 			// The bake drops sketch parts; iterate the moc side, which must be a subset.
 			val cmo3Part = assertNotNull(cmo3Parts[moc3Part.id], "$pairName: moc part ${moc3Part.id.raw} in cmo3")
@@ -102,9 +110,11 @@ class CompositeImportParityTest {
 			val moc3Composite = moc3Part.activeComposite
 			val cmo3Composite = cmo3Part.activeComposite
 			assertEquals(cmo3Composite != null, moc3Composite != null, "$pairName: composite presence of ${moc3Part.id.raw}")
+
 			if (cmo3Composite == null || moc3Composite == null) {
 				continue
 			}
+
 			comparedComposites++
 			val partLabel = "$pairName: ${moc3Part.id.raw}"
 			assertEquals(cmo3Composite.blendMode, moc3Composite.blendMode, "$partLabel color blend")
@@ -117,15 +127,18 @@ class CompositeImportParityTest {
 			)
 			assertColorClose(cmo3Composite.multiplyColor, moc3Composite.multiplyColor, "$partLabel static multiply")
 			assertColorClose(cmo3Composite.screenColor, moc3Composite.screenColor, "$partLabel static screen")
+
 			// Keyformed channels: comparable only when both sides carry parameter-driven tracks (a static
 			// moc part stores none, while the cmo3 may keep a degenerate zero-axis one).
 			if (!cmo3Part.channelGrids.isEmpty && !moc3Part.channelGrids.isEmpty) {
 				assertChannelTracksMatch(cmo3Part.channelGrids, moc3Part.channelGrids, partLabel)
 			}
 		}
+
 		assertTrue(comparedComposites > 0, "$pairName: compared at least one isolated part")
 
 		val cmo3Drawables = cmo3Puppet.drawables.associateBy { it.id }
+
 		for (moc3Drawable in moc3Puppet.drawables) {
 			val cmo3Drawable = assertNotNull(cmo3Drawables[moc3Drawable.id], "$pairName: moc drawable ${moc3Drawable.id.raw} in cmo3")
 			val drawableLabel = "$pairName: ${moc3Drawable.id.raw}"
@@ -144,8 +157,8 @@ class CompositeImportParityTest {
 	 *
 	 * DISTINCT rather than a multiset because the two files legitimately store different keyform
 	 * COUNTS for the same rig: baking resamples the grid (one corpus model carries 191 warp keyforms
-	 * in its .cmo3 and 436 in its .moc3). Multiplicity is therefore not a parity claim; the set of
-	 * authored values is. That still catches what matters - a path that drops the channels yields an
+	 * in its .cmo3 and 436 in its .moc3).  Multiplicity is therefore not a parity claim; the set of
+	 * authored values is.  That still catches what matters - a path that drops the channels yields an
 	 * empty set, and one that mis-scales a value yields a different member.
 	 *
 	 * @param PuppetModel puppet The imported rig.
@@ -160,6 +173,7 @@ class CompositeImportParityTest {
 			// Rounded: the two paths reach the same values through different float arithmetic (CMO3
 			// parses decimal text, MOC3 reads stored f32), so exact equality is the wrong bar.
 			fun round(value: Float): String = ((value * 10000f).toInt() / 10000f).toString()
+
 			return "op=${round(opacity)} " +
 				"mul=${round(multiplyColor.red)},${round(multiplyColor.green)},${round(multiplyColor.blue)} " +
 				"scr=${round(screenColor.red)},${round(screenColor.green)},${round(screenColor.blue)}"
@@ -178,6 +192,7 @@ class CompositeImportParityTest {
 				channels[FormChannel.SCREEN_COLOR]?.cells.orEmpty().map { cell ->
 					(cell.form as? ChannelValue.Color)?.color ?: ColorRgb.ScreenIdentity
 				}
+
 			return opacities.indices.mapNotNull { cellIndex ->
 				row(
 					opacities[cellIndex],
@@ -186,6 +201,7 @@ class CompositeImportParityTest {
 				)
 			}
 		}
+
 		return puppet.deformers
 			.flatMap { deformer -> channelRows(deformer.channelGrids) }
 			.distinct()
@@ -198,6 +214,7 @@ class CompositeImportParityTest {
 		val moc3Files = moc3ByBasename()
 		var comparedPairs = 0
 		var totalChannelledKeyforms = 0
+
 		// The corpus models that actually author a deformer channel and have both halves of a pair.
 		for (pairName in listOf("modelA", "modelC", "modelE")) {
 			val cmo3File = cmo3Files[pairName] ?: continue
@@ -217,11 +234,12 @@ class CompositeImportParityTest {
 			comparedPairs++
 			println("[Umamo][deformer-channel-parity] $pairName: ${cmo3Channels.size} distinct non-identity channel values agree")
 		}
+
 		if (comparedPairs == 0) {
-			println("no deformer-channel cmo3/moc3 pairs present; skipping")
-		} else {
-			assertTrue(totalChannelledKeyforms > 0, "compared at least one channelled keyform")
+			skipTest("no deformer-channel cmo3/moc3 pairs present; skipping")
 		}
+
+		assertTrue(totalChannelledKeyforms > 0, "compared at least one channelled keyform")
 	}
 
 	@Test
@@ -229,13 +247,17 @@ class CompositeImportParityTest {
 		val cmo3Files = cmo3ByBasename()
 		val moc3Files = moc3ByBasename()
 		var comparedPairs = 0
+
 		for (pairName in pairNames) {
 			val cmo3File = cmo3Files[pairName]
 			val moc3File = moc3Files[pairName]
+
 			if (cmo3File == null || moc3File == null) {
 				println("$pairName cmo3/moc3 pair not present; skipping")
+
 				continue
 			}
+
 			val cmo3Root = Cmo3.read(cmo3File).root as? CModelSource ?: error("$pairName: root is not a CModelSource")
 			val cmo3Puppet = Cmo3Import.fromModelSource(cmo3Root)
 			val moc3Puppet = Moc3Import.fromMocDocument(Moc3.read(moc3File.readBytes()), null)
@@ -243,8 +265,9 @@ class CompositeImportParityTest {
 			comparedPairs++
 			println("[Umamo][composite-parity] $pairName: parts=${moc3Puppet.parts.size} drawables=${moc3Puppet.drawables.size} OK")
 		}
+
 		if (comparedPairs == 0) {
-			println("no composite cmo3/moc3 pairs present; skipping")
+			skipTest("no composite cmo3/moc3 pairs present; skipping")
 		}
 	}
 }

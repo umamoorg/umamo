@@ -52,6 +52,7 @@ object InventoryLayerMatcher : LayerMatcher {
 			candidates
 				.map { candidate -> candidate to metadataSignals(missing, candidate.row) }
 				.sortedWith(compareByDescending<Pair<MatchCandidate, MatchSignals>> { (_, signals) -> combine(signals) }.thenBy { (candidate, _) -> candidate.row.name })
+
 		return byMetadata
 			.mapIndexed { index, (candidate, signals) ->
 				val pixels =
@@ -77,6 +78,7 @@ object InventoryLayerMatcher : LayerMatcher {
 		val missingBounds = boundsOf(missing)
 		val candidateBounds = boundsOf(candidate)
 		val extentKnown = missingBounds.area > 0L && candidateBounds.area > 0L
+
 		return MatchSignals(
 			name = nameSimilarity(missing.name, candidate.name),
 			path = pathAgreement(missing.groupPath, candidate.groupPath),
@@ -98,23 +100,30 @@ object InventoryLayerMatcher : LayerMatcher {
 		if (signals.hashEqual) {
 			return 1f
 		}
+
 		var total = WEIGHT_NAME * signals.name + WEIGHT_PATH * signals.path
 		var weight = WEIGHT_NAME + WEIGHT_PATH
 		val bounds = signals.bounds
+
 		if (bounds != null) {
 			total += WEIGHT_BOUNDS * bounds
 			weight += WEIGHT_BOUNDS
 		}
+
 		val size = signals.size
+
 		if (size != null) {
 			total += WEIGHT_SIZE * size
 			weight += WEIGHT_SIZE
 		}
+
 		val pixels = signals.pixels
+
 		if (pixels != null) {
 			total += WEIGHT_PIXELS * pixels
 			weight += WEIGHT_PIXELS
 		}
+
 		return (total / weight).coerceIn(0f, 1f)
 	}
 
@@ -149,10 +158,13 @@ object InventoryLayerMatcher : LayerMatcher {
 fun nameSimilarity(first: String, second: String): Float {
 	val left = normalizeName(first)
 	val right = normalizeName(second)
+
 	if (left.isEmpty() && right.isEmpty()) {
 		return 1f
 	}
+
 	val longest = max(left.length, right.length)
+
 	return 1f - editDistance(left, right).toFloat() / longest.toFloat()
 }
 
@@ -168,16 +180,21 @@ fun pathAgreement(first: String, second: String): Float {
 	if (first == second) {
 		return 1f
 	}
+
 	val left = first.split('/').filter { segment -> segment.isNotEmpty() }
 	val right = second.split('/').filter { segment -> segment.isNotEmpty() }
 	val longest = max(left.size, right.size)
+
 	if (longest == 0) {
 		return 1f
 	}
+
 	var shared = 0
+
 	while (shared < min(left.size, right.size) && left[shared] == right[shared]) {
 		shared++
 	}
+
 	return shared.toFloat() / longest.toFloat()
 }
 
@@ -194,33 +211,42 @@ fun pixelSimilarity(first: LayerRaster, second: LayerRaster): Float {
 	if (first.width <= 0 || first.height <= 0 || second.width <= 0 || second.height <= 0) {
 		return 0f
 	}
+
 	var both = 0
 	var either = 0
 	var colorDistance = 0f
+
 	for (gridY in 0 until PIXEL_GRID) {
 		for (gridX in 0 until PIXEL_GRID) {
 			val firstIndex = sampleIndex(first, gridX, gridY)
 			val secondIndex = sampleIndex(second, gridX, gridY)
 			val firstOpaque = (first.rgba[firstIndex + 3].toInt() and 0xFF) >= OPAQUE_ALPHA
 			val secondOpaque = (second.rgba[secondIndex + 3].toInt() and 0xFF) >= OPAQUE_ALPHA
+
 			if (firstOpaque || secondOpaque) {
 				either++
 			}
+
 			if (firstOpaque && secondOpaque) {
 				both++
 				var channels = 0
+
 				for (channel in 0 until 3) {
 					channels += abs((first.rgba[firstIndex + channel].toInt() and 0xFF) - (second.rgba[secondIndex + channel].toInt() and 0xFF))
 				}
+
 				colorDistance += channels.toFloat() / (3f * 255f)
 			}
 		}
 	}
+
 	if (either == 0) {
 		return 1f
 	}
+
 	val shape = both.toFloat() / either.toFloat()
 	val color = if (both == 0) 0f else 1f - colorDistance / both.toFloat()
+
 	return (0.5f * shape + 0.5f * color).coerceIn(0f, 1f)
 }
 
@@ -235,6 +261,7 @@ fun pixelSimilarity(first: LayerRaster, second: LayerRaster): Float {
 private fun sampleIndex(raster: LayerRaster, gridX: Int, gridY: Int): Int {
 	val x = min(raster.width - 1, gridX * raster.width / PIXEL_GRID)
 	val y = min(raster.height - 1, gridY * raster.height / PIXEL_GRID)
+
 	return (y * raster.width + x) * 4
 }
 
@@ -257,20 +284,26 @@ private fun editDistance(first: String, second: String): Int {
 	if (first.isEmpty()) {
 		return second.length
 	}
+
 	if (second.isEmpty()) {
 		return first.length
 	}
+
 	var previous = IntArray(second.length + 1) { column -> column }
 	var current = IntArray(second.length + 1)
+
 	for (row in 1..first.length) {
 		current[0] = row
+
 		for (column in 1..second.length) {
 			val substitution = previous[column - 1] + if (first[row - 1] == second[column - 1]) 0 else 1
 			current[column] = min(min(previous[column] + 1, current[column - 1] + 1), substitution)
 		}
+
 		val swap = previous
 		previous = current
 		current = swap
 	}
+
 	return previous[second.length]
 }

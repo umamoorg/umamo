@@ -11,13 +11,15 @@ import org.jetbrains.compose.resources.FontResource
 import org.umamo.ui.l10n.LocalAppLocale
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.inter_regular
+import org.umamo.ui.resources.noto_sans_cjk_hk_regular
 import org.umamo.ui.resources.noto_sans_cjk_jp_regular
 import org.umamo.ui.resources.noto_sans_cjk_kr_regular
 import org.umamo.ui.resources.noto_sans_cjk_sc_regular
+import org.umamo.ui.resources.noto_sans_cjk_tc_regular
 
 /*
- * The custom type scale. The 15 role names mirror the familiar scale (displayLarge … labelSmall) so call
- * sites only swap the accessor (MaterialTheme.typography.X → LocalUmamoTypography.current.X). Inter for
+ * The custom type scale.  The 15 role names mirror the familiar scale (displayLarge … labelSmall) so call
+ * sites only swap the accessor (MaterialTheme.typography.X → LocalUmamoTypography.current.X).  Inter for
  * Latin, a Noto Sans CJK cut chosen by UI language for CJK; Regular only (heavier weights synthesize).
  */
 
@@ -36,23 +38,51 @@ fun rememberUiFontFamily(): FontFamily =
 	)
 
 /**
+ * The Noto Sans CJK cut for the active UI language on its own, for CJK text shaped with OpenType features
+ * such as the vertical forms (`vert`).  A feature applied to glyphs the layout reached by falling back from
+ * Inter comes out as unrelated ideographs on the desktop text stack, so text that needs one is shaped in a
+ * family whose first font already covers it.
+ *
+ * @return FontFamily The locale-appropriate Noto family, with no Inter in front of it.
+ */
+@Composable
+fun rememberCjkFontFamily(): FontFamily = FontFamily(Font(cjkFontFor(LocalAppLocale.current), FontWeight.Normal))
+
+/**
  * Picks the Noto Sans CJK cut for a UI language tag.  Pure (no composition), so the mapping is assertable
  * without a composition, the same split [umamoTypographyWith] makes for the type scale.
  *
  * @param String languageTag The active BCP-47 tag, bare ("ko") or regional ("ko-KR").
- * @return FontResource The cut to pair with Inter.
+ * @return FontResource The cut for that language.
  */
-internal fun cjkFontFor(languageTag: String): FontResource =
-	// Match the language subtag alone, so a regional tag resolves like the bare one.
-	when (languageTag.substringBefore('-').lowercase()) {
+internal fun cjkFontFor(languageTag: String): FontResource {
+	val subtags = languageTag.replace('_', '-').lowercase().split('-')
+
+	// Only Chinese reads past the language subtag: its script or region picks the glyph forms.
+	return when (subtags.first()) {
 		"ko" -> Res.font.noto_sans_cjk_kr_regular
-		// Simplified is the only Chinese catalog.  A Traditional one must split this on region (TW / HK).
-		"zh" -> Res.font.noto_sans_cjk_sc_regular
+		"zh" -> chineseCjkFontFor(subtags.drop(1))
 		else -> Res.font.noto_sans_cjk_jp_regular
+	}
+}
+
+/**
+ * Picks the Noto Sans CJK cut for a Chinese tag from the subtags after its language.
+ *
+ * @param List subtags The tag's lowercase subtags after "zh".
+ * @return FontResource The SC, HK, or TC cut.
+ */
+private fun chineseCjkFontFor(subtags: List<String>): FontResource =
+	// A script outranks a region, the same order the UI-language match uses: zh-Hans-HK is Simplified.
+	when {
+		"hans" in subtags -> Res.font.noto_sans_cjk_sc_regular
+		"hk" in subtags || "mo" in subtags -> Res.font.noto_sans_cjk_hk_regular
+		"hant" in subtags || "tw" in subtags -> Res.font.noto_sans_cjk_tc_regular
+		else -> Res.font.noto_sans_cjk_sc_regular
 	}
 
 /**
- * The role-named text styles. Same 15 roles as the familiar scale, so migrating a call site is a one-token
+ * The role-named text styles.  Same 15 roles as the familiar scale, so migrating a call site is a one-token
  * change.
  */
 data class UmamoTypography(
@@ -74,16 +104,25 @@ data class UmamoTypography(
 )
 
 /**
- * Builds the type scale on [family]. Pure (no composition), so it backs both the composable [umamoTypography]
- * and the [LocalUmamoTypography] fallback. Sizes mirror the conventional scale; titles and labels use Medium
+ * Builds the type scale on [family].  Pure (no composition), so it backs both the composable [umamoTypography]
+ * and the [LocalUmamoTypography] fallback.  Sizes mirror the conventional scale; titles and labels use Medium
  * (synthesized from the bundled Regular).
  *
  * @param FontFamily family The family to apply to every style.
  * @return UmamoTypography The built scale.
  */
 fun umamoTypographyWith(family: FontFamily): UmamoTypography {
+	/**
+	 * Builds one text style of the scale, in the given family.
+	 *
+	 * @param Int sizeSp The font size, in sp.
+	 * @param Int lineSp The line height, in sp.
+	 * @param FontWeight weight The font weight.
+	 * @return TextStyle The style.
+	 */
 	fun style(sizeSp: Int, lineSp: Int, weight: FontWeight = FontWeight.Normal): TextStyle =
 		TextStyle(fontFamily = family, fontSize = sizeSp.sp, lineHeight = lineSp.sp, fontWeight = weight)
+
 	return UmamoTypography(
 		displayLarge = style(57, 64),
 		displayMedium = style(45, 52),

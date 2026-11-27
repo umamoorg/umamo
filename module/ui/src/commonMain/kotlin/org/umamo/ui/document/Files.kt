@@ -1,9 +1,7 @@
 package org.umamo.ui.document
 
-import org.umamo.format.FileKind
-
 /**
- * The display name for a stored file path (titles, the Open Recent menu). A pure string helper — it
+ * The display name for a stored file path (titles, the Open Recent menu).  A pure string helper — it
  * never touches the filesystem — so it degrades gracefully for Android SAF `content://` URIs, whose
  * last segment stands in until real SAF display-name resolution lands.
  *
@@ -13,26 +11,37 @@ import org.umamo.format.FileKind
 fun fileDisplayName(path: String): String = path.substringAfterLast('/').substringAfterLast('\\')
 
 /**
- * The source extensions an export strips before suggesting a name.
+ * Whether [path] is a path the file system can probe, read, and watch, as opposed to a platform uri.
+ * Android's SAF hands back `content://` handles with no path behind them, so every file-system
+ * operation over a stored path asks this first and treats a uri as unknowable rather than missing.
  *
- * Named members rather than a filter over [FileKind]: this is the set a puppet document can currently
- * be OPEN from, which is narrower than "everything readable" - the art sources are readable too and
- * must never suggest a name here.  UMA joins the list when its codec lands.
+ * @param String path The stored path or uri string.
+ * @return Boolean True for a file-system path, false for a uri.
  */
-private val SOURCE_EXTENSIONS = listOf(FileKind.Cmo3, FileKind.Moc3).map { kind -> ".${kind.extension}" }
+fun isFileSystemPath(path: String): Boolean = !path.contains("://")
 
 /**
- * The base name to seed an export's save dialog with: [displayName] minus its source extension.
+ * The base name to seed a Save As or an export dialog with: [displayName] minus whatever file extension it
+ * carries.
  *
- * The strip ignores case, and covers BOTH source extensions regardless of which format is being
- * exported - the point is to reach the model's own name, and a rigger exporting `Model.moc3` to CMO3
- * wants `Model.cmo3`, not `Model.moc3.cmo3`.  FileKit re-appends the destination extension itself, so
- * this deliberately returns a bare name.
+ * Any extension, not only the formats a rig is saved in: a rig built by importing `hero.psd` is still named
+ * after it, and its first save should suggest `hero`, never `hero.psd.uma`.  FileKit re-appends the
+ * destination's extension itself.
  *
- * @param String displayName The open document's file name.
- * @return String The name without its source extension.
+ * @param String displayName The document's file name.
+ * @return String The name without its extension.
  */
-fun exportSuggestedName(displayName: String): String =
-	SOURCE_EXTENSIONS.firstOrNull { extension -> displayName.endsWith(extension, ignoreCase = true) }
-		?.let { extension -> displayName.dropLast(extension.length) }
-		?: displayName
+fun saveSuggestedName(displayName: String): String {
+	val dot = displayName.lastIndexOf('.')
+	val extension = if (dot > 0) displayName.substring(dot + 1) else ""
+
+	// Only a short alphanumeric tail is an extension, so a name with a dot in it (`v1.2 sketch`) is left alone.
+	return if (extension.length in 1..MAXIMUM_EXTENSION_LENGTH && extension.all { character -> character.isLetterOrDigit() }) {
+		displayName.substring(0, dot)
+	} else {
+		displayName
+	}
+}
+
+/** The longest extension a source file plausibly carries (`.webp`, `.jpeg`, `.tiff`, `.clip`). */
+private const val MAXIMUM_EXTENSION_LENGTH = 5

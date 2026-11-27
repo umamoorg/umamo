@@ -4,11 +4,11 @@ import org.junit.Assume
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.restMeshesToCanvasSpace
-import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.requireSample
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -21,7 +21,7 @@ import kotlin.test.assertTrue
  *
  * Match floors are pinned from the first measured run (the DeformationOracleTest pattern): the
  * same nested-warp bounded-ULP residual class shaves a few drawables, plus the mesh-under-
- * morphed-warp coupling documented in BlendDeltaFrameProbeTest. Gate against the Umamo C++ Runtime
+ * morphed-warp coupling documented in BlendDeltaFrameProbeTest.  Gate against the Umamo C++ Runtime
  * only; divergences against the reference implementations are recorded in MOC3.md, never gated
  * (reference trust order).
  *
@@ -41,13 +41,14 @@ class BlendShapeOracleTest {
 
 	@Test
 	fun posedBlendShapesMatchOracle() {
-		val dumpModel = requireOracleInput("relive.dumpModel")
-		val coreLib = requireOracleInput("relive.coreLib")
+		val dumpModel = requireSample("relive.dumpModel")
+		val coreLib = requireSample("relive.coreLib")
 		val pairs = resolvePairs()
 		Assume.assumeTrue("[oracle] no blend-shape corpus pairs resolvable", pairs.isNotEmpty())
 
 		var totalCompared = 0
 		var totalMatched = 0
+
 		for (pair in pairs) {
 			val root = Cmo3.read(pair.cmo3).root as? CModelSource ?: error("${pair.name}: root is not a CModelSource")
 			val puppet = Cmo3Import.fromModelSource(root)
@@ -56,6 +57,7 @@ class BlendShapeOracleTest {
 			// conversion are gated end-to-end.  Same-file comparison, so any cmo3-vs-moc3
 			// authoring-state skew is out of the picture by construction.
 			val moc3Puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.read(pair.moc3.readBytes()), null))
+
 			for (pose in pair.poses) {
 				val (compared, matched, worst) = comparePose(puppet, dumpModel, coreLib, pair.moc3, pose)
 				totalCompared += compared
@@ -82,13 +84,13 @@ class BlendShapeOracleTest {
 				)
 			}
 		}
+
 		println("[oracle] blend-shape posed total: $totalMatched/$totalCompared")
 		assertTrue(totalCompared > 0, "expected comparable drawables")
 	}
 
 	/**
-	 * Evaluates [puppet] at [pose] and compares against the Umamo C++ Runtime's dump of [moc3] at
-	 * the same pose.
+	 * Evaluates [puppet] at [pose] and compares against the runtime's dump of [moc3] at the same pose.
 	 *
 	 * @return Triple(compared, matched, worst relative error) for the pose.
 	 */
@@ -99,26 +101,9 @@ class BlendShapeOracleTest {
 		moc3: File,
 		pose: Map<String, Float>,
 	): Triple<Int, Int, Double> {
-		val geometry =
-			CpuDeformationEvaluator().evaluate(puppet, pose.mapKeys { ParameterId(it.key) })
-		val dump = runOracleDump(dumpModel, coreLib, moc3, pose)
-		var compared = 0
-		var matched = 0
-		var worst = 0.0
-		for (drawable in puppet.drawables) {
-			val entry = dump.entries[drawable.id.raw] ?: continue
-			val world = geometry.worldPositions[drawable.id] ?: continue
-			compared++
-			// Same transform as the default-pose gate: (x-ox)/ppu, (y+oy)/ppu (umamo pre-flips Y).
-			val hash = oracleTransformedHash(world, dump.originX, -dump.originY, dump.pixelsPerUnit)
-			if (oracleCloseEnough(hash, entry.vposH)) {
-				matched++
-			} else {
-				val relativeError = Math.abs(hash - entry.vposH) / maxOf(1.0, Math.abs(entry.vposH))
-				worst = maxOf(worst, relativeError)
-			}
-		}
-		return Triple(compared, matched, worst)
+		val comparison = compareWithOracle(puppet, dumpModel, coreLib, moc3, pose)
+
+		return Triple(comparison.compared, comparison.positionMatched, comparison.worstPositionError)
 	}
 
 	/** The blend-shape corpus pairs with their pose matrices, filtered to what exists locally. */
@@ -134,6 +119,7 @@ class BlendShapeOracleTest {
 		val pairs = ArrayList<OraclePair>()
 		val modelA = cmo3("modelA")
 		val modelAMoc = moc3("modelA.moc3")
+
 		if (modelA != null && modelAMoc != null) {
 			pairs.add(
 				OraclePair(
@@ -158,8 +144,10 @@ class BlendShapeOracleTest {
 				),
 			)
 		}
+
 		val modelB = cmo3("modelB")
 		val modelBMoc = moc3("modelB.moc3")
+
 		if (modelB != null && modelBMoc != null) {
 			pairs.add(
 				OraclePair(
@@ -178,8 +166,10 @@ class BlendShapeOracleTest {
 				),
 			)
 		}
+
 		val modelC = cmo3("modelC")
 		val modelCMoc = moc3("modelC.moc3")
+
 		if (modelC != null && modelCMoc != null) {
 			pairs.add(
 				OraclePair(
@@ -196,6 +186,7 @@ class BlendShapeOracleTest {
 				),
 			)
 		}
+
 		return pairs
 	}
 }

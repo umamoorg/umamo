@@ -68,16 +68,19 @@ private class CcittTree {
 	 */
 	fun fill(depth: Int, path: Int, node: CcittNode) {
 		var current = root
+
 		for (bitIndex in 0 until depth) {
 			val bitPosition = depth - 1 - bitIndex
 			val isSet = ((path shr bitPosition) and 1) == 1
 			var next = current.walk(isSet)
+
 			if (next == null) {
 				next = if (bitIndex == depth - 1) node else CcittNode()
 				current.set(isSet, next)
 			} else {
 				require(!next.isLeaf) { "CCITT code table node is a leaf, no other code may follow" }
 			}
+
 			current = next
 		}
 	}
@@ -450,6 +453,7 @@ private object CcittTables {
 				blackRunTree.fill(lengthIndex + 2, BLACK_CODES[lengthIndex][codeIndex].toInt(), BLACK_RUN_LENGTHS[lengthIndex][codeIndex].toInt())
 			}
 		}
+
 		blackRunTree.fill(12, 0, fill)
 		blackRunTree.fill(12, 1, endOfLine)
 
@@ -458,6 +462,7 @@ private object CcittTables {
 				whiteRunTree.fill(lengthIndex + 4, WHITE_CODES[lengthIndex][codeIndex].toInt(), WHITE_RUN_LENGTHS[lengthIndex][codeIndex].toInt())
 			}
 		}
+
 		whiteRunTree.fill(12, 0, fill)
 		whiteRunTree.fill(12, 1, endOfLine)
 
@@ -491,6 +496,7 @@ private object CcittTables {
 internal fun decodeCcitt(input: ByteArray, columns: Int, rows: Int, type: Int, options: Long, byteAligned: Boolean): ByteArray {
 	require(columns > 0) { "CCITT columns must be positive, was $columns" }
 	require(rows > 0) { "CCITT rows must be positive, was $rows" }
+
 	return CcittFaxDecoder(input, columns, rows, type, options, byteAligned).decode()
 }
 
@@ -506,11 +512,14 @@ internal fun findCcittCompressionType(input: ByteArray, encodedType: Int): Int {
 	if (encodedType != TiffConstants.COMPRESSION_CCITT_T4) {
 		return encodedType
 	}
+
 	if (input.size < 2) {
 		return encodedType
 	}
+
 	val first = input[0].toInt() and 0xFF
 	val second = input[1].toInt() and 0xFF
+
 	// A well-formed T.4 stream opens with an EOL (000000000001), possibly byte-aligned.
 	if (first == 0 && ((second shr 4) == 1 || second == 1)) {
 		return encodedType
@@ -520,15 +529,19 @@ internal fun findCcittCompressionType(input: ByteArray, encodedType: Int): Int {
 	val limitBytes = minOf(512, input.size)
 	var window = (((first shl 8) or second) shr 4)
 	var streamByte = second
+
 	for (bitIndex in 12 until limitBytes * 8) {
 		if (bitIndex % 8 == 0) {
 			streamByte = input[bitIndex / 8].toInt() and 0xFF
 		}
+
 		window = (window shl 1) + ((streamByte shr (7 - (bitIndex % 8))) and 0x01)
+
 		if ((window and 0xFFF) == 1) {
 			return TiffConstants.COMPRESSION_CCITT_T4
 		}
 	}
+
 	return TiffConstants.COMPRESSION_CCITT_MODIFIED_HUFFMAN_RLE
 }
 
@@ -575,8 +588,11 @@ private class CcittFaxDecoder(
 				optionUncompressed = (options and TiffConstants.GROUP4OPT_UNCOMPRESSED.toLong()) != 0L
 			}
 
-			else -> throw IllegalArgumentException("Unsupported CCITT compression $type (only Modified Huffman RLE / T.4 / T.6)")
+			else -> {
+				throw IllegalArgumentException("Unsupported CCITT compression $type (only Modified Huffman RLE / T.4 / T.6)")
+			}
 		}
+
 		require(!optionUncompressed) { "CCITT Group 3/4 uncompressed mode is not supported" }
 	}
 
@@ -588,6 +604,7 @@ private class CcittFaxDecoder(
 	fun decode(): ByteArray {
 		val rowBytes = decodedRow.size
 		val output = ByteArray(rowBytes * rows)
+
 		for (rowIndex in 0 until rows) {
 			try {
 				decodeRow()
@@ -595,8 +612,10 @@ private class CcittFaxDecoder(
 				// A short strip: the remaining rows stay white, matching TwelveMonkeys' padding behavior.
 				break
 			}
+
 			decodedRow.copyInto(output, rowIndex * rowBytes, 0, rowBytes)
 		}
+
 		return output
 	}
 
@@ -609,6 +628,7 @@ private class CcittFaxDecoder(
 				if (byteAligned) {
 					alignToByte()
 				}
+
 				decode1D()
 			}
 
@@ -616,7 +636,9 @@ private class CcittFaxDecoder(
 				if (byteAligned) {
 					alignToByte()
 				}
+
 				skipToEndOfLine()
+
 				if (!optionG32D || readBit()) {
 					decode1D()
 				} else {
@@ -628,6 +650,7 @@ private class CcittFaxDecoder(
 				if (byteAligned) {
 					alignToByte()
 				}
+
 				decode2D()
 			}
 		}
@@ -638,9 +661,11 @@ private class CcittFaxDecoder(
 
 		for (changeIndex in 0..changesCurrentRowCount) {
 			var nextChange = columns
+
 			if (changeIndex != changesCurrentRowCount) {
 				nextChange = changesCurrentRow[changeIndex]
 			}
+
 			if (nextChange > columns) {
 				nextChange = columns
 			}
@@ -655,6 +680,7 @@ private class CcittFaxDecoder(
 			if (index % 8 == 0) {
 				byteIndex = index / 8
 				val wholeByte = (if (white) 0x00 else 0xFF).toByte()
+
 				while ((nextChange - index) > 7) {
 					decodedRow[byteIndex] = wholeByte
 					index += 8
@@ -666,6 +692,7 @@ private class CcittFaxDecoder(
 				if (index % 8 == 0) {
 					decodedRow[byteIndex] = 0
 				}
+
 				decodedRow[byteIndex] = (decodedRow[byteIndex].toInt() or (if (white) 0 else 1 shl (7 - (index % 8)))).toByte()
 				index++
 			}
@@ -703,11 +730,14 @@ private class CcittFaxDecoder(
 
 		mode@ while (index < columns) {
 			var node = CcittTables.codeTree.root
+
 			while (true) {
 				node = node.walk(readBit()) ?: continue@mode
+
 				if (!node.isLeaf) {
 					continue
 				}
+
 				when (node.value) {
 					CcittTables.VALUE_HMODE -> {
 						// Horizontal mode: two runs coded with the 1D tables.
@@ -740,6 +770,7 @@ private class CcittFaxDecoder(
 						white = !white
 					}
 				}
+
 				continue@mode
 			}
 		}
@@ -755,20 +786,27 @@ private class CcittFaxDecoder(
 	private fun nextChangingElement(a0: Int, white: Boolean): Int {
 		// Changing elements alternate color, so the search starts on the matching parity.
 		var start = (lastChangingElement and 0xFFFFFFFE.toInt()) + (if (white) 0 else 1)
+
 		if (start > 2) {
 			start -= 2
 		}
+
 		if (a0 == 0) {
 			return start
 		}
+
 		var elementIndex = start
+
 		while (elementIndex < changesReferenceRowCount) {
 			if (a0 < changesReferenceRow[elementIndex]) {
 				lastChangingElement = elementIndex
+
 				return elementIndex
 			}
+
 			elementIndex += 2
 		}
+
 		return -1
 	}
 
@@ -781,16 +819,22 @@ private class CcittFaxDecoder(
 	private fun decodeRun(tree: CcittTree): Int {
 		var total = 0
 		var node = tree.root
+
 		while (true) {
 			node = node.walk(readBit()) ?: throw IllegalArgumentException("Unknown code in CCITT Huffman RLE stream")
+
 			if (!node.isLeaf) {
 				continue
 			}
+
 			total += node.value
+
 			when {
 				// Makeup code: another code follows to complete the run.
 				node.value >= 64 -> node = tree.root
+
 				node.value >= 0 -> return total
+
 				// EOL or fill encountered mid-run: end the line here.
 				else -> return columns
 			}
@@ -801,8 +845,10 @@ private class CcittFaxDecoder(
 	private fun skipToEndOfLine() {
 		endOfLine@ while (true) {
 			var node = CcittTables.eolOnlyTree.root
+
 			while (true) {
 				node = node.walk(readBit()) ?: continue@endOfLine
+
 				if (node.isLeaf) {
 					return
 				}
@@ -822,11 +868,14 @@ private class CcittFaxDecoder(
 	 */
 	private fun readBit(): Boolean {
 		val byteIndex = bitPosition ushr 3
+
 		if (byteIndex >= input.size) {
 			throw CcittEndOfInput()
 		}
+
 		val bit = (input[byteIndex].toInt() shr (7 - (bitPosition and 7))) and 1
 		bitPosition++
+
 		return bit != 0
 	}
 }

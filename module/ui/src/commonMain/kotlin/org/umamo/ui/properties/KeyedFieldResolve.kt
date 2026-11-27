@@ -6,18 +6,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import org.umamo.edit.EditorSession
 import org.umamo.edit.Pose
-import org.umamo.edit.channelValueAt
+import org.umamo.edit.keyform.channelValueAt
+import org.umamo.edit.shownPendingLatticeEdits
+import org.umamo.runtime.keyform.keyIndexAt
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
+import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
+import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformOwner
-import org.umamo.ui.model.KeyedFieldState
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.channelGridsOf
+import org.umamo.ui.kit.field.KeyedFieldState
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalLiveParams
 import org.umamo.ui.model.LocalPuppet
-import org.umamo.ui.model.keyedFieldStateOf
 
 /*
  * Resolving a properties-panel row's keyed state from the session.
@@ -50,12 +55,29 @@ internal fun keyedFieldStateOf(owner: KeyformOwner, channel: FormChannel): Keyed
 	val puppet = LocalPuppet.current ?: return KeyedFieldState.None
 	val session = LocalEditorSession.current ?: return KeyedFieldState.None
 	val pendingEdits by remember(session) { session.pendingChannelEdits }.collectAsState()
+
 	return keyedFieldStateOf(
 		puppet = puppet,
 		target = KeyableTarget(owner, channel),
 		pose = displayPose(session),
 		pendingEdits = pendingEdits,
 	)
+}
+
+/**
+ * The keyed state of [warp]'s lattice at the displayed pose: pending while it holds an unkeyed Pose-mode shape the
+ * viewport shows, else on or between the keys of its geometry grid.
+ *
+ * @param Deformer.Warp warp The warp the row describes.
+ * @return KeyedFieldState The state to tint the row with.
+ */
+@Composable
+internal fun keyedLatticeStateOf(warp: Deformer.Warp): KeyedFieldState {
+	val puppet = LocalPuppet.current ?: return KeyedFieldState.None
+	val session = LocalEditorSession.current ?: return KeyedFieldState.None
+	val shownLattices by remember(session) { session.shownPendingLatticeEdits }.collectAsState(emptyMap())
+
+	return keyedGridStateOf(puppet, warp.geometryGrid, displayPose(session), warp.id in shownLattices)
 }
 
 /**
@@ -73,6 +95,7 @@ internal fun keyedFieldStateOf(owner: KeyformOwner, channel: FormChannel): Keyed
 @Composable
 private fun displayPose(session: EditorSession): Pose {
 	val committedPose by remember(session) { session.pose }.collectAsState()
+
 	return LocalLiveParams.current?.observedValues ?: committedPose
 }
 
@@ -80,11 +103,8 @@ private fun displayPose(session: EditorSession): Pose {
  * The value a keyable row should DISPLAY: the pending unkeyed edit, else the track's value at the current
  * pose, else the owner's static.
  *
- * The same resolution order the renderer uses, which is the point.  Showing the static alone would be
- * wrong twice over: on a keyed channel the static is shadowed by the track, so the field would disagree
- * with the viewport at every pose; and a pending edit lives outside the model entirely, so typing a new
- * value on a keyed channel would appear to be rejected - the field would snap straight back to the shadowed
- * static.
+ * The same resolution order the renderer uses, so the field agrees with the viewport at every pose and a
+ * value typed on a keyed channel does not snap back to the static the track shadows.
  *
  * @param KeyformOwner owner The entity the row edits.
  * @param FormChannel channel The channel the row edits.
@@ -97,6 +117,7 @@ internal fun displayedChannelValue(owner: KeyformOwner, channel: FormChannel, st
 	val session = LocalEditorSession.current ?: return stored
 	val pendingEdits by remember(session) { session.pendingChannelEdits }.collectAsState()
 	val target = KeyableTarget(owner, channel)
+
 	return pendingEdits[target] ?: puppet.channelValueAt(target, displayPose(session)) ?: stored
 }
 
@@ -135,3 +156,65 @@ internal fun displayedChannelScalar(owner: KeyformOwner, channel: FormChannel, s
 @Composable
 internal fun displayedChannelColor(owner: KeyformOwner, channel: FormChannel, stored: ColorRgb): ColorRgb =
 	(displayedChannelValue(owner, channel, ChannelValue.Color(stored)) as? ChannelValue.Color)?.color ?: stored
+
+/**
+ * The keyed state of [target] at [pose], read off the target's channel track by [keyedGridStateOf].
+ *
+ * @param PuppetModel puppet The rig.
+ * @param KeyableTarget target The entity and channel the field edits.
+ * @param Pose pose The current pose.
+ * @param Map pendingEdits The session's unkeyed edits.
+ * @return KeyedFieldState The state to tint with.
+ */
+fun keyedFieldStateOf(
+	puppet: PuppetModel,
+	target: KeyableTarget,
+	pose: Pose,
+	pendingEdits: Map<KeyableTarget, ChannelValue>,
+): KeyedFieldState = keyedGridStateOf(puppet, puppet.channelGridsOf(target.owner)?.get(target.channel), pose, target in pendingEdits)
+
+/**
+ * The keyed state of a track [grid] at [pose].  Shared by a channel's field and a warp lattice's row, so the two
+ * cannot read one situation differently.
+ *
+ * @param PuppetModel puppet The rig, for the parameters' defaults.
+ * @param KeyformGrid? grid The track's grid, or null when the property carries none.
+ * @param Pose pose The current pose.
+ * @param Boolean pending Whether an edit of it is pending.
+ * @return KeyedFieldState The state to tint with.
+ */
+internal fun keyedGridStateOf(
+	puppet: PuppetModel,
+	grid: KeyformGrid<*>?,
+	pose: Pose,
+	pending: Boolean,
+): KeyedFieldState {
+	// The track gates the pending check: an untracked channel's edit is a plain undoable write to its static, but a
+	// scrub of any channel, tracked or not, writes the pending map, so testing that map first would tint every drag.
+	val track = grid ?: return KeyedFieldState.None
+
+	if (pending) {
+		return KeyedFieldState.ModifiedUnkeyed
+	}
+
+	// A zero-axis track holds one value everywhere and keys nothing, so there is no key to be sitting on -
+	// but it still shadows the static, so an edit still needs keying.  That is BetweenKeys, not OnKey.
+	if (track.axes.isEmpty()) {
+		return KeyedFieldState.BetweenKeys
+	}
+
+	// On-key is read on the track's own axes, never the targeted parameter, so the tint says whether the value under
+	// the field is stored; a multi-axis track is on-key only where a capture overwrites a cell rather than inserting one.
+	val onEveryAxis =
+		track.axes.all { axis ->
+			// A direct lookup, not a defaults map over every parameter: this runs per keyable row per
+			// recomposition, and only this track's own parameters can ever be read.
+			val poseValue =
+				pose[axis.parameterId]
+					?: puppet.parameters.firstOrNull { parameter -> parameter.id == axis.parameterId }?.default
+					?: 0f
+			track.keyIndexAt(axis.parameterId, poseValue) >= 0
+		}
+
+	return if (onEveryAxis) KeyedFieldState.OnKey else KeyedFieldState.BetweenKeys
+}

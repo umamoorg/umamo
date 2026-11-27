@@ -28,9 +28,11 @@ class BmpCodecTest {
 	private fun buildBmp24(width: Int, height: Int, rgbTopFirst: ByteArray): ByteArray {
 		val rowStride = ((24 * width + 31) / 32) * 4
 		val pixelData = ByteArray(rowStride * height)
+
 		for (imageRow in 0 until height) {
 			val fileRow = height - 1 - imageRow // bottom-up storage
 			var destination = fileRow * rowStride
+
 			for (column in 0 until width) {
 				val source = (imageRow * width + column) * 3
 				pixelData[destination++] = rgbTopFirst[source + 2] // B
@@ -38,6 +40,7 @@ class BmpCodecTest {
 				pixelData[destination++] = rgbTopFirst[source] // R
 			}
 		}
+
 		val offBits = 14 + 40
 		val out = Buffer()
 		out.writeByte(0x42)
@@ -58,6 +61,7 @@ class BmpCodecTest {
 		out.writeIntLe(0)
 		out.writeIntLe(0)
 		out.write(pixelData)
+
 		return out.readByteArray()
 	}
 

@@ -31,7 +31,7 @@ public class CRect {
 
 /**
  * A color whose backing value is @DontSerialize (not persisted, matching the editor), so
- * it serializes to an empty `<CColor/>` (the editor does not persist these UI colors). [argb] lets a
+ * it serializes to an empty `<CColor/>` (the editor does not persist these UI colors).  [argb] lets a
  * caller hold a value, but it is never written, matching the editor.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Serializer mechanics</a>
@@ -44,7 +44,7 @@ public class CColor {
 
 /**
  * A 2x3 affine matrix, custom-serialized as the
- * attributes m00, m01, m02, m10, m11, m12. Defaults to the identity transform.
+ * attributes m00, m01, m02, m10, m11, m12.  Defaults to the identity transform.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Serializer mechanics</a>
  */

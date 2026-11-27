@@ -6,7 +6,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import org.umamo.edit.EditorSession
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.relation.RelationSlot
+import org.umamo.edit.relation.relationAdmitter
+import org.umamo.runtime.model.DeformerId
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.partByDrawable
+import org.umamo.ui.transform.bindRelation
 
 /**
  * The kinds of rig entity a relation pick will accept, mirroring [SelectionTarget]'s taxonomy without
@@ -37,6 +46,20 @@ fun SelectionTarget.pickKind(): PickKind =
 	}
 
 /**
+ * The kinds a pick for [slot] accepts: A part for an parent part, a deformer for a parent deformer, and for clip masks
+ * whatever may clip the owner (drawables, and parts too for a part's composite).
+ *
+ * @param RelationSlot slot The relation.
+ * @return Set<PickKind> The accepted kinds.
+ */
+fun pickKindsOf(slot: RelationSlot): Set<PickKind> =
+	when (slot) {
+		is RelationSlot.ParentPart -> setOf(PickKind.Part)
+		is RelationSlot.ParentDeformer -> setOf(PickKind.Deformer)
+		is RelationSlot.Masks, is RelationSlot.Mask -> if (slot.owner is SelectionTarget.Part) setOf(PickKind.Drawable, PickKind.Part) else setOf(PickKind.Drawable)
+	}
+
+/**
  * What a surface should do with a click while a relation pick may be armed.  Stated once here because the
  * wrong answer is subtle: letting an unaccepted click through changes the selection, which swaps the
  * Properties panel - and the very field that armed the pick - out from under the user mid-interaction.
@@ -53,26 +76,109 @@ enum class PickClickOutcome {
 }
 
 /**
- * One in-flight "pick a relation" interaction: which kinds the arming field accepts, an [owner] key
- * identifying the field that armed it, and the callback that receives the chosen entity.  [onPicked] is
- * invoked at most once - the resolving surface clears the request as it fires.
+ * One in-flight "pick a relation" interaction: which kinds the arming field accepts, which entities of those
+ * kinds it admits, an [owner] key identifying the field that armed it, and the callback that receives the
+ * chosen entity.  [onPicked] is invoked at most once - the resolving surface clears the request as it fires.
  *
  * @property Set accepts The entity kinds this pick will honour; a click on anything else is ignored.
  * @property Any? owner The arming field's identity, so only that field lights its eyedropper.
+ * @property Function admits Whether an entity of an accepted kind may be bound: the field's own exclusions (a
+ *   deformer cannot parent itself), so the eyedropper refuses what the field's list leaves out.
+ * @property Function model The document the pick binds in, read as a target resolves, so a drawable can stand for
+ *   its part or its parent deformer ([targetFor]); null when there is none, and a drawable then stands only for
+ *   itself.
  * @property Function onPicked Receives the picked entity.
  */
 class RelationPickRequest(
 	val accepts: Set<PickKind>,
 	val owner: Any?,
+	val admits: (SelectionTarget) -> Boolean,
+	private val model: () -> PuppetModel? = { null },
 	val onPicked: (SelectionTarget) -> Unit,
-)
+) {
+	/** The drawable lookups [targetFor] reads, kept until the model changes. */
+	private var artLookups: ArtLookups? = null
+
+	/**
+	 * Whether this pick would bind [target]: its kind is accepted and the field admits it.
+	 *
+	 * @param SelectionTarget target The entity under the pointer.
+	 * @return Boolean True when a click on it resolves the pick.
+	 */
+	fun takes(target: SelectionTarget): Boolean = target.pickKind() in accepts && admits(target)
+
+	/**
+	 * What a click on [entity] binds, or null when that is nothing this pick takes.  A part or a deformer stands for
+	 * itself.  A drawable stands for its art, which binds the first kind the pick accepts: the drawable itself, its
+	 * parent part, or its parent deformer.  Deliberately one mapping and not a fallback chain, so a refused drawable
+	 * never binds its whole part instead.  Every surface that resolves a pick reads this, so a drawable binds the same
+	 * thing whether its art in a viewport or its row in the outliner is clicked.
+	 *
+	 * @param SelectionTarget entity The entity under the pointer.
+	 * @return SelectionTarget? The target a click on it binds, or null.
+	 */
+	fun targetFor(entity: SelectionTarget): SelectionTarget? {
+		val target =
+			if (entity !is SelectionTarget.Drawable || PickKind.Drawable in accepts) {
+				entity
+			} else {
+				artStandIn(entity.id)
+			}
+
+		return target?.takeIf { candidate -> takes(candidate) }
+	}
+
+	/**
+	 * What a drawable's art stands for in a pick that does not take the drawable itself: Tts parent part, or its
+	 * parent deformer, by the kind the pick accepts.
+	 *
+	 * @param DrawableId drawableId The drawable.
+	 * @return SelectionTarget? The part or the deformer, or null when it has none or the pick has no model.
+	 */
+	private fun artStandIn(drawableId: DrawableId): SelectionTarget? {
+		val current = model() ?: return null
+		val lookups = artLookups?.takeIf { cached -> cached.model === current } ?: ArtLookups(current).also { built -> artLookups = built }
+
+		return when {
+			PickKind.Part in accepts -> lookups.partOf(drawableId)?.let { partId -> SelectionTarget.Part(partId) }
+			PickKind.Deformer in accepts -> lookups.deformerOf(drawableId)?.let { deformerId -> SelectionTarget.Deformer(deformerId) }
+			else -> null
+		}
+	}
+}
+
+/**
+ * The parent part and the parent deformer of each drawable in [model], each table built on first use and kept for the
+ * model's life: a viewport asks on every pointer move, and the parent parts take a walk of the whole org tree.
+ *
+ * @property PuppetModel model The model the tables describe.
+ */
+private class ArtLookups(val model: PuppetModel) {
+	private val partByDrawable by lazy { model.partByDrawable() }
+	private val deformerByDrawable by lazy { model.drawables.associate { drawable -> drawable.id to drawable.parentDeformerId } }
+
+	/**
+	 * The part that holds [drawableId] in the org tree.
+	 *
+	 * @param DrawableId drawableId The drawable.
+	 * @return PartId? The part, or null at the root.
+	 */
+	fun partOf(drawableId: DrawableId): PartId? = partByDrawable[drawableId]
+
+	/**
+	 * The deformer that deforms [drawableId].
+	 *
+	 * @param DrawableId drawableId The drawable.
+	 * @return DeformerId? The deformer, or null for none.
+	 */
+	fun deformerOf(drawableId: DrawableId): DeformerId? = deformerByDrawable[drawableId]
+}
 
 /**
  * The shell slot holding the one in-flight relation pick, mirroring [org.umamo.ui.workspace.rowdrag.RowDragCancelController].  A pick is
  * deliberately NOT an [org.umamo.edit.ToolLatches] latch: every latch is scoped to one viewport area, but a
- * pick must also resolve from the outliner, and the latches are non-reactive vars while both resolving
- * surfaces need to gate their composition on this state.  Parking it here also keeps a panel concern out of
- * the edit module.  One pointer means at most one pick anywhere, so a single slot serves every field.
+ * pick must also resolve from the outliner.  Parking it here also keeps a panel concern out of the edit
+ * module.  One pointer means at most one pick anywhere, so a single slot serves every field.
  *
  * Resolving a pick must NOT go through the real selection: [org.umamo.edit.EditorSession.setSelection]
  * records an undo step and would swap the Properties panel out from under the field that armed the pick.
@@ -91,27 +197,73 @@ class RelationPickController {
 	var hoveredTarget: SelectionTarget? by mutableStateOf(null)
 		private set
 
+	/** The entity a surface last reported under the pointer, which [unhover] matches: [hoveredTarget] is what it binds. */
+	private var hoveredEntity: SelectionTarget? = null
+
 	/**
 	 * Arms a pick, replacing any already in flight.
 	 *
 	 * @param Set accepts The entity kinds to honour.
 	 * @param Any? owner The arming field's identity, so only it lights its eyedropper.
+	 * @param Function admits Whether an entity of an accepted kind may be bound; every one by default.
+	 * @param Function model The document the pick binds in, so a drawable can stand for its part or its parent
+	 *   deformer; none by default.
 	 * @param Function onPicked Receives the picked entity.
 	 */
-	fun arm(accepts: Set<PickKind>, owner: Any? = null, onPicked: (SelectionTarget) -> Unit) {
+	fun arm(
+		accepts: Set<PickKind>,
+		owner: Any? = null,
+		admits: (SelectionTarget) -> Boolean = { true },
+		model: () -> PuppetModel? = { null },
+		onPicked: (SelectionTarget) -> Unit,
+	) {
 		hoveredTarget = null
-		request = RelationPickRequest(accepts, owner, onPicked)
+		hoveredEntity = null
+		request = RelationPickRequest(accepts, owner, admits, model, onPicked)
 	}
 
 	/**
-	 * Publishes what the pointer is over.  Ignored when no pick is armed, and a target of an unaccepted kind
-	 * reports as nothing - so a surface may report freely without gating itself.
+	 * Arms a pick for [slot]: owned by the slot, which is the field's identity, admitting what the slot admits in the
+	 * model as it is when the pointer reaches a target, and binding the pick through bindRelation, so the eyedropper
+	 * button and the menu's Pick arm the same pick.  A drawable stands for its part or its parent deformer in the
+	 * session's model.
+	 *
+	 * @param RelationSlot slot The relation.
+	 * @param EditorSession session The session the binding is made in.
+	 * @param Function stripArea The area the operation strip shows in, asked as the pick lands.
+	 */
+	fun armFor(slot: RelationSlot, session: EditorSession, stripArea: () -> String?) {
+		// The admitter is built once per model, not per test: an armed deformer pick filters every lattice the viewport
+		// lists through it, and each build walks the hierarchy.
+		var admitterModel: PuppetModel? = null
+		var admitter: (SelectionTarget) -> Boolean = { false }
+		val admits = { target: SelectionTarget ->
+			val model = session.model.value
+
+			if (model !== admitterModel) {
+				admitter = model.relationAdmitter(slot)
+				admitterModel = model
+			}
+
+			admitter(target)
+		}
+		arm(pickKindsOf(slot), owner = slot, admits = admits, model = { session.model.value }) { target ->
+			session.bindRelation(slot, target, stripArea())
+		}
+	}
+
+	/**
+	 * Publishes what the pointer is over, named as what a click there would bind ([RelationPickRequest.targetFor]).
+	 * Ignored when no pick is armed, and an entity that binds nothing the pick takes (an unaccepted kind, or one the
+	 * field does not admit) reports as nothing - so a surface may report freely without gating itself, and the badge
+	 * never names a target the click would refuse.
 	 *
 	 * @param SelectionTarget? target The entity under the pointer, or null for nothing pickable.
 	 */
 	fun hover(target: SelectionTarget?) {
 		val pending = request ?: return
-		hoveredTarget = target?.takeIf { candidate -> candidate.pickKind() in pending.accepts }
+		hoveredEntity = target
+		hoveredTarget = target?.let { entity -> pending.targetFor(entity) }
 	}
 
 	/**
@@ -121,7 +273,8 @@ class RelationPickController {
 	 * @param SelectionTarget target The entity this surface last reported.
 	 */
 	fun unhover(target: SelectionTarget) {
-		if (hoveredTarget == target) {
+		if (hoveredEntity == target) {
+			hoveredEntity = null
 			hoveredTarget = null
 		}
 	}
@@ -134,10 +287,11 @@ class RelationPickController {
 	 */
 	fun isPickingFor(owner: Any?): Boolean = owner != null && request?.owner == owner
 
-	/** Cancels the in-flight pick, if any (Escape, a right-click, or the arming field going away). */
+	/** Cancels the in-flight pick, if any (a key press, any command, a right-click, or the arming field going away). */
 	fun cancel() {
 		request = null
 		hoveredTarget = null
+		hoveredEntity = null
 	}
 
 	/**
@@ -168,21 +322,21 @@ class RelationPickController {
 		}
 
 	/**
-	 * Resolves the in-flight pick with [target] when its kind is accepted, clearing the request first so the
-	 * callback cannot re-enter.  A target of an unaccepted kind leaves the pick armed, so a stray click on
-	 * the wrong kind of thing does not silently end the interaction.
+	 * Resolves the in-flight pick with what [target] binds ([RelationPickRequest.targetFor]), clearing the request
+	 * first so the callback cannot re-enter.  An entity that binds nothing the pick takes leaves the pick armed, so
+	 * a stray click on the wrong thing does not silently end the interaction.
 	 *
 	 * @param SelectionTarget target The entity the user clicked.
 	 * @return Boolean True when the pick was resolved (the caller should consume the click).
 	 */
 	fun resolve(target: SelectionTarget): Boolean {
 		val pending = request ?: return false
-		if (target.pickKind() !in pending.accepts) {
-			return false
-		}
+		val bound = pending.targetFor(target) ?: return false
 		request = null
 		hoveredTarget = null
-		pending.onPicked(target)
+		hoveredEntity = null
+		pending.onPicked(bound)
+
 		return true
 	}
 }
@@ -212,5 +366,6 @@ fun RelationPickController.pickingFor(owner: Any?): Boolean {
 	DisposableEffect(this, owner) {
 		onDispose { cancelFor(owner) }
 	}
+
 	return isPickingFor(owner)
 }

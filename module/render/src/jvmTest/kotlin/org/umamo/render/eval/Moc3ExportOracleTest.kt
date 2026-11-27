@@ -5,6 +5,7 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
+import org.umamo.testkit.requireSample
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -33,8 +34,8 @@ class Moc3ExportOracleTest {
 
 	@Test
 	fun exportedFilesEvaluateLikeTheirSources() {
-		val dumpModel = requireOracleInput("relive.dumpModel")
-		val coreLib = requireOracleInput("relive.coreLib")
+		val dumpModel = requireSample("relive.dumpModel")
+		val coreLib = requireSample("relive.coreLib")
 		val samples =
 			System.getProperty("moc3.samples")
 				?.let(::File)
@@ -55,9 +56,11 @@ class Moc3ExportOracleTest {
 
 		for (mocFile in samples) {
 			val source = runCatching { Moc3.decode(MocCodec.read(mocFile.readBytes())) }.getOrNull() ?: continue
+
 			if (source.version.byteValue !in supportedVersions) {
 				continue
 			}
+
 			val puppet = Moc3Import.fromMocDocument(source, displayInfo = null)
 			val (bytes, report) = Moc3Export.write(puppet, source.version)
 			val exportedFile = File(outputDir, mocFile.name).apply { writeBytes(bytes) }
@@ -71,23 +74,31 @@ class Moc3ExportOracleTest {
 
 			for ((drawableId, expected) in sourceDump.entries) {
 				val actual = exportedDump.entries[drawableId]
+
 				if (actual == null) {
 					mismatches.add("${mocFile.name}: $drawableId missing from the exported file")
+
 					continue
 				}
+
 				if (oracleNeverEvaluated(expected)) {
 					continue
 				}
+
 				comparedDrawables++
+
 				if (!oracleCloseEnough(expected.vposH, actual.vposH)) {
 					mismatches.add("${mocFile.name} $drawableId vposH: ${expected.vposH} vs ${actual.vposH}")
 				}
+
 				if (!oracleCloseEnough(expected.vuvH, actual.vuvH)) {
 					mismatches.add("${mocFile.name} $drawableId vuvH: ${expected.vuvH} vs ${actual.vuvH}")
 				}
+
 				if (!oracleCloseEnough(expected.opacity.toDouble(), actual.opacity.toDouble())) {
 					mismatches.add("${mocFile.name} $drawableId op: ${expected.opacity} vs ${actual.opacity}")
 				}
+
 				compareChannel(mismatches, mocFile.name, drawableId, "mul", expected.multiplyRgba, actual.multiplyRgba)
 				compareChannel(mismatches, mocFile.name, drawableId, "scr", expected.screenRgba, actual.screenRgba)
 			}
@@ -103,26 +114,34 @@ class Moc3ExportOracleTest {
 			val expectedOffscreens = sourceDump.offscreens.associateBy { sourceDump.partIds.getOrNull(it.ownerPartIndex) }
 			val actualOffscreens =
 				exportedDump.offscreens.associateBy { exportedDump.partIds.getOrNull(it.ownerPartIndex) }
+
 			for (ownerId in expectedOffscreens.keys - actualOffscreens.keys) {
 				mismatches.add("${mocFile.name}: offscreen owned by $ownerId missing from the exported file")
 			}
+
 			for (ownerId in actualOffscreens.keys - expectedOffscreens.keys) {
 				mismatches.add("${mocFile.name}: exported an offscreen owned by $ownerId that the source has not")
 			}
+
 			for ((ownerId, expected) in expectedOffscreens) {
 				val actual = actualOffscreens[ownerId] ?: continue
 				comparedOffscreens++
+
 				if (mocFile.name in offscreenChannelGap) {
 					// Structure is still compared below; only the interpolated channels are exempt.
 					unevaluatedOffscreens += if (actual.opacity != expected.opacity) 1 else 0
 					compareOffscreenStructure(mismatches, mocFile.name, ownerId, expected, actual, sourceDump, exportedDump)
+
 					continue
 				}
+
 				val subject = "offscreen($ownerId)"
 				compareOffscreenStructure(mismatches, mocFile.name, ownerId, expected, actual, sourceDump, exportedDump)
+
 				if (!oracleCloseEnough(expected.opacity.toDouble(), actual.opacity.toDouble())) {
 					mismatches.add("${mocFile.name} $subject op: ${expected.opacity} vs ${actual.opacity}")
 				}
+
 				compareChannel(mismatches, mocFile.name, subject, "mul", expected.multiplyRgba, actual.multiplyRgba)
 				compareChannel(mismatches, mocFile.name, subject, "scr", expected.screenRgba, actual.screenRgba)
 			}
@@ -176,14 +195,18 @@ class Moc3ExportOracleTest {
 		exportedDump: OracleDump,
 	) {
 		val subject = "offscreen($ownerId)"
+
 		if (expected.blendMode != actual.blendMode) {
 			mismatches.add("$fileName $subject blend: ${expected.blendMode} vs ${actual.blendMode}")
 		}
+
 		if (expected.constantFlags != actual.constantFlags) {
 			mismatches.add("$fileName $subject cflag: ${expected.constantFlags} vs ${actual.constantFlags}")
 		}
+
 		val expectedMasks = expected.maskIndices.mapNotNull { sourceDump.drawableIds.getOrNull(it) }
 		val actualMasks = actual.maskIndices.mapNotNull { exportedDump.drawableIds.getOrNull(it) }
+
 		// Order is not compared: a clip set is a set, and the export emits it in the runtime model's own
 		// order rather than the source file's.
 		if (expectedMasks.toSet() != actualMasks.toSet()) {
@@ -211,11 +234,14 @@ class Moc3ExportOracleTest {
 	) {
 		if (expected.size != actual.size) {
 			mismatches.add("$fileName $subject $channel arity: ${expected.size} vs ${actual.size}")
+
 			return
 		}
+
 		for (component in expected.indices) {
 			if (!oracleCloseEnough(expected[component].toDouble(), actual[component].toDouble())) {
 				mismatches.add("$fileName $subject $channel[$component]: ${expected[component]} vs ${actual[component]}")
+
 				return
 			}
 		}

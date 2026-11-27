@@ -2,9 +2,10 @@ package org.umamo.render.eval
 
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -52,6 +53,7 @@ class CompactionEvalEquivalenceTest {
 
 	private fun importCmo3(file: File, compactChannels: Boolean): PuppetModel {
 		val root = Cmo3.read(file).root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
+
 		return Cmo3Import.fromModelSource(root, compactChannels = compactChannels)
 	}
 
@@ -61,29 +63,36 @@ class CompactionEvalEquivalenceTest {
 	 * One parameter at a time rather than a combinatorial sweep: the grids are multilinear, so a fault on
 	 * one axis shows up while the others sit at their defaults, and the corpus models carry enough
 	 * parameters that a product sweep would not finish.
+	 *
+	 * @param PuppetModel model The rig whose parameters are swept.
+	 * @return List<Map<ParameterId, Float>> The all-default pose, then each parameter at each sweep fraction.
 	 */
 	private fun sweepPoses(model: PuppetModel): List<Map<ParameterId, Float>> {
 		val defaults = model.parameters.associate { parameter -> parameter.id to parameter.default }
 		val poses = mutableListOf(defaults)
+
 		for (parameter in model.parameters) {
 			for (fraction in SWEEP_FRACTIONS) {
 				poses.add(defaults + (parameter.id to (parameter.min + (parameter.max - parameter.min) * fraction)))
 			}
 		}
+
 		return poses
 	}
 
 	@Test
 	fun compactionDoesNotChangeEvaluation() {
 		val files = probeFiles()
+
 		if (files.isEmpty()) {
-			println("cmo3.probe not present; skipping compaction equivalence")
-			return
+			skipTest("cmo3.probe not present; skipping compaction equivalence")
 		}
+
 		val evaluator = CpuDeformationEvaluator()
 		var comparedPoses = 0
 		var totalTracksBefore = 0
 		var totalTracksAfter = 0
+
 		for (file in files) {
 			val reference = importCmo3(file, compactChannels = false)
 			val compacted = importCmo3(file, compactChannels = true)
@@ -98,15 +107,18 @@ class CompactionEvalEquivalenceTest {
 					compactedGeometry.worldPositions.keys,
 					"${file.name}: the same drawables must be visible",
 				)
+
 				for ((drawableId, referencePositions) in referenceGeometry.worldPositions) {
 					val compactedPositions = compactedGeometry.worldPositions.getValue(drawableId)
 					assertEquals(referencePositions.size, compactedPositions.size, "${file.name}: ${drawableId.raw} vertex count")
+
 					for (coordIndex in referencePositions.indices) {
 						assertTrue(
 							abs(referencePositions[coordIndex] - compactedPositions[coordIndex]) <= GEOMETRY_TOLERANCE,
 							"${file.name}: ${drawableId.raw}[$coordIndex] geometry moved under compaction",
 						)
 					}
+
 					val referenceDrawOrder = referenceGeometry.drawOrder.getValue(drawableId)
 					val compactedDrawOrder = compactedGeometry.drawOrder.getValue(drawableId)
 					assertTrue(
@@ -120,9 +132,11 @@ class CompactionEvalEquivalenceTest {
 						"${file.name}: ${drawableId.raw} opacity $referenceOpacity -> $compactedOpacity",
 					)
 				}
+
 				comparedPoses++
 			}
 		}
+
 		println("[Umamo][compaction] $comparedPoses poses over ${files.size} models; channel tracks $totalTracksBefore -> $totalTracksAfter")
 		assertTrue(comparedPoses > 0, "compared at least one pose")
 		assertTrue(

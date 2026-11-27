@@ -5,7 +5,7 @@ import org.umamo.format.moc3.moc.ParameterType
 import org.umamo.format.moc3.moc.Section
 
 /**
- * Synthesizes the keyform-binding grid sections from [context] (byte-exact). Reproduces the
+ * Synthesizes the keyform-binding grid sections from [context] (byte-exact).  Reproduces the
  * editor's parameter-binding dedup: a parameter-binding is a unique `(parameter, key positions)`
  * pair; they are grouped by owning parameter and, within a parameter, ordered by first occurrence
  * scanning keyform-bindings in index order.
@@ -26,8 +26,10 @@ internal fun keyformGridSections(context: MocLoweringContext): Map<Int, ByteArra
 	val parameterBindingIndex = HashMap<Pair<Int, List<Float>>, Int>()
 	val parameterBindingOrder = ArrayList<List<Float>>()
 	val parameterBindingCount = IntArray(parameterCount)
+
 	for (parameterIndex in 0 until parameterCount) {
 		parameterBindingCount[parameterIndex] = keySetsByParameter[parameterIndex].size
+
 		for (keys in keySetsByParameter[parameterIndex]) {
 			parameterBindingIndex[parameterIndex to keys] = parameterBindingOrder.size
 			parameterBindingOrder.add(keys)
@@ -37,17 +39,21 @@ internal fun keyformGridSections(context: MocLoweringContext): Map<Int, ByteArra
 	val keyOffset = ArrayList<Int>()
 	val keyCount = ArrayList<Int>()
 	val keyPositions = ArrayList<Float>()
+
 	for (keys in parameterBindingOrder) {
 		keyOffset.add(keyPositions.size)
 		keyCount.add(keys.size)
 		keyPositions.addAll(keys)
 	}
+
 	val keyformBindingStart = ArrayList<Int>()
 	val keyformBindingCount = ArrayList<Int>()
 	val keyformBindingSlot = ArrayList<Int>()
+
 	for (bindingIndex in 0 until bindingCount) {
 		keyformBindingStart.add(keyformBindingSlot.size)
 		keyformBindingCount.add(bindingAxes[bindingIndex].size)
+
 		for ((parameterIndex, keys) in bindingAxes[bindingIndex]) {
 			keyformBindingSlot.add(parameterBindingIndex.getValue(parameterIndex to keys))
 		}
@@ -63,6 +69,7 @@ internal fun keyformGridSections(context: MocLoweringContext): Map<Int, ByteArra
 	val parameterBindingStart = IntArray(parameterCount)
 	run {
 		var cursor = 0
+
 		for (parameterIndex in 0 until parameterCount) {
 			parameterBindingStart[parameterIndex] =
 				if (parameterBindingCount[parameterIndex] > 0) {
@@ -89,22 +96,27 @@ internal fun keyformGridSections(context: MocLoweringContext): Map<Int, ByteArra
 	// it unconditionally to SIZE its parameter key store, and an absent section still resolves to a
 	// pointer - so it sizes the arena from whatever bytes follow.
 	val allKeyPositions = ArrayList(keyPositions)
+
 	for (bindingKeys in context.blendLayout.bindingKeys) {
 		bindingKeys.forEach { allKeyPositions.add(it) }
 	}
+
 	val unionBase = allKeyPositions.size
 	val unionKeyCounts = ArrayList<Int>()
+
 	if (context.writesUnionRegion) {
 		for (unionKeys in context.unionKeysByParameter) {
 			unionKeyCounts.add(unionKeys.size)
 			allKeyPositions.addAll(unionKeys)
 		}
 	}
+
 	sink.putFloats(Section.KEY_POSITIONS, allKeyPositions)
 	putParameterKeyRuns(sink, version, unionKeyCounts, unionBase)
 	sink.putInts(Section.KEYFORM_BINDING_SLOT, keyformBindingSlot)
 	sink.putInts(Section.KEYFORM_BINDING_START, keyformBindingStart)
 	sink.putInts(Section.KEYFORM_BINDING_COUNT, keyformBindingCount)
+
 	return sink.toMap()
 }
 
@@ -125,6 +137,7 @@ private fun putParameterKeyRuns(
 	if (version.byteValue < 4 || counts.isEmpty()) {
 		return
 	}
+
 	// The start column is an OFFSET INTO KEY_POSITIONS, not a running count from zero: the union
 	// region sits after the main-grid keys (and, on a blend model, the blend binding keys), so a
 	// prefix sum based at 0 would point every parameter at the wrong run.

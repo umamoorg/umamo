@@ -1,0 +1,45 @@
+#!/bin/sh
+# Umamo's copy of the postinst template of the JDK 21 jpackage that packages the Linux installers, changed in one
+# place: the menu entry and the .uma registration are installed best-effort.  A system with no desktop menu
+# directories (a bare container, WSL, a window manager without a menu) makes xdg-desktop-menu fail, and under set -e
+# that failure would leave the package half-configured and every later apt run complaining.  Each registration
+# command is still attempted: a shell ignores set -e on the left of ||.  Re-diff this file against the packaging
+# JDK's template whenever that JDK changes.
+# postinst script for APPLICATION_PACKAGE
+#
+# see: dh_installdeb(1)
+
+set -e
+
+# summary of how this script can be called:
+#        * <postinst> `configure' <most-recently-configured-version>
+#        * <old-postinst> `abort-upgrade' <new version>
+#        * <conflictor's-postinst> `abort-remove' `in-favour' <package>
+#          <new-version>
+#        * <postinst> `abort-remove'
+#        * <deconfigured's-postinst> `abort-deconfigure' `in-favour'
+#          <failed-install-package> <version> `removing'
+#          <conflicting-package> <version>
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+package_type=deb
+LAUNCHER_AS_SERVICE_SCRIPTS
+
+case "$1" in
+    configure)
+( true; DESKTOP_COMMANDS_INSTALL
+) || true
+LAUNCHER_AS_SERVICE_COMMANDS_INSTALL
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+exit 0

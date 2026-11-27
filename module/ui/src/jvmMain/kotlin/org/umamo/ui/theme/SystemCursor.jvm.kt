@@ -55,9 +55,8 @@ private val hiddenCursorIcon: PointerIcon by lazy {
 /**
  * Rasterizes [cursor] into an AWT custom cursor at the toolkit's preferred cursor size.
  *
- * The art is scaled to [CURSOR_ART_FRACTION] of the box and centered, then the cursor's own hotspot
- * fraction is resolved against the PAINTED bounds (not the authored viewport) to a pixel, mirroring what
- * drawCursor does on the overlay path - so the same art tracks the pointer identically whether the OS or
+ * The hotspot is resolved against the PAINTED bounds (not the authored viewport), mirroring what
+ * drawCursor does on the overlay path, so the same art tracks the pointer identically whether the OS or
  * the viewport overlay is drawing it.
  *
  * @param UmamoCursor cursor The cursor definition to bake.
@@ -105,8 +104,6 @@ private fun bakeCursor(cursor: UmamoCursor): PointerIcon =
 /**
  * Desktop actual: bakes the vector cursor into an AWT custom cursor once and reuses it thereafter.
  *
- * デスクトップ実装：ベクターカーソルを AWT カーソルに一度だけ焼き込み、以降は再利用する。
- *
  * @param UmamoCursor cursor The cursor definition to rasterize.
  * @return PointerIcon The AWT-backed cursor showing that art.
  */
@@ -114,8 +111,6 @@ actual fun umamoPointerIcon(cursor: UmamoCursor): PointerIcon = bakedCursors.get
 
 /**
  * Desktop actual: an invisible cursor built from a fully transparent 16x16 image.
- *
- * デスクトップ実装：透明画像から作った不可視カーソルを返す。
  *
  * @return PointerIcon The transparent cursor, or the default where none can be built.
  */

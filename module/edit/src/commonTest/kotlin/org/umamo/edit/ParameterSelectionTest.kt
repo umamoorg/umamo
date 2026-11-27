@@ -1,5 +1,7 @@
 package org.umamo.edit
 
+import org.umamo.edit.parameter.deleteParameter
+import org.umamo.edit.parameter.setParameterLink
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel

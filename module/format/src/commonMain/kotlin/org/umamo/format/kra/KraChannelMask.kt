@@ -5,11 +5,11 @@ import org.umamo.format.art.ChannelMask
 /*
  * The channelflags -> ChannelMask mapping, split out of KraReader so it can live in commonMain.
  *
- * KraReader itself cannot: it is a zip container plus a JDOM/SAX XML parse, both JVM-only, so it
- * stays in jvmAndroidMain alongside the FormatRegistry that is its only non-test caller.  This
- * mapping is pure arithmetic over a string and belongs with the rest of KRA's platform-free logic
- * (KraColorModel, KraLzf, KraTileData), where KraChannelMaskTest can reach it from commonTest and
- * exercise it on every target.
+ * KraReader itself cannot: its JDOM/SAX XML parse is JVM-only, so it stays in jvmAndroidMain
+ * alongside the FormatRegistry that is its only non-test caller.  This mapping is pure arithmetic
+ * over a string and belongs with the rest of KRA's platform-free logic (KraColorModel, KraLzf,
+ * KraTileData), where KraChannelMaskTest can reach it from commonTest and exercise it on every
+ * target.
  */
 
 /**
@@ -17,7 +17,7 @@ import org.umamo.format.art.ChannelMask
  *
  * channelflags is a per-channel enable mask in channel-index order ('0' disables a channel,
  * anything else enables it; indices beyond the string default to enabled), or empty meaning all
- * channels enabled. The channel-index order is the color space's own: for RGB it is Blue, Green,
+ * channels enabled.  The channel-index order is the color space's own: for RGB it is Blue, Green,
  * Red, Alpha (the addChannel sequence in RgbU8ColorSpace.cpp), and for GRAYA it is Gray, Alpha.
  * Grayscale's single gray channel maps onto R, G, and B together, because the raster expands gray
  * to RGB.
@@ -37,8 +37,15 @@ internal fun channelMaskFrom(channelFlags: String?, format: KraPixelFormat): Cha
 		return ChannelMask.ALL
 	}
 
+	/**
+	 * Tells whether the layer's channel flags leave a channel enabled; one the flags do not cover is.
+	 *
+	 * @param Int channelIndex The channel's position in the flags.
+	 * @return Boolean True unless the channel's flag is `0`.
+	 */
 	fun channelEnabled(channelIndex: Int): Boolean =
 		channelIndex !in channelFlags.indices || channelFlags[channelIndex] != '0'
+
 	return if (format.isRgb) {
 		ChannelMask(red = channelEnabled(2), green = channelEnabled(1), blue = channelEnabled(0), alpha = channelEnabled(3))
 	} else {

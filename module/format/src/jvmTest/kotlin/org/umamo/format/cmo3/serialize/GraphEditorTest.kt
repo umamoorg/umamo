@@ -39,6 +39,7 @@ class GraphEditorTest {
 				sharedChild = sharedLeaf
 				sharedChildAgain = sharedLeaf
 			}
+
 		return XmlCodec.write(nodeEngine.writeRoot(node))
 	}
 

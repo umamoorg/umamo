@@ -12,10 +12,7 @@ import org.umamo.settings.Settings
 /**
  * A write-through, reactive binding to one string setting: reading the returned state yields the current
  * value (the user override, else the default), and assigning to it persists immediately via
- * [Settings.setString] - the auto-save the preferences UI is built on, with no commit step.  A change to
- * the same key from elsewhere (another control, a future shortcut) flows back in through the settings
- * `changes` flow, so the binding stays in sync without the read-once-then-collect boilerplate each call
- * site would otherwise repeat (cf. ProvideAppThemeFromSettings, PersistentEditorShell).
+ * [Settings.setString] - the auto-save the preferences UI is built on, with no commit step.
  *
  * @param String key     The dotted settings key (e.g. "interface.theme").
  * @param String default The value used when the key is absent (rarely hit; defaultSettings.json seeds most).
@@ -34,6 +31,7 @@ fun rememberStringSetting(key: String, default: String): MutableState<String> {
 			}
 		}
 	}
+
 	return remember(settings, key, backing) { WriteThroughSettingState(settings, key, backing) }
 }
 
@@ -87,6 +85,7 @@ fun rememberIntSetting(key: String, default: Int): MutableState<Int> {
 			}
 		}
 	}
+
 	return remember(settings, key, backing) { WriteThroughIntSettingState(settings, key, backing) }
 }
 
@@ -138,6 +137,7 @@ fun rememberDoubleSetting(key: String, default: Double): MutableState<Double> {
 			}
 		}
 	}
+
 	return remember(settings, key, backing) { WriteThroughDoubleSettingState(settings, key, backing) }
 }
 
@@ -189,6 +189,7 @@ fun rememberBooleanSetting(key: String, default: Boolean): MutableState<Boolean>
 			}
 		}
 	}
+
 	return remember(settings, key, backing) { WriteThroughBooleanSettingState(settings, key, backing) }
 }
 

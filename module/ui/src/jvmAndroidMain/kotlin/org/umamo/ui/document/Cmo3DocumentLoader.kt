@@ -2,21 +2,28 @@ package org.umamo.ui.document
 
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.cmo3AtlasPages
+import org.umamo.interop.AtlasPageSet
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
 import org.umamo.render.UndecodablePagePolicy
 import org.umamo.render.buildPuppetTextures
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.initialLiveParams
 
 /**
- * A loaded `.cmo3`: the format model (the retained graph Export CMO3 reconciles the session's edits
- * onto - Cmo3Export.apply), the runtime puppet + atlas textures + source artwork (for render), live
- * params.
+ * A loaded `.cmo3`: the format model (the retained graph whose archive Export CMO3 reads a working copy
+ * from, to reconcile the session's edits onto - Cmo3Export.apply), the runtime puppet + atlas textures +
+ * source artwork (for render), live params.
+ *
+ * The retained graph and its archive stay exactly as the file was opened for the document's life: no
+ * export writes into them, so everything that reads them - the raster store, [tilePng], a source read's
+ * decomposed layers, a UMA save, and each export's working copy - sees the imported art, and none of
+ * those reads, on whichever thread, races a write.
  */
 class Cmo3Document(
 	override val path: String,
@@ -25,6 +32,19 @@ class Cmo3Document(
 	override val textures: PuppetTextures,
 	override val artRasters: SourceArtRasters,
 	override val liveParams: LiveParams,
+	/**
+	 * The atlas pages as the CMO3 embedded them, kept from the open so a save can store those exact bytes
+	 * while the atlas sits at its imported baseline.  A document assembled by hand (a test probe) has none,
+	 * and a save of it derives its pages instead.
+	 */
+	val pageSet: AtlasPageSet = AtlasPageSet.EMPTY,
+	/**
+	 * A tile's layer PNG as the CMO3 embedded it when opened, or null for a tile the graph has no image for -
+	 * the same lookup the raster store decodes through, exposed so a save can copy the bytes without a
+	 * decode.  An imported tile's bytes never change: a reload supersedes the tile with a new id rather than
+	 * rewriting this one, and an export rewrites the layer only in its own working copy.
+	 */
+	val tilePng: (AtlasTileId) -> ByteArray? = { null },
 ) : PuppetDocument
 
 /**
@@ -42,10 +62,13 @@ class Cmo3Document(
  */
 internal fun buildCmo3Document(cmo3: Cmo3Model, name: String, path: String): DocumentLoad {
 	val root = cmo3.root as? CModelSource
+
 	if (root == null) {
 		UmamoLog.error("failed to open $path: the CMO3 has no model source")
+
 		return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))
 	}
+
 	val imported = Cmo3Import.importModelSource(root)
 	val puppet = imported.puppet
 	// The atlas walk takes the root plus a pixel lookup rather than the Cmo3Model itself, which is what
@@ -55,7 +78,7 @@ internal fun buildCmo3Document(cmo3: Cmo3Model, name: String, path: String): Doc
 	// resource inside an otherwise editable rig must not cost the rigger everything else.  Skip never
 	// returns null, so the fallback is unreachable - the shared builder's return type is nullable only
 	// to serve the Fail policy.
-	val pageSet = cmo3AtlasPages(root, cmo3::extractLayerPng)
+	val pageSet = cmo3AtlasPages(root, imported.atlasIngest, cmo3::extractLayerPng)
 	val textures =
 		buildPuppetTextures(
 			pageSet.pageBytes,
@@ -68,6 +91,8 @@ internal fun buildCmo3Document(cmo3: Cmo3Model, name: String, path: String): Doc
 	// supplier, which defers every raster to first request so opening a model with hundreds of layers
 	// costs no more than opening one without.
 	val tileResources = imported.atlasIngest.imageResourceByTile
-	val artRasters = SourceArtRasters.fromPng { tileId -> tileResources[tileId]?.let(cmo3::extractLayerPng) }
-	return DocumentLoad.Loaded(Cmo3Document(path, cmo3, puppet, textures, artRasters, initialLiveParams(puppet)))
+	val tilePng: (AtlasTileId) -> ByteArray? = { tileId -> tileResources[tileId]?.let(cmo3::extractLayerPng) }
+	val artRasters = SourceArtRasters.fromPng(tilePng)
+
+	return DocumentLoad.Loaded(Cmo3Document(path, cmo3, puppet, textures, artRasters, initialLiveParams(puppet), pageSet, tilePng))
 }

@@ -62,10 +62,12 @@ class DeformerSubtreeTest {
 	@Test
 	fun aMoveIntoTheOwnSubtreeIsRefusedAndAnUnrelatedOneIsNot() {
 		val base = model()
+
 		// Every member of the subtree is an illegal parent for root, self included.
 		for (candidate in base.deformerSelfAndDescendants(rootId)) {
 			assertTrue(candidate in base.deformerSelfAndDescendants(rootId))
 		}
+
 		// The picker filters on exactly this, so what it offers is what the move accepts.
 		assertTrue(rootId in base.deformerSelfAndDescendants(rootId), "self is in the forbidden set")
 		assertTrue(grandchildId in base.deformerSelfAndDescendants(rootId), "a descendant is forbidden")

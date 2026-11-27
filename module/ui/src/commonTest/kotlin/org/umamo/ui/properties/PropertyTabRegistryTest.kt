@@ -11,14 +11,12 @@ import org.umamo.ui.resources.properties_tab_document
 import org.umamo.ui.resources.properties_tab_object
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertSame
-import kotlin.test.assertTrue
 
 /**
- * Covers the two pure behaviors that carry the Properties data design: which tabs are visible for a given
- * selection ([PropertyTabRegistry.visibleTabs]) and the header-search match predicate ([matchesQuery]).
- * Both are Compose-free, so they exercise the design without a UI harness.
+ * Covers which tabs the Properties panel shows for a given selection ([PropertyTabRegistry.visibleTabs]), the
+ * sections the Data tab adapts to, and how an override layers over the base registry.  All Compose-free, so they
+ * exercise the design without a UI harness.
  */
 class PropertyTabRegistryTest {
 	/** A minimal, empty model - enough to build a [PropertyContext] (the visibility predicates read only the target). */
@@ -61,81 +59,11 @@ class PropertyTabRegistryTest {
 	@Test
 	fun dataTabSectionsResolvePerType() {
 		assertEquals(
-			listOf(MeshSection.id, TextureSection.id, BlendSection.id),
+			listOf(MeshSection.id, TextureSection.id, BlendSection.id, BlendShapesSection.id),
 			dataTabSections(contextFor(SelectionTarget.Drawable(DrawableId("d1")))).map { it.id },
 		)
-		assertEquals(listOf(DeformerSection.id), dataTabSections(contextFor(SelectionTarget.Deformer(DeformerId("w1")))).map { it.id })
+		assertEquals(listOf(DeformerSection.id, BlendShapesSection.id), dataTabSections(contextFor(SelectionTarget.Deformer(DeformerId("w1")))).map { it.id })
 		assertEquals(listOf(PartSection.id), dataTabSections(contextFor(SelectionTarget.Part(PartId("p1")))).map { it.id })
-	}
-
-	/** The match predicate is case-insensitive, and a blank query matches everything. */
-	@Test
-	fun matchesQueryIsCaseInsensitiveAndBlankMatchesAll() {
-		val haystack = listOf("Canvas", "Size: %1\$s × %2\$s")
-		assertTrue(matchesQuery(haystack, ""))
-		assertTrue(matchesQuery(haystack, "   "))
-		assertTrue(matchesQuery(haystack, "can"))
-		assertTrue(matchesQuery(haystack, "SIZE"))
-		assertFalse(matchesQuery(haystack, "runtime"))
-		assertFalse(matchesQuery(emptyList(), "x"))
-	}
-
-	/**
-	 * Per-row visibility: a blank query or a section-title match shows every row; a field query keeps only
-	 * the matching rows; and a stacked row (several terms) survives when any of its terms match.
-	 */
-	@Test
-	fun sectionVisibilityHidesNonMatchingRows() {
-		val rows = listOf(listOf("Opacity"), listOf("Blend Mode"), listOf("Invert Mask"))
-
-		// Blank query: the whole section, every row.
-		sectionVisibility("Compositing", rows, "").let { result ->
-			assertTrue(result.shown)
-			assertEquals(listOf(0, 1, 2), result.visibleRowIndices)
-		}
-		// A field-name query keeps only the matching row.
-		sectionVisibility("Compositing", rows, "blend").let { result ->
-			assertTrue(result.shown)
-			assertEquals(listOf(1), result.visibleRowIndices)
-		}
-		// A section-title match shows every row (the whole section is relevant), even when no row matches.
-		sectionVisibility("Compositing", rows, "compos").let { result ->
-			assertTrue(result.shown)
-			assertEquals(listOf(0, 1, 2), result.visibleRowIndices)
-		}
-		// No match anywhere hides the section outright.
-		sectionVisibility("Compositing", rows, "zzz").let { result ->
-			assertFalse(result.shown)
-			assertTrue(result.visibleRowIndices.isEmpty())
-		}
-		// A stacked row (canvas width + height) matches on any of its terms.
-		sectionVisibility("Canvas", listOf(listOf("Width", "Height")), "height").let { result ->
-			assertTrue(result.shown)
-			assertEquals(listOf(0), result.visibleRowIndices)
-		}
-	}
-
-	/**
-	 * A section that built no rows for the current context never shows - not on a blank query, and not on a
-	 * title match either.  This is how Transform opts out for an item with no transform (a Part, a warp
-	 * deformer) instead of drawing an empty card, so a title match must not resurrect it.
-	 */
-	@Test
-	fun sectionVisibilityHidesASectionThatBuiltNoRows() {
-		val noRows = emptyList<List<String>>()
-
-		sectionVisibility("Transform", noRows, "").let { result ->
-			assertFalse(result.shown, "an empty section is not shown on a blank query")
-			assertTrue(result.visibleRowIndices.isEmpty())
-		}
-		sectionVisibility("Transform", noRows, "transf").let { result ->
-			assertFalse(result.shown, "a title match must not resurrect an empty section")
-			assertTrue(result.visibleRowIndices.isEmpty())
-		}
-		sectionVisibility("Transform", noRows, "zzz").let { result ->
-			assertFalse(result.shown)
-			assertTrue(result.visibleRowIndices.isEmpty())
-		}
 	}
 
 	/** A same-id override replaces its tab in place (keeping strip position); a new id appends after. */

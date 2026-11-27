@@ -2,13 +2,14 @@ package org.umamo.format.psd
 
 import org.umamo.format.art.LayerRaster
 import org.umamo.format.art.isEffectivelyVisible
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * End-to-end reader test against a real .psd. Corpus-gated: it uses -Dpsd.sample=<file> when given,
+ * End-to-end reader test against a real .psd.  Corpus-gated: it uses -Dpsd.sample=<file> when given,
  * else auto-discovers a sample under test/corpus/ (or test/) by walking up from the working
  * directory; if none is present it self-skips so CI stays green without a committed corpus.
  *
@@ -29,6 +30,7 @@ class PsdReaderTest {
 			return listOfNotNull(File(path).takeIf(File::isFile))
 		}
 		var directory: File? = File(System.getProperty("user.dir"))
+
 		while (directory != null) {
 			for (subdirectory in listOf("test/corpus/psd", "test/corpus", "test")) {
 				val samples =
@@ -36,22 +38,26 @@ class PsdReaderTest {
 						?.listFiles { file -> file.extension.equals("psd", ignoreCase = true) }
 						?.sortedBy { it.name }
 						.orEmpty()
+
 				if (samples.isNotEmpty()) {
 					return samples
 				}
 			}
+
 			directory = directory.parentFile
 		}
+
 		return emptyList()
 	}
 
 	@Test
 	fun readsLayersFromRealPsd() {
 		val samples = locateSamples()
+
 		if (samples.isEmpty()) {
-			println("no psd.sample and no test/corpus PSD samples; skipping PSD reader test")
-			return
+			skipTest("no psd.sample and no test/corpus PSD samples; skipping PSD reader test")
 		}
+
 		for (sample in samples) {
 			checkSample(sample)
 		}
@@ -95,9 +101,11 @@ class PsdReaderTest {
 		// Folder surfacing: every group has a non-blank path, and every layer that names an enclosing
 		// folder resolves to one - the section-divider stack and groupPath assignment must stay aligned.
 		val groupPaths = art.groups.map { group -> group.path }.toSet()
+
 		for (group in art.groups) {
 			assertTrue(group.path.isNotBlank(), "${sample.name}: group '${group.name}' has a path")
 		}
+
 		for (layer in art.layers) {
 			assertTrue(
 				layer.groupPath.isEmpty() || layer.groupPath in groupPaths,
@@ -114,11 +122,14 @@ class PsdReaderTest {
 		var maskedLayers = 0
 		var checkedPixels = 0
 		val parse = PsdLayerRecords.parse(bytes)
+
 		for (record in parse.records) {
 			val mask = record.userMask ?: continue
+
 			if (mask.disabled || mask.bounds.width <= 0 || mask.bounds.height <= 0) {
 				continue
 			}
+
 			maskedLayers++
 			val layer = art.layers.firstOrNull { candidate -> candidate.name == record.name && candidate.bounds == record.bounds } ?: continue
 			val raster = layer.raster
@@ -128,18 +139,23 @@ class PsdReaderTest {
 			assertTrue(maskedOpaque <= unmaskedOpaque, "${sample.name}: layer '${layer.name}' mask can only hide pixels ($maskedOpaque vs $unmaskedOpaque)")
 			val originX = mask.bounds.left - record.bounds.left
 			val originY = mask.bounds.top - record.bounds.top
+
 			if (unmaskedOpaque > 0 && maskPlaneHasValueOverLayer(bytes, parse, record, mask, originX, originY, unmasked)) {
 				assertTrue(maskedOpaque > 0, "${sample.name}: layer '${layer.name}' lost every pixel to its mask - the mask rectangle is off its layer")
 			}
+
 			if (mask.defaultColor != 0) {
 				continue
 			}
+
 			for (row in 0 until raster.height) {
 				for (column in 0 until raster.width) {
 					val inside = (row - originY) in 0 until mask.bounds.height && (column - originX) in 0 until mask.bounds.width
+
 					if (inside) {
 						continue
 					}
+
 					checkedPixels++
 					assertEquals(
 						0,
@@ -149,6 +165,7 @@ class PsdReaderTest {
 				}
 			}
 		}
+
 		println("checked ${sample.name}: ${art.widthPx}x${art.heightPx}, ${art.layers.size} layers, ${art.groups.size} groups, $maskedLayers masked layers ($checkedPixels outside-mask pixels checked)")
 	}
 
@@ -161,12 +178,15 @@ class PsdReaderTest {
 	private fun opaquePixelCount(rgba: ByteArray): Int {
 		var count = 0
 		var index = 3
+
 		while (index < rgba.size) {
 			if (rgba[index].toInt() != 0) {
 				count++
 			}
+
 			index += 4
 		}
+
 		return count
 	}
 
@@ -196,33 +216,44 @@ class PsdReaderTest {
 	): Boolean {
 		var offset = record.channelDataOffset
 		var maskChannel: PsdChannelInfo? = null
+
 		for (channel in record.channels) {
 			if (channel.id == -2) {
 				maskChannel = channel
+
 				break
 			}
+
 			offset += channel.length.toInt()
 		}
+
 		val channel = maskChannel ?: return false
 		val asColor = record.copy(bounds = mask.bounds, channels = listOf(PsdChannelInfo(0, channel.length)), channelDataOffset = offset, userMask = null, realUserMask = null)
 		val plane = PsdRaster.decodeLayer(bytes, parse.header, parse.colorModeData, asColor)
+
 		for (row in 0 until unmasked.height) {
 			val maskRow = row - originY
+
 			if (maskRow !in 0 until plane.height) {
 				continue
 			}
+
 			for (column in 0 until unmasked.width) {
 				val maskColumn = column - originX
+
 				if (maskColumn !in 0 until plane.width) {
 					continue
 				}
+
 				val hasAlpha = unmasked.rgba[(row * unmasked.width + column) * 4 + 3].toInt() != 0
 				val maskValue = plane.rgba[(maskRow * plane.width + maskColumn) * 4].toInt() and 0xFF
+
 				if (hasAlpha && maskValue != 0) {
 					return true
 				}
 			}
 		}
+
 		return false
 	}
 }

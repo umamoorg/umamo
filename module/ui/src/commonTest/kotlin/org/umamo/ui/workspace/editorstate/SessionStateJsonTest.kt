@@ -1,0 +1,272 @@
+package org.umamo.ui.workspace.editorstate
+
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import org.umamo.edit.Cursor2d
+import org.umamo.edit.DEFAULT_PROPORTIONAL_EDIT_STATE
+import org.umamo.edit.DepthSurface
+import org.umamo.edit.EditorMode
+import org.umamo.edit.MeshSelectMode
+import org.umamo.edit.ParameterControl
+import org.umamo.edit.ParameterSelection
+import org.umamo.edit.ProportionalEditState
+import org.umamo.edit.ProportionalFalloff
+import org.umamo.edit.Selection
+import org.umamo.edit.SelectionTarget
+import org.umamo.edit.SessionViewState
+import org.umamo.edit.TransformPivotMode
+import org.umamo.edit.UvCursor
+import org.umamo.runtime.model.DeformerId
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.Parameter
+import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.viewport.initialLiveParams
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/**
+ * Pins the editor entry's session block (docs/format/UMA.md §7.4): what a session saves comes back, a session at
+ * its defaults writes nothing but nulls, the pose lists only the parameters away from their defaults and is
+ * clamped as it loads, and a member of the wrong shape is skipped rather than thrown over.
+ */
+class SessionStateJsonTest {
+	private val angleX = ParameterId("ParamAngleX")
+	private val angleY = ParameterId("ParamAngleY")
+	private val model =
+		PuppetModel(
+			parameters = listOf(Parameter(angleX, "Angle X", -30f, 30f, 0f), Parameter(angleY, "Angle Y", -30f, 30f, 5f)),
+			parts = emptyList(),
+			deformers = emptyList(),
+			drawables = emptyList(),
+			rootChildren = emptyList(),
+			rootPartId = null,
+		)
+	private val defaultPose = mapOf(angleX to 0f, angleY to 5f)
+
+	@Test
+	fun aSessionAtItsDefaultsWritesOnlyNulls() {
+		val tree = sessionStateJson(SessionViewState(proportionalSettings = DEFAULT_PROPORTIONAL_EDIT_STATE), defaultPose, model)
+
+		assertTrue(tree.values.all { value -> value is JsonNull }, "nothing deviates: $tree")
+		assertEquals(SessionViewState(), sessionViewStateOf(JsonObject(emptyMap())), "and an empty block reads as the defaults")
+		assertNull(sessionViewStateOf(null), "while no block at all is no saved state")
+	}
+
+	@Test
+	fun everyMemberRoundTrips() {
+		val saved =
+			SessionViewState(
+				selection =
+					Selection(
+						linkedSetOf(SelectionTarget.Drawable(DrawableId("ArtMesh12")), SelectionTarget.Part(PartId("face")), SelectionTarget.Deformer(DeformerId("warp:1"))),
+						SelectionTarget.Part(PartId("face")),
+					),
+				parameterSelection = ParameterSelection(linkedSetOf(angleX, angleY), angleY),
+				mode = EditorMode.Edit,
+				selectMode = MeshSelectMode.Edge,
+				cursor2d = Cursor2d(12.5f, -8f),
+				uvCursor = UvCursor(0.25f, 0.75f),
+				pivotMode = TransformPivotMode.IndividualOrigins,
+				pivotDepth = 125.5f,
+				depthSurface = DepthSurface.Cylinder,
+				proportionalEnabled = true,
+				proportionalSettings = ProportionalEditState(ProportionalFalloff.Linear, 64f, connectedOnly = true),
+				parameterControls = mapOf(angleX to ParameterControl.Dial, angleY to ParameterControl.Slider),
+			)
+
+		val reopened = sessionViewStateOf(sessionStateJson(saved, defaultPose, model))
+
+		assertEquals(saved, reopened)
+	}
+
+	/** The depth rotation's block names each member away from its default, and a pulled pivot reads back negative. */
+	@Test
+	fun theDepthRotationBlockWritesOnlyItsDeviations() {
+		val depthOnly = sessionStateJson(SessionViewState(pivotDepth = -40f), defaultPose, model)["depthRotation"] as JsonObject
+
+		assertEquals(-40f, depthOnly["depth"]?.jsonPrimitive?.content?.toFloat())
+		assertTrue(depthOnly["surface"] is JsonNull, "the default Unchanged surface writes nothing")
+		assertEquals(SessionViewState(pivotDepth = -40f), sessionViewStateOf(sessionStateJson(SessionViewState(pivotDepth = -40f), defaultPose, model)))
+
+		val surfaceOnly = sessionStateJson(SessionViewState(depthSurface = DepthSurface.Cylinder), defaultPose, model)["depthRotation"] as JsonObject
+		assertEquals("cylinder", surfaceOnly["surface"]?.jsonPrimitive?.content)
+		assertTrue(surfaceOnly["depth"] is JsonNull, "a depth of 0 writes nothing")
+
+		for (surface in DepthSurface.entries) {
+			val saved = SessionViewState(depthSurface = surface)
+
+			assertEquals(saved, sessionViewStateOf(sessionStateJson(saved, defaultPose, model)), "$surface round-trips")
+		}
+
+		val sphere = sessionStateJson(SessionViewState(depthSurface = DepthSurface.Sphere), defaultPose, model)["depthRotation"] as JsonObject
+		assertEquals("sphere", sphere["surface"]?.jsonPrimitive?.content)
+		val flat = sessionStateJson(SessionViewState(depthSurface = DepthSurface.Flat), defaultPose, model)["depthRotation"] as JsonObject
+		assertEquals("flat", flat["surface"]?.jsonPrimitive?.content, "Flat is away from the default, so it is named")
+		assertTrue(sessionStateJson(SessionViewState(), defaultPose, model)["depthRotation"] is JsonNull, "at the defaults the block is left out")
+		assertEquals(DepthSurface.Unchanged, sessionViewStateOf(sessionStateJson(SessionViewState(), defaultPose, model))?.depthSurface)
+	}
+
+	/** An id holding a colon survives: the reference splits on its FIRST colon only. */
+	@Test
+	fun anObjectReferenceKeepsAnIdWithAColon() {
+		val target = SelectionTarget.Deformer(DeformerId("art-0/lyid:12~1"))
+
+		assertEquals(target, selectionTargetOf(objectReferenceOf(target)))
+		assertNull(selectionTargetOf("glue:3"), "a reference of no known kind names nothing")
+	}
+
+	/** A disabled proportional configuration away from the default is still saved: a toggle brings it back. */
+	@Test
+	fun aDisabledProportionalConfigurationIsSaved() {
+		val saved = SessionViewState(proportionalSettings = ProportionalEditState(ProportionalFalloff.Root, 48f))
+
+		val reopened = sessionViewStateOf(sessionStateJson(saved, defaultPose, model))
+
+		assertEquals(saved, reopened)
+	}
+
+	/** Every editor mode round-trips under its UMA §7.4 wire name, and Object mode, the default, writes nothing. */
+	@Test
+	fun everyModeRoundTripsUnderItsWireName() {
+		for (mode in EditorMode.entries) {
+			val saved = SessionViewState(mode = mode)
+
+			assertEquals(saved, sessionViewStateOf(sessionStateJson(saved, defaultPose, model)), "$mode round-trips")
+		}
+
+		assertEquals("pose", sessionStateJson(SessionViewState(mode = EditorMode.Pose), defaultPose, model)["mode"]?.jsonPrimitive?.content)
+		assertEquals("edit", sessionStateJson(SessionViewState(mode = EditorMode.Edit), defaultPose, model)["mode"]?.jsonPrimitive?.content)
+		assertTrue(sessionStateJson(SessionViewState(mode = EditorMode.Object), defaultPose, model)["mode"] is JsonNull)
+	}
+
+	/** Every falloff curve round-trips under its UMA §7.4 wire name, the two-word one in lower camel case. */
+	@Test
+	fun everyFalloffRoundTripsUnderItsWireName() {
+		for (falloff in ProportionalFalloff.entries) {
+			val saved = SessionViewState(proportionalEnabled = true, proportionalSettings = ProportionalEditState(falloff, 48f))
+
+			val reopened = sessionViewStateOf(sessionStateJson(saved, defaultPose, model))
+
+			assertEquals(saved, reopened, "$falloff round-trips")
+		}
+
+		val inverseSquare = sessionStateJson(SessionViewState(proportionalEnabled = true, proportionalSettings = ProportionalEditState(ProportionalFalloff.InverseSquare, 48f)), defaultPose, model)
+		val random = sessionStateJson(SessionViewState(proportionalEnabled = true, proportionalSettings = ProportionalEditState(ProportionalFalloff.Random, 48f)), defaultPose, model)
+		assertEquals("inverseSquare", (inverseSquare["proportional"] as JsonObject)["falloff"]?.jsonPrimitive?.content)
+		assertEquals("random", (random["proportional"] as JsonObject)["falloff"]?.jsonPrimitive?.content)
+	}
+
+	@Test
+	fun thePoseListsOnlyDeviationsAndLoadsClamped() {
+		val tree = sessionStateJson(SessionViewState(), mapOf(angleX to 12.5f, angleY to 5f), model)
+		assertEquals(mapOf(angleX to 12.5f), savedPoseOf(tree), "a parameter at its default is not listed")
+
+		val live = initialLiveParams(model, mapOf(angleX to 99f, ParameterId("ParamGone") to 1f))
+		assertEquals(mapOf(angleX to 30f, angleY to 5f), live.values, "a saved value is clamped to its range, and an unknown id never matches")
+		assertEquals(defaultPose, initialLiveParams(model).values, "a plain open is every default")
+	}
+
+	/** The controls list in the model's parameter order under their wire names, and one whose parameter is gone is not written. */
+	@Test
+	fun theParameterControlsListInModelOrderAndDropAGhost() {
+		val saved = SessionViewState(parameterControls = mapOf(ParameterId("ParamGone") to ParameterControl.Dial, angleY to ParameterControl.Slider, angleX to ParameterControl.Dial))
+
+		val tree = sessionStateJson(saved, defaultPose, model)
+
+		assertEquals(
+			buildJsonArray {
+				add(
+					buildJsonObject {
+						put("parameter", "ParamAngleX")
+						put("control", "dial")
+					},
+				)
+				add(
+					buildJsonObject {
+						put("parameter", "ParamAngleY")
+						put("control", "slider")
+					},
+				)
+			},
+			tree["parameterControls"],
+		)
+		assertEquals(mapOf(angleX to ParameterControl.Dial, angleY to ParameterControl.Slider), sessionViewStateOf(tree)?.parameterControls)
+	}
+
+	/** A saved value outside a repeating axis's range wraps back into it at open, as the evaluator reads it. */
+	@Test
+	fun aSavedPoseWrapsOnARepeatingAxis() {
+		val repeating = model.copy(parameters = model.parameters.map { parameter -> if (parameter.id == angleX) parameter.copy(repeat = true) else parameter })
+
+		val live = initialLiveParams(repeating, mapOf(angleX to 99f))
+
+		assertEquals(-21f, live.values[angleX], "99 is 129 past min on a 60-wide axis, which wraps to 9 past min")
+	}
+
+	/** Every member the wrong shape: nothing throws, and the state is the defaults (UMA §7.1). */
+	@Test
+	fun membersOfTheWrongShapeAreSkipped() {
+		val junk =
+			buildJsonObject {
+				put(
+					"pose",
+					buildJsonArray {
+						add(JsonPrimitive("ParamAngleX"))
+						add(
+							buildJsonObject {
+								put("parameter", 7)
+								put("value", "far")
+							},
+						)
+					},
+				)
+				put("selection", "everything")
+				put("parameterSelection", buildJsonObject { put("ids", 3) })
+				put("mode", "sculpt")
+				put("selectMode", 2)
+				put("cursor2d", buildJsonArray { add(JsonPrimitive(1)) })
+				put("uvCursor", "center")
+				put("pivot", "origin")
+				put(
+					"proportional",
+					buildJsonObject {
+						put("enabled", "yes")
+						put("falloff", "gaussian")
+						put("radius", -4)
+					},
+				)
+				put(
+					"parameterControls",
+					buildJsonArray {
+						add(JsonPrimitive("ParamAngleX"))
+						add(
+							buildJsonObject {
+								put("parameter", 7)
+								put("control", "dial")
+							},
+						)
+						add(
+							buildJsonObject {
+								put("parameter", "ParamAngleX")
+								put("control", "knob")
+							},
+						)
+						add(buildJsonObject { put("parameter", "ParamAngleY") })
+					},
+				)
+			}
+
+		assertEquals(SessionViewState(proportionalSettings = DEFAULT_PROPORTIONAL_EDIT_STATE), sessionViewStateOf(junk))
+		assertEquals(emptyMap(), savedPoseOf(junk))
+		assertEquals(SessionViewState(), sessionViewStateOf(buildJsonObject { put("parameterControls", "all dials") }), "a controls member that is no array reads as none")
+	}
+}

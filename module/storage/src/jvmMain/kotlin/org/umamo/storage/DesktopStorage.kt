@@ -8,7 +8,7 @@ import java.io.File
 /**
  * Builds the desktop [AppStorage], resolving per-OS config/data directories under [applicationName]:
  * Linux follows XDG (`~/.config`, `~/.local/share`), macOS uses `~/Library/Application Support`, Windows
- * uses `%APPDATA%` / `%LOCALAPPDATA%`. IO goes through the real filesystem (`FileSystem.SYSTEM`).
+ * uses `%APPDATA%` / `%LOCALAPPDATA%`.  IO goes through the real filesystem (`FileSystem.SYSTEM`).
  *
  * @param String applicationName The app's directory name (e.g. "umamo").
  * @return AppStorage The desktop storage.
@@ -29,13 +29,18 @@ fun desktopAppStorage(applicationName: String): AppStorage =
 private fun desktopBaseDirectory(config: Boolean): File {
 	val home = System.getProperty("user.home") ?: "."
 	val os = System.getProperty("os.name").orEmpty().lowercase()
+
 	return when {
 		os.contains("win") -> {
 			val variable = if (config) "APPDATA" else "LOCALAPPDATA"
 			val fallback = if (config) "$home\\AppData\\Roaming" else "$home\\AppData\\Local"
 			File(System.getenv(variable) ?: fallback)
 		}
-		os.contains("mac") || os.contains("darwin") -> File("$home/Library/Application Support")
+
+		os.contains("mac") || os.contains("darwin") -> {
+			File("$home/Library/Application Support")
+		}
+
 		else -> {
 			val variable = if (config) "XDG_CONFIG_HOME" else "XDG_DATA_HOME"
 			val fallback = if (config) "$home/.config" else "$home/.local/share"
@@ -44,5 +49,9 @@ private fun desktopBaseDirectory(config: Boolean): File {
 	}
 }
 
-/** Converts a `java.io.File` to an okio [Path] via its absolute path. */
+/**
+ * Converts a `java.io.File` to an okio [Path] via its absolute path.
+ *
+ * @return Path The okio path.
+ */
 private fun File.toOkioPath(): Path = absolutePath.toPath()

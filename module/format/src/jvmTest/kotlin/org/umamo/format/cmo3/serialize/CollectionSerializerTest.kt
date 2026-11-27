@@ -33,6 +33,7 @@ private object Point2Serializer : XmlSerializer {
 		element.setFieldName(name)
 		element.setAttribute("x", point.x.toString())
 		element.setAttribute("y", point.y.toString())
+
 		return element
 	}
 
@@ -50,6 +51,7 @@ class CollectionSerializerTest {
 		registry.register(Bag::class)
 		registry.register(Mode::class)
 		registry.registerCustom(Point2::class, Point2Serializer)
+
 		return SerializeEngine(registry, SerializeDiagnostics.None)
 	}
 

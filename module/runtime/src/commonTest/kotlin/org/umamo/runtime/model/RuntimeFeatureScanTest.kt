@@ -170,6 +170,13 @@ class RuntimeFeatureScanTest {
 	}
 
 	@Test
+	fun repeatingParametersAreNotAFeature() {
+		// The editor's target dialog restricts repeat at no target, and every moc version carries its flag.
+		val repeating = model(parameters = listOf(Parameter(parameterId, "Param", 0f, 1f, 0f, repeat = true)))
+		assertEquals(emptySet(), repeating.unsupportedFeaturesInUse(RuntimeTarget.Cubism30))
+	}
+
+	@Test
 	fun partMasksAreNotAFeature() {
 		// Part-typed composite masks decompose to drawable ids at the CMO3/MOC3 boundary, so their use
 		// is never reported under any target - only the offscreen composite itself is a 5.3 feature.

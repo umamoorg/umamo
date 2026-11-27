@@ -3,6 +3,7 @@ package org.umamo.ui.document
 import org.umamo.interop.moc3.Moc3ExportOptions
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.viewport.ImageExportOptions
 
 /**
  * The MOC3 export dialog's session memory: what the rigger last confirmed, held for the life of the
@@ -22,25 +23,24 @@ class Moc3ExportSessionOptions {
 	private var confirmedDocumentPath: String? = null
 
 	/**
-	 * The options the export dialog should open with for the document at [documentPath].
+	 * The options the export dialog should open with for the document at [documentPath]: the last confirmed
+	 * toggles, or [moc3ExportDialogDefaults] before any, with a confirmed scale kept only on the document it
+	 * was confirmed on.
 	 *
-	 * First open of the session returns the dialog defaults, which match the official editor's bake
-	 * (hidden objects and guides dropped) rather than [Moc3ExportOptions.Default]'s carry-everything
-	 * API contract.  After a confirm, returns the confirmed toggles, with the scale re-seeded from
-	 * [puppet] whenever [documentPath] is not the document the confirm happened on.
-	 *
-	 * @param String      documentPath The current document's identity.
+	 * @param String?     documentPath The current document's identity, or null for one with no file, which
+	 *   has no identity to be the same document twice - its scale re-seeds from the model every time.
 	 * @param PuppetModel puppet       The model the scale seeds from on a document change.
 	 * @return Moc3ExportOptions The options to open the dialog with.
 	 */
-	fun dialogOptionsFor(documentPath: String, puppet: PuppetModel): Moc3ExportOptions {
+	fun dialogOptionsFor(documentPath: String?, puppet: PuppetModel): Moc3ExportOptions {
 		val remembered = confirmed ?: moc3ExportDialogDefaults()
 		val seededScale =
-			if (confirmedDocumentPath == documentPath) {
+			if (documentPath != null && confirmedDocumentPath == documentPath) {
 				remembered.pixelsPerUnitOverride ?: Moc3Export.mocPixelsPerUnitFor(puppet)
 			} else {
 				Moc3Export.mocPixelsPerUnitFor(puppet)
 			}
+
 		return remembered.copy(pixelsPerUnitOverride = seededScale)
 	}
 
@@ -50,12 +50,41 @@ class Moc3ExportSessionOptions {
 	 * Called on dialog confirm rather than after the write, so the choices survive a cancelled file
 	 * picker: deciding the options and choosing a destination are separate steps.
 	 *
-	 * @param String documentPath The document the confirm happened on.
+	 * @param String? documentPath The document the confirm happened on, or null for one with no file.
 	 * @param Moc3ExportOptions options The confirmed options.
 	 */
-	fun recordConfirmed(documentPath: String, options: Moc3ExportOptions) {
+	fun recordConfirmed(documentPath: String?, options: Moc3ExportOptions) {
 		confirmed = options
 		confirmedDocumentPath = documentPath
+	}
+}
+
+/**
+ * The Export Image dialog's session memory: what the rigger last confirmed, held for the life of the
+ * application and never persisted, like the MOC3 dialog's.
+ *
+ * Every choice is sticky across documents: a region, a scale, and a background say how the rigger wants
+ * their images, not anything about one rig.  A region the next document cannot offer (no canvas, no
+ * viewport touched) is the dialog's to fall back from, not this store's.
+ */
+class ImageExportSessionOptions {
+	private var confirmed: ImageExportOptions? = null
+
+	/**
+	 * The options the Export Image dialog should open with: the last confirmed, or the defaults before any.
+	 *
+	 * @return ImageExportOptions The options to open the dialog with.
+	 */
+	fun dialogOptions(): ImageExportOptions = confirmed ?: ImageExportOptions.Default
+
+	/**
+	 * Records what the rigger confirmed, on the dialog's confirm rather than after the write, so the choices
+	 * survive a cancelled file picker.
+	 *
+	 * @param ImageExportOptions options The confirmed options.
+	 */
+	fun recordConfirmed(options: ImageExportOptions) {
+		confirmed = options
 	}
 }
 
@@ -65,8 +94,8 @@ class Moc3ExportSessionOptions {
  * model.
  *
  * Deliberately not [Moc3ExportOptions.Default]: that value is the API's compatibility contract for
- * options-less calls (carry everything, exactly as the lowering behaved before options existed),
- * while this is what a rigger who never touched the dialog gets - the editor-matching bake.
+ * options-less calls (carry everything), while this is what a rigger who never touched the dialog
+ * gets - the editor-matching bake.
  *
  * @return Moc3ExportOptions The dialog defaults.
  */

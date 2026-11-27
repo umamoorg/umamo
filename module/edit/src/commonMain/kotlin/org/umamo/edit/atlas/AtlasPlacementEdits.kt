@@ -1,0 +1,279 @@
+package org.umamo.edit.atlas
+
+import org.umamo.runtime.model.AtlasComposition
+import org.umamo.runtime.model.AtlasPage
+import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.AtlasTileId
+import org.umamo.runtime.model.Drawable
+import org.umamo.runtime.model.PuppetAtlas
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.applyAffine
+import org.umamo.runtime.model.invertAffine
+import org.umamo.runtime.model.storedToArtAffineForTile
+
+/*
+ * Atlas placement transforms over the immutable PuppetModel: a tile's placement on its page, the pins that
+ * hold a placement against a repack, and the repack itself, which rewrites the pages and remaps every
+ * drawable's texture coordinates onto them.  Pure and copy-on-write; the EditorSession wrappers live in
+ * SessionAtlasEdits.
+ */
+
+/**
+ * This model with one atlas tile packed at [placement], every drawable over that art re-mapped so it
+ * keeps sampling the same pixels.
+ *
+ * Stored texture coordinates address the PAGE, so a placement that moved without them would re-point
+ * every mesh at whatever now occupies the old spot; that is why this rewrites both together.
+ *
+ * PIXELS ARE NOT MOVED.  A page's bytes belong to the document, not the model, so the page must be
+ * recomposed for the result to render; the session's page resolver does that from the committed model.
+ *
+ * @param AtlasTileId     tileId    The tile to place.
+ * @param AtlasPlacement? placement Where its art now sits, or null to mark it unpacked.
+ * @return PuppetModel The model with the placement and the re-derived coordinates, or [this].
+ */
+fun PuppetModel.withAtlasPlacement(tileId: AtlasTileId, placement: AtlasPlacement?): PuppetModel =
+	withAtlasPlacements(mapOf(tileId to placement))
+
+/**
+ * This model with several tiles placed anew in one pass - [withAtlasPlacement] over a whole gesture's
+ * worth of tiles, every drawable over each moved tile re-mapped so it keeps sampling the same pixels.
+ *
+ * All or nothing: a tile that cannot be placed anywhere in the map returns [this] untouched rather than
+ * moving the tiles that precede the fault.  The page inventory never changes here - that is
+ * [withAtlasRepack]'s op.
+ *
+ * @param Map placementByTile Each tile's new placement, keyed by tile, null to mark it unpacked.
+ * @return PuppetModel The model with the placements and the re-derived coordinates, or [this] when
+ *   nothing changes or the edit cannot be expressed.
+ */
+fun PuppetModel.withAtlasPlacements(placementByTile: Map<AtlasTileId, AtlasPlacement?>): PuppetModel {
+	if (placementByTile.isEmpty()) {
+		return this
+	}
+
+	val movedTiles = atlas.tiles.toMutableList()
+	val changedTileIds = ArrayList<AtlasTileId>()
+
+	for ((tileId, placement) in placementByTile) {
+		val tileIndex = movedTiles.indexOfFirst { tile -> tile.id == tileId }
+
+		if (tileIndex < 0) {
+			return this
+		}
+
+		if (placement != null && placement.pageIndex !in atlas.pages.indices) {
+			return this
+		}
+
+		val tile = movedTiles[tileIndex]
+
+		if (tile.placement == placement) {
+			continue
+		}
+
+		// An unpacked tile has no placement to keep, so packing one out drops its pin with it.
+		movedTiles[tileIndex] = tile.copy(placement = placement, pinned = tile.pinned && placement != null)
+		changedTileIds.add(tileId)
+	}
+
+	if (changedTileIds.isEmpty()) {
+		return this
+	}
+
+	val newAtlas = atlas.copy(tiles = movedTiles)
+	val remapByTile = HashMap<AtlasTileId, AtlasTileRemap>()
+
+	for (tileId in changedTileIds) {
+		when (val outcome = tileRemap(atlas, newAtlas, tileId)) {
+			TileRemapOutcome.Unchanged -> Unit
+			TileRemapOutcome.Inexpressible -> return this
+			is TileRemapOutcome.Remap -> remapByTile[tileId] = outcome.remap
+		}
+	}
+
+	return copy(atlas = newAtlas, drawables = drawables.remappedOver(remapByTile))
+}
+
+/**
+ * This model with every tile in [tileIds] that has a placement pinned or unpinned - the flag a
+ * repack reads to keep a hand-placed tile where it is.
+ *
+ * An unplaced or unknown tile is skipped rather than refused, so a selection spanning packed and
+ * unpacked art still pins what it can.
+ *
+ * @param Collection<AtlasTileId> tileIds The tiles to pin or unpin.
+ * @param Boolean                 pinned  True to pin, false to unpin.
+ * @return PuppetModel The model with the flags set, or [this] when nothing changes.
+ */
+fun PuppetModel.withAtlasPins(tileIds: Collection<AtlasTileId>, pinned: Boolean): PuppetModel {
+	if (tileIds.isEmpty()) {
+		return this
+	}
+
+	val wanted = tileIds.toSet()
+	var changed = false
+	val tiles =
+		atlas.tiles.map { tile ->
+			if (tile.id in wanted && tile.placement != null && tile.pinned != pinned) {
+				changed = true
+				tile.copy(pinned = pinned)
+			} else {
+				tile
+			}
+		}
+
+	if (!changed) {
+		return this
+	}
+
+	return copy(atlas = atlas.copy(tiles = tiles))
+}
+
+/**
+ * One tile's coordinate re-derivation across a placement change: out of the old mapping's frame, into
+ * the new.
+ *
+ * @property FloatArray storedToArt The old stored-to-art mapping.
+ * @property FloatArray artToStored The inverse of the new one.
+ */
+private class AtlasTileRemap(
+	val storedToArt: FloatArray,
+	val artToStored: FloatArray,
+)
+
+/** What a tile's placement change means for the texture coordinates over it. */
+private sealed interface TileRemapOutcome {
+	/** The mapping is the same under both atlases, so the coordinates are left alone. */
+	data object Unchanged : TileRemapOutcome
+
+	/** One side has no mapping: a page the atlas lacks, a degenerate placement, or a zero-sized tile. */
+	data object Inexpressible : TileRemapOutcome
+
+	/**
+	 * The coordinates move through [remap].
+	 *
+	 * @property AtlasTileRemap remap The re-derivation to apply.
+	 */
+	class Remap(val remap: AtlasTileRemap) : TileRemapOutcome
+}
+
+/**
+ * How [tileId]'s texture coordinates move between [oldAtlas] and [newAtlas] - the one resolution both
+ * the per-tile edit and the whole-atlas repack read.
+ *
+ * Each side reads its mapping against ITS OWN page inventory: the page a placement names supplies the
+ * mapping's normalization, so the two reads must not share pages.  That is also why the repack is a
+ * distinct op from the per-tile edit - only it can change the inventory the new side reads.
+ *
+ * @param PuppetAtlas oldAtlas The atlas the coordinates currently address.
+ * @param PuppetAtlas newAtlas The atlas they will address, with the tile already moved.
+ * @param AtlasTileId tileId   The tile whose mapping changed.
+ * @return TileRemapOutcome Unchanged, inexpressible, or the remap to apply.
+ */
+private fun tileRemap(oldAtlas: PuppetAtlas, newAtlas: PuppetAtlas, tileId: AtlasTileId): TileRemapOutcome {
+	val oldAffine = oldAtlas.storedToArtAffineForTile(tileId)
+	val newAffine = newAtlas.storedToArtAffineForTile(tileId)
+
+	if (oldAffine != null && newAffine != null && oldAffine.contentEquals(newAffine)) {
+		return TileRemapOutcome.Unchanged
+	}
+
+	val artToStored = newAffine?.let { affine -> invertAffine(affine) }
+
+	if (oldAffine == null || artToStored == null) {
+		return TileRemapOutcome.Inexpressible
+	}
+
+	return TileRemapOutcome.Remap(AtlasTileRemap(oldAffine, artToStored))
+}
+
+/**
+ * These drawables with every one over a tile in [remapByTile] carried through that tile's remap.  Every
+ * other drawable, and every mesh's positions, passes through by reference: moving art on a page never
+ * moves the mesh, and an untouched coordinate array must not pick up float round-trip noise.
+ *
+ * @param Map remapByTile The re-derivation per moved tile.
+ * @return List<Drawable> The drawables, the same list when nothing moved.
+ */
+private fun List<Drawable>.remappedOver(remapByTile: Map<AtlasTileId, AtlasTileRemap>): List<Drawable> {
+	if (remapByTile.isEmpty()) {
+		return this
+	}
+
+	return map { drawable ->
+		val remap = drawable.atlasTileId?.let { tileId -> remapByTile[tileId] } ?: return@map drawable
+		val mesh = drawable.mesh ?: return@map drawable
+		val artUvs = applyAffine(mesh.uvs, remap.storedToArt)
+		drawable.copy(mesh = mesh.withUvs(applyAffine(artUvs, remap.artToStored)))
+	}
+}
+
+/**
+ * This model repacked: the page inventory replaced by [pages], every tile's placement restated from
+ * [placementsByTile], and every bound drawable's texture coordinates re-derived, in one pass.
+ *
+ * A distinct op from [withAtlasPlacements] because a tile's new mapping normalizes against the
+ * REPLACEMENT pages, which folding per-tile edits would read off a stale inventory.
+ *
+ * Malformed input throws rather than being refused: the orchestrating repack guarantees that every tile
+ * is restated, every placement names one of [pages], and every bound tile has an expressible
+ * re-derivation, so a violation is a caller bug, not document state to absorb.  PIXELS ARE NOT MOVED -
+ * the caller must compose the new pages for the result to render.
+ *
+ * @param List             pages            The new page inventory.
+ * @param Map              placementsByTile Every tile's new placement, keyed by tile, null for unpacked.
+ * @param AtlasComposition composition      The trim and extrusion policy the pack composed under, recorded
+ *   so the pages derive the same way; defaults to the atlas's current policy.
+ * @return PuppetModel The repacked model, or [this] when nothing changes.
+ */
+fun PuppetModel.withAtlasRepack(
+	pages: List<AtlasPage>,
+	placementsByTile: Map<AtlasTileId, AtlasPlacement?>,
+	composition: AtlasComposition = atlas.composition,
+): PuppetModel {
+	require(placementsByTile.keys == atlas.tiles.map { tile -> tile.id }.toSet()) {
+		"a repack must restate every tile's placement exactly once"
+	}
+
+	for ((tileId, placement) in placementsByTile) {
+		if (placement != null) {
+			require(placement.pageIndex in pages.indices) {
+				"tile '${tileId.raw}' names page ${placement.pageIndex} of ${pages.size}"
+			}
+		}
+	}
+
+	// A tile without a placement is never pinned, so a tile the pack left out drops its pin.
+	val movedTiles =
+		atlas.tiles.map { tile ->
+			val placement = placementsByTile.getValue(tile.id)
+			tile.copy(placement = placement, pinned = tile.pinned && placement != null)
+		}
+	val newAtlas = atlas.copy(pages = pages, tiles = movedTiles, composition = composition)
+
+	if (newAtlas == atlas) {
+		return this
+	}
+
+	val boundTileIds = drawables.mapNotNullTo(HashSet()) { drawable -> drawable.atlasTileId }
+	val remapByTile = HashMap<AtlasTileId, AtlasTileRemap>()
+
+	for (tile in atlas.tiles) {
+		when (val outcome = tileRemap(atlas, newAtlas, tile.id)) {
+			TileRemapOutcome.Unchanged -> {}
+
+			TileRemapOutcome.Inexpressible -> {
+				require(tile.id !in boundTileIds) {
+					"tile '${tile.id.raw}' has drawables bound but no expressible re-derivation"
+				}
+			}
+
+			is TileRemapOutcome.Remap -> {
+				remapByTile[tile.id] = outcome.remap
+			}
+		}
+	}
+
+	return copy(atlas = newAtlas, drawables = drawables.remappedOver(remapByTile))
+}

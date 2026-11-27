@@ -1,4 +1,4 @@
-// :reimport — non-destructive reconcile over the model's source bindings. Depends on :format (the
+// :reimport — non-destructive reconcile over the model's source bindings.  Depends on :format (the
 // re-read art), :runtime (the bindings live on the model's atlas tiles), and :interop (the bridge that
 // births a layer's mesh and mints the additions for the layers a file gained).
 

@@ -1,16 +1,20 @@
 package org.umamo.reimport
 
-import org.umamo.format.art.LayerBounds
 import org.umamo.format.art.LayerRaster
 import org.umamo.format.art.SourceArt
 import org.umamo.format.art.SourceLayer
 import org.umamo.format.art.SourceLayerKind
+import org.umamo.format.art.alphaChannel
 import org.umamo.format.art.analyzeAlpha
 import org.umamo.format.art.isFullyTransparent
 import org.umamo.interop.art.ArtSourceDescriptor
+import org.umamo.interop.art.BirthResolution
+import org.umamo.interop.art.PendingBirth
+import org.umamo.interop.art.SourceArtAdditions
 import org.umamo.interop.art.SourceArtImport
 import org.umamo.interop.art.SourceArtImportNotice
 import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.interop.art.mesh.meshCoversOpaquePixels
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.ArtworkReload
@@ -21,7 +25,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.ReplacedTile
 import org.umamo.runtime.model.SourceLayerRef
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.isUntouchedBirthQuad
 import org.umamo.runtime.model.reloadTileId
 import org.umamo.runtime.model.storedToArtAffineForTile
@@ -35,10 +39,15 @@ import org.umamo.runtime.model.storedToArtAffineForTile
  * What it never does: touch a tile whose layer the file lost without a confident match (the reconcile
  * flags it for review), change a drawable's positions, or delete rig work - the one thing it removes
  * is a fresh, untouched drawable whose layer a lost layer's rig work claims, and only when the caller
- * names it.  A drawable's mesh changes in only two ways: an untouched birth quad is re-born over the
- * new art, and an edited mesh keeps its vertices with its texture coordinates carried so each vertex
- * samples the canvas pixel it did before - Cubism's own re-import behavior, where the art moves under
- * a mesh that stays.
+ * names it.  A drawable's mesh changes in only two ways: an untouched birth quad of a drawable with no
+ * deformer is re-born over the new art, and every other mesh keeps its vertices with its texture
+ * coordinates carried so each vertex samples the canvas pixel it did before - Cubism's own re-import
+ * behavior, where the art moves under a mesh that stays.  A quad is re-born only when it covers the
+ * whole tile's art: its drawable is the tile's one meshed user, or every user carries the same quad
+ * (twins).  A quad over one piece of a split layer is carried like an authored mesh, since a re-born one
+ * would cover every other piece's art.  Its visibility follows the file's eye toggle
+ * only while it still shows the state the file last had: a toggle the rigger made in the outliner is rig
+ * work and stays.
  */
 
 /**
@@ -52,6 +61,8 @@ import org.umamo.runtime.model.storedToArtAffineForTile
  * @property Map             leftovers    Each lost binding's best candidate that fell under the bar, by
  *   its lost key - scored before anything was minted, so a candidate the plan then minted a fresh
  *   drawable for is still named; what the caller publishes for the review chips.
+ * @property List            pendingBirths The added drawables the Automatic birth mode wants meshed,
+ *   each still over its quad until [withBirths] lands the meshes; empty under the Quad mode.
  */
 class ReloadPlan(
 	val reload: ArtworkReload,
@@ -59,7 +70,27 @@ class ReloadPlan(
 	val report: ReconcileReport,
 	val notices: List<SourceArtImportNotice>,
 	val leftovers: Map<String, LayerMatch> = emptyMap(),
-)
+	val pendingBirths: List<PendingBirth> = emptyList(),
+) {
+	/**
+	 * This plan with its pending births' outcomes landed: each born drawable among the additions over
+	 * its new mesh, each refused one over its quad with a notice naming why.
+	 *
+	 * @param BirthResolution resolution The outcome of every pending birth.
+	 * @return ReloadPlan The plan, no birth pending.
+	 */
+	fun withBirths(resolution: BirthResolution): ReloadPlan {
+		val additions = reload.additions
+
+		if (pendingBirths.isEmpty() || additions == null) {
+			return this
+		}
+
+		val born = SourceArtAdditions(additions, rasterByTile, emptyList(), pendingBirths).withBirths(resolution)
+
+		return ReloadPlan(reload.copy(additions = born.additions), rasterByTile, report, notices + born.notices, leftovers)
+	}
+}
 
 /** One tile's replacement and everything that came with it. */
 private class TileReplacement(
@@ -69,26 +100,15 @@ private class TileReplacement(
 	val outgrown: List<DrawableId>,
 )
 
-/** Half a pixel: how far a mesh may fall short of the opaque art before it counts as outgrown. */
-private const val COVERAGE_TOLERANCE = 0.5f
-
 /**
  * Plans reloads and relinks.  See the file comment for the rules.
  */
 object ArtworkReloadPlanner {
 	/**
-	 * Plans re-reading one listed file into [model].
-	 *
-	 * A bound tile is replaced when its layer's pixels, size, or canvas bounds differ from what the
-	 * document holds; an unchanged layer costs nothing.  A binding whose key the art lost is scored by
-	 * [matcher] against the layers no tile is bound to BEFORE anything is minted: at or above
-	 * [matchThreshold] its tile takes the best candidate's art (the layer re-created under a new key), so
-	 * the rig work follows the layer and no fresh drawable is minted beside it; below the bar the layer
-	 * is minted and the binding is left for review, the proposal kept in [ReloadPlan.leftovers] so the
-	 * row can still offer it (accepting then retires the fresh drawable).  The remaining raster layers
-	 * no tile is bound to are minted through the bridge under the same source.  The source record takes
-	 * the inventory as just read.  Null when the file is not one the model lists or when nothing at all
-	 * changed - not even the inventory - so a reload with nothing to do pushes no step.
+	 * Plans re-reading one listed file into [model]: each changed bound layer replaces its tile, a lost
+	 * binding takes its confident match, and the unbound layers are minted, under the file comment's rules.
+	 * Null when the file is not one the model lists or when nothing at all changed - not even the
+	 * inventory - so a reload with nothing to do pushes no step.
 	 *
 	 * @param PuppetModel            model       The model the plan applies to.
 	 * @param ArtSourceId            sourceId    The listed file being re-read.
@@ -96,13 +116,9 @@ object ArtworkReloadPlanner {
 	 * @param SourceArtImportOptions options     The threshold and margin every re-born quad and added layer use.
 	 * @param Function               oldRasterOf The document's pixels for a tile, or null when it has none.
 	 * @param String?                contentHash The whole-file content hash of the bytes [art] was read from,
-	 *   recorded on the refreshed source; null keeps the record's.  A hash that changed while nothing in the
-	 *   layers did does not by itself make a plan - the watcher acknowledges such a save instead.
-	 * @param ArtSourceDescriptor?   replacement The file the record is repointed to (Replace Artwork): its
-	 *   name, path, and format take over, every binding the new art cannot resolve reads as SourceReplaced,
-	 *   and the plan is made even when no layer changed.  Layers no tile is bound to are NOT minted under
-	 *   a replacement - they are the candidates the unresolved bindings are matched against, and a Reload
-	 *   brings in whatever is still unbound once the review is done.  Null re-reads the record's own file.
+	 *   recorded on the refreshed source; null keeps the record's.
+	 * @param ArtSourceDescriptor?   replacement The file the record is repointed to (Replace Artwork), every
+	 *   binding the new art cannot resolve reading as SourceReplaced; null re-reads the record's own file.
 	 * @param List<ArtSourceLayer>  inventory   The inventory of [art], for a caller that already computed it
 	 *   (it hashes every layer's pixels, so one read file should pay for it once); computed here by default.
 	 * @param Long?                  lastModified The file's modification time when [art] was read, recorded on
@@ -134,20 +150,40 @@ object ArtworkReloadPlanner {
 		// layer's tile follows it.
 		val suggestions = suggestionsAgainstRead(model, sourceId, inventory, oldRasterOf, { key -> layersByKey[key]?.raster }, matcher)
 		val accepted = confidentMatches(suggestions, matchThreshold)
+		// The rigger's ignore marks live on the record's rows: a marked layer is left out of the rig however
+		// many reloads find it unbound.
+		val ignoredKeys = source.layers.filter { row -> row.ignored }.mapTo(HashSet()) { row -> row.key }
 
+		/**
+		 * The rebind a lost binding was matched to, when its suggestion was accepted.
+		 *
+		 * @param SourceLayerRef binding The binding whose layer is gone.
+		 * @return ReconcileResult.Rebound? The rebind, or null when no candidate was accepted.
+		 */
 		fun reboundFor(binding: SourceLayerRef): ReconcileResult.Rebound? {
 			val candidateKey = accepted[binding.layerKey] ?: return null
+
 			return ReconcileResult.Rebound(binding, candidateKey, suggestions.getValue(binding.layerKey).score)
 		}
 		val report =
 			ReconcileReport(
 				keyReport.results.mapNotNull { result ->
 					when (result) {
-						is ReconcileResult.Matched -> reboundFor(result.binding) ?: result
-						is ReconcileResult.NeedsReview ->
+						is ReconcileResult.Matched -> {
+							reboundFor(result.binding) ?: result
+						}
+
+						is ReconcileResult.NeedsReview -> {
 							reboundFor(result.binding) ?: if (replacement != null) result.copy(reason = ReviewReason.SourceReplaced) else result
-						is ReconcileResult.Added -> result.takeIf { added -> added.layerKey !in accepted.values }
-						is ReconcileResult.Rebound -> result
+						}
+
+						is ReconcileResult.Added -> {
+							result.takeIf { added -> added.layerKey !in accepted.values && added.layerKey !in ignoredKeys }
+						}
+
+						is ReconcileResult.Rebound -> {
+							result
+						}
 					}
 				},
 			)
@@ -159,13 +195,17 @@ object ArtworkReloadPlanner {
 		val rasters = LinkedHashMap<AtlasTileId, LayerRaster>()
 		val notices = ArrayList<SourceArtImportNotice>()
 		val emptied = ArrayList<ReconcileResult>()
+		val visibility = LinkedHashMap<DrawableId, Boolean>()
+
 		for (tile in boundTiles) {
 			val ref = tile.source ?: continue
 			val candidateKey = accepted[ref.layerKey]
+
 			if (candidateKey != null) {
 				// The lost (or erased) layer's tile takes the re-created layer, the mesh over it carried the
 				// way a relink carries it.
 				val candidate = layersByKey[candidateKey] ?: continue
+				followVisibility(model, tile, oldInventoryByKey[ref.layerKey], candidate, visibility)
 				val candidateRef = SourceLayerRef(sourceId, candidateKey, stableKey = candidate.idIsStable)
 				val rebinding =
 					replaceTile(model, tile, candidate, candidateRef, oldInventoryByKey[ref.layerKey], options, oldRasterOf, taken, notices, force = true)
@@ -174,17 +214,23 @@ object ArtworkReloadPlanner {
 				rasters[rebinding.replaced.tile.id] = rebinding.raster
 				meshes.putAll(rebinding.meshes)
 				outgrown.addAll(rebinding.outgrown)
+
 				continue
 			}
+
 			val layer = layersByKey[ref.layerKey] ?: continue
+			followVisibility(model, tile, oldInventoryByKey[ref.layerKey], layer, visibility)
+
 			if (layer.raster.isFullyTransparent()) {
 				// Erased to nothing rather than deleted: the tile keeps its art and the binding goes to
 				// review, since the artist may have meant either (deleted the layer another way, or left
 				// it blank on purpose).
 				notices.add(SourceArtImportNotice.EmptyLayer(layer.name))
 				emptied.add(ReconcileResult.NeedsReview(ref, ReviewReason.LayerEmptied))
+
 				continue
 			}
+
 			val tileReplacement =
 				replaceTile(model, tile, layer, ref, oldInventoryByKey[ref.layerKey], options, oldRasterOf, taken, notices, force = false)
 					?: continue
@@ -193,7 +239,10 @@ object ArtworkReloadPlanner {
 			meshes.putAll(tileReplacement.meshes)
 			outgrown.addAll(tileReplacement.outgrown)
 		}
+
 		val addedKeys = report.results.filterIsInstance<ReconcileResult.Added>().mapTo(HashSet()) { result -> result.layerKey }
+		// Under a replacement the unbound layers are the candidates the unresolved bindings are matched
+		// against, so none is minted; a Reload brings in whatever is still unbound once the review is done.
 		val added =
 			if (addedKeys.isEmpty() || replacement != null) {
 				null
@@ -202,13 +251,15 @@ object ArtworkReloadPlanner {
 				// placed among the existing ones where the file puts it.
 				SourceArtImport.additionsFor(art, ArtSourceDescriptor(source.name, source.path, source.format), options, model, underSource = sourceId, layerKeys = addedKeys, inventory = inventory)
 			}
+
 		if (added != null) {
 			rasters.putAll(added.rasterByTile)
 			notices.addAll(added.notices)
 		}
+
 		// The file's bindings after the plan: a rebound tile binds its candidate.
 		val boundKeys = boundTiles.mapNotNullTo(HashSet()) { tile -> tile.source?.let { ref -> accepted[ref.layerKey] ?: ref.layerKey } }
-		val layers = inventoryWithMissing(source.layers, inventory, boundKeys)
+		val layers = inventoryWithMissing(source.layers, inventory, boundKeys, lostByReplacement = replacement != null)
 		val refreshed =
 			if (replacement == null) {
 				source.copy(layers = layers, contentHash = contentHash ?: source.contentHash, lastModified = lastModified ?: source.lastModified)
@@ -222,27 +273,31 @@ object ArtworkReloadPlanner {
 					lastModified = replacement.lastModified,
 				)
 			}
+
 		// The hash and the time say when the file was read, not what changed in it: masked out, so a save
 		// that changed no layer plans nothing (the watcher acknowledges it instead).
 		if (replacement == null && replaced.isEmpty() && added == null && refreshed.copy(contentHash = source.contentHash, lastModified = source.lastModified) == source) {
 			return null
 		}
+
 		val leftovers = suggestions.filterKeys { lostKey -> lostKey !in accepted }
-		return ReloadPlan(ArtworkReload(refreshed, replaced, meshes, added?.additions, outgrown), rasters, ReconcileReport(report.results + emptied), notices, leftovers)
+
+		return ReloadPlan(
+			ArtworkReload(refreshed, replaced, meshes, added?.additions, outgrown, drawableVisibility = visibility),
+			rasters,
+			ReconcileReport(report.results + emptied),
+			notices,
+			leftovers,
+			added?.pendingBirths.orEmpty(),
+		)
 	}
 
 	/**
 	 * Plans rebinding every tile in [accepted] to the layer named beside it, with that layer's art pulled
 	 * in - Match Automatically's step, a review row's accepted proposal, and the relink a tile chip
-	 * makes, once per pair.  A tile may come from another listed file (a relink across files): its old
-	 * inventory row is read from that file, so the carried mesh still knows where its art sat.  A pair
-	 * whose tile the model lacks, whose key names no raster layer, or whose tile already holds exactly
-	 * that binding over the same art is skipped; the file's record takes the inventory as just read, the
-	 * lost rows the accepted tiles no longer bind dropped.  The tiles in [retire] that are bound to a
-	 * claimed key and carry no rig work ([retirableTiles]) leave with their drawables - the fresh
-	 * drawable a reload minted for the layer, named by the proposal being accepted - so accepting after
-	 * a reload merges rather than doubles; a tile with rig work over it is never retired, whatever the
-	 * caller names.  Null when the file is unknown or no pair could be applied.
+	 * makes.  A tile in [retire] bound to a claimed key leaves with its drawables when it carries no rig
+	 * work ([retirableTiles]), so accepting after a reload merges rather than doubles.  Null when the file
+	 * is unknown or no pair could be applied.
 	 *
 	 * @param PuppetModel            model       The model the plan applies to.
 	 * @param ArtSourceId            sourceId    The file whose layers the tiles move to.
@@ -280,6 +335,7 @@ object ArtworkReloadPlanner {
 		val rebound = HashMap<AtlasTileId, String>()
 		val claiming = accepted.mapTo(HashSet()) { (tileId, _) -> tileId }
 		val retired = LinkedHashSet<AtlasTileId>()
+
 		for ((tileId, key) in accepted) {
 			val tile = model.atlas.tileById[tileId] ?: continue
 			val layer = layersByKey[key] ?: continue
@@ -294,13 +350,16 @@ object ArtworkReloadPlanner {
 			outgrown.addAll(replacement.outgrown)
 			results.add(ReconcileResult.Matched(ref, key))
 			rebound[tileId] = key
+
 			if (retire.isNotEmpty()) {
 				retired.addAll(retirableTiles(model, sourceId, key, except = claiming).filter { candidate -> candidate in retire })
 			}
 		}
+
 		if (replaced.isEmpty()) {
 			return null
 		}
+
 		// The file's bindings after the plan: a rebound tile binds its new key whichever file it came
 		// from, a retired tile nothing, every other tile of this file what it did.
 		val boundKeys =
@@ -309,6 +368,7 @@ object ArtworkReloadPlanner {
 			}
 		val layers = inventoryWithMissing(source.layers, inventory, boundKeys, untouchedKeys = boundKeys - rebound.values.toSet())
 		val refreshed = source.copy(layers = layers, contentHash = contentHash ?: source.contentHash, lastModified = lastModified ?: source.lastModified)
+
 		return ReloadPlan(ArtworkReload(refreshed, replaced, meshes, additions = null, outgrown = outgrown, retiredTiles = retired.toList()), rasters, ReconcileReport(results), notices)
 	}
 
@@ -324,12 +384,9 @@ object ArtworkReloadPlanner {
 		model.sources.firstOrNull { candidate -> candidate.id == ref.sourceId }?.layers?.firstOrNull { row -> row.key == ref.layerKey }
 
 	/**
-	 * Plans rebinding one tile to [ref]'s layer with that layer's art pulled in: the tile is replaced
-	 * whenever the binding changes or the layer's art differs from what the tile holds, and the layer's
-	 * file takes the inventory as just read.  Null when the tile or the file is unknown, the layer is not
-	 * a raster layer with art, or the tile already holds exactly this binding and this art - the caller
-	 * then has nothing to pull and rewrites the binding alone if it differs.  The one-pair form of
-	 * [planMatches]; the replacement's binding says what the reader says about the key's strength.
+	 * Plans rebinding one tile to [ref]'s layer with that layer's art pulled in - the one-pair form of
+	 * [planMatches].  Null when there is nothing to pull; the caller then rewrites the binding alone if
+	 * it differs.
 	 *
 	 * @param PuppetModel            model       The model the plan applies to.
 	 * @param AtlasTileId            tileId      The tile being rebound.
@@ -358,6 +415,37 @@ object ArtworkReloadPlanner {
 	 */
 	private fun rasterLayersByKey(art: SourceArt): Map<String, SourceLayer> =
 		art.layers.filter { layer -> layer.kind == SourceLayerKind.Raster }.associateBy { layer -> layer.id.raw }
+
+	/**
+	 * Records, for the drawables over [tile], the visibility the file's eye toggle now asks for when it
+	 * changed since the last read; a drawable the rigger toggled since keeps its flag, since that toggle
+	 * is rig work.
+	 *
+	 * @param PuppetModel     model        The model the tile lives in.
+	 * @param AtlasTile       tile         The tile whose drawables are considered.
+	 * @param ArtSourceLayer? oldInventory The layer's inventory row at the last read, or null.
+	 * @param SourceLayer     layer        The layer as read now.
+	 * @param MutableMap      visibility   Appended with each drawable that follows, keyed by its id.
+	 */
+	private fun followVisibility(
+		model: PuppetModel,
+		tile: AtlasTile,
+		oldInventory: ArtSourceLayer?,
+		layer: SourceLayer,
+		visibility: MutableMap<DrawableId, Boolean>,
+	) {
+		val oldVisible = oldInventory?.visible ?: return
+
+		if (oldVisible == layer.visible) {
+			return
+		}
+
+		for (drawable in model.drawables) {
+			if (drawable.atlasTileId == tile.id && drawable.isVisible == oldVisible) {
+				visibility[drawable.id] = layer.visible
+			}
+		}
+	}
 
 	/**
 	 * Replaces one tile with [layer]'s art when the art differs from what the tile holds (or when
@@ -398,15 +486,20 @@ object ArtworkReloadPlanner {
 				oldInventory.height == layer.bounds.height
 		val pixelsUnchanged =
 			old != null && old.width == raster.width && old.height == raster.height && old.rgba.contentEquals(raster.rgba)
+
 		if (!force && boundsUnchanged && pixelsUnchanged) {
 			return null
 		}
+
 		// A layer erased to nothing has no art to give: the tile keeps what it has, and the note says why.
 		val analysis = layer.analyzeAlpha(alphaThreshold = options.alphaThreshold)
+
 		if (analysis == null) {
 			notices.add(SourceArtImportNotice.EmptyLayer(layer.name))
+
 			return null
 		}
+
 		val newId = reloadTileId(tile.id, taken)
 		taken.add(newId)
 		val newTile =
@@ -426,73 +519,86 @@ object ArtworkReloadPlanner {
 		val oldTop = (oldInventory?.top ?: layer.bounds.top).toFloat()
 		val newLeft = layer.bounds.left.toFloat()
 		val newTop = layer.bounds.top.toFloat()
-		val opaqueOnCanvas =
-			LayerBounds(
-				left = layer.bounds.left + analysis.opaqueBounds.left,
-				top = layer.bounds.top + analysis.opaqueBounds.top,
-				width = analysis.opaqueBounds.width,
-				height = analysis.opaqueBounds.height,
-			)
+		val newAlpha = raster.alphaChannel()
+		val alreadyCutOff = alreadyArtOf(old, (layer.bounds.left - oldLeft).toInt(), (layer.bounds.top - oldTop).toInt(), options.alphaThreshold)
 		val storedToArt = model.atlas.storedToArtAffineForTile(tile.id)
 		val meshes = LinkedHashMap<DrawableId, DrawableMesh>()
 		val outgrown = ArrayList<DrawableId>()
+		val tileMeshes = model.drawables.mapNotNull { drawable -> drawable.mesh.takeIf { drawable.atlasTileId == tile.id } }
+		val quadsCoverTheTile = tileMeshes.all { mesh -> sameMesh(mesh, tileMeshes.first()) }
+
 		for (drawable in model.drawables) {
 			if (drawable.atlasTileId != tile.id) {
 				continue
 			}
+
 			val mesh = drawable.mesh ?: continue
+
 			if (storedToArt == null) {
 				// The tile's mapping cannot be read (a placement naming a page the atlas lacks); the mesh
 				// is left as it is rather than guessed at.
 				continue
 			}
-			val artUvs = applyUvAffine(mesh.uvs, storedToArt)
-			if (mesh.isUntouchedBirthQuad(artUvs, tile.width, tile.height, oldLeft, oldTop)) {
+
+			val artUvs = applyAffine(mesh.uvs, storedToArt)
+
+			// A fresh quad is born on the canvas, which is its base's space only for a drawable with no deformer;
+			// under one, the quad is kept and its coordinates carried like any authored mesh.
+			if (quadsCoverTheTile && drawable.parentDeformerId == null && mesh.isUntouchedBirthQuad(artUvs, tile.width, tile.height, oldLeft, oldTop)) {
 				val reborn = SourceArtImport.birthMeshFor(layer, options.alphaThreshold, options.birthMeshMargin) ?: continue
 				meshes[drawable.id] = reborn
+
 				continue
 			}
+
 			// Canvas-attached: the vertex stays where it is and keeps sampling the canvas pixel under it,
 			// so the coordinate moves from the old art frame to the new one through the bounds delta.
 			val carried = FloatArray(artUvs.size)
+
 			for (vertex in 0 until artUvs.size / 2) {
 				carried[vertex * 2] = (artUvs[vertex * 2] * tile.width + oldLeft - newLeft) / raster.width
 				carried[vertex * 2 + 1] = (artUvs[vertex * 2 + 1] * tile.height + oldTop - newTop) / raster.height
 			}
-			meshes[drawable.id] = DrawableMesh(mesh.positions, carried, mesh.indices)
-			if (!covers(mesh.positions, opaqueOnCanvas)) {
+
+			meshes[drawable.id] = mesh.withUvs(carried)
+			val artPoints = FloatArray(carried.size) { component -> carried[component] * if (component % 2 == 0) raster.width else raster.height }
+
+			if (!meshCoversOpaquePixels(newAlpha, options.alphaThreshold, artPoints, mesh.indices, alreadyCutOff)) {
 				outgrown.add(drawable.id)
 			}
 		}
+
 		return TileReplacement(ReplacedTile(tile.id, newTile), raster, meshes, outgrown)
 	}
 
 	/**
-	 * Whether a mesh's canvas extent contains the opaque art's canvas rectangle, within half a pixel.
+	 * Whether two meshes are the same mesh: the same positions, texture coordinates, and triangles.
 	 *
-	 * @param FloatArray  positions The mesh's canvas positions, x then y per vertex.
-	 * @param LayerBounds opaque    The opaque art's rectangle on the canvas.
-	 * @return Boolean True when the art lies inside the mesh's reach.
+	 * @param DrawableMesh first  One mesh.
+	 * @param DrawableMesh second The other.
+	 * @return Boolean True for the same mesh.
 	 */
-	private fun covers(positions: FloatArray, opaque: LayerBounds): Boolean {
-		if (positions.size < 2) {
-			return false
+	private fun sameMesh(first: DrawableMesh, second: DrawableMesh): Boolean =
+		first === second || (first.positions.contentEquals(second.positions) && first.uvs.contentEquals(second.uvs) && first.indices.contentEquals(second.indices))
+
+	/**
+	 * Which pixels of the new art were art already before it changed, at the same canvas spot: a mesh
+	 * that left such a pixel out left it out before too, so it is no art that grew past the mesh.
+	 *
+	 * @param LayerRaster? old            The old art, or null when the document has none (every pixel counts).
+	 * @param Int          shiftX         How far right the new art's frame sits from the old one's, in pixels.
+	 * @param Int          shiftY         How far down it sits.
+	 * @param Int          alphaThreshold The least alpha byte counted as art.
+	 * @return Function Whether a pixel (column, row) of the new art was art in the old.
+	 */
+	private fun alreadyArtOf(old: LayerRaster?, shiftX: Int, shiftY: Int, alphaThreshold: Int): (Int, Int) -> Boolean {
+		val oldAlpha = old?.alphaChannel() ?: return { _, _ -> false }
+
+		return { column, row ->
+			val oldColumn = column + shiftX
+			val oldRow = row + shiftY
+
+			oldColumn in 0 until oldAlpha.width && oldRow in 0 until oldAlpha.height && oldAlpha.alphaAt(oldColumn, oldRow) >= alphaThreshold
 		}
-		var minX = Float.POSITIVE_INFINITY
-		var minY = Float.POSITIVE_INFINITY
-		var maxX = Float.NEGATIVE_INFINITY
-		var maxY = Float.NEGATIVE_INFINITY
-		for (vertex in 0 until positions.size / 2) {
-			val x = positions[vertex * 2]
-			val y = positions[vertex * 2 + 1]
-			minX = minOf(minX, x)
-			minY = minOf(minY, y)
-			maxX = maxOf(maxX, x)
-			maxY = maxOf(maxY, y)
-		}
-		return minX <= opaque.left + COVERAGE_TOLERANCE &&
-			minY <= opaque.top + COVERAGE_TOLERANCE &&
-			maxX >= opaque.left + opaque.width - COVERAGE_TOLERANCE &&
-			maxY >= opaque.top + opaque.height - COVERAGE_TOLERANCE
 	}
 }

@@ -57,6 +57,7 @@ public object MocEncoder {
 		val alignmentByIndex = sectionAlignments(versionByte, sectionTotal)
 		val offsets = IntArray(sectionTotal)
 		var cursor = firstOffset
+
 		for (sectionIndex in 0 until sectionTotal) {
 			// A section's START is aligned per ITS OWN rule, so the padding belongs to the section about to
 			// be placed rather than the one just written.  Every section (even an empty one) takes the
@@ -65,6 +66,7 @@ public object MocEncoder {
 			offsets[sectionIndex] = cursor
 			cursor += sections[sectionIndex].size
 		}
+
 		val writer = LittleEndianWriter(align(cursor, BUFFER_ALIGN))
 		writer.writeBytes(MAGIC) // MOC3 header: magic "MOC3" @ +0x00
 		writer.writeU8(versionByte) // MOC3 header: version @ +0x04
@@ -72,12 +74,15 @@ public object MocEncoder {
 		writer.zeroPad(HEADER_SIZE - writer.position) // reserved @ +0x06
 		for (offset in offsets) writer.writeInt32(offset) // MOC3 offset table @ +0x40
 		writer.zeroPad(firstOffset - writer.position) // pad the table region to the data region
+
 		for (sectionIndex in 0 until sectionTotal) {
 			// Pad up to the offset the table already promises for this section.
 			writer.zeroPad(offsets[sectionIndex] - writer.position)
 			writer.writeBytes(sections[sectionIndex])
 		}
+
 		writer.alignTo(BUFFER_ALIGN)
+
 		return writer.toByteArray()
 	}
 
@@ -96,20 +101,24 @@ public object MocEncoder {
 		val alignments = IntArray(sectionTotal) { SECTION_ALIGN }
 		// An unrecognized version gets the conservative all-64 layout rather than a wrong guess.
 		val version = MocVersion.entries.firstOrNull { it.byteValue == versionByte } ?: return alignments
+
 		for (section in Section.entries) {
 			if (section.element != ElementType.ID) {
 				continue
 			}
+
 			val index = section.indexIn(version)
+
 			if (index in 0 until sectionTotal) {
 				alignments[index] = ID_SECTION_ALIGN
 			}
 		}
+
 		return alignments
 	}
 
 	/**
-	 * Re-frames an existing [MocModel]'s sections into a compact valid `.moc3` (a "repack"). Useful to
+	 * Re-frames an existing [MocModel]'s sections into a compact valid `.moc3` (a "repack").  Useful to
 	 * validate the serializer independent of the semantic lowering: the runtime accepts it and reads
 	 * the same model, though the byte layout differs from the original (use
 	 * [org.umamo.format.moc3.moc.MocCodec.write] for a byte-identical re-emit).
@@ -141,6 +150,7 @@ public object MocEncoder {
 			List(tableSize) { index ->
 				synthesized[index] ?: (reference.section(index) ?: ByteArray(0))
 			}
+
 		return encode(reference.versionByte, reference.isBigEndian, sections)
 	}
 
@@ -161,6 +171,7 @@ public object MocEncoder {
 		require(version == doc.version) { "bakeFresh version $version does not match the document's ${doc.version}" }
 		val synthesized = synthesize(doc)
 		val sections = List(sectionCount(version)) { index -> synthesized[index] ?: ByteArray(0) }
+
 		return encode(version.byteValue, isBigEndian, sections)
 	}
 
@@ -184,7 +195,7 @@ public object MocEncoder {
 	private fun synthesize(doc: MocDocument): Map<Int, ByteArray> = MocLowering.lower(doc)
 
 	/**
-	 * The number of section-table entries the editor emits for a moc [version]. The runtime indexes the
+	 * The number of section-table entries the editor emits for a moc [version].  The runtime indexes the
 	 * table by fixed section index and never reads its length, so this only needs to be ≥ the highest
 	 * index used; matching the editor keeps the file shape conventional.
 	 *
@@ -209,7 +220,7 @@ public object MocEncoder {
 }
 
 /**
- * The section payloads in table-index order (internal accessor for the encoder). Absent sections
+ * The section payloads in table-index order (internal accessor for the encoder).  Absent sections
  * become empty arrays so the list is dense and index-aligned with the offset table.
  *
  * @return List<ByteArray> Each section's raw bytes, in table order.

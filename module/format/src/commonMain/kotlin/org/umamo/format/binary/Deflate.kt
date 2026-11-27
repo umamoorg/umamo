@@ -1,11 +1,13 @@
 package org.umamo.format.binary
 
 import okio.Buffer
+import okio.BufferedSource
 import okio.Deflater
 import okio.DeflaterSink
 import okio.IOException
 import okio.Inflater
 import okio.InflaterSource
+import okio.Source
 import okio.buffer
 
 /*
@@ -80,16 +82,20 @@ private fun inflate(source: ByteArray, sourceOffset: Int, sourceLength: Int, max
 	if (sourceLength <= 0 || sourceOffset >= source.size || maximumSize <= 0) {
 		return ByteArray(0)
 	}
+
 	val available = minOf(sourceLength, source.size - sourceOffset)
 	val compressed = Buffer().write(source, sourceOffset, available)
+
 	// A raw stream has no trailer, and zlib wants a byte of lookahead past the final block to notice
 	// it is finished; without it the inflater asks for more input at the very end and okio raises EOF.
 	// java.util.zip documents the same "extra dummy byte" requirement for its nowrap mode.
 	if (rawDeflate) {
 		compressed.writeByte(0)
 	}
+
 	val inflated = Buffer()
 	val inflaterSource = InflaterSource(compressed, Inflater(rawDeflate))
+
 	try {
 		while (inflated.size < maximumSize) {
 			if (inflaterSource.read(inflated, maximumSize - inflated.size) == -1L) {
@@ -107,7 +113,67 @@ private fun inflate(source: ByteArray, sourceOffset: Int, sourceLength: Int, max
 			// Already best-effort.
 		}
 	}
+
 	return inflated.readByteArray()
+}
+
+/**
+ * A zlib stream inflated on demand, for a caller that consumes the output a piece at a time (PNG's
+ * scanlines) rather than holding all of it at once.
+ *
+ * Best-effort like [inflateZlib]: a truncated or corrupt stream ends early instead of throwing, and
+ * every read after that point delivers nothing.  The caller bounds the output by how much it asks
+ * for, so a stream that would inflate past what its container describes is never expanded further.
+ *
+ * @param Source compressed The zlib stream.
+ */
+internal class ZlibStreamReader(compressed: Source) {
+	private val inflated: BufferedSource = InflaterSource(compressed, Inflater(false)).buffer()
+
+	// Set once the stream has ended or broken; no read is attempted after that.
+	private var ended = false
+
+	/**
+	 * Fills [destination] from [offset] with the next [count] inflated bytes, or with as many as the
+	 * stream still holds.
+	 *
+	 * @param ByteArray destination The buffer to fill.
+	 * @param Int offset            Offset of the first byte to write.
+	 * @param Int count             Number of bytes wanted.
+	 * @return Int The number of bytes written: [count] unless the stream ended or broke first.
+	 */
+	fun readFully(destination: ByteArray, offset: Int, count: Int): Int {
+		var filled = 0
+
+		while (filled < count && !ended) {
+			val read =
+				try {
+					inflated.read(destination, offset + filled, count - filled)
+				} catch (_: IOException) {
+					-1
+				}
+
+			if (read == -1) {
+				ended = true
+			} else {
+				filled += read
+			}
+		}
+
+		return filled
+	}
+
+	/**
+	 * Releases the inflater.  On a truncated stream close() can itself raise, which must not mask the
+	 * bytes already delivered.
+	 */
+	fun close() {
+		try {
+			inflated.close()
+		} catch (_: IOException) {
+			// Already best-effort.
+		}
+	}
 }
 
 /**
@@ -124,5 +190,6 @@ private fun deflate(source: ByteArray, level: Int, rawDeflate: Boolean): ByteArr
 	sink.write(source)
 	// Finishes the stream and releases the deflater.
 	sink.close()
+
 	return deflated.readByteArray()
 }

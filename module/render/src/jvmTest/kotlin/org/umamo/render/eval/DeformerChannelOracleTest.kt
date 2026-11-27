@@ -8,6 +8,7 @@ import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.ParameterId
+import org.umamo.testkit.requireSample
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -48,8 +49,8 @@ class DeformerChannelOracleTest {
 
 	@Test
 	fun deformerChannelsCascadeToDrawablesLikeTheOracle() {
-		val dumpModel = requireOracleInput("relive.dumpModel")
-		val coreLib = requireOracleInput("relive.coreLib")
+		val dumpModel = requireSample("relive.dumpModel")
+		val coreLib = requireSample("relive.coreLib")
 		val samples =
 			System.getProperty("moc3.samples")
 				?.let(::File)
@@ -70,12 +71,14 @@ class DeformerChannelOracleTest {
 		for (mocFile in samples) {
 			val mocDocument = runCatching { Moc3.read(mocFile.readBytes()) }.getOrNull() ?: continue
 			val drivingParameters = parametersDrivingChannelledDeformers(mocDocument)
+
 			if (drivingParameters.isEmpty()) {
 				continue
 			}
+
 			// The canvas-space rebase is part of the app's real ingest path, and it must preserve every
 			// non-positional keyform channel (the modelA hologram tint regression: the rebase rebuilt
-			// MeshForms and silently dropped multiply/screen colours).  The channels this gate compares
+			// MeshForms and silently dropped multiply/screen colors).  The channels this gate compares
 			// are rebase-invariant, so running the rebased model keeps the gate on the rendered path.
 			val puppet = org.umamo.render.restMeshesToCanvasSpace(Moc3Import.fromMocDocument(mocDocument, null))
 			val poses = derivePoses(mocDocument, drivingParameters)
@@ -86,12 +89,14 @@ class DeformerChannelOracleTest {
 				val dump = runOracleDump(dumpModel, coreLib, mocFile, pose)
 				val parameterValues = pose.entries.associate { ParameterId(it.key) to it.value }
 				val inputs = preparePose(puppet, parameterValues)
+
 				for (drawableInputs in inputs.drawables) {
 					val oracleEntry = dump.entries[drawableInputs.drawableId.raw] ?: continue
+
 					/*
-					 * The runtime core FREEZES an art mesh whose own keyform binding - or any ancestor
+					 * The runtime FREEZES an art mesh whose own keyform binding - or any ancestor
 					 * deformer's - is out of its keyed parameter range, skipping it entirely during the
-					 * update, so every computed field stays at the zero it was allocated with. Umamo
+					 * update, so every computed field stays at the zero it was allocated with.  Umamo
 					 * instead evaluates such a drawable live, and that difference spans geometry as well
 					 * as these channels (the oracle reports `vpos_h=0` for them), so it is a separate gap
 					 * from the channel cascade this test gates - see TODO § Puppet Model, CMO3, MOC3.
@@ -99,11 +104,14 @@ class DeformerChannelOracleTest {
 					 */
 					if (oracleNeverEvaluated(oracleEntry)) {
 						skippedNeverEvaluated++
+
 						continue
 					}
+
 					comparedDrawableStates++
 					val label = "${mocFile.name} pose=$pose ${drawableInputs.drawableId.raw}"
 					checkChannel(mismatches, label, "op", oracleEntry.opacity, drawableInputs.opacity)
+
 					if (oracleEntry.multiplyRgba.size == 4 && oracleEntry.screenRgba.size == 4) {
 						checkChannel(mismatches, label, "mulR", oracleEntry.multiplyRgba[0], drawableInputs.multiplyColor.red)
 						checkChannel(mismatches, label, "mulG", oracleEntry.multiplyRgba[1], drawableInputs.multiplyColor.green)
@@ -137,11 +145,14 @@ class DeformerChannelOracleTest {
 	 */
 	private fun parametersDrivingChannelledDeformers(mocDocument: MocDocument): Map<String, FloatArray> {
 		val driving = LinkedHashMap<String, FloatArray>()
+
 		for (deformer in mocDocument.deformers) {
 			if (!authorsAChannel(deformer)) {
 				continue
 			}
+
 			val binding = mocDocument.keyformBinding(deformer.keyformBindingIndex) ?: continue
+
 			for (axis in binding.axes) {
 				val parameter = mocDocument.parameters.getOrNull(axis.parameterIndex) ?: continue
 				// Union the key positions when several channelled deformers share a parameter, so a
@@ -155,6 +166,7 @@ class DeformerChannelOracleTest {
 					}
 			}
 		}
+
 		return driving
 	}
 
@@ -170,6 +182,7 @@ class DeformerChannelOracleTest {
 				is WarpDeformer -> deformer.keyforms.map { Triple(it.opacity, it.multiplyColor, it.screenColor) }
 				is RotationDeformer -> deformer.keyforms.map { Triple(it.opacity, it.multiplyColor, it.screenColor) }
 			}
+
 		return channels.any { (opacity, multiplyColor, screenColor) ->
 			opacity != opaque ||
 				(multiplyColor != null && Triple(multiplyColor.r, multiplyColor.g, multiplyColor.b) != multiplyIdentity) ||
@@ -191,34 +204,41 @@ class DeformerChannelOracleTest {
 	private fun derivePoses(mocDocument: MocDocument, drivingParameters: Map<String, FloatArray>): List<Map<String, Float>> {
 		val poses = ArrayList<Map<String, Float>>()
 		poses.add(emptyMap())
+
 		for ((parameterId, keyPositions) in drivingParameters) {
 			val parameter = mocDocument.parameters.firstOrNull { it.id == parameterId } ?: continue
 			val sorted = keyPositions.distinct().sorted()
 			val visits = ArrayList<Float>(sorted)
+
 			for (keyIndex in 0 until sorted.size - 1) {
 				val low = sorted[keyIndex]
 				val high = sorted[keyIndex + 1]
+
 				for (step in 1..midpointsPerSegment) {
 					visits.add(low + (high - low) * step / (midpointsPerSegment + 1f))
 				}
 			}
-			// Clamp to the parameter's DECLARED range. A keyform axis can carry key positions outside
-			// it (nothing in the format forbids a rig keeping keys from a since-narrowed range), and
-			// the runtime core clamps the written value to [min, max] before evaluating. Sweeping an
-			// out-of-range value would compare our extrapolation against the core's clamp - a real
-			// difference, but a different one from the channel cascade this test gates.
-			for (value in visits.map { it.coerceIn(parameter.minimumValue, parameter.maximumValue) }.distinct().sorted()) {
+
+			// Raw, not clamped to the declared range: a keyform axis can carry key positions outside it (nothing
+			// in the format forbids a rig keeping keys from a since-narrowed range), and both evaluators resolve the
+			// value into [min, max] before evaluating, clamping it or, on a repeating axis, wrapping it
+			// (`ParameterRepeatOracleTest` measures the runtime's), so a visit past the range gates that too.
+			for (value in visits.distinct().sorted()) {
 				// Skip the default - the empty pose already covers it, and repeating it wastes a dump.
 				if (value == parameter.defaultValue) {
 					continue
 				}
+
 				poses.add(mapOf(parameterId to value))
+
 				if (poses.size >= maximumPosesPerModel) {
 					println("[oracle] pose sweep capped at $maximumPosesPerModel; later parameters not visited")
+
 					return poses
 				}
 			}
 		}
+
 		return poses
 	}
 

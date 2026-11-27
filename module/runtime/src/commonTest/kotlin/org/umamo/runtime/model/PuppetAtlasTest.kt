@@ -10,11 +10,11 @@ import kotlin.test.assertTrue
  * Covers how a drawable resolves to its source art: which tile, whether it reads a packed page or the
  * art directly, and which page's dimensions the mapping is built against.
  *
- * The packed-versus-direct decision is the load-bearing one.  It used to be read off CMO3 resource
- * identity at import; the model derives it instead, from whether the document's stored coordinates
- * address the packed pages ([PuppetAtlas.storedUvsAddressPages]) and whether the tile was packed at
- * all.  Getting it wrong does not fail loudly - it silently swaps a drawable's UV editor between the
- * layer frame and the atlas frame - so each arm is pinned here.
+ * The packed-versus-direct decision is the load-bearing one.  The model derives it from whether the
+ * document's stored coordinates address the packed pages ([PuppetAtlas.storedUvsAddressPages]) and
+ * whether the tile was packed at all, never from the importing format's resource identity.  Getting it
+ * wrong does not fail loudly - it silently swaps a drawable's UV editor between the layer frame and the
+ * atlas frame - so each arm is pinned here.
  */
 class PuppetAtlasTest {
 	private fun drawable(rawId: String, tileId: String? = null): Drawable =
@@ -78,7 +78,7 @@ class PuppetAtlasTest {
 		val binding = assertNotNull(model.atlasBindingFor(model.drawables.single()))
 		assertNull(binding.placement, "art that was never packed is sampled where it lies")
 		assertTrue(
-			layerUvAffineOf(binding, 8, 16).contentEquals(identityUvAffine()),
+			layerUvAffineOf(binding, 8, 16).contentEquals(identityAffine()),
 			"so its stored coordinates already address it and the mapping is the identity",
 		)
 	}

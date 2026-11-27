@@ -1,15 +1,14 @@
 package org.umamo.render.glsl
 
 /**
- * The shared GLSL for Umamo's GPU deformation - the per-vertex morph + deformer cascade. Both the live
- * renderer (`PuppetRenderer`, which projects the result to `gl_Position`) and the GPU-vs-CPU
- * transform-feedback test (which captures the world position) prepend their own `#version` + in/out
- * declarations and `main`, then call [deformWorld]. Sharing this snippet means the test exercises the
- * exact deform math the renderer ships, not a hand-kept copy.
+ * The shared GLSL for Umamo's GPU deformation - the per-vertex morph + deformer cascade.  Every program
+ * that deforms prepends its own `#version` + in/out declarations and `main`, then calls `deformWorld`, so
+ * the GPU-vs-CPU test exercises the exact deform math the renderer ships, not a hand-kept copy.
  *
  * The uniforms it declares are filled per pose from the backend-neutral `PoseDeformInputs`:
- *  - [deltaTex] - RG = a keyform cell's per-vertex delta; texel (col = cell linear index, row = vertex id).
+ *  - `deltaTex` - RG = a keyform cell's per-vertex delta; texel (col = cell linear index, row = vertex id).
  *  - cornerCount / cornerCell[] / cornerWeight[] - the active multilinear corners + weights.
+ *  - blendCount / blendCell[] / blendWeight[] - the active blend-shape delta columns + weights.
  *  - parentType / rot[] / cpTex / warp* - the baked parent-deformer transform (0 direct, 1 rotation, 2 warp).
  */
 internal const val DEFORM_GLSL =
@@ -229,12 +228,8 @@ internal const val DEFORM_GLSL =
 
 /**
  * The transform-feedback deform shader: runs [DEFORM_GLSL]'s `deformWorld` and captures the result as
- * `outWorld` (no projection).
- *
- * Used by the renderer's glue pass 1 to write every glue mesh's deformed world positions into the shared
- * position buffer, and by the GPU-vs-CPU validation test - which is the point: the test pins the exact
- * deform body that ships, not a copy of it.  Its varying `outWorld` must be registered via
- * `glTransformFeedbackVaryings` before linking.
+ * `outWorld` (no projection), for the renderer's glue pass and the GPU-vs-CPU validation test.  Its
+ * varying `outWorld` must be registered via `glTransformFeedbackVaryings` before linking.
  *
  * Transform feedback is core in GL 3.3 AND GLES 3.0, so both dialects can run this as-is.
  *

@@ -47,6 +47,7 @@ class DerivedAtlasTexturesTest {
 	 */
 	private fun tileRaster(width: Int, height: Int, margin: Int, red: Int): ByteArray {
 		val rgba = ByteArray(width * height * 4)
+
 		for (rowIndex in margin until height - margin) {
 			for (columnIndex in margin until width - margin) {
 				val offset = (rowIndex * width + columnIndex) * 4
@@ -56,6 +57,7 @@ class DerivedAtlasTexturesTest {
 				rgba[offset + 3] = 0xFF.toByte()
 			}
 		}
+
 		return rgba
 	}
 
@@ -121,7 +123,7 @@ class DerivedAtlasTexturesTest {
 				canvasWidth = 100f,
 				canvasHeight = 100f,
 				worldOriginX = 50f,
-				worldOriginY = 50f,
+				worldOriginZ = 50f,
 				atlas =
 					PuppetAtlas(
 						pages = result.pages.map { page -> AtlasPage(page.width, page.height) },
@@ -129,13 +131,17 @@ class DerivedAtlasTexturesTest {
 					),
 			)
 		val pngByTile = HashMap<AtlasTileId, ByteArray>()
+
 		for ((tileIndex, tileId) in tileIds.withIndex()) {
 			pngByTile[tileId] = encodeAtlasPng(rasters[tileIndex])
 		}
+
 		for ((tile, raster) in extraTiles) {
 			pngByTile[tile.id] = encodeAtlasPng(raster)
 		}
+
 		val store = SourceArtRasters.fromPng { tileId -> pngByTile[tileId] }
+
 		return Fixture(model, store, result.pages.map { page -> DecodedImage(page.rgba, page.width, page.height) }, rasters)
 	}
 
@@ -143,6 +149,7 @@ class DerivedAtlasTexturesTest {
 
 	private fun pixelBytes(image: DecodedImage, x: Int, y: Int): ByteArray {
 		val offset = (y * image.width + x) * 4
+
 		return image.rgba.copyOfRange(offset, offset + 4)
 	}
 
@@ -157,6 +164,7 @@ class DerivedAtlasTexturesTest {
 		val derived = assertNotNull(deriveAtlasTextures(model, fixture.store, premultipliedAlpha = true))
 
 		assertEquals(fixture.packedPages.size, derived.atlases.size, "one derived page per packed page")
+
 		for (pageIndex in fixture.packedPages.indices) {
 			assertEquals(fixture.packedPages[pageIndex].width, derived.atlases[pageIndex].width)
 			assertEquals(fixture.packedPages[pageIndex].height, derived.atlases[pageIndex].height)
@@ -166,7 +174,9 @@ class DerivedAtlasTexturesTest {
 				"page $pageIndex pixels re-derive byte-identically",
 			)
 		}
+
 		assertTrue(derived.premultipliedAlpha, "the convention flag passes through")
+
 		for ((tileIndex, tileId) in tileIds.withIndex()) {
 			val placement = assertNotNull(model.atlas.tiles[tileIndex].placement)
 			assertEquals(
@@ -310,9 +320,11 @@ class DerivedAtlasTexturesTest {
 		val derived = assertNotNull(deriveAtlasTextures(model, fixture.store, false))
 
 		assertEquals(result.pages.size, derived.atlases.size)
+
 		for (pageIndex in result.pages.indices) {
 			assertContentEquals(result.pages[pageIndex].rgba, derived.atlases[pageIndex].rgba, "page $pageIndex derives byte-identically, pinned tile included")
 		}
+
 		val trim = assertNotNull(derivedTileTrim(fixture.rasters[1], model.atlas.composition.alphaThreshold))
 		val footprint = placementFootprint(kept, trim, reserve = null)
 		val centerX = ((footprint.left + footprint.right) / 2f).toInt()
@@ -326,6 +338,7 @@ class DerivedAtlasTexturesTest {
 		// trimmed away at threshold 128.
 		val side = 10
 		val bordered = ByteArray(side * side * 4)
+
 		for (rowIndex in 0 until side) {
 			for (columnIndex in 0 until side) {
 				val onBorder = rowIndex == 0 || columnIndex == 0 || rowIndex == side - 1 || columnIndex == side - 1
@@ -336,6 +349,7 @@ class DerivedAtlasTexturesTest {
 				bordered[offset + 3] = if (onBorder) 0x60 else 0xFF.toByte()
 			}
 		}
+
 		val tileId = tileIds[0]
 		val options = AtlasPackOptions(maxPageSize = 32, alphaThreshold = 128, extrude = 0)
 		val result = packAtlas(listOf(AtlasPackItem(tileId.raw, side, side, bordered)), options)

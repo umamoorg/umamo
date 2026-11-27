@@ -5,8 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +18,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,12 +31,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
-import org.umamo.ui.kit.FIELD_ROW_LABEL_WIDTH
-import org.umamo.ui.kit.FIELD_ROW_SPACING
-import org.umamo.ui.kit.FieldRow
 import org.umamo.ui.kit.Surface
 import org.umamo.ui.kit.Text
+import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.button.CloseButton
+import org.umamo.ui.kit.container.NestedSection
+import org.umamo.ui.kit.container.SectionCard
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.settings_category_colors
 import org.umamo.ui.resources.settings_category_import
@@ -49,12 +53,20 @@ import org.umamo.ui.theme.LocalUmamoTypography
 /** Fixed width of the left category rail; wide enough for the longest localized category label. */
 private val CATEGORY_RAIL_WIDTH = 168.dp
 
+/** The inset around a page that is not built from cards (Pen). */
+private val PLAIN_PAGE_PADDING = 20.dp
+
+/** The inset around a page of cards, and the gap between two cards, as the Properties panel spaces them. */
+private val CARD_PAGE_PADDING = 12.dp
+private val CARD_SPACING = 6.dp
+
+/** The gap between the rows pinned above a card page's scroll, the same as between the rows inside a card. */
+private val PINNED_ROW_SPACING = 4.dp
+
 /**
  * The preferences categories shown in the left rail, in display order.  Each carries its localized rail
  * label; the right pane switches on the selection in [SettingsWindow] (an exhaustive `when`, so adding a
  * category is a compile-time prompt to give it content).
- *
- * 設定のカテゴリ（左レール）。各自のローカライズ済みラベルを持つ。右ペインは選択に応じて切り替わる。
  *
  * @property StringResource label The rail label resource.
  */
@@ -68,17 +80,11 @@ internal enum class SettingsCategory(val label: StringResource) {
 }
 
 /**
- * The preferences window: a focus-stealing in-window overlay (a scrim over the shell with a centered
- * card), styled like the kit's other modals (the command palette, the confirm dialog) so it reads as
- * the same surface family rather than a host-OS window.  A left category rail selects which section the
- * right pane shows; sections auto-save every change (no OK/Apply), so the only chrome is dismissal.
- *
- * Dismissal is by Escape, a scrim click, or the header close button - the last matters on a keyboardless
- * tablet, where there is no Escape key and the scrim may not read as interactive.  The shell owns the
- * visible state and routes Escape here (mirroring the command palette); this composable only renders.
- *
- * 設定ウィンドウ。シェルを覆うスクリム＋中央カードのモーダル。左レールでセクションを選び、変更は即時保存。
- * Esc・スクリムのクリック・閉じるボタンで閉じる（キーボード無しのタブレット向けに閉じるボタンを用意）。
+ * The preferences window: a focus-stealing in-window overlay styled like the kit's other modals (the
+ * command palette, the confirm dialog), so it reads as the same surface family rather than a host-OS window.
+ * Sections auto-save every change, so the only chrome is dismissal; the header close button serves a
+ * keyboardless tablet, where there is no Escape key and the scrim may not read as interactive.  The shell owns
+ * the visible state and routes Escape here.
  *
  * @param Function onDismiss Closes the window (Escape is routed here by the shell; also the scrim / close button).
  */
@@ -87,8 +93,9 @@ fun SettingsWindow(onDismiss: () -> Unit) {
 	val colors = LocalUmamoColors.current
 	val typography = LocalUmamoTypography.current
 	var category by remember { mutableStateOf(SettingsCategory.Interface) }
+	val folds = rememberPreferencesFolds()
 	Box(
-		// indication = null: the kit's convention everywhere interactive. Without it the full-size scrim
+		// indication = null: the kit's convention everywhere interactive.  Without it the full-size scrim
 		// renders the default hover/press indication - a second dimming layer that toggles as the pointer
 		// enters/leaves the window or presses a dropdown, stacking on the intended scrim.
 		modifier =
@@ -126,14 +133,15 @@ fun SettingsWindow(onDismiss: () -> Unit) {
 				Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
 					CategoryRail(selected = category, onSelect = { category = it }, modifier = Modifier.width(CATEGORY_RAIL_WIDTH).fillMaxHeight())
 					Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(colors.divider))
-					Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(20.dp)) {
+					// The Properties body's ground, so the cards sit one step above it as they do there.
+					Box(modifier = Modifier.weight(1f).fillMaxHeight().background(colors.headerBackground)) {
 						when (category) {
-							SettingsCategory.Interface -> InterfaceSection()
-							SettingsCategory.Colors -> ColorsSection()
-							SettingsCategory.Viewport -> ViewportSection()
-							SettingsCategory.Import -> ImportSection()
-							SettingsCategory.Keybindings -> KeybindingsSection()
-							SettingsCategory.Pen -> PenSection()
+							SettingsCategory.Interface -> SettingsCardPage { InterfaceSection(folds) }
+							SettingsCategory.Colors -> SettingsCardPage { ColorsSection(folds) }
+							SettingsCategory.Viewport -> SettingsCardPage { ViewportSection(folds) }
+							SettingsCategory.Import -> SettingsCardPage { ImportSection(folds) }
+							SettingsCategory.Keybindings -> KeybindingsSection(folds)
+							SettingsCategory.Pen -> Box(modifier = Modifier.padding(PLAIN_PAGE_PADDING)) { PenSection() }
 						}
 					}
 				}
@@ -146,8 +154,6 @@ fun SettingsWindow(onDismiss: () -> Unit) {
  * The left rail of category rows.  The selected row is filled with the accent and its label uses the
  * on-accent text color; the rest hover-highlight, matching the kit's row idiom (the command palette
  * list, menu rows).
- *
- * 左のカテゴリ一覧。選択行はアクセント塗り、他はホバーで強調。
  *
  * @param SettingsCategory selected The currently selected category.
  * @param Function         onSelect Called with a category when its row is clicked.
@@ -187,23 +193,68 @@ private fun CategoryRail(selected: SettingsCategory, onSelect: (SettingsCategory
 	}
 }
 
-/** Spacer between stacked setting rows within a section (the shared kit spacing). */
-internal val SETTING_ROW_SPACING = FIELD_ROW_SPACING
-
-/** Fixed width of a setting row's left label column, so the controls in a section align. */
-internal val SETTING_LABEL_WIDTH = FIELD_ROW_LABEL_WIDTH
-
 /**
- * One labelled settings row: a thin settings-side wrapper over the shared kit [FieldRow], pinning the
- * settings label-column width so every section aligns.  Kept as its own name so the many settings call
- * sites stay a one-liner.
+ * A scrolling page of setting cards, spaced and inset as the Properties panel's, under an optional pinned block that
+ * stays put while the cards scroll.
  *
- * 設定 1 行。共有の kit FieldRow を設定用のラベル幅で包む薄いラッパー。
- *
- * @param String   label   The already-localized row label.
- * @param Function control The control composable (a SelectField, etc.).
+ * @param Function? pinned Rows held above the scroll (a page's search and its page-wide controls), or null for none.
+ * @param Function content The page's cards, top to bottom.
  */
 @Composable
-internal fun SettingRow(label: String, control: @Composable () -> Unit) {
-	FieldRow(label = label, labelWidth = SETTING_LABEL_WIDTH, control = control)
+internal fun SettingsCardPage(pinned: (@Composable ColumnScope.() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+	val colors = LocalUmamoColors.current
+	Column(modifier = Modifier.fillMaxSize()) {
+		if (pinned != null) {
+			Column(
+				modifier = Modifier.fillMaxWidth().padding(CARD_PAGE_PADDING),
+				verticalArrangement = Arrangement.spacedBy(PINNED_ROW_SPACING),
+				content = pinned,
+			)
+			Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.divider))
+		}
+
+		val scrollState = rememberScrollState()
+		Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+			Column(
+				modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(CARD_PAGE_PADDING),
+				verticalArrangement = Arrangement.spacedBy(CARD_SPACING),
+				content = content,
+			)
+			VerticalScrollbarOverlay(scrollState)
+		}
+	}
+}
+
+/**
+ * One collapsible card of settings rows, its fold state persisted through [folds].
+ *
+ * @param PreferencesFolds folds The window's fold state.
+ * @param PreferencesSection section The card, for its title and its persisted id.
+ * @param Function content The card's rows, top to bottom.
+ */
+@Composable
+internal fun SettingsCard(folds: PreferencesFolds, section: PreferencesSection, content: @Composable ColumnScope.() -> Unit) {
+	SectionCard(
+		title = stringResource(section.title),
+		expanded = folds.isExpanded(section),
+		onToggle = { folds.toggle(section) },
+		content = content,
+	)
+}
+
+/**
+ * One collapsible sub-panel inside a [SettingsCard], its fold state persisted through [folds].
+ *
+ * @param PreferencesFolds folds The window's fold state.
+ * @param PreferencesSection section The sub-panel, for its title and its persisted id.
+ * @param Function content The sub-panel's rows, top to bottom.
+ */
+@Composable
+internal fun SettingsSubsection(folds: PreferencesFolds, section: PreferencesSection, content: @Composable ColumnScope.() -> Unit) {
+	NestedSection(
+		title = stringResource(section.title),
+		expanded = folds.isExpanded(section),
+		onToggle = { folds.toggle(section) },
+		content = content,
+	)
 }

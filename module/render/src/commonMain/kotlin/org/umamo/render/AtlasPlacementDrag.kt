@@ -4,8 +4,11 @@ import org.umamo.format.art.LayerBounds
 import org.umamo.format.atlas.AtlasPackReserve
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
+import org.umamo.runtime.model.Drawable
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.inversePlacementAffine
 import org.umamo.runtime.model.placementAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
@@ -53,36 +56,94 @@ import kotlin.math.floor
  */
 public fun meshReserveByTile(model: PuppetModel): Map<AtlasTileId, AtlasPackReserve> {
 	val boundsByTile = HashMap<AtlasTileId, FloatArray>()
+
 	for (drawable in model.drawables) {
 		val tileId = drawable.atlasTileId ?: continue
-		val tile = model.atlas.tileById[tileId] ?: continue
-		val uvs = drawable.mesh?.uvs ?: continue
-		if (uvs.size < 2) {
-			continue
-		}
-		val storedToArt = model.atlas.storedToArtAffineForTile(tileId) ?: continue
-		val artUvs = applyUvAffine(uvs, storedToArt)
-		val bounds = boundsByTile.getOrPut(tileId) { floatArrayOf(Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE, -Float.MAX_VALUE) }
-		var componentIndex = 0
-		while (componentIndex + 1 < artUvs.size) {
-			val artX = artUvs[componentIndex] * tile.width
-			val artY = artUvs[componentIndex + 1] * tile.height
-			bounds[0] = minOf(bounds[0], artX)
-			bounds[1] = minOf(bounds[1], artY)
-			bounds[2] = maxOf(bounds[2], artX)
-			bounds[3] = maxOf(bounds[3], artY)
-			componentIndex += 2
-		}
+		val bounds = boundsByTile.getOrPut(tileId) { emptyReachBounds() }
+		widenByMeshReach(model, drawable, bounds)
 	}
-	return boundsByTile.mapValues { (_, bounds) ->
-		AtlasPackReserve(
-			left = floor(bounds[0]).toInt(),
-			top = floor(bounds[1]).toInt(),
-			right = ceil(bounds[2]).toInt(),
-			bottom = ceil(bounds[3]).toInt(),
-		)
+
+	return boundsByTile.filterValues { bounds -> bounds[0] <= bounds[2] }.mapValues { (_, bounds) -> reserveOfBounds(bounds) }
+}
+
+/**
+ * One drawable's mesh reach in its tile's art frame, rounded out to whole pixels by the same rule as
+ * [meshReserveByTile] - so the reserves of a tile's drawables union to the tile's own reserve.
+ *
+ * @param PuppetModel model      The model.
+ * @param DrawableId  drawableId The drawable.
+ * @return AtlasPackReserve? The reserve, or null when the drawable has no measurable mesh on a tile.
+ */
+public fun meshReserveOf(model: PuppetModel, drawableId: DrawableId): AtlasPackReserve? {
+	val drawable = model.drawables.firstOrNull { candidate -> candidate.id == drawableId } ?: return null
+	val bounds = emptyReachBounds()
+	widenByMeshReach(model, drawable, bounds)
+
+	return if (bounds[0] <= bounds[2]) reserveOfBounds(bounds) else null
+}
+
+/**
+ * Bounds that hold nothing yet: minimum x, minimum y, maximum x, maximum y, inverted.
+ *
+ * @return FloatArray The empty bounds.
+ */
+private fun emptyReachBounds(): FloatArray = floatArrayOf(Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE, -Float.MAX_VALUE)
+
+/**
+ * Widens bounds by a drawable's mesh vertices in its tile's art pixels; a drawable with no tile, no
+ * mesh, or no resolvable mapping adds nothing.
+ *
+ * @param PuppetModel model    The model.
+ * @param Drawable    drawable The drawable.
+ * @param FloatArray  bounds   The bounds to widen, minimum x, minimum y, maximum x, maximum y.
+ */
+private fun widenByMeshReach(model: PuppetModel, drawable: Drawable, bounds: FloatArray) {
+	val tileId = drawable.atlasTileId ?: return
+	val tile = model.atlas.tileById[tileId] ?: return
+	val uvs = drawable.mesh?.uvs ?: return
+
+	if (uvs.size < 2) {
+		return
+	}
+
+	val storedToArt = model.atlas.storedToArtAffineForTile(tileId) ?: return
+	val artUvs = applyAffine(uvs, storedToArt)
+	var componentIndex = 0
+
+	while (componentIndex + 1 < artUvs.size) {
+		val artX = artUvs[componentIndex] * tile.width
+		val artY = artUvs[componentIndex + 1] * tile.height
+		bounds[0] = minOf(bounds[0], artX)
+		bounds[1] = minOf(bounds[1], artY)
+		bounds[2] = maxOf(bounds[2], artX)
+		bounds[3] = maxOf(bounds[3], artY)
+		componentIndex += 2
 	}
 }
+
+/**
+ * Rounds measured reach bounds out to whole pixels; a bound within float noise of a pixel edge counts
+ * as on it, so the rounding out cannot add a pixel.
+ *
+ * @param FloatArray bounds Minimum x, minimum y, maximum x, maximum y, art pixels.
+ * @return AtlasPackReserve The reserve.
+ */
+private fun reserveOfBounds(bounds: FloatArray): AtlasPackReserve =
+	AtlasPackReserve(
+		left = floor(bounds[0] + RESERVE_EDGE_TOLERANCE).toInt(),
+		top = floor(bounds[1] + RESERVE_EDGE_TOLERANCE).toInt(),
+		right = ceil(bounds[2] - RESERVE_EDGE_TOLERANCE).toInt(),
+		bottom = ceil(bounds[3] - RESERVE_EDGE_TOLERANCE).toInt(),
+	)
+
+/**
+ * How far a mesh bound may sit from a whole art pixel and still count as on it, in art pixels.  Stored
+ * coordinates are float32 page fractions re-derived whenever a placement moves, so a mesh edge exactly on a
+ * pixel edge comes back a few ULPs to either side of it; floored or ceiled raw, that noise would widen the
+ * reserve by a whole pixel, and a tile's footprint and origin would shift each time it moved.  Far below
+ * any reach a mesh really has past a pixel edge.
+ */
+private const val RESERVE_EDGE_TOLERANCE = 1e-3f
 
 /**
  * A placement's axis-aligned extent on its page, in continuous page pixels: the bounds of the
@@ -143,17 +204,20 @@ fun placementFootprint(placement: AtlasPlacement, trim: LayerBounds, reserve: At
 	var localTop = trim.top.toFloat()
 	var localRight = (trim.left + trim.width).toFloat()
 	var localBottom = (trim.top + trim.height).toFloat()
+
 	if (reserve != null) {
 		localLeft = minOf(localLeft, reserve.left.toFloat())
 		localTop = minOf(localTop, reserve.top.toFloat())
 		localRight = maxOf(localRight, reserve.right.toFloat())
 		localBottom = maxOf(localBottom, reserve.bottom.toFloat())
 	}
+
 	val affine = placementAffine(placement)
 	var left = Float.POSITIVE_INFINITY
 	var top = Float.POSITIVE_INFINITY
 	var right = Float.NEGATIVE_INFINITY
 	var bottom = Float.NEGATIVE_INFINITY
+
 	for (cornerIndex in 0 until 4) {
 		val cornerX = if (cornerIndex and 1 == 0) localLeft else localRight
 		val cornerY = if (cornerIndex and 2 == 0) localTop else localBottom
@@ -164,6 +228,7 @@ fun placementFootprint(placement: AtlasPlacement, trim: LayerBounds, reserve: At
 		right = maxOf(right, pageX)
 		bottom = maxOf(bottom, pageY)
 	}
+
 	return PlacementFootprint(left, top, right, bottom)
 }
 
@@ -189,10 +254,13 @@ class TileOpaqueMask private constructor(
 	fun isOpaque(tileX: Int, tileY: Int): Boolean {
 		val column = tileX - trim.left
 		val row = tileY - trim.top
+
 		if (column < 0 || row < 0 || column >= trim.width || row >= trim.height) {
 			return false
 		}
+
 		val bitIndex = row * trim.width + column
+
 		return (words[bitIndex ushr 6] ushr (bitIndex and 63)) and 1L == 1L
 	}
 
@@ -208,16 +276,20 @@ class TileOpaqueMask private constructor(
 		fun of(raster: DecodedImage, trim: LayerBounds, alphaThreshold: Int): TileOpaqueMask {
 			val bitCount = trim.width * trim.height
 			val words = LongArray((bitCount + 63) ushr 6)
+
 			for (row in 0 until trim.height) {
 				val rowOffset = (trim.top + row) * raster.width + trim.left
+
 				for (column in 0 until trim.width) {
 					val alpha = raster.rgba[(rowOffset + column) * 4 + 3].toInt() and 0xFF
+
 					if (alpha >= alphaThreshold) {
 						val bitIndex = row * trim.width + column
 						words[bitIndex ushr 6] = words[bitIndex ushr 6] or (1L shl (bitIndex and 63))
 					}
 				}
 			}
+
 			return TileOpaqueMask(trim, words)
 		}
 	}
@@ -250,7 +322,7 @@ data class PixelRect(
 /**
  * The shown page's painted pixels - the bystanders' painted region as one surface.
  *
- * The composed page's alpha IS what is painted there (extrusion bands included), so no tile needs
+ * The composed page's alpha IS what is painted there (a bleed band carries none, so it reads empty), so no tile needs
  * decoding: one pass over the page reduces it to a bitset of 8x8 blocks for fast rejection, and the
  * exact alpha stays behind it for the pixels a sampled region actually touches.  The rectangles a
  * caller names are read as empty - the spots the movers are leaving.
@@ -280,11 +352,13 @@ class PageOccupancy private constructor(
 		if (x < 0 || y < 0 || x >= width || y >= height) {
 			return false
 		}
+
 		for (rect in excluded) {
 			if (rect.contains(x, y)) {
 				return false
 			}
 		}
+
 		return (rgba[(y * width + x) * 4 + 3].toInt() and 0xFF) != 0
 	}
 
@@ -299,14 +373,12 @@ class PageOccupancy private constructor(
 	 */
 	fun blockMayBePainted(blockX: Int, blockY: Int): Boolean {
 		val bitIndex = blockY * blockColumns + blockX
+
 		return (blockWords[bitIndex ushr 6] ushr (bitIndex and 63)) and 1L == 1L
 	}
 
 	/**
 	 * Whether any painted pixel lies inside [region].
-	 *
-	 * Walks the blocks under the region's bounds, and only for a block that may be painted tests its
-	 * pixels exactly against the region and the page.
 	 *
 	 * @param SampledRegion region The region to test.
 	 * @return PixelRect? A one-pixel rectangle at the first painted pixel found, or null when none.
@@ -317,18 +389,22 @@ class PageOccupancy private constructor(
 		val endX = ceil(bounds.right).toInt().coerceAtMost(width)
 		val startY = floor(bounds.top).toInt().coerceAtLeast(0)
 		val endY = ceil(bounds.bottom).toInt().coerceAtMost(height)
+
 		if (startX >= endX || startY >= endY) {
 			return null
 		}
+
 		for (blockY in (startY / OCCUPANCY_BLOCK_SIDE)..((endY - 1) / OCCUPANCY_BLOCK_SIDE)) {
 			for (blockX in (startX / OCCUPANCY_BLOCK_SIDE)..((endX - 1) / OCCUPANCY_BLOCK_SIDE)) {
 				if (!blockMayBePainted(blockX, blockY)) {
 					continue
 				}
+
 				val pixelStartX = maxOf(startX, blockX * OCCUPANCY_BLOCK_SIDE)
 				val pixelEndX = minOf(endX, (blockX + 1) * OCCUPANCY_BLOCK_SIDE)
 				val pixelStartY = maxOf(startY, blockY * OCCUPANCY_BLOCK_SIDE)
 				val pixelEndY = minOf(endY, (blockY + 1) * OCCUPANCY_BLOCK_SIDE)
+
 				for (y in pixelStartY until pixelEndY) {
 					for (x in pixelStartX until pixelEndX) {
 						if (region.contains(x + 0.5f, y + 0.5f) && isPainted(x, y)) {
@@ -338,6 +414,7 @@ class PageOccupancy private constructor(
 				}
 			}
 		}
+
 		return null
 	}
 
@@ -353,9 +430,11 @@ class PageOccupancy private constructor(
 			val blockColumns = (page.width + OCCUPANCY_BLOCK_SIDE - 1) / OCCUPANCY_BLOCK_SIDE
 			val blockRows = (page.height + OCCUPANCY_BLOCK_SIDE - 1) / OCCUPANCY_BLOCK_SIDE
 			val blockWords = LongArray((blockColumns * blockRows + 63) ushr 6)
+
 			for (y in 0 until page.height) {
 				val rowOffset = y * page.width
 				val blockRow = (y / OCCUPANCY_BLOCK_SIDE) * blockColumns
+
 				for (x in 0 until page.width) {
 					if (page.rgba[(rowOffset + x) * 4 + 3].toInt() != 0) {
 						val bitIndex = blockRow + x / OCCUPANCY_BLOCK_SIDE
@@ -363,6 +442,7 @@ class PageOccupancy private constructor(
 					}
 				}
 			}
+
 			return PageOccupancy(page.width, page.height, page.rgba, blockColumns, blockWords, excluded)
 		}
 	}
@@ -389,16 +469,19 @@ class TileMeshMask private constructor(
 	fun isCovered(tileX: Int, tileY: Int): Boolean {
 		val column = tileX - bounds.left
 		val row = tileY - bounds.top
+
 		if (column < 0 || row < 0 || column >= bounds.width || row >= bounds.height) {
 			return false
 		}
+
 		val bitIndex = row * bounds.width + column
+
 		return (words[bitIndex ushr 6] ushr (bitIndex and 63)) and 1L == 1L
 	}
 
 	companion object {
 		/**
-		 * The mask of [triangles] (art-pixel coordinates, nine floats per triangle: three interleaved
+		 * The mask of [triangles] (art-pixel coordinates, six floats per triangle: three interleaved
 		 * (x, y) corners) filled by pixel-center test and dilated by one pixel in every direction, so a
 		 * bilinear sampler reading half a texel past any covered point is inside it.  Every corner's own
 		 * pixel is marked too, so a sliver too thin to cover a center still contributes.
@@ -410,10 +493,12 @@ class TileMeshMask private constructor(
 			if (triangles.isEmpty()) {
 				return null
 			}
+
 			var minX = Float.POSITIVE_INFINITY
 			var minY = Float.POSITIVE_INFINITY
 			var maxX = Float.NEGATIVE_INFINITY
 			var maxY = Float.NEGATIVE_INFINITY
+
 			for (triangle in triangles) {
 				for (cornerIndex in 0 until 3) {
 					minX = minOf(minX, triangle[cornerIndex * 2])
@@ -422,6 +507,7 @@ class TileMeshMask private constructor(
 					maxY = maxOf(maxY, triangle[cornerIndex * 2 + 1])
 				}
 			}
+
 			// One pixel of margin for the dilation on every side.
 			val left = floor(minX).toInt() - 1
 			val top = floor(minY).toInt() - 1
@@ -429,13 +515,21 @@ class TileMeshMask private constructor(
 			val height = ceil(maxY).toInt() + 1 - top
 			val raw = LongArray((width * height + 63) ushr 6)
 
+			/**
+			 * Sets a cell's bit in the mask; a cell outside the mask is ignored.
+			 *
+			 * @param Int column The cell's column.
+			 * @param Int row The cell's row.
+			 */
 			fun mark(column: Int, row: Int) {
 				if (column < 0 || row < 0 || column >= width || row >= height) {
 					return
 				}
+
 				val bitIndex = row * width + column
 				raw[bitIndex ushr 6] = raw[bitIndex ushr 6] or (1L shl (bitIndex and 63))
 			}
+
 			for (triangle in triangles) {
 				val x0 = triangle[0] - left
 				val y0 = triangle[1] - top
@@ -447,54 +541,69 @@ class TileMeshMask private constructor(
 				mark(floor(x1).toInt(), floor(y1).toInt())
 				mark(floor(x2).toInt(), floor(y2).toInt())
 				val area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0)
+
 				if (area == 0f) {
 					continue
 				}
+
 				val startColumn = floor(minOf(x0, x1, x2)).toInt().coerceAtLeast(0)
 				val endColumn = ceil(maxOf(x0, x1, x2)).toInt().coerceAtMost(width - 1)
 				val startRow = floor(minOf(y0, y1, y2)).toInt().coerceAtLeast(0)
 				val endRow = ceil(maxOf(y0, y1, y2)).toInt().coerceAtMost(height - 1)
 				val orientation = if (area > 0f) 1f else -1f
+
 				for (row in startRow..endRow) {
 					val centerY = row + 0.5f
+
 					for (column in startColumn..endColumn) {
 						val centerX = column + 0.5f
 						val edge0 = ((x1 - x0) * (centerY - y0) - (y1 - y0) * (centerX - x0)) * orientation
 						val edge1 = ((x2 - x1) * (centerY - y1) - (y2 - y1) * (centerX - x1)) * orientation
 						val edge2 = ((x0 - x2) * (centerY - y2) - (y0 - y2) * (centerX - x2)) * orientation
+
 						if (edge0 >= 0f && edge1 >= 0f && edge2 >= 0f) {
 							mark(column, row)
 						}
 					}
 				}
 			}
+
 			// Dilate by one pixel: a bit set anywhere in the 3x3 neighborhood sets the pixel.
 			val dilated = LongArray(raw.size)
+
 			for (row in 0 until height) {
 				for (column in 0 until width) {
 					var covered = false
+
 					for (rowOffset in -1..1) {
 						val neighborRow = row + rowOffset
+
 						if (neighborRow < 0 || neighborRow >= height) {
 							continue
 						}
+
 						for (columnOffset in -1..1) {
 							val neighborColumn = column + columnOffset
+
 							if (neighborColumn < 0 || neighborColumn >= width) {
 								continue
 							}
+
 							val bitIndex = neighborRow * width + neighborColumn
+
 							if ((raw[bitIndex ushr 6] ushr (bitIndex and 63)) and 1L == 1L) {
 								covered = true
 							}
 						}
 					}
+
 					if (covered) {
 						val bitIndex = row * width + column
 						dilated[bitIndex ushr 6] = dilated[bitIndex ushr 6] or (1L shl (bitIndex and 63))
 					}
 				}
 			}
+
 			return TileMeshMask(LayerBounds(left, top, width, height), dilated)
 		}
 	}
@@ -506,44 +615,84 @@ class TileMeshMask private constructor(
  *
  * @param PuppetModel model The model.
  * @param AtlasTileId tileId The tile.
- * @return List<FloatArray> The triangles, nine floats each; empty when nothing measurable is bound.
+ * @return List<FloatArray> The triangles, six floats each; empty when nothing measurable is bound.
  */
 fun meshTrianglesOf(model: PuppetModel, tileId: AtlasTileId): List<FloatArray> {
 	val tile = model.atlas.tileById[tileId] ?: return emptyList()
 	val storedToArt = model.atlas.storedToArtAffineForTile(tileId) ?: return emptyList()
 	val triangles = ArrayList<FloatArray>()
+
 	for (drawable in model.drawables) {
 		if (drawable.atlasTileId != tileId) {
 			continue
 		}
+
 		val mesh = drawable.mesh ?: continue
-		if (mesh.uvs.size < 2 || mesh.indices.size < 3) {
+		addArtTriangles(mesh, storedToArt, tile.width, tile.height, triangles)
+	}
+
+	return triangles
+}
+
+/**
+ * The triangles of ONE drawable's mesh in its tile's own pixel frame - the part of the tile's art that
+ * drawable shows, by the same conversion [meshTrianglesOf] unions over every drawable on the tile.
+ *
+ * @param PuppetModel model      The model.
+ * @param DrawableId  drawableId The drawable.
+ * @return List<FloatArray> The triangles, six floats each; empty when the drawable has no measurable mesh on a tile.
+ */
+fun drawableMeshTrianglesOf(model: PuppetModel, drawableId: DrawableId): List<FloatArray> {
+	val drawable = model.drawables.firstOrNull { candidate -> candidate.id == drawableId } ?: return emptyList()
+	val tileId = drawable.atlasTileId ?: return emptyList()
+	val tile = model.atlas.tileById[tileId] ?: return emptyList()
+	val storedToArt = model.atlas.storedToArtAffineForTile(tileId) ?: return emptyList()
+	val mesh = drawable.mesh ?: return emptyList()
+	val triangles = ArrayList<FloatArray>()
+	addArtTriangles(mesh, storedToArt, tile.width, tile.height, triangles)
+
+	return triangles
+}
+
+/**
+ * Appends a mesh's triangles in its tile's art pixels; a triangle naming a vertex past the UVs is skipped.
+ *
+ * @param DrawableMesh          mesh        The mesh.
+ * @param FloatArray            storedToArt Maps its stored UVs to the art frame.
+ * @param Int                   tileWidth   The tile's width in pixels.
+ * @param Int                   tileHeight  The tile's height in pixels.
+ * @param MutableList<FloatArray> triangles The list to append to, six floats per triangle.
+ */
+private fun addArtTriangles(mesh: DrawableMesh, storedToArt: FloatArray, tileWidth: Int, tileHeight: Int, triangles: MutableList<FloatArray>) {
+	if (mesh.uvs.size < 2 || mesh.indices.size < 3) {
+		return
+	}
+
+	val artUvs = applyAffine(mesh.uvs, storedToArt)
+	val vertexCount = artUvs.size / 2
+	var indexOffset = 0
+
+	while (indexOffset + 2 < mesh.indices.size) {
+		val cornerA = mesh.indices[indexOffset]
+		val cornerB = mesh.indices[indexOffset + 1]
+		val cornerC = mesh.indices[indexOffset + 2]
+		indexOffset += 3
+
+		if (cornerA >= vertexCount || cornerB >= vertexCount || cornerC >= vertexCount) {
 			continue
 		}
-		val artUvs = applyUvAffine(mesh.uvs, storedToArt)
-		val vertexCount = artUvs.size / 2
-		var indexOffset = 0
-		while (indexOffset + 2 < mesh.indices.size) {
-			val cornerA = mesh.indices[indexOffset]
-			val cornerB = mesh.indices[indexOffset + 1]
-			val cornerC = mesh.indices[indexOffset + 2]
-			indexOffset += 3
-			if (cornerA >= vertexCount || cornerB >= vertexCount || cornerC >= vertexCount) {
-				continue
-			}
-			triangles.add(
-				floatArrayOf(
-					artUvs[cornerA * 2] * tile.width,
-					artUvs[cornerA * 2 + 1] * tile.height,
-					artUvs[cornerB * 2] * tile.width,
-					artUvs[cornerB * 2 + 1] * tile.height,
-					artUvs[cornerC * 2] * tile.width,
-					artUvs[cornerC * 2 + 1] * tile.height,
-				),
-			)
-		}
+
+		triangles.add(
+			floatArrayOf(
+				artUvs[cornerA * 2] * tileWidth,
+				artUvs[cornerA * 2 + 1] * tileHeight,
+				artUvs[cornerB * 2] * tileWidth,
+				artUvs[cornerB * 2 + 1] * tileHeight,
+				artUvs[cornerC * 2] * tileWidth,
+				artUvs[cornerC * 2 + 1] * tileHeight,
+			),
+		)
 	}
-	return triangles
 }
 
 /**
@@ -583,6 +732,7 @@ class SampledRegion(
 		val inverse = pageToTile ?: return false
 		val tileX = inverse[0] * pageX + inverse[1] * pageY + inverse[2]
 		val tileY = inverse[3] * pageX + inverse[4] * pageY + inverse[5]
+
 		return mask.isCovered(floor(tileX).toInt(), floor(tileY).toInt())
 	}
 }
@@ -590,10 +740,6 @@ class SampledRegion(
 /**
  * Whether [region] samples any opaque texel of [mask] placed at [placement], the composer's extrusion
  * band counted as painted (a page pixel within [extrude] of the trim reads the nearest edge texel).
- *
- * Scans the intersection of the region's bounds with the placed trim's bounds grown by the band, and
- * tests each pixel center both ways: inside the region, and on an opaque texel through the mask
- * placement's inverse.
  *
  * @param SampledRegion  region    The sampling tile's region.
  * @param AtlasPlacement placement Where the painting tile sits.
@@ -609,9 +755,11 @@ fun sampledRegionHitsMask(
 ): Boolean {
 	val painted = placementFootprint(placement, mask.trim, reserve = null).expanded(extrude.toFloat())
 	val bounds = region.bounds
+
 	if (!bounds.overlaps(painted)) {
 		return false
 	}
+
 	val inverse = inversePlacementAffine(placement) ?: return false
 	val forward = placementAffine(placement)
 	val startX = floor(maxOf(bounds.left, painted.left)).toInt()
@@ -624,35 +772,45 @@ fun sampledRegionHitsMask(
 	val trimRight = (trim.left + trim.width).toFloat()
 	val trimBottom = (trim.top + trim.height).toFloat()
 	val extrudeSquared = extrude.toFloat() * extrude.toFloat()
+
 	for (y in startY until endY) {
 		val centerY = y + 0.5f
+
 		for (x in startX until endX) {
 			val centerX = x + 0.5f
+
 			if (!region.contains(centerX, centerY)) {
 				continue
 			}
+
 			val tileX = inverse[0] * centerX + inverse[1] * centerY + inverse[2]
 			val tileY = inverse[3] * centerX + inverse[4] * centerY + inverse[5]
 			val clampedX = tileX.coerceIn(trimLeft, trimRight)
 			val clampedY = tileY.coerceIn(trimTop, trimBottom)
+
 			if (clampedX != tileX || clampedY != tileY) {
 				if (extrude == 0) {
 					continue
 				}
+
 				val backX = forward[0] * clampedX + forward[1] * clampedY + forward[2]
 				val backY = forward[3] * clampedX + forward[4] * clampedY + forward[5]
 				val deltaX = backX - centerX
 				val deltaY = backY - centerY
+
 				if (deltaX * deltaX + deltaY * deltaY > extrudeSquared) {
 					continue
 				}
 			}
+
 			val texelX = floor(clampedX).toInt().coerceIn(trim.left, trim.left + trim.width - 1)
 			val texelY = floor(clampedY).toInt().coerceIn(trim.top, trim.top + trim.height - 1)
+
 			if (mask.isOpaque(texelX, texelY)) {
 				return true
 			}
 		}
 	}
+
 	return false
 }

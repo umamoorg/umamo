@@ -21,13 +21,17 @@ import java.util.Locale
  */
 internal fun runExtract(arguments: List<String>): Int {
 	val positionals = arguments.filterNot { argument -> argument.startsWith("--") }
+
 	if (arguments.size != positionals.size || positionals.isEmpty() || positionals.size > 2) {
 		throw CliUsageException("Usage: extract <file> [<directory>]")
 	}
+
 	val loaded = loadInput(positionals[0])
+
 	if (loaded !is LoadedInput.Cmo3Input) {
 		throw CliUsageException("Extract applies to cmo3 input only")
 	}
+
 	val inputFile = File(positionals[0])
 	val modelName =
 		inputFile.name.let { fileName ->
@@ -35,9 +39,11 @@ internal fun runExtract(arguments: List<String>): Int {
 		}
 	val parentDirectory = if (positionals.size == 2) File(positionals[1]) else (inputFile.parentFile ?: File("."))
 	val extractionDirectory = File(parentDirectory, modelName)
+
 	if (extractionDirectory.exists()) {
 		System.err.println("Note: ${extractionDirectory.path} already exists; its matching files will be overwritten.")
 	}
+
 	extractionDirectory.mkdirs()
 
 	val archive = loaded.model.archive
@@ -47,16 +53,20 @@ internal fun runExtract(arguments: List<String>): Int {
 		val safeName = entry.path.ifBlank { "entry_$entryIndex" }
 		val uniqueName = if (writtenNames.add(safeName)) safeName else "entry_${entryIndex}_$safeName"
 		val target = File(extractionDirectory, uniqueName)
+
 		if (!target.canonicalFile.toPath().startsWith(extractionDirectory.canonicalFile.toPath())) {
 			throw IllegalStateException("Archive entry escapes the extraction directory: ${entry.path}")
 		}
+
 		target.parentFile?.mkdirs()
 		// CaffEntry.content is already inflated and deobfuscated, so main.xml lands as plaintext.
 		target.writeBytes(entry.content)
 		println("Extracted ${target.path} (${entry.content.size} bytes)")
 	}
+
 	if (archive.preview.present) {
 		val previewTarget = File(extractionDirectory, "preview.png")
+
 		if (writtenNames.contains("preview.png")) {
 			System.err.println("Note: An archive entry already claimed preview.png; the CAFF preview image was skipped.")
 		} else {
@@ -64,6 +74,8 @@ internal fun runExtract(arguments: List<String>): Int {
 			println("Extracted ${previewTarget.path} (${archive.preview.png!!.size} bytes, CAFF preview)")
 		}
 	}
+
 	println("Extracted ${archive.entries.size} entries into ${extractionDirectory.path}")
+
 	return 0
 }

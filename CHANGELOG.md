@@ -7,8 +7,230 @@ Umamo is early alpha.
 (Unreleased changes)
 
 ### Added
+* Format: UMA now stores the depth of each warp lattice point so depth rotations and To Shape build on earlier ones.  CMO3 and MOC3 export flatten it to 2D with an export notice.
+* Internationalization: 简体中文/Simplified Chinese and 繁體中文/Traditional Chinese are now available as partial translations.
+* Keyform Sheet, Parameters: Hold control while scrubbing to snap to keys.
+* Keymap, UI: Hide Unselected(Shift+H) and Unhide All(Alt+H)
+* Keymap: A command can now be bound to more than one shortcut.
+* Operation Strip: Grabbing lattice points now has a Move Depth option.
+* Outliner: Deformers now have a visibility toggle.
+* Parameters: A parameter's context menu has a Control submenu to override the preference with a slider, dial, pad, or two dials.  The choice is saved with the puppet.
+* Parameters: Dragging a repeating parameter's slider or 2D pad past an end wraps the pointer around to the other end.
+* Parameters: Each parameter can now hold a note, written in its range editor.  Notes are kept in UMA and CMO3.
+* Parameters: Repeat - A parameter can be set to repeat so that going past one end of its range wraps around to the other.
+* Parameters: Repeating parameters show a circular dial and draw in their own accent color.  Preferences -> Interface -> Repeating Parameter Control switches them back to a slider and 2D pad.
+* Parameters: The 2D pad shows its parameters' keys as lines and pips, and holding control while dragging snaps to them.
+* Pose Mode: 3D Depth Rotation - The ability to change the lattice surface shape between unchanged, flat, cylinder, or sphere.
+* Pose Mode: 3D Depth Rotation - The ability to set the Y axis depth forwards or backwards to set the Y origin of a warp lattice rotation.
+* Pose Mode: To Shape (Cylinder) and To Shape (Sphere) commands to bend a warp deformer lattice into those respective shapes.
+* Properties: Add context menus to relation pickers(Masked By, Parent Deformer, Parent Part).
+* Properties: Parent Deformer relation picker can now pick from deformers in the 2D Viewport and the Outliner.
+* Settings: Keybindings interface has be revamped with categories and search.
+* Sidebar: The Item -> Transform section now has a Depth field for the selected lattice points.
+* UI: New Select menu and context menu with Select All of Type and Invert Selection of Type.
+* UI: The command palette now shows each command's icon beside its name.
+* UI: The status bar now shows a progress bar while CMO3 and MOC3 export.
+* UI: Viewport Overlays has a new Lattice section with Dim Back-Facing and Back-Facing Opacity to dim the back sides of the lattice to indicate which cells are facing away.
+* UI: When opening, saving, importing, or exporting the cursor will now show a busy hourglass.
+
+### Changed
+* Keyform Sheet: A collapsed group's summary mark is drawn half filled when only some of the keys under it are selected.
+* Keymap: (BREAKING CHANGE) Custom keybindings are now stored per command.  Keybindings customized in 0.5.0 and earlier are reset to the preset and need to be set again.
+* Parameters: Scrubbing a parameter's number field now previews the pose live.
+* Settings: Removed the unused Off-key colors from Colors -> Mesh Editing.
+* Settings: The settings interface design has been overhauled with the current UI kit design system along with adding tooltip descriptions.
+* UI: Clicking the decrease and increase chevrons on a number input now changes by a tenth of a step.
+* UI: Dragging a workspace tab now slides the other tabs aside to show where it will land.
+* UI: Menu bar entries and command buttons are now grayed out exactly when their command is unavailable, such as Import -> Artwork with a MOC3 open.
+* UI: Pie menus now place their choices clockwise from West in numerical order.  This is so that the numberic input choice stays in the same place on every pie menu to build up visual memory.
+* UI: Rename Workspace, Duplicate Workspace, and Delete Workspace are now in the Command Registry.
+* UI: Scrubbing a number input now scales properly with movement distances.
+* UI: The Snap pie and the 2D Viewport context menu's Snap submenu now list the snaps in the same order as the header's Snap menu.
+* UI: Undo and Redo are no longer listed in the command palette while there is nothing to undo or redo.
+
+### Fixed
+* File: Opening the application with a supplied file no longer fails to show a notice if the file is damaged.
+* Format: CMO3 exports now write the EditorEdition as 15.  This stops the Cubism editor from saying that CMO3 files exported from Umamo were created in the free version of the Cubism Editor.
+* Format: CMO3 and MOC3 import no longer loops forever during keyform grid compaction.  https://github.com/umamoorg/umamo/issues/332
+* Format: CMO3 export now writes a deformer's visibility.
+* Format: MOC3 export now handles sorting empty parts into their correct positions.  https://github.com/umamoorg/umamo/issues/415
+* Format: MOC3 export now shows a notice when a keyed channel or an object's keyforms have to be written as a constant.
+* Format: MOC3 export now writes each part's draw order range across all of its children's keyforms.  https://github.com/umamoorg/umamo/issues/331
+* Keyform Sheet: Box selecting over a collapsed group's summary mark now selects the keys under it.
+* Keyform Sheet: Zooming or panning the sheet in the middle of a scrub or a key drag no longer drops the gesture.
+* Keymap: PrimaryModifer+Q(Ctrl+Q on Linux, Cmd+Q on MacOS) now closes the application.
+* MacOS: The 1x1 offscreen render context window no longer steals input focus and file operations.  This fixes files not opening when Umamo is already open and being able to quit from the MacOS Dock.
+* Runtime: 25% to 100% performance increase when inserting keys with withKeyInserted by calling isDense later on.  https://github.com/umamoorg/umamo/issues/416
+* UI: Buttons inside a text field, such as a search field's clear button, now show the arrow pointer instead of the text cursor.
+* UI: Clicking a menu bar entry, dropdown, or select field again while its menu is open now closes the menu instead of reopening it.
+* UI: Workspace tabs can no longer be dragged outside of the workspace tab strip.
+
+## 0.5.0 - 2026-11-07
+
+### Added
+* Internationalization: Initial Français/French translation.  Thank you to skueee(Robin Brams) for the translation.
+* Keyform Sheet: Every row that holds an unkeyed edit shows an orange pending circle.
+* Keyform Sheet: Insert Key by Type (K) opens a pie to key a posed warp's lattice, opacity, colors, or all of them.
+* Mesh: Generate Mesh from Art(Shift+M) builds a new mesh from the art's opaque pixels for the selected drawables.
+* Mesh: Generate Quad Mesh replaces a mesh with a quad around its art and any glued vertices.
+* Pose Mode: A new editor mode (Ctrl+Tab, or the 2D Viewport's mode menu) for shaping a warp's lattice and keying them to parameters.
+* Pose Mode: Alt+Q over overlapping lattices opens the overlap picker to choose the warp to pose.
+* Properties: Warp deformer Data Tab.
+* Runtime Target: New Ayagami (Cubism 5.3 Equivalent) target for Ayagami's Cubism 5.3 / MOC3 v6 build.
+* Settings: New settings:
+	* Colors: Deformers section with lattice idle, selected, active, unkeyed, and hovered colors.
+	* Import: Initial Mesh and Mesh Generation Presets
+	* Viewport: Default toolbar and sidebar visibility
+	* Viewport: UV Grid Scale, UV Grid Subdivisions
+* UI: Inverse Square and Random falloff curves added to proportional editing.
+* UI: Right-clicking in the 2D Viewport opens a context menu of the current mode's common commands.
+* UI: Snap is now available in the UV Editor, including Object Mode.
+* UI: The status bar now shows a progress bar while a document opens, artwork is added or reloaded, meshes are generated, or the atlas is packed.
+* UI: The viewport sidebar is now actually built and functional.
+* UI: Viewport Overlays has a new Show Overlays toggle and dropdown at the end of the 2D Viewport and UV Editor headers to toggle viewport overlays.  The choices are saved per document.
+* UI: Viewport Overlays have been expanded with additional controls.  Grid scale and subdivisions, wireframe opacity and culling, selection tint, and warp lattices.
+* Warp Deformers: Create Warp Deformer wraps the selected drawables or parts in a new warp.
+* Warp Deformers: Edit Mode now edits a warp's rest lattice.
+* Warp Deformers: Object Mode can now grab, rotate, scale, and duplicate whole warps.
+* Warp Deformers: Warp deformers can now be seen, selected, and edited in the 2D Viewport.
+
+### Changed
+* Diagnostics: If the CLI can't find the MOC3's cdi3.json sidecar it will print a warning.
+* Diagnostics: The `--puppet` `dump` flag now prints the parameter panel's group tree and linked parameters.
+* Format: (BREAKING CHANGE) UMA now stores two position arrays, local and world, for meshes.  Files saved before 0.5.0 will not load in 0.5.0 and later.
+* Keyform Sheet: Keys can no longer be inserted, removed, or moved in Edit Mode.
+* Language: Menus, dialogs, and notices now say Puppet (UMA, CMO3, or MOC3), Artwork (PSD, CLIP, or KRA), and File consistently, in English and Japanese.  This replaces "document" and "model" and matches the standardization done to the user manual.
+* Mesh: Layers added from artwork now start with a mesh generated from their art instead of a quad.
+* Runtime Target: The existing Ayagami (Cubism 5.0 Equivalent) target has been renamed from ayagami to ayagami50.
+* Source Artwork: Adding artwork to a document created from an imported MOC3 is now refused and instructs the user to export a CMO3 to be able to import artwork.
+* Splash Screen: New splash screen art by RAHIBIZ.
+* UI: The 2D Viewport's mode DropdownChip is now pinned instead of collapsing into the more chip.
+* UI: The Properties panel's Object and Data tabs show the active item when several are selected and keep showing the last active item after a deselect.
+* UI: Key bindings can now use the literal Control key, separate from the primary modifier(Command on macOS).
+
+### Fixed
+* Format: CMO3 export no longer duplicates mirrored meshes imported from a MOC3.
+* Format: CMO3 export no longer warns that a glue could not be exported when the meshes on both sides of it were remeshed.
+* Format: CMO3 export that lacked parameter groups would export with the root missing all parameters which would break subsequent imports.
+* Format: CMO3 export writes a part keyform's opacity even when it is empty.
+* Format: MOC3 export now refuses to export an art mesh with more than 65,536 vertices instead of writing wrapped triangle indices.
+* Outliner, Parameters: Dropping a row on the lower edge of the row directly above it no longer sends it to the end of its list instead of leaving it in place.
+* UI: Escape and the keyboard shortcuts no longer stop working after a number field inside Preferences is confirmed with Enter.
+* UI: The tooltip could sometimes block clicking when it overflowed from its default position.
+* UI: Turning on proportional editing from the UV Editor's operation strip no longer resets the 2D Viewport's proportional radius to its default.
+* Viewport: Glue stays welded after its meshes are regenerated, keyed, or re-parented, and deleting a glued drawable no longer leaves a stray weld on other glue.
+* Viewport: Source artwork too large for the GPU's maximum texture size is scaled down instead of failing to upload.
+
+## 0.4.0 - 2026-10-02
+
+NOTE: Going forward the `-dev` suffix will be dropped for production releases due to a build script change.
+
+### Added
+* Format: New native UMA file format!
+* Format: A UMA document remembers each panel's open branches, filters, tab, and the UV Editor's texture choice, per area.
+* Format: A UMA document reopens to the pose, selection, mode, cursors, pivot and proportional editing settings, and each viewport's pan and zoom it was saved with.
+* Format: The `.uma` file type is now declared for desktop packages and Android along with freedesktop files in the Linux build to register it per user.
+* UI: Quick Setup splash screen: A new modal will open on first launch to quickly select basic settings.  Please enjoy my lovely artwork with care.
+* UI: The unsaved-changes prompts when replacing a document or quitting now offer Save, Don’t Save, and Cancel.
+* UI: Added save confirmation for dirty files when closing the application.
+* UI: Opens to a new document by default with New and Open file menu operations available.
+* UI: Can now drag and drop files on the window.  Model files are opened and artworkd is added to the open document.
+* UI: When a text entry box is active the mouse cursor now displays the text entry cursor everywhere to indicate that text entry is currently active.
+* UI: Previous Workspace and Next Workspace added to Workspace menu.
+* UI: Add hover tooltips to the Properties area and Operation Strip.
+* UI: At startup, if the memory configuration option is not set or if there is not enough system RAM, a notification will appear with instructions on how to fix it.  This appplies to JAR based distributions.
+* UI: The text of an alert can now be selected and copied.
+* UI: Update checking: Help -> Check for Updates - Also an opt-out update check on start up.
+* Parameters: The parameters are now searchable.
+* Source Artwork: The operation strip now offers to adjust the canvas placement of imported artwork to an existing document.  The alignment and offset can be changed.
+* Source Artwork: Hovering a layer, art, or drawable row in the Sources panel previews its art.
+* Source Artwork: A new Import preference shows the Sources panel's layer positions measured from the world axes instead of the art file's top-left corner.
+* Export: Image export of the current 2D Viewport with options for transparent, solid, and grid backgrounds.
+* Diagnostics: Desktop sessions now write out the log into the `umamo/logs` directory.
+* Diagnostics: Help -> Open Log Folder opens the folder holding the session logs.
+* Diagnostics: Starting the desktop app with `--self-check` runs a headless check of its Java runtime, native libraries, and file formats then prints the results, and exits.
+* Packaging: Apple silicon Macs now have a `.dmg` and `.app` download, bundling Java 27.  Intel Macs will keep using the `.jar` for now.
+* Packaging: A JAR started without a memory option restarts itself with room for up to half of the system RAM when Java's default would give Umamo less than 3 GB.
+* Packaging: Installers are now built: MSI for Windows, DEB and an RPM for Linux, and DMG for MacOS ARM64.
+* Packaging: MacOS ARM64 DMG/APP are now signed and notarized.
+* Packaging: The Linux RPM and each release's `SHA256SUMS.txt` are signed with the Umamo release key and every release is now attested.
+
+### Changed
+* UI: The CTRL+O keybinding was changed to file open instead of import CMO3.
+* UI: Add Artwork and Import Artwork have been standardized to just import and add artwork to the open document.
+* UI: Confirmation dialogs now take arguments for button names and actions along with a new third button.
+* UI: Clicking away from all text input fields should now commit the change.
+* UI: Clicking away from all text input fields should now end text entry input preventing other inputs from being eaten.
+* UI: The command palette now lists only the commands that apply to the editor area under the pointer.  For example, Mirror UVs no longer shows while editing a mesh in the 2D viewport.
+* UI: The status bar's shortcut suggestions now follow the editor area under the pointer.  This is the first iteration of this feature and will be improved in the future.
+* UI: The popup overlap picker now uses the drawable name with the part name in parenthesis.
+* UI: Buttons now use the accent color when pressed.
+* UI: Positions in the Properties panel are now measured from the world axes, and the Origin fields place those axes from the canvas's bottom-left corner.
+* UI: Before the 2D cursor is placed, the 2D Cursor pivot now turns about the world origin, the same point the cursor snaps already used, instead of the selection's median.
+* UI: Committing an edit now redraws only the panels and rows that show what changed.  Previously all spaces/areas would update.
+* UV Editor: Clicking inside a UV island in Object mode now selects it even where its texture is transparent.  Where islands overlap, the one with visible art under the cursor still wins.
+* UV Editor: Switching to another page or layer for the first time refits the camera then remembers the camera position from there on.
+* UV Editor: Fit View now also frames meshes that sit past the edge of the atlas page.
+* Texture Atlas: Repack Atlas is now available on CMO3 models saved with "Show source artwork" turned on.
+* Packaging: The application now defaults to a maximum of 50% of system RAM instead.
+* Packaging: The app starts Java with the options that keep newer Java versions from warning about native libraries and memory access.
+* Import/Export: CMO3 and MOC3 no longer block the application process while processing.  New, save, and open document will be blocked while waiting for an export to finish.
+* Parameters: Clicking a parameter's name now only opens or closes its range editor; it no longer selects the parameter.
+* Parameters: In Edit Mode the parameter sliders now show the rest pose which matches the pose in edit mode.  The sliders return to their set positions after returning to object mode.
+* Keyform Sheet: Insert Key and Delete Key in Edit Mode act at the rest pose shown in the viewport.
+* Sources: Dropping art on a layer or a layer on art that row now expands to show what it is being dropped on.
+* Sources: The list now has a vertical scroll bar.
+* Sources: Checking whether artwork files are still on disk no longer runs on the UI thread.
+* Outliner, Parameters, Sources: Dragging a row now redraws only the rows the drag touches.
+
+### Fixed
+* UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.
+* UI: Dirty documents were obliterated when opening a new document since the dirty check was broken.
+* UI: Panel state(open branches, filters, the UV Editor's texture choice) no longer resets when switching workspace tabs.
+* UI: Pressing Escape while rebinding a key would close the preferences instead of just cancelling the rebind.
+* UI: The keybindings editor's clear button no longer sits underneath the scrollbar.
+* UI: Double-clicking a workspace tab after reordering the tabs now renames the tab that was clicked instead of the tab that used to be in that spot.
+* UI: Keyboard shortcuts no longer stop working after an alert is dismissed with mouse input.
+* UI: Changing the language no longer breaks hitting escape to close the settings.
+* Source Artwork: Removed the singleton that could be accidentally be shared across documents.
+* Format: An artwork file whose magic bytes are missing now routes to its reader by extension.
+* Format: Performance optimizations for the PNG CODEC resulting in up to 50% less memory usage and up to 50% faster loads.
+* Viewport: Camera fitting now falls back to the canvas bounds when there are no drawables.
+* Viewport: Changing an area between the UV Editor and the 2D Viewport no longer leaves the previous editor's contents and camera behind.
+* Outliner: A CTRL+Left Click or Shift+Left Click followed quickly by a plain click on the same row no longer opens rename.
+* Outliner: Clicking a branch's arrow during a search no longer changes its saved fold.
+* Outliner, Sources: The art thumbnail hover preview no longer flickers and blocks clicks when there is not enough room to the left or right.  It now falls back to anchoring to the pointer when it does not have enough room.
+* Outliner: A selection made in the viewport is revealed again after picking a relation from a row or after clicking the row that was already active.
+* Sources: While a search is running, accepting a proposal or relinking manually now moves every art bound to the lost layer, and clicking a layer selects every drawable over it, instead of only the ones the search lists.
+* Sources: Accepting a proposal or dragging a layer onto art now binds by the same key strength(stable or by name) as when picking from the relink list.
+* Sources: Clicking a row or its arrow during a search no longer changes its saved fold.
+* Sources: Dropping art on a layer its file lists more than once now only opens the row the art lands on.
+* Source Artwork: "Show source artwork" no longer draws layers misshaped, misplaced, and cut off on CMO3 models whose drawables use Cubism's reduced resolution texture copies.
+* Source Artwork: Reloading or relinking a layer in a CMO3 whose drawables use Cubism's reduced resolution copies now points them at the new art on export, so Cubism shows the reloaded layer instead of the stale copy.
+* Texture Atlas: Rebuilding the atlas after a reload, Replace Artwork, added artwork, or a repack no longer smears stretched pixels around art that touches the edge of its layer.
+* Texture Atlas: CMO3 models saved in Cubism with "Show source artwork" turned on now load the texture atlas as the atlas pages instead of loading every individual layer as an atlas page.
+* Viewport: Meshes that reach past the edge of their texture no longer smear the edge pixels across the overhang in the atlas display and clicking that overhang no longer selects the drawable.
+* Import: A drawable, part, deformer, parameter, or parameter group saved with an empty name now shows its ID as its name.  This applies to CMO3, MOC3, and artwork imports.  This is to prevent situations where a blank name might result in a blank control surface that can't be edited.
+* Export: A CMO3 or MOC3 export that runs out of memory or fails now shows an alert instead of a Java error that crashes the application.
+* Export: Exporting a CMO3 from a MOC3 model now uses up to 30% less memory by reusing textures from memory instead of decoding the textures again from the source.
+* Export: Exporting a CMO3 from a CMO3 model no longer changes the open document.
+* Export: A CMO3 export of a CMO3 model now includes artwork reloaded with new pixels at the same size and position, instead of keeping the old pixels without a notice.
+* Packaging: JAR releases no longer print native access warnings on Java 24 and newer, and runs the Java 25 code paths of its libraries on Java 25 and newer.
+* Packaging: The Linux tarball's desktop entry now names Umamo's window class, so the desktop matches the running window to its menu entry and icon.
+* Parameters: A parameter or group created while searching or filtering now shows so it can be named.
+* Parameters: Clicking a group during a search no longer changes its saved fold.
+* Parameters: Switching to Edit Mode during a slider drag now discards the drag.
+* Parameters: A new, restored, or moved row at the top of the list is now fully visible.
+* Keyform Sheet: Scrubbing a track or clicking a key in Edit Mode no longer changes the pose.
+* Keyform Sheet: Clicking and dragging on an unselected key when there is an active selection now properly switches the selection.  Previously it would select it after the drag finished and create weird interactions when there were multiple keys selected.
+
+## 0.3.0-dev - 2026-09-15
+
+### Added
 * Internationalization: Initial 한국어/Korean translation - Thank you to Nyaro for the translation.
-* Internationalization: Initial 中文/Chinese (Simplified) translation - Thank you to hwrfw for the translation.
+* Export: Rework Cmo3AtlasUndedup to use the shared packer when exporting a fresh CMO3.
+* Export: Generate layered art preview thumbnails for CMO3 export.
+* Export: A document imported from source artwork(PSD, CLIP, or KRA) now writes its real layers and folders into the CMO3 instead of a synthesized stand-in, so the exported file reopens with every drawable's layer binding intact.
 * Texture Authoring: The UV Editor now has object mode.  Click an UV island to select the drawable it belongs to, box select multiple, and Alt+Left=Click through overlapping islands, mirroring how object selection already works in the 2D viewport.
 * Texture Authoring: A Texture Page selector in the UV Editor header lets you pin the view to a specific atlas page(with its dimensions and mesh count shown) instead of always following the current selection, plus new Next/Previous/Follow Selection commands for stepping through pages from anywhere.
 * Texture Authoring: The UV Editor can now show and edit a drawable's mapping directly over its original source layer artwork instead of only the packed atlas page, with a searchable "Find by Artwork" picker to jump straight to a layer's drawable.  The cursor, pivot mode, snaps, and proportional editing all carry over to this view exactly as they work on the atlas page.
@@ -39,7 +261,9 @@ Umamo is early alpha.
 * Opening a document while another was already open could, for one frame, pair the new document with the previous document's editing session, so an export, the File menu, or the atlas page resolver could briefly act on stale data.
 * Texture Atlas: Repack Atlas could apply a stale pack if a mesh was edited while the repack was still computing; it now cancels instead.
 * Keyboard shortcuts could stop responding after using a dropdown chip, checkbox, number field, or section header that then disappeared from the screen while it still held focus; these now properly release focus back to the application.
-* CMO3 export: An artwork-imported document's parameters weren't placed in the export's parameter group hierarchy, and any part, drawable, or deformer with no authored keyforms at all exported with a missing keyform grid — both of which the official Cubism Editor refuses to open.  Both are now written the way the editor expects.
+* CMO3 Export: An artwork-imported document's parameters weren't placed in the export's parameter group hierarchy, and any part, drawable, or deformer with no authored keyforms at all exported with a missing keyform grid, both of which the official Cubism Editor refuses to open.  Both are now written the way the editor expects.
+* CMO3 Export: A CMO3-origin document's reloaded or newly added artwork kept the old pixels showing in the editor's layered-art view even after the texture atlas had already picked up the new art; it's now written into the document's own retained layer tree too, so both display modes match.
+
 
 ## 0.2.1-dev - 2026-08-11
 
@@ -66,6 +290,7 @@ Umamo is early alpha.
 * Windows OS: Workaround for AWT not sending a resize event when cancelling a window resize on Windows causing the Compose around to be stuck at the wrong size until resizing without cancelling.
 * Accessibility: Various semantics/contentDescription spots were fixed and visual tooltips added.
 
+
 ## 0.2.0-dev - 2026-08-03
 
 ### Added
@@ -86,6 +311,7 @@ Umamo is early alpha.
 
 * Dragging a panel splitter gutter no longer lags out and fails to work on slow systems.  This was due to an issue with how the movement input was accumulated.
 * Dragging a panel splitter gutter only writes up the layout settings after a debounce period.
+
 
 ## 0.1.0-dev - 2026-07-27
 
@@ -109,6 +335,7 @@ Umamo is early alpha.
 * The "Out" alpha blend mode cut a hole in the wrong layer(source instead of destination) inverting the intended silhouette effect.
 * Extended blend modes(Multiply, Screen, Overlay, etc.) mis-blended under Conjoint/Disjoint alpha blending because the blend mix weight ignored the selected alpha mode; unpremultiplied colors are now also clamped to avoid out of range artifacts.
 * MOC3-imported drawables' multiply/screen tint keyforms were silently dropped when rest mesh geometry was rebased to canvas space.
+
 
 ## 2026-07-14 – 2026-07-20
 

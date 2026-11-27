@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
  * Pins the affine page composer against the packer's own blit: an exact integer translation is
  * byte-identical to [composeAtlasPages] (so a repack's pages derive unchanged), a quarter turn at an
  * integer position reproduces the packer's turned blit texel for texel, a scale covers the scaled
- * footprint, the extrusion band surrounds a rotated tile on every side, an off-page footprint clips
+ * footprint, the bleed band surrounds a rotated tile on every side, an off-page footprint clips
  * without throwing, and overlapping placements paint in list order.
  */
 class AtlasPageComposeAffineTest {
@@ -107,31 +107,36 @@ class AtlasPageComposeAffineTest {
 	}
 
 	@Test
-	fun aDoubledScaleCoversADoubledFootprint() {
+	fun aDoubledScaleCoversADoubledFootprintWithBilinearEdges() {
 		// Tile pixel (x, y) maps to (2x + 2, 2y + 2): the 3x3 trim at (1, 1) covers page [4, 10) squared.
+		// Beyond the trim the tile is transparent, so magnifying it bilinearly softens its edge by a
+		// pixel each way: page 4 reads a quarter of its taps outside the trim, page 3 three quarters.
 		val solid = opaquePackItem("s", 5, 5)
 		val composed = composeOne(AtlasTilePlacement("s", 0, trim, floatArrayOf(2f, 0f, 2f, 0f, 2f, 2f)), extrude = 0, items = listOf(solid))
+		val coverageByPixel = mapOf(3 to 0.25f, 4 to 0.75f, 5 to 1f, 6 to 1f, 7 to 1f, 8 to 1f, 9 to 0.75f, 10 to 0.25f)
+
 		for (y in 0 until pageSide) {
 			for (x in 0 until pageSide) {
-				val inside = x in 4 until 10 && y in 4 until 10
-				assertEquals(if (inside) 255 else 0, alphaAt(composed, x, y), "alpha at ($x, $y)")
+				val expected = 255f * (coverageByPixel[x] ?: 0f) * (coverageByPixel[y] ?: 0f)
+				assertTrue(abs(alphaAt(composed, x, y) - expected) <= 1f, "alpha at ($x, $y) is ${alphaAt(composed, x, y)}, not $expected")
 			}
 		}
-		// A corner pixel's taps all clamp onto the corner texel, so it comes through verbatim.
-		assertEquals(itemPixel(solid, 1, 1), pagePixel(composed, 4, 4), "the scaled corner is the trim's corner texel")
+
+		// A corner pixel sees one texel inside the trim: that texel's color, at the coverage it has.
+		assertEquals(itemPixel(solid, 1, 1) and 0xFF.inv(), pagePixel(composed, 4, 4) and 0xFF.inv(), "the scaled corner carries the trim's corner texel color")
 		// Between texels the samples blend: at twice the size no page center lands on the translucent
 		// center texel's own center, so it and its neighbors come out as mixtures rather than snapping
 		// to the nearest texel.
 		val blended = composeOne(AtlasTilePlacement("a", 0, trim, floatArrayOf(2f, 0f, 2f, 0f, 2f, 2f)), extrude = 0)
+
 		for ((x, y) in listOf(6 to 6, 5 to 5, 7 to 7)) {
 			val alpha = alphaAt(blended, x, y)
 			assertTrue(alpha in 5..254, "($x, $y) straddles the opaque and translucent texels and blends them, was $alpha")
 		}
-		assertEquals(255, alphaAt(blended, 4, 4), "a pixel whose taps all clamp onto opaque texels stays opaque")
 	}
 
 	@Test
-	fun theExtrusionBandSurroundsARotatedTile() {
+	fun theBleedBandSurroundsARotatedTileWithoutAddingCoverage() {
 		val opaque = opaquePackItem("r", 3, 3)
 		val fullTrim = LayerBounds(0, 0, 3, 3)
 		// A 45 degree turn with the tile's center carried to the page center (8, 8).
@@ -151,18 +156,23 @@ class AtlasPageComposeAffineTest {
 		val extruded = composeOne(AtlasTilePlacement("r", 0, fullTrim, rotated), extrude = 2, items = listOf(opaque))
 
 		assertEquals(255, alphaAt(bare, 8, 8), "the center is inside the turned square")
-		// The diamond's tips reach 2.12 px from the center, so these four pixels sit just outside the
-		// footprint on each side and inside the two-pixel band.
-		for ((x, y) in listOf(8 to 5, 8 to 10, 5 to 8, 10 to 8)) {
-			assertEquals(0, alphaAt(bare, x, y), "($x, $y) is outside the bare footprint")
-			assertEquals(255, alphaAt(extruded, x, y), "($x, $y) is inside the extrusion band")
-		}
+
+		// The band adds color, never coverage: every pixel's alpha is the same with and without it.
 		for (y in 0 until pageSide) {
 			for (x in 0 until pageSide) {
-				assertTrue(alphaAt(extruded, x, y) >= alphaAt(bare, x, y), "extrusion only adds coverage at ($x, $y)")
+				assertEquals(alphaAt(bare, x, y), alphaAt(extruded, x, y), "the band changes no coverage at ($x, $y)")
 			}
 		}
-		assertEquals(0, alphaAt(extruded, 8, 2), "three pixels past the tip is beyond the band")
+
+		// The diamond's tips reach 2.12 px from the center, so these four pixels sit past its coverage on
+		// each side and inside the two-pixel band: untouched without it, the edge's color at zero alpha with it.
+		for ((x, y) in listOf(8 to 5, 8 to 10, 5 to 8, 10 to 8)) {
+			assertEquals(0, pagePixel(bare, x, y), "($x, $y) is untouched without a band")
+			assertEquals(0, alphaAt(extruded, x, y), "($x, $y) is transparent inside the band")
+			assertTrue(pagePixel(extruded, x, y) != 0, "($x, $y) carries the edge's color inside the band")
+		}
+
+		assertEquals(0, pagePixel(extruded, 8, 2), "three pixels past the tip is beyond the band")
 	}
 
 	@Test
@@ -196,15 +206,18 @@ class AtlasPageComposeAffineTest {
 		// The sparse tile's rectangle covers the solid tile entirely; only its (0, 0) texel is opaque and
 		// lands at (3, 3), outside the solid tile.
 		val exact = composeAtlasPagesAffine(pageWidths, pageHeights, listOf(solid, sparse), listOf(AtlasTilePlacement("s", 0, LayerBounds(0, 0, 3, 3), solidAt), AtlasTilePlacement("b", 0, fullTrim, translation(3f, 3f))), extrude = 0).single()
+
 		for (y in 4 until 7) {
 			for (x in 4 until 7) {
 				assertEquals(itemPixel(solid, x - 4, y - 4), pagePixel(exact, x, y), "the solid tile survives the transparent margin at ($x, $y) (exact path)")
 			}
 		}
+
 		assertEquals(itemPixel(sparse, 0, 0), pagePixel(exact, 3, 3), "the sparse tile's opaque texel lands")
 
 		// The same through the resampling path (a fractional translation).
 		val resampled = composeAtlasPagesAffine(pageWidths, pageHeights, listOf(solid, sparse), listOf(AtlasTilePlacement("s", 0, LayerBounds(0, 0, 3, 3), solidAt), AtlasTilePlacement("b", 0, fullTrim, translation(3.5f, 3.5f))), extrude = 0).single()
+
 		for (y in 4 until 7) {
 			for (x in 4 until 7) {
 				assertEquals(255, alphaAt(resampled, x, y), "the solid tile stays opaque under the resampled margin at ($x, $y)")
@@ -223,6 +236,7 @@ class AtlasPageComposeAffineTest {
 				),
 				extrude = 0,
 			).single()
+
 		for (y in 4 until 7) {
 			for (x in 4 until 7) {
 				assertEquals(itemPixel(solid, x - 4, y - 4), pagePixel(turned, x, y), "the solid tile survives under the turned margin at ($x, $y)")
@@ -275,7 +289,7 @@ class AtlasPageComposeAffineTest {
 		val first = opaquePackItem("s", 3, 3)
 		val second = opaquePackItem("t", 3, 3)
 		// Two opaque tiles two pixels apart: the first's band fills the gap, the second's band must not
-		// overwrite the first's pixels or its band.
+		// overwrite the first's pixels or recolor its band.  Band pixels carry their edge's color at zero alpha.
 		val page =
 			composeAtlasPagesAffine(
 				pageWidths,
@@ -288,9 +302,9 @@ class AtlasPageComposeAffineTest {
 				extrude = 2,
 			).single()
 		assertEquals(itemPixel(first, 2, 1), pagePixel(page, 6, 5), "the first tile's edge pixel is not overwritten by the second's band")
-		assertEquals(itemPixel(first, 2, 1), pagePixel(page, 7, 5), "the first tile's own band keeps the gap")
+		assertEquals(itemPixel(first, 2, 1) and 0xFF.inv(), pagePixel(page, 7, 5), "the first tile's own band keeps the gap")
 		assertEquals(itemPixel(second, 0, 1), pagePixel(page, 8, 5), "the second tile's pixels land")
-		assertEquals(itemPixel(second, 2, 1), pagePixel(page, 11, 5), "the second tile's outer band lands on empty page")
+		assertEquals(itemPixel(second, 2, 1) and 0xFF.inv(), pagePixel(page, 11, 5), "the second tile's outer band lands on empty page")
 	}
 
 	@Test

@@ -27,13 +27,16 @@ internal class WebpHuffmanTable {
 	 */
 	constructor(reader: WebpLsbBitReader, alphabetSize: Int) {
 		val simpleLengthCode = reader.readBit() == 1
+
 		if (simpleLengthCode) {
 			val symbolNum = reader.readBit() + 1
 			val first8Bits = reader.readBit() == 1
 			val symbol1 = reader.readBits(if (first8Bits) 8 else 1).toInt()
+
 			if (symbolNum == 2) {
 				val symbol2 = reader.readBits(8).toInt()
 				var index = 0
+
 				while (index < (1 shl LEVEL1_BITS)) {
 					level1[index] = (1 shl 16) or symbol1
 					level1[index + 1] = (1 shl 16) or symbol2
@@ -46,13 +49,16 @@ internal class WebpHuffmanTable {
 			val numLCodeLengths = (reader.readBits(4) + 4).toInt()
 			val lCodeLengths = ShortArray(L_CODE_ORDER.size)
 			var numPosCodeLens = 0
+
 			for (lengthIndex in 0 until numLCodeLengths) {
 				val length = reader.readBits(3).toShort()
 				lCodeLengths[L_CODE_ORDER[lengthIndex]] = length
+
 				if (length > 0) {
 					numPosCodeLens++
 				}
 			}
+
 			val codeLengths = readCodeLengths(reader, lCodeLengths, alphabetSize, numPosCodeLens)
 			buildFromLengths(codeLengths, positiveLengthCount(codeLengths))
 		}
@@ -78,13 +84,16 @@ internal class WebpHuffmanTable {
 		val index = reader.peekBits(LEVEL1_BITS).toInt()
 		var lengthAndSymbol = level1[index]
 		var length = lengthAndSymbol ushr 16
+
 		if (length > LEVEL1_BITS) {
 			reader.readBits(LEVEL1_BITS)
 			val level2Index = reader.peekBits(length - LEVEL1_BITS).toInt()
 			lengthAndSymbol = level2[lengthAndSymbol and 0xffff][level2Index]
 			length = lengthAndSymbol ushr 16
 		}
+
 		reader.readBits(length)
+
 		return lengthAndSymbol and 0xffff
 	}
 
@@ -97,6 +106,7 @@ internal class WebpHuffmanTable {
 	private fun buildFromLengths(codeLengths: ShortArray, numPosCodeLens: Int) {
 		val lengthsAndSymbols = IntArray(numPosCodeLens)
 		var index = 0
+
 		for (symbol in codeLengths.indices) {
 			if (codeLengths[symbol].toInt() != 0) {
 				lengthsAndSymbols[index++] = (codeLengths[symbol].toInt() shl 16) or symbol
@@ -106,6 +116,7 @@ internal class WebpHuffmanTable {
 		// Special case: a single code decodes every index to the same symbol.
 		if (numPosCodeLens == 1) {
 			level1.fill(lengthsAndSymbols[0] and 0xffff)
+
 			return
 		}
 
@@ -113,6 +124,7 @@ internal class WebpHuffmanTable {
 		lengthsAndSymbols.sort()
 
 		val count = IntArray(16)
+
 		for (lengthAndSymbol in lengthsAndSymbols) {
 			count[lengthAndSymbol ushr 16]++
 		}
@@ -122,17 +134,21 @@ internal class WebpHuffmanTable {
 		var step = 2
 		index = 0
 		var length = 1
+
 		while (length <= LEVEL1_BITS) {
 			while (count[length] > 0) {
 				val lengthAndSymbol = lengthsAndSymbols[index++]
 				var entry = code
+
 				while (entry < level1.size) {
 					level1[entry] = lengthAndSymbol
 					entry += step
 				}
+
 				code = nextCode(code, length)
 				count[length]--
 			}
+
 			length++
 			step = step shl 1
 		}
@@ -142,9 +158,11 @@ internal class WebpHuffmanTable {
 		var currentTable: IntArray? = null
 		step = 2
 		length = LEVEL1_BITS + 1
+
 		while (length <= 15) {
 			while (count[length] > 0) {
 				val lengthAndSymbol = lengthsAndSymbols[index++]
+
 				if ((code and rootMask) != rootEntry) {
 					val level2Bits = nextTableBitSize(count, length, LEVEL1_BITS)
 					currentTable = IntArray(1 shl level2Bits)
@@ -152,16 +170,20 @@ internal class WebpHuffmanTable {
 					level2.add(currentTable)
 					level1[rootEntry] = ((LEVEL1_BITS + level2Bits) shl 16) or (level2.size - 1)
 				}
+
 				val value = ((length - LEVEL1_BITS) shl 16) or (lengthAndSymbol and 0xffff)
 				var entry = code ushr LEVEL1_BITS
 				val table = currentTable!!
+
 				while (entry < table.size) {
 					table[entry] = value
 					entry += step
 				}
+
 				code = nextCode(code, length)
 				count[length]--
 			}
+
 			length++
 			step = step shl 1
 		}
@@ -191,10 +213,13 @@ internal class WebpHuffmanTable {
 		val codeLengths = ShortArray(alphabetSize)
 		var previousLength: Short = 8
 		var symbol = 0
+
 		while (symbol < alphabetSize && codedSymbols > 0) {
 			val length = lengthTree.readSymbol(reader)
+
 			if (length < 16) {
 				codeLengths[symbol] = length.toShort()
+
 				if (length != 0) {
 					previousLength = length.toShort()
 				}
@@ -202,6 +227,7 @@ internal class WebpHuffmanTable {
 				var repeatSymbol: Short = 0
 				val extraBits: Int
 				val repeatOffset: Int
+
 				when (length) {
 					16 -> {
 						repeatSymbol = previousLength
@@ -219,16 +245,21 @@ internal class WebpHuffmanTable {
 						repeatOffset = 11
 					}
 
-					else -> throw IllegalArgumentException("WebP Huffman: decoded code length > 18")
+					else -> {
+						throw IllegalArgumentException("WebP Huffman: decoded code length > 18")
+					}
 				}
+
 				val repeatCount = (reader.readBits(extraBits) + repeatOffset).toInt()
 				require(symbol + repeatCount <= alphabetSize) { "WebP Huffman: code-length repeat overflows alphabet" }
 				codeLengths.fill(repeatSymbol, symbol, symbol + repeatCount)
 				symbol += repeatCount - 1
 			}
+
 			symbol++
 			codedSymbols--
 		}
+
 		return codeLengths
 	}
 }
@@ -241,11 +272,13 @@ internal class WebpHuffmanTable {
  */
 private fun positiveLengthCount(codeLengths: ShortArray): Int {
 	var count = 0
+
 	for (length in codeLengths) {
 		if (length.toInt() != 0) {
 			count++
 		}
 	}
+
 	return count
 }
 
@@ -259,6 +292,7 @@ private fun positiveLengthCount(codeLengths: ShortArray): Int {
 private fun nextCode(code: Int, length: Int): Int {
 	val inverted = code.inv() and ((1 shl length) - 1)
 	val step = inverted.takeHighestOneBit()
+
 	return (code and (step - 1)) or step
 }
 
@@ -273,14 +307,18 @@ private fun nextCode(code: Int, length: Int): Int {
 private fun nextTableBitSize(count: IntArray, length: Int, rootBits: Int): Int {
 	var currentLength = length
 	var left = 1 shl (currentLength - rootBits)
+
 	while (currentLength < 15) {
 		left -= count[currentLength]
+
 		if (left <= 0) {
 			break
 		}
+
 		currentLength++
 		left = left shl 1
 	}
+
 	return currentLength - rootBits
 }
 

@@ -52,6 +52,7 @@ public data class WarpKeyform(
 		hash = 31 * hash + opacity.hashCode()
 		hash = 31 * hash + (multiplyColor?.hashCode() ?: 0)
 		hash = 31 * hash + (screenColor?.hashCode() ?: 0)
+
 		return hash
 	}
 }

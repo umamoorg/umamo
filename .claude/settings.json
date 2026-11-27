@@ -10,6 +10,18 @@
 					}
 				]
 			}
+		],
+		"Stop": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "$CLAUDE_PROJECT_DIR/.claude/hooks/lint-changed.sh",
+						"timeout": 180,
+						"statusMessage": "Linting the changed Kotlin files"
+					}
+				]
+			}
 		]
 	}
 }

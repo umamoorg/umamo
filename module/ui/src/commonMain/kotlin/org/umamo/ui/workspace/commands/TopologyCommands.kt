@@ -2,14 +2,24 @@ package org.umamo.ui.workspace.commands
 
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
-import org.umamo.edit.MergeTarget
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.PieMenuKind
+import org.umamo.edit.editsElements
+import org.umamo.edit.mesh.MergeTarget
+import org.umamo.edit.mesh.connectSelectedVertices
+import org.umamo.edit.mesh.duplicateSelectedElements
+import org.umamo.edit.mesh.mergeSelectedVertices
+import org.umamo.edit.structure.duplicateSelectedObjects
+import org.umamo.edit.transform.beginMeshOperator
+import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
+import org.umamo.ui.action.CommandFamily
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
+import org.umamo.ui.workspace.SpaceScope
 
 /**
  * The topology operators (Blender's Shift+D / M / V / J).  Duplicate dispatches by mode like G / S / R
@@ -26,9 +36,15 @@ internal fun topologyCommands(
 	routing: CommandRouting,
 	availability: SessionAvailability,
 ): List<Command> =
-	listOf(
-		Command("mesh.duplicate", title = Res.string.cmd_mesh_duplicate, availability = availability.hasDocument) {
+	commandTable(
+		CommandTable.Topology,
+		Command(
+			"mesh.duplicate",
+			title = Res.string.cmd_mesh_duplicate,
+			availability = availability.hasDocument,
+		) {
 			val live = editorSession
+
 			if (live != null) {
 				// The duplicate itself needs no area - it is a model edit - so it runs wherever the pointer
 				// is.  Only the auto-grab needs a viewport, and it simply does not happen when the pointer
@@ -42,24 +58,46 @@ internal fun topologyCommands(
 					routing.viewportArea()?.let { areaId ->
 						live.beginMeshOperator(MeshOperatorKind.Grab, areaId, suppressProportional = true)
 					}
-				} else if (live.duplicateSelectedDrawables().isNotEmpty()) {
+				} else if (live.duplicateSelectedObjects().isNotEmpty()) {
 					routing.viewportArea()?.let { areaId -> live.beginObjectOperator(MeshOperatorKind.Grab, areaId) }
 				}
 			}
 		},
-		Command("mesh.merge", title = Res.string.cmd_mesh_merge, availability = availability.inEditMode) {
+		Command(
+			"mesh.merge",
+			title = Res.string.cmd_mesh_merge,
+			availability = availability.inEditMode,
+		) {
 			editorSession?.openPieMenu(PieMenuKind.MergeTarget)
 		},
-		Command("mesh.merge.atCenter", title = Res.string.cmd_mesh_merge_at_center, availability = availability.inEditMode) {
-			editorSession?.mergeSelectedVertices(MergeTarget.AtCenter)
+		// The merge is a model edit that needs no area to run; the area it takes is where its operation
+		// settings strip shows (the hovered work surface, else the last one touched), since the merge pie
+		// or the palette may have been opened over a panel.
+		Command(
+			"mesh.merge.atCenter",
+			title = Res.string.cmd_mesh_merge_at_center,
+			availability = availability.inEditMode,
+			group = CommandFamily.MergeTarget,
+		) {
+			editorSession?.mergeSelectedVertices(MergeTarget.AtCenter, routing.operationStripArea())
 			editorSession?.closePieMenu()
 		},
-		Command("mesh.merge.atFirst", title = Res.string.cmd_mesh_merge_at_first, availability = availability.inEditMode) {
-			editorSession?.mergeSelectedVertices(MergeTarget.AtFirst)
+		Command(
+			"mesh.merge.atFirst",
+			title = Res.string.cmd_mesh_merge_at_first,
+			availability = availability.inEditMode,
+			group = CommandFamily.MergeTarget,
+		) {
+			editorSession?.mergeSelectedVertices(MergeTarget.AtFirst, routing.operationStripArea())
 			editorSession?.closePieMenu()
 		},
-		Command("mesh.merge.atLast", title = Res.string.cmd_mesh_merge_at_last, availability = availability.inEditMode) {
-			editorSession?.mergeSelectedVertices(MergeTarget.AtLast)
+		Command(
+			"mesh.merge.atLast",
+			title = Res.string.cmd_mesh_merge_at_last,
+			availability = availability.inEditMode,
+			group = CommandFamily.MergeTarget,
+		) {
+			editorSession?.mergeSelectedVertices(MergeTarget.AtLast, routing.operationStripArea())
 			editorSession?.closePieMenu()
 		},
 		Command(
@@ -69,8 +107,13 @@ internal fun topologyCommands(
 				CommandAvailability {
 					editorSession?.mode?.value == EditorMode.Edit && editorSession.meshSelection.value.selectMode != MeshSelectMode.Face
 				},
+			spaces = SpaceScope.Viewport2D,
 		) { editorSession?.requestRip(routing.viewportArea()) },
-		Command("mesh.connect", title = Res.string.cmd_mesh_connect, availability = availability.inEditMode) {
+		Command(
+			"mesh.connect",
+			title = Res.string.cmd_mesh_connect,
+			availability = availability.inEditMode,
+		) {
 			editorSession?.connectSelectedVertices()
 		},
 		Command(
@@ -78,9 +121,10 @@ internal fun topologyCommands(
 			title = Res.string.cmd_mesh_vertex_slide,
 			availability =
 				CommandAvailability {
-					editorSession?.mode?.value == EditorMode.Edit &&
+					editorSession?.mode?.value?.editsElements == true &&
 						editorSession.meshSelection.value.activeElement?.element is MeshElement.Vertex
 				},
+			spaces = SpaceScope.Viewport2D,
 		) {
 			routing.viewportArea()?.let { areaId -> editorSession?.beginMeshOperator(MeshOperatorKind.VertexSlide, areaId) }
 		},

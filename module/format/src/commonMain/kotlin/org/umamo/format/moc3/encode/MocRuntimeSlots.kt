@@ -47,6 +47,7 @@ public object MocRuntimeSlots {
 		put(Section.PARAM_RUNTIME_SLOT_A, doc.parameters.size)
 		put(Section.GLUE_RUNTIME_SLOT, doc.glues.size)
 		put(Section.OFFSCREEN_RUNTIME_SLOT, doc.offscreens.size)
+
 		return sink.toMap()
 	}
 }

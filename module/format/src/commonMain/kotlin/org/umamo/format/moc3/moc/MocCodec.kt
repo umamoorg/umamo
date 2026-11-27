@@ -8,8 +8,8 @@ import org.umamo.format.moc3.io.LittleEndianWriter
  *
  * A `.moc3` is a 64-byte header, a section-offset table at `0x40`, then the sections the table
  * points at (each 16-byte-or-coarser aligned, the data region beginning at
- * [Sections.DATA_SECTION_BEGIN]). The exporter appends sections sequentially and pads the file
- * to a multiple of 64, so the sections partition `[firstOffset, EOF)` in table order. We keep
+ * [Sections.DATA_SECTION_BEGIN]).  The exporter appends sections sequentially and pads the file
+ * to a multiple of 64, so the sections partition `[firstOffset, EOF)` in table order.  We keep
  * every section verbatim, so [write] reproduces an unedited file byte-for-byte.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md</a>
@@ -46,13 +46,17 @@ public object MocCodec {
 		val reader = LittleEndianReader(bytes)
 		reader.seek(0x40)
 		val offsets = ArrayList<Int>()
+
 		while (reader.position + 4 <= bytes.size) {
 			val value = reader.readU32()
+
 			if (value == 0L) {
 				break
 			}
+
 			offsets.add(value.toInt())
 		}
+
 		require(offsets.isNotEmpty()) { "moc3 has no sections" }
 
 		val sectionCount = offsets.size
@@ -65,6 +69,7 @@ public object MocCodec {
 				}
 				bytes.copyOfRange(start, end)
 			}
+
 		return MocModel(bytes.copyOfRange(0, HEADER_SIZE), offsets.toIntArray(), sections)
 	}
 
@@ -86,6 +91,7 @@ public object MocCodec {
 		for (offset in model.offsets) writer.writeInt32(offset)
 		writer.zeroPad(firstOffset - writer.position) // pad header+table region up to the data region
 		for (section in model.rawSections) writer.writeBytes(section)
+
 		return writer.toByteArray()
 	}
 }

@@ -63,46 +63,62 @@ private val SERIAL_NAME = Regex("""^\t@SerialName\("([^"]+)"\)$""")
  */
 internal fun parseGeneratedModel(file: File): GeneratedModelSource {
 	val model = GeneratedModelSource()
+
 	if (!file.isFile) {
 		return model
 	}
+
 	val lines = file.readLines()
 	var index = 0
+
 	while (index < lines.size) {
 		val tagMatch = SERIAL_TAG.find(lines[index].trim())
+
 		if (tagMatch == null) {
 			index++
+
 			continue
 		}
+
 		val tag = tagMatch.groupValues[1]
 		index++
+
 		if (index >= lines.size) {
 			break
 		}
+
 		val declaration = lines[index]
 		val enumMatch = ENUM_DECLARATION.find(declaration.trim())
+
 		if (enumMatch != null) {
 			model.enums[tag] = enumMatch.groupValues[1].split(',').map { it.trim() }.filter { it.isNotEmpty() }.toMutableSet()
 			index++
+
 			continue
 		}
+
 		if (!CLASS_DECLARATION.containsMatchIn(declaration.trim())) {
 			continue
 		}
+
 		val modelClass = ModelClass(tag, declaration)
 		model.classes[tag] = modelClass
 		index++
+
 		if (modelClass.isBodyless) {
 			continue
 		}
+
 		// Accumulate annotation lines until the property they decorate closes the field.
 		val pending = mutableListOf<String>()
 		var serialNameOverride: String? = null
+
 		while (index < lines.size && lines[index] != "}") {
 			val line = lines[index]
 			SERIAL_NAME.find(line)?.let { serialNameOverride = it.groupValues[1] }
 			pending += line
 			val propertyMatch = PROPERTY_DECLARATION.find(line)
+
 			if (propertyMatch != null) {
 				// @SerialName carries the real on-disk name when it is not a legal Kotlin identifier.
 				val serialName = serialNameOverride ?: propertyMatch.groupValues[1]
@@ -110,9 +126,11 @@ internal fun parseGeneratedModel(file: File): GeneratedModelSource {
 				pending.clear()
 				serialNameOverride = null
 			}
+
 			index++
 		}
 	}
+
 	return model
 }
 
@@ -130,6 +148,7 @@ internal fun parseGeneratedModel(file: File): GeneratedModelSource {
  */
 internal fun mergeFieldOrder(existing: List<String>, inferred: List<String>): List<String> {
 	val lengths = Array(existing.size + 1) { IntArray(inferred.size + 1) }
+
 	for (existingIndex in existing.indices.reversed()) {
 		for (inferredIndex in inferred.indices.reversed()) {
 			lengths[existingIndex][inferredIndex] =
@@ -140,9 +159,11 @@ internal fun mergeFieldOrder(existing: List<String>, inferred: List<String>): Li
 				}
 		}
 	}
+
 	val merged = mutableListOf<String>()
 	var existingIndex = 0
 	var inferredIndex = 0
+
 	while (existingIndex < existing.size && inferredIndex < inferred.size) {
 		when {
 			existing[existingIndex] == inferred[inferredIndex] -> {
@@ -150,33 +171,42 @@ internal fun mergeFieldOrder(existing: List<String>, inferred: List<String>): Li
 				existingIndex++
 				inferredIndex++
 			}
+
 			// Off the common subsequence: emit from whichever side the LCS says to advance, so both
 			// inputs' relative orders survive.
 			lengths[existingIndex + 1][inferredIndex] >= lengths[existingIndex][inferredIndex + 1] -> {
 				if (existing[existingIndex] !in merged) {
 					merged += existing[existingIndex]
 				}
+
 				existingIndex++
 			}
+
 			else -> {
 				if (inferred[inferredIndex] !in merged) {
 					merged += inferred[inferredIndex]
 				}
+
 				inferredIndex++
 			}
 		}
 	}
+
 	while (existingIndex < existing.size) {
 		if (existing[existingIndex] !in merged) {
 			merged += existing[existingIndex]
 		}
+
 		existingIndex++
 	}
+
 	while (inferredIndex < inferred.size) {
 		if (inferred[inferredIndex] !in merged) {
 			merged += inferred[inferredIndex]
 		}
+
 		inferredIndex++
 	}
+
 	return merged
 }

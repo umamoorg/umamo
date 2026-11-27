@@ -35,13 +35,19 @@ sealed interface OperatorParameter {
 	/**
 	 * A real-valued setting with a range, a scrub step, and a display unit.
 	 *
-	 * @property String        key      See [OperatorParameter.key].
-	 * @property String        labelKey See [OperatorParameter.labelKey].
-	 * @property Float         value    The current value.
-	 * @property Float         min      The smallest value the row accepts.
-	 * @property Float         max      The largest value the row accepts.
-	 * @property Float         step     The scrub / chevron increment.
-	 * @property ParameterUnit unit     The display unit.
+	 * A setting can name the one right after it as its [ratioPartnerKey] when the two are one quantity along two
+	 * axes (a Scale's two factors) whose ratio the rigger may want to hold; the UI then draws the pair as one
+	 * control with a lock that keeps that ratio.  A partner that is not the next setting, or not a real-valued
+	 * one, is ignored.
+	 *
+	 * @property String        key             See [OperatorParameter.key].
+	 * @property String        labelKey        See [OperatorParameter.labelKey].
+	 * @property Float         value           The current value.
+	 * @property Float         min             The smallest value the row accepts.
+	 * @property Float         max             The largest value the row accepts.
+	 * @property Float         step            The scrub / chevron increment.
+	 * @property ParameterUnit unit            The display unit.
+	 * @property String?       ratioPartnerKey The key of the next setting this one can be ratio-locked with, or null.
 	 */
 	data class FloatParameter(
 		override val key: String,
@@ -51,18 +57,24 @@ sealed interface OperatorParameter {
 		val max: Float,
 		val step: Float = 1f,
 		val unit: ParameterUnit = ParameterUnit.None,
+		val ratioPartnerKey: String? = null,
 	) : OperatorParameter
 
 	/**
 	 * An integer setting with a range, a scrub step, and a display unit.
 	 *
-	 * @property String        key      See [OperatorParameter.key].
-	 * @property String        labelKey See [OperatorParameter.labelKey].
-	 * @property Int           value    The current value.
-	 * @property Int           min      The smallest value the row accepts.
-	 * @property Int           max      The largest value the row accepts.
-	 * @property Int           step     The scrub / chevron increment.
-	 * @property ParameterUnit unit     The display unit.
+	 * Like a real-valued setting, it can name the integer setting right after it as its [ratioPartnerKey] (a lattice's
+	 * rows and columns), and the UI then draws the pair with the lock that keeps their ratio, rounding the partner to
+	 * a whole number.
+	 *
+	 * @property String        key             See [OperatorParameter.key].
+	 * @property String        labelKey        See [OperatorParameter.labelKey].
+	 * @property Int           value           The current value.
+	 * @property Int           min             The smallest value the row accepts.
+	 * @property Int           max             The largest value the row accepts.
+	 * @property Int           step            The scrub / chevron increment.
+	 * @property ParameterUnit unit            The display unit.
+	 * @property String?       ratioPartnerKey The key of the next setting this one can be ratio-locked with, or null.
 	 */
 	data class IntParameter(
 		override val key: String,
@@ -72,6 +84,7 @@ sealed interface OperatorParameter {
 		val max: Int,
 		val step: Int = 1,
 		val unit: ParameterUnit = ParameterUnit.None,
+		val ratioPartnerKey: String? = null,
 	) : OperatorParameter
 
 	/**
@@ -176,7 +189,7 @@ fun List<OperatorParameter>.choiceValue(key: String, fallback: String): String =
  *
  * @property Change         change       The change the operation committed; its label titles the strip.
  * @property String?        areaId       The area the operation ran in, or null for one that ran nowhere in
- *   particular (the shell shows it above the status bar).
+ *   particular (the strip then shows nowhere; the record stays adjustable through the F9 command).
  * @property List           parameters   The current settings, in display order.
  * @property EditorSnapshot baseSnapshot The state the operation ran from.
  * @property Function       rerun        Runs the operation again from [baseSnapshot] under the record it is
@@ -185,6 +198,9 @@ fun List<OperatorParameter>.choiceValue(key: String, fallback: String): String =
  *   it needs one.
  * @property Any            identity     Shared by every value of one registration, so a stale value can be
  *   told from a cleared record.
+ * @property String?        adjustedKey  The key of the setting the latest adjustment set - even to the value
+ *   it already had, which is how a rerun tells "choose this preset again" from no change - or null before
+ *   any adjustment or when the adjustment did not say.
  */
 class AdjustableOperation internal constructor(
 	val change: Change,
@@ -193,13 +209,15 @@ class AdjustableOperation internal constructor(
 	val baseSnapshot: EditorSnapshot,
 	val rerun: (AdjustableOperation) -> Unit,
 	internal val identity: Any,
+	val adjustedKey: String? = null,
 ) {
 	/**
 	 * This record with new settings, keeping everything else including the identity.
 	 *
-	 * @param List parameters The new settings.
+	 * @param List    parameters  The new settings.
+	 * @param String? adjustedKey The setting the adjustment set, or null; by default the one this record names.
 	 * @return AdjustableOperation The updated record.
 	 */
-	fun withParameters(parameters: List<OperatorParameter>): AdjustableOperation =
-		AdjustableOperation(change, areaId, parameters, baseSnapshot, rerun, identity)
+	fun withParameters(parameters: List<OperatorParameter>, adjustedKey: String? = this.adjustedKey): AdjustableOperation =
+		AdjustableOperation(change, areaId, parameters, baseSnapshot, rerun, identity, adjustedKey)
 }

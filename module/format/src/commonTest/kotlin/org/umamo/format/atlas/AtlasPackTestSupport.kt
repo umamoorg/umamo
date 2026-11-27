@@ -27,8 +27,10 @@ internal fun packItemOfRows(key: String, vararg rows: String): AtlasPackItem {
 	val height = rows.size
 	val width = if (height == 0) 0 else rows[0].length
 	val rgba = ByteArray(width * height * 4)
+
 	for (rowIndex in 0 until height) {
 		require(rows[rowIndex].length == width) { "all rows must share one width" }
+
 		for (columnIndex in 0 until width) {
 			val cell = rows[rowIndex][columnIndex]
 			val alpha =
@@ -45,6 +47,7 @@ internal fun packItemOfRows(key: String, vararg rows: String): AtlasPackItem {
 			rgba[byteIndex + 3] = alpha.toByte()
 		}
 	}
+
 	return AtlasPackItem(key, width, height, rgba)
 }
 
@@ -69,6 +72,7 @@ internal fun opaquePackItem(key: String, width: Int, height: Int): AtlasPackItem
  */
 internal fun pagePixel(page: RasterImage, x: Int, y: Int): Int {
 	val byteIndex = (y * page.width + x) * 4
+
 	return ((page.rgba[byteIndex].toInt() and 0xFF) shl 24) or
 		((page.rgba[byteIndex + 1].toInt() and 0xFF) shl 16) or
 		((page.rgba[byteIndex + 2].toInt() and 0xFF) shl 8) or
@@ -85,6 +89,7 @@ internal fun pagePixel(page: RasterImage, x: Int, y: Int): Int {
  */
 internal fun itemPixel(item: AtlasPackItem, x: Int, y: Int): Int {
 	val byteIndex = (y * item.width + x) * 4
+
 	return ((item.rgba[byteIndex].toInt() and 0xFF) shl 24) or
 		((item.rgba[byteIndex + 1].toInt() and 0xFF) shl 16) or
 		((item.rgba[byteIndex + 2].toInt() and 0xFF) shl 8) or
@@ -120,9 +125,11 @@ internal fun pageCoordinateOf(placement: AtlasPackPlacement, tileX: Int, tileY: 
  */
 internal fun assertTilesRoundTripByteExact(items: List<AtlasPackItem>, result: AtlasPackResult) {
 	val itemsByKey = items.associateBy { item -> item.key }
+
 	for (placement in result.placements) {
 		val item = itemsByKey.getValue(placement.key)
 		val page = result.pages[placement.pageIndex]
+
 		for (tileY in 0 until placement.trimHeight) {
 			for (tileX in 0 until placement.trimWidth) {
 				val (pageX, pageY) = pageCoordinateOf(placement, tileX, tileY)
@@ -158,13 +165,16 @@ internal fun assertNoTileOverlap(result: AtlasPackResult, gutter: Int) {
 			"'${placement.key}' footprint runs past its ${page.width}x${page.height} page",
 		)
 	}
+
 	for (firstIndex in result.placements.indices) {
 		for (secondIndex in firstIndex + 1 until result.placements.size) {
 			val first = result.placements[firstIndex]
 			val second = result.placements[secondIndex]
+
 			if (first.pageIndex != second.pageIndex) {
 				continue
 			}
+
 			val separated =
 				first.pageX + first.pageWidth + gutter <= second.pageX - gutter ||
 					second.pageX + second.pageWidth + gutter <= first.pageX - gutter ||

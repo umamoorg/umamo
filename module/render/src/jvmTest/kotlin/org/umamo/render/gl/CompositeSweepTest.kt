@@ -64,6 +64,7 @@ class CompositeSweepTest {
 	private fun centerPixel(device: GlRenderDevice, target: RenderTarget): FloatArray {
 		val image = device.readPixels(target)
 		val pixelOffset = ((size / 2) * size + size / 2) * 4
+
 		return FloatArray(4) { channelIndex -> (image.rgba[pixelOffset + channelIndex].toInt() and 0xFF) / 255f }
 	}
 
@@ -85,6 +86,7 @@ class CompositeSweepTest {
 		pass.drawComposite(uniforms, textures)
 		pass.end()
 		frame.endFrame()
+
 		return centerPixel(device, out)
 	}
 
@@ -104,17 +106,21 @@ class CompositeSweepTest {
 		val uniforms = CompositeUniforms()
 		val failures = ArrayList<String>()
 		var worstDelta = 0f
+
 		for (blendMode in BlendMode.entries) {
 			for (alphaBlendMode in AlphaBlendMode.entries) {
 				uniforms.colorMode = packedColorModeOf(blendMode)
 				uniforms.alphaMode = packedAlphaModeOf(alphaBlendMode)
 				val pixel = composite(device, out, layer, dest, uniforms)
 				val expected = compositeReference(sourcePremul, destinationPremul, blendMode, alphaBlendMode)
+
 				for (channelIndex in 0 until 4) {
 					val delta = abs(pixel[channelIndex] - expected[channelIndex])
+
 					if (delta > worstDelta) {
 						worstDelta = delta
 					}
+
 					if (delta > CHANNEL_TOLERANCE) {
 						failures.add(
 							"$blendMode/$alphaBlendMode ch$channelIndex: shader=${pixel[channelIndex]} reference=${expected[channelIndex]}",
@@ -123,6 +129,7 @@ class CompositeSweepTest {
 				}
 			}
 		}
+
 		println("[composite-sweep] ${BlendMode.entries.size * AlphaBlendMode.entries.size} combos, worst channel delta=$worstDelta")
 		assertTrue(failures.isEmpty(), "shader vs reference mismatches (${failures.size}):\n" + failures.joinToString("\n"))
 	}
@@ -158,6 +165,7 @@ class CompositeSweepTest {
 		straight[0] = straight[0] + 0.2f - straight[0] * 0.2f
 		val layerAfter = floatArrayOf(straight[0] * alpha, straight[1] * alpha, straight[2] * alpha, alpha)
 		val expected = compositeReference(layerAfter, destinationPremul, BlendMode.Normal, AlphaBlendMode.Over)
+
 		for (channelIndex in 0 until 4) {
 			assertTrue(
 				abs(pixel[channelIndex] - expected[channelIndex]) <= CHANNEL_TOLERANCE,

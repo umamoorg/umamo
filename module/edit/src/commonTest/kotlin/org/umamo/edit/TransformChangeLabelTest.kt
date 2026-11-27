@@ -1,13 +1,14 @@
 package org.umamo.edit
 
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Pins the history label every whole-gesture transform reports, across all three domains and every
- * [MeshOperatorKind].
+ * Pins the history label every object, mesh, and UV whole-gesture transform reports, across those three
+ * domains and every [MeshOperatorKind], plus the lattice steps and every [ElementEditKind].
  *
  * Two things are being protected.  First, the domain has to be readable at a glance in the history panel -
  * an object transform, an Edit-mode mesh transform, and a UV transform must never share a label, which is
@@ -20,22 +21,47 @@ class TransformChangeLabelTest {
 	private val drawableIds = listOf(DrawableId("a"))
 	private val vertexIndices = mapOf(DrawableId("a") to listOf(0, 1))
 
-	/** Edit mode names all four of its operators, Vertex Slide included. */
+	/** Edit mode names all four of its operators, Vertex Slide included, and To Shape. */
 	@Test
 	fun meshTransformLabelsPerOperator() {
-		assertEquals("change.mesh.move", MeshChange.TransformVertices(vertexIndices, MeshOperatorKind.Grab).labelKey)
-		assertEquals("change.mesh.scale", MeshChange.TransformVertices(vertexIndices, MeshOperatorKind.Scale).labelKey)
-		assertEquals("change.mesh.rotate", MeshChange.TransformVertices(vertexIndices, MeshOperatorKind.Rotate).labelKey)
-		assertEquals("change.mesh.slide", MeshChange.TransformVertices(vertexIndices, MeshOperatorKind.VertexSlide).labelKey)
+		assertEquals("change.mesh.move", MeshChange.TransformVertices(vertexIndices, ElementEditKind.Grab).labelKey)
+		assertEquals("change.mesh.scale", MeshChange.TransformVertices(vertexIndices, ElementEditKind.Scale).labelKey)
+		assertEquals("change.mesh.rotate", MeshChange.TransformVertices(vertexIndices, ElementEditKind.Rotate).labelKey)
+		assertEquals("change.mesh.slide", MeshChange.TransformVertices(vertexIndices, ElementEditKind.VertexSlide).labelKey)
+		assertEquals("change.mesh.toShape", MeshChange.TransformVertices(vertexIndices, ElementEditKind.ToShape).labelKey)
+	}
+
+	/** A rest reshape and a posed lattice name every edit kind, each in its own namespace. */
+	@Test
+	fun latticeLabelsPerEditKind() {
+		val deformerIds = listOf(DeformerId("w"))
+
+		for (kind in ElementEditKind.entries) {
+			val rest = DeformerChange.ReshapeLattice(deformerIds, kind).labelKey
+			val posed = DeformerChange.PoseLattice(deformerIds, kind).labelKey
+			assertTrue(rest.startsWith("change.lattice."), "$kind rest: $rest")
+			assertTrue(posed.startsWith("change.pose."), "$kind posed: $posed")
+		}
+
+		assertEquals("change.lattice.toShape", DeformerChange.ReshapeLattice(deformerIds, ElementEditKind.ToShape).labelKey)
+		assertEquals("change.pose.toShape", DeformerChange.PoseLattice(deformerIds, ElementEditKind.ToShape).labelKey)
+	}
+
+	/** Every modal operator files its step under the edit kind of the same name. */
+	@Test
+	fun everyOperatorHasItsEditKind() {
+		for (kind in MeshOperatorKind.entries) {
+			assertEquals(kind.name, kind.editKind.name)
+		}
 	}
 
 	/** Object mode has no Vertex Slide of its own, so a slide reads as a plain move rather than an unmapped key. */
 	@Test
 	fun objectTransformLabelsPerOperator() {
-		assertEquals("change.object.move", MeshChange.TransformDrawables(drawableIds, MeshOperatorKind.Grab).labelKey)
-		assertEquals("change.object.scale", MeshChange.TransformDrawables(drawableIds, MeshOperatorKind.Scale).labelKey)
-		assertEquals("change.object.rotate", MeshChange.TransformDrawables(drawableIds, MeshOperatorKind.Rotate).labelKey)
-		assertEquals("change.object.move", MeshChange.TransformDrawables(drawableIds, MeshOperatorKind.VertexSlide).labelKey)
+		assertEquals("change.object.move", MeshChange.TransformObjects(drawableIds, MeshOperatorKind.Grab).labelKey)
+		assertEquals("change.object.scale", MeshChange.TransformObjects(drawableIds, MeshOperatorKind.Scale).labelKey)
+		assertEquals("change.object.rotate", MeshChange.TransformObjects(drawableIds, MeshOperatorKind.Rotate).labelKey)
+		assertEquals("change.object.move", MeshChange.TransformObjects(drawableIds, MeshOperatorKind.VertexSlide).labelKey)
 	}
 
 	/** The UV editor's slide is unimplemented (see TODO § UV Editor); until it lands it degrades to the move label. */
@@ -57,8 +83,8 @@ class TransformChangeLabelTest {
 		for (kind in MeshOperatorKind.entries) {
 			val keys =
 				setOf(
-					MeshChange.TransformVertices(vertexIndices, kind).labelKey,
-					MeshChange.TransformDrawables(drawableIds, kind).labelKey,
+					MeshChange.TransformVertices(vertexIndices, kind.editKind).labelKey,
+					MeshChange.TransformObjects(drawableIds, kind).labelKey,
 					MeshChange.TransformUvs(vertexIndices, kind).labelKey,
 				)
 			assertEquals(3, keys.size, "$kind produced a shared label key across domains: $keys")
@@ -76,8 +102,8 @@ class TransformChangeLabelTest {
 	@Test
 	fun everyTransformIsUndoable() {
 		for (kind in MeshOperatorKind.entries) {
-			assertTrue(MeshChange.TransformVertices(vertexIndices, kind).undoability == Undoability.Undoable, "$kind vertices")
-			assertTrue(MeshChange.TransformDrawables(drawableIds, kind).undoability == Undoability.Undoable, "$kind drawables")
+			assertTrue(MeshChange.TransformVertices(vertexIndices, kind.editKind).undoability == Undoability.Undoable, "$kind vertices")
+			assertTrue(MeshChange.TransformObjects(drawableIds, kind).undoability == Undoability.Undoable, "$kind drawables")
 			assertTrue(MeshChange.TransformUvs(vertexIndices, kind).undoability == Undoability.Undoable, "$kind uvs")
 		}
 	}

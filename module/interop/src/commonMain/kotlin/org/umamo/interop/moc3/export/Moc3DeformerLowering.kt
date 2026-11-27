@@ -6,6 +6,7 @@ import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.format.moc3.model.WarpKeyform
 import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNoticeReason
+import org.umamo.interop.latticeDepthFlattenedNotice
 import org.umamo.interop.moc3.convertPointsToMoc
 import org.umamo.runtime.keyform.RotationPivotInterpolator
 import org.umamo.runtime.keyform.WarpLatticeInterpolator
@@ -26,7 +27,8 @@ import org.umamo.format.moc3.model.Deformer as MocDeformer
  * @param Moc3ExportContext context    The export's derived state.
  * @param Moc3KeyformPool   pool       Interned into: every deformer claims a binding index here.
  * @param Moc3ExportIds     ids        Claimed from: each deformer's written id.
- * @param Moc3ExportNotices noticeSink Appended to: demotions and unrepresentable grids.
+ * @param Moc3ExportNotices noticeSink Appended to: keyform losses, deformers with no form to write, and the one notice for
+ *   the warps whose editing depth the file cannot hold.
  * @return List<MocDeformer> The records, in plan order.
  */
 internal fun lowerDeformers(
@@ -36,15 +38,22 @@ internal fun lowerDeformers(
 	noticeSink: Moc3ExportNotices,
 ): List<MocDeformer> {
 	val plan = context.plan
+	// MOC3 has no depth: the records below carry each lattice's 2D points, so only the editing depth is lost.
+	latticeDepthFlattenedNotice(plan.deformers.filterIsInstance<Deformer.Warp>())?.let { notice -> noticeSink.add(notice) }
+
 	return plan.deformers.map { deformer ->
 		val parentPartIndex = plan.partIndex(deformer.partId)
 		val parentDeformerIndex = plan.deformerIndex(deformer.parent)
 		val space = context.spaceOfParent(deformer.parent)
+
 		when (deformer) {
 			is Deformer.Warp -> {
 				val keyforms =
 					lowerObjectKeyforms(
 						pool,
+						noticeSink,
+						ExportEntityCategory.Deformer,
+						deformer.id.raw,
 						deformer.geometryGrid,
 						WarpLatticeInterpolator,
 						deformer.channelGrids.onlyChannels(*renderChannels(context.colorsEnabled)),
@@ -56,15 +65,18 @@ internal fun lowerDeformers(
 						),
 						requireGeometry = true,
 					)
-				noticeSink.reportDemotions(ExportEntityCategory.Deformer, deformer.id.raw, keyforms)
-				if (keyforms == null) {
+				val bundle = keyforms?.bundle
+
+				// Reported whenever the empty lattice below is what gets written.  A warp that carries a
+				// grid always bundles it, so this is the warp that carries none.
+				if (bundle?.cells?.firstOrNull()?.geometry == null) {
 					noticeSink.unsupported(
 						ExportEntityCategory.Deformer,
 						deformer.id.raw,
 						ExportNoticeReason.WarpDeformerHasNoLattice,
 					)
 				}
-				val bundle = keyforms?.bundle
+
 				// A MOC3 addresses an object's forms as `gridSize` rows from its own keyform base, and
 				// the static binding 0 still declares ONE row - so an object that writes zero rows puts
 				// its base on top of the next object's, and the last one sends the reader off the end of
@@ -104,10 +116,14 @@ internal fun lowerDeformers(
 						},
 				)
 			}
+
 			is Deformer.Rotation -> {
 				val keyforms =
 					lowerObjectKeyforms(
 						pool,
+						noticeSink,
+						ExportEntityCategory.Deformer,
+						deformer.id.raw,
 						deformer.geometryGrid,
 						RotationPivotInterpolator,
 						deformer.channelGrids.onlyChannels(
@@ -120,15 +136,17 @@ internal fun lowerDeformers(
 							),
 						requireGeometry = true,
 					)
-				noticeSink.reportDemotions(ExportEntityCategory.Deformer, deformer.id.raw, keyforms)
-				if (keyforms == null) {
+				val bundle = keyforms?.bundle
+
+				// Reported whenever the identity transform below is what gets written, as for the warp.
+				if (bundle?.cells?.firstOrNull()?.geometry == null) {
 					noticeSink.unsupported(
 						ExportEntityCategory.Deformer,
 						deformer.id.raw,
 						ExportNoticeReason.RotationDeformerHasNoPivot,
 					)
 				}
-				val bundle = keyforms?.bundle
+
 				// One form minimum, for the same base-collision reason as the warp branch above.  A
 				// pivot-less rotation has a well-defined fallback the warp does not: the identity
 				// transform, which is what `pivot == null` already resolves to below.

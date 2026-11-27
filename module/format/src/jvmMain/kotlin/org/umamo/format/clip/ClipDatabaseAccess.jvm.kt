@@ -15,9 +15,11 @@ import java.nio.file.Files
  */
 internal actual fun <T> useClipDatabase(databaseBytes: ByteArray, block: (ClipDatabase) -> T): T {
 	val tempDatabasePath = Files.createTempFile("umamo-clip", ".sqlite3")
+
 	try {
 		Files.write(tempDatabasePath, databaseBytes)
 		val driver = JdbcSqliteDriver("jdbc:sqlite:$tempDatabasePath")
+
 		try {
 			return block(ClipDatabase(driver))
 		} finally {

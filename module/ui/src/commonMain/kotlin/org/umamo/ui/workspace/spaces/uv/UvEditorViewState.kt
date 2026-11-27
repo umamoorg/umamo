@@ -1,0 +1,452 @@
+package org.umamo.ui.workspace.spaces.uv
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import org.umamo.edit.EditorMode
+import org.umamo.edit.MeshSelection
+import org.umamo.edit.Selection
+import org.umamo.edit.SelectionTarget
+import org.umamo.edit.UvPageKind
+import org.umamo.render.ContentBounds
+import org.umamo.render.PuppetTextures
+import org.umamo.runtime.model.Drawable
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.visibleDrawableIds
+import org.umamo.ui.viewport.OverlaySurface
+import org.umamo.ui.viewport.ViewportOverlayState
+import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
+import org.umamo.ui.viewport.uv.atlasPageIndexFor
+import org.umamo.ui.workspace.PersistentSpaceState
+import org.umamo.ui.workspace.editorstate.OVERLAYS_MEMBER
+import org.umamo.ui.workspace.editorstate.SIDEBAR_MEMBER
+import org.umamo.ui.workspace.editorstate.intOf
+import org.umamo.ui.workspace.editorstate.overlaysJsonOrNull
+import org.umamo.ui.workspace.editorstate.restoreOverlays
+import org.umamo.ui.workspace.editorstate.restoreSidebar
+import org.umamo.ui.workspace.editorstate.sidebarJsonOrNull
+import org.umamo.ui.workspace.editorstate.stringOf
+import org.umamo.ui.workspace.sidebar.SidebarState
+
+/** The AreaScope.spaceState key the UV editor parks its view state under, and its member in an area block (UMA §7.3). */
+internal const val UV_EDITOR_VIEW_STATE_KEY = "uv"
+
+/**
+ * What the UV editor area is showing: the auto-follow default, one atlas page pinned regardless of the
+ * selection, or the active drawable's own source artwork.  Sealed so a further surface joins as another
+ * case rather than by widening the existing ones.
+ */
+internal sealed class UvTextureSelection {
+	/** The auto-follow default: the shown page tracks the session's active drawable. */
+	data object FollowSelection : UvTextureSelection()
+
+	/** The space keeps showing atlas page [pageIndex] regardless of the selection. */
+	data class PinnedPage(val pageIndex: Int) : UvTextureSelection()
+
+	/**
+	 * The space shows the active drawable's own source artwork instead of a packed page - the mapping
+	 * over the art it was authored against.  Follow-active like [FollowSelection] and for the same
+	 * reason: which layer to show is a restatement of which drawable is selected, so carrying a layer
+	 * id here would be a second selection to keep in sync with the first.
+	 */
+	data object SourceLayer : UvTextureSelection()
+}
+
+/**
+ * The UV editor's per-area view state, shared between its area-header controls and its body (they
+ * render as sibling subtrees, so this lives on the hosting AreaScope via spaceState rather than in a
+ * body-local remember): the texture selection and the area's overlay visibility.  Two UV editors each get
+ * their own instance, and the instance lives as long as the open document does; a saved document carries it
+ * (UMA §7.3).
+ *
+ * A pin can name a page the document does not have - a repack that shrank the atlas, a file saved by another
+ * version.  Resolution treats such a pin as Follow Selection (resolveUvEditorPage) without clearing what is
+ * stored here, so a later repack that brings the page back finds the pin still set.
+ */
+internal class UvEditorViewState : PersistentSpaceState {
+	/** The area's texture selection: follow the session, a pinned atlas page, or the source-layer view. */
+	var textureSelection by mutableStateOf<UvTextureSelection>(UvTextureSelection.FollowSelection)
+
+	/** Which overlays this area shows (UMA §7.3 `overlays`). */
+	val overlays = ViewportOverlayState(OverlaySurface.UvEditor)
+
+	/** The area's proportional radius per surface, which the body's gestures and the header's size row share; never saved. */
+	val proportionalRadii = UvProportionalRadii()
+
+	/** The area's sidebar: whether it is open, its width, the tab it shows, and the panels folded in it (UMA §7.3 `sidebar`). */
+	val sidebar = SidebarState()
+
+	/**
+	 * The UV editor's member of its area block.
+	 *
+	 * @return JsonObject The member, every known key named.
+	 */
+	override fun toJson(): JsonObject =
+		buildJsonObject {
+			// UMA §7.3: `texture` is "follow" (the default, so absent), "sourceLayer", or { "page": N }.
+			put(
+				"texture",
+				when (val selection = textureSelection) {
+					UvTextureSelection.FollowSelection -> JsonNull
+					UvTextureSelection.SourceLayer -> JsonPrimitive("sourceLayer")
+					is UvTextureSelection.PinnedPage -> buildJsonObject { put("page", JsonPrimitive(selection.pageIndex)) }
+				},
+			)
+			put(OVERLAYS_MEMBER, overlays.overlaysJsonOrNull())
+			put(SIDEBAR_MEMBER, sidebar.sidebarJsonOrNull())
+		}
+
+	/**
+	 * Takes the UV editor state a document was saved with.
+	 *
+	 * @param JsonObject tree The member as the file held it.
+	 */
+	override fun restore(tree: JsonObject) {
+		val pinnedPage = (tree["texture"] as? JsonObject)?.let { pin -> intOf(pin["page"]) }?.takeIf { pageIndex -> pageIndex >= 0 }
+		textureSelection =
+			when {
+				pinnedPage != null -> UvTextureSelection.PinnedPage(pinnedPage)
+				stringOf(tree, "texture") == "sourceLayer" -> UvTextureSelection.SourceLayer
+				else -> UvTextureSelection.FollowSelection
+			}
+		overlays.restoreOverlays(tree[OVERLAYS_MEMBER] as? JsonObject)
+		sidebar.restoreSidebar(tree[SIDEBAR_MEMBER] as? JsonObject)
+	}
+}
+
+/**
+ * The UV editor's resolved page context: the shown page and its texel dimensions.
+ *
+ * @property Int? pageIndex The shown atlas page's index, or null for an untextured drawable or absent textures.
+ * @property Int pageWidth The page width in texels (1 for the untextured fallback).
+ * @property Int pageHeight The page height in texels (1 for the untextured fallback).
+ */
+internal data class UvEditorPage(
+	val pageIndex: Int?,
+	val pageWidth: Int,
+	val pageHeight: Int,
+)
+
+/**
+ * Resolves which atlas page the UV editor shows: a pinned page the textures can satisfy, even an empty
+ * one, else the page of the drawable the session is working on, so the space is never blank over a
+ * document with meshed art.
+ *
+ * Untextured fallback: a 1x1 "page" turns the display mapping into the flipped unit square, so the
+ * wireframe still shows (over the grid) for a drawable with no atlas entry.  Must equal the
+ * service's pageContentBounds dimensions (and the unit surface the renderer bounds the grid by), so
+ * the wireframes, the gizmo chrome, and the GL page frame at the same camera align.
+ *
+ * @param PuppetModel model The session's committed model.
+ * @param MeshSelection meshSelection The mesh-element selection (its active drawable wins).
+ * @param Selection objectSelection The object selection (its active drawable is the second choice).
+ * @param PuppetTextures? textures The decoded atlas pages, or null before textures load.
+ * @param UvTextureSelection textureSelection The area's texture selection (a valid pin wins the chain).
+ * @return UvEditorPage? The resolved page context, or null with no meshed drawable to show.
+ */
+internal fun resolveUvEditorPage(
+	model: PuppetModel,
+	meshSelection: MeshSelection,
+	objectSelection: Selection,
+	textures: PuppetTextures?,
+	textureSelection: UvTextureSelection = UvTextureSelection.FollowSelection,
+): UvEditorPage? {
+	if (textureSelection is UvTextureSelection.PinnedPage) {
+		val pinnedPage = textures?.atlases?.getOrNull(textureSelection.pageIndex)
+
+		if (pinnedPage != null) {
+			return UvEditorPage(
+				pageIndex = textureSelection.pageIndex,
+				pageWidth = pinnedPage.width,
+				pageHeight = pinnedPage.height,
+			)
+		}
+	}
+
+	// The selection may still name a drawable the model no longer has (the one just deleted): that is
+	// no selection, and the first meshed drawable stands in, so the space never goes blank over a
+	// document that has art to show.
+	val selectedDrawableId = meshSelection.activeDrawableId ?: (objectSelection.active as? SelectionTarget.Drawable)?.id
+	val activeDrawable =
+		selectedDrawableId?.let { drawableId -> model.drawables.firstOrNull { drawable -> drawable.id == drawableId } }
+			?: model.drawables.firstOrNull { drawable -> drawable.mesh != null }
+
+	if (activeDrawable?.mesh == null) {
+		return null
+	}
+
+	val pageIndex = textures?.let { puppetTextures -> atlasPageIndexFor(activeDrawable, puppetTextures) }
+	val page = if (textures != null && pageIndex != null) textures.atlases.getOrNull(pageIndex) else null
+
+	return UvEditorPage(
+		pageIndex = pageIndex,
+		pageWidth = page?.width ?: 1,
+		pageHeight = page?.height ?: 1,
+	)
+}
+
+/**
+ * The UV editor's resolved source-layer context: which layer the space shows and its pixel size.
+ *
+ * @property String layerKey The shown layer's key in the document's source-art store.
+ * @property Int width The layer image's width in pixels.
+ * @property Int height The layer image's height in pixels.
+ */
+internal data class UvEditorLayer(
+	val layerKey: String,
+	val width: Int,
+	val height: Int,
+)
+
+/**
+ * Resolves which source layer the UV editor shows: the tile of the drawable the view follows
+ * ([activeUvDrawable]).  With none the space falls back to its page view, so choosing the layer mode never
+ * blanks the editor.
+ *
+ * @param PuppetModel model The session's committed model.
+ * @param MeshSelection meshSelection The mesh-element selection (its active drawable wins).
+ * @param Selection objectSelection The object selection (its active drawable is the second choice).
+ * @return UvEditorLayer? The resolved layer context, or null with no layer to show.
+ */
+internal fun resolveUvEditorLayer(
+	model: PuppetModel,
+	meshSelection: MeshSelection,
+	objectSelection: Selection,
+): UvEditorLayer? {
+	if (model.atlas.tiles.isEmpty()) {
+		return null
+	}
+
+	val activeDrawable = activeUvDrawable(model, meshSelection, objectSelection) ?: return null
+	// The tile the drawable itself names: a session-created duplicate copies the field along with the
+	// rest of the drawable, so it finds its art natively rather than through its source.
+	val entry = activeDrawable.atlasTileId?.let { tileId -> model.atlas.tileById[tileId] } ?: return null
+
+	if (entry.width <= 0 || entry.height <= 0) {
+		return null
+	}
+
+	return UvEditorLayer(entry.id.raw, entry.width, entry.height)
+}
+
+/**
+ * The drawable the UV editor's view follows: the Edit-mode active mesh, else the object selection's
+ * active drawable, else the first meshed drawable so the space is never blank.
+ *
+ * @param PuppetModel model The session's committed model.
+ * @param MeshSelection meshSelection The mesh-element selection.
+ * @param Selection objectSelection The object selection.
+ * @return Drawable? The followed drawable, or null when the model has no meshed drawable at all.
+ */
+private fun activeUvDrawable(model: PuppetModel, meshSelection: MeshSelection, objectSelection: Selection): Drawable? {
+	val activeDrawableId =
+		meshSelection.activeDrawableId
+			?: (objectSelection.active as? SelectionTarget.Drawable)?.id
+			?: model.drawables.firstOrNull { drawable -> drawable.mesh != null }?.id
+
+	return model.drawables.firstOrNull { drawable -> drawable.id == activeDrawableId }?.takeIf { it.mesh != null }
+}
+
+/**
+ * The meshes drawn over a shown source layer, under the same Edit / Object rule the page view uses
+ * ([shownSurfaceDrawables]).  Duplicated art shares a layer, so several drawables can draw over one image.
+ *
+ * @param PuppetModel model The session's committed model.
+ * @param EditorMode mode The session mode selecting the Edit / Object candidate rule.
+ * @param MeshSelection meshSelection The mesh-element selection (Edit mode's candidate set).
+ * @param String layerKey The shown layer.
+ * @return List<Drawable> The drawables whose mappings draw over the layer, in model order.
+ */
+internal fun shownLayerDrawables(
+	model: PuppetModel,
+	mode: EditorMode,
+	meshSelection: MeshSelection,
+	layerKey: String,
+): List<Drawable> =
+	shownSurfaceDrawables(model, mode, meshSelection) { drawable -> drawable.atlasTileId?.raw == layerKey }
+
+/**
+ * Each shown drawable's mapping IN THE SHOWN SURFACE'S OWN FRAME: the stored coordinates over a page, the
+ * stored ones recovered through the drawable's placement over a source layer, and absent rather than mapped
+ * to a wrong place where that recovery is degenerate.  One map feeds both the overlays' display projection
+ * and the island pick's alpha gate, so the two never disagree about where a mesh is.
+ *
+ * This is the one-shot form; an area keeps a [UvGizmoGeometryCache], which computes the same per mesh and
+ * keeps it.
+ *
+ * @param List<Drawable> shownDrawables The drawables drawn over the shown surface.
+ * @param PuppetModel    model The puppet, for the atlas the layer mapping derives from.
+ * @param UvEditorLayer? layerView The shown layer, or null when a page is shown.
+ * @return Map<DrawableId, FloatArray> Each drawable's mapping in the shown surface's frame.
+ */
+internal fun shownSurfaceUvs(
+	shownDrawables: List<Drawable>,
+	model: PuppetModel,
+	layerView: UvEditorLayer?,
+): Map<DrawableId, FloatArray> = UvGizmoGeometryCache().surfaceUvs(shownDrawables, model, layerView)
+
+/**
+ * The texture-selection transition for one page-switch request: cycling pins the page adjacent to
+ * the EFFECTIVE page (what the area is actually showing, pin or follow) with wrap-around, so it always
+ * lands on a real page, and FollowSelection clears the pin.
+ *
+ * @param UvPageKind kind The requested page operation.
+ * @param UvTextureSelection currentSelection The area's stored texture selection.
+ * @param Int? effectivePageIndex The shown page's index, or null for the untextured fallback.
+ * @param Int pageCount The document's atlas page count.
+ * @return UvTextureSelection The texture selection after the request.
+ */
+internal fun uvPageSelectionAfter(
+	kind: UvPageKind,
+	currentSelection: UvTextureSelection,
+	effectivePageIndex: Int?,
+	pageCount: Int,
+): UvTextureSelection =
+	when (kind) {
+		UvPageKind.FollowSelection -> {
+			UvTextureSelection.FollowSelection
+		}
+
+		UvPageKind.NextPage -> {
+			if (pageCount <= 0) {
+				currentSelection
+			} else {
+				UvTextureSelection.PinnedPage(((effectivePageIndex ?: -1) + 1).mod(pageCount))
+			}
+		}
+
+		UvPageKind.PreviousPage -> {
+			if (pageCount <= 0) {
+				currentSelection
+			} else {
+				UvTextureSelection.PinnedPage(((effectivePageIndex ?: 0) - 1 + pageCount).mod(pageCount))
+			}
+		}
+	}
+
+/**
+ * The meshes drawn over the shown page, under the Edit / Object rule of [shownSurfaceDrawables], in model
+ * (parts-tree) order.
+ *
+ * @param PuppetModel model The session's committed model.
+ * @param EditorMode mode The session mode selecting the Edit / Object candidate rule.
+ * @param MeshSelection meshSelection The mesh-element selection (Edit mode's candidate set).
+ * @param PuppetTextures? textures The decoded atlas pages, or null before textures load.
+ * @param Int? pageIndex The shown page's index (the page filter), or null for the untextured fallback.
+ * @return List<Drawable> The drawables whose mappings draw over the page.
+ */
+internal fun shownUvDrawables(
+	model: PuppetModel,
+	mode: EditorMode,
+	meshSelection: MeshSelection,
+	textures: PuppetTextures?,
+	pageIndex: Int?,
+): List<Drawable> =
+	shownSurfaceDrawables(model, mode, meshSelection) { drawable ->
+		textures == null || atlasPageIndexFor(drawable, textures) == pageIndex
+	}
+
+/**
+ * The meshes drawn over whichever surface the UV editor is showing.
+ *
+ * The Edit / Object split is the whole rule and it belongs to the EDITOR, not to the surface: Edit
+ * mode shows the session's edited meshes, because those are the ones an operator can act on - showing
+ * more would offer the user vertices that refuse to move - and Object mode shows every visible mesh,
+ * because those are the click targets.  Only [drawsOverSurface] differs between a page and a source
+ * layer, which is what keeps the two views from drifting apart on the rule they share.
+ *
+ * Meshes without an editable UV array (empty or malformed) are excluded everywhere.  Visibility
+ * follows the Parts-panel eyeball cascade in Object mode, matching what the viewport can render and
+ * therefore pick; a hidden island neither draws nor picks.
+ *
+ * @param PuppetModel model The session's committed model.
+ * @param EditorMode mode The session mode selecting the Edit / Object candidate rule.
+ * @param MeshSelection meshSelection The mesh-element selection (Edit mode's candidate set).
+ * @param Function drawsOverSurface Whether a drawable's mapping addresses the shown surface.
+ * @return List<Drawable> The drawables whose mappings draw over it, in model order.
+ */
+internal fun shownSurfaceDrawables(
+	model: PuppetModel,
+	mode: EditorMode,
+	meshSelection: MeshSelection,
+	drawsOverSurface: (Drawable) -> Boolean,
+): List<Drawable> {
+	val candidates =
+		if (mode == EditorMode.Edit) {
+			meshSelection.drawableIds.mapNotNull { drawableId -> model.drawables.firstOrNull { drawable -> drawable.id == drawableId } }
+		} else {
+			val shownIds = model.visibleDrawableIds()
+			model.drawables.filter { drawable -> drawable.id in shownIds }
+		}
+
+	return candidates.filter { drawable ->
+		val mesh = drawable.mesh
+		mesh != null && mesh.uvs.isNotEmpty() && mesh.uvs.size == mesh.positions.size && drawsOverSurface(drawable)
+	}
+}
+
+/**
+ * Projects the shown drawables' mappings into display-space gizmo geometry: texel units with the
+ * v-axis flip (see UvDisplayMapping.kt), edges derived from the triangle indices.
+ *
+ * Takes the mappings rather than reading them off the drawables, because which frame they are in is
+ * the caller's business (see [shownSurfaceUvs]) - which is what lets one projection serve the page
+ * view and the layer view alike, and every overlay downstream stay unaware of the difference.  This is
+ * the one-shot form; an area keeps a [UvGizmoGeometryCache], which computes the same per mesh and keeps it.
+ *
+ * @param List<Drawable> shownDrawables The drawables drawn over the shown surface.
+ * @param Map<DrawableId, FloatArray> uvsById Each drawable's mapping in the shown surface's frame.
+ * @param Int displayWidth The shown surface's width in texels (the display mapping's scale).
+ * @param Int displayHeight The shown surface's height in texels.
+ * @return List<GizmoMeshGeometry> One geometry per drawable with a mapping.
+ */
+internal fun uvGizmoGeometries(
+	shownDrawables: List<Drawable>,
+	uvsById: Map<DrawableId, FloatArray>,
+	displayWidth: Int,
+	displayHeight: Int,
+): List<GizmoMeshGeometry> = UvGizmoGeometryCache().geometries(shownDrawables, uvsById, displayWidth, displayHeight)
+
+/**
+ * The display-space rectangle every shown mesh covers - what a fit of the UV editor widens the shown
+ * surface to take in, so a placement moved past the page edge is still framed along with the page.
+ *
+ * @param List<GizmoMeshGeometry> geometries The shown meshes in display space.
+ * @return ContentBounds? Their bounds, or null when no mesh has a vertex.
+ */
+internal fun shownIslandExtent(geometries: List<GizmoMeshGeometry>): ContentBounds? {
+	var minX = Float.POSITIVE_INFINITY
+	var minY = Float.POSITIVE_INFINITY
+	var maxX = Float.NEGATIVE_INFINITY
+	var maxY = Float.NEGATIVE_INFINITY
+
+	for (geometry in geometries) {
+		val positions = geometry.positions
+
+		for (vertexIndex in 0 until positions.size / 2) {
+			val x = positions[vertexIndex * 2]
+			val y = positions[vertexIndex * 2 + 1]
+
+			// A mapping that is not a number frames nothing, and would poison every bound it touched.
+			if (!x.isFinite() || !y.isFinite()) {
+				continue
+			}
+
+			minX = minOf(minX, x)
+			minY = minOf(minY, y)
+			maxX = maxOf(maxX, x)
+			maxY = maxOf(maxY, y)
+		}
+	}
+
+	if (minX > maxX) {
+		return null
+	}
+
+	return ContentBounds(minX, minY, maxX - minX, maxY - minY)
+}

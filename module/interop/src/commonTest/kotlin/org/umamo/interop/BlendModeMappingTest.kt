@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Pins the blend-mode bijections against the extraction tables in docs/plan/offscreen-support.md:
+ * Pins the blend-mode bijections against the extraction table in docs/format/MOC3.md §5.6 (section 157):
  * every CMO3 token and every MOC3 packed int maps to its distinct runtime mode, the two encodings
  * agree pairwise, and unknown values fall back to Normal/Over.
  */
@@ -53,6 +53,7 @@ class BlendModeMappingTest {
 	fun colorTableIsACompleteBijection() {
 		assertEquals(BlendMode.entries.size, colorRows.size, "one row per BlendMode constant")
 		assertEquals(colorRows.size, colorRows.map { it.mode }.toSet().size, "modes are distinct")
+
 		for (row in colorRows) {
 			assertEquals(row.mode, colorBlendOfToken(row.token), "token ${row.token}")
 			assertEquals(row.mode, colorBlendOfPacked(row.packedColor), "packed colorMode ${row.packedColor}")
@@ -63,6 +64,7 @@ class BlendModeMappingTest {
 	fun alphaTableIsACompleteBijection() {
 		assertEquals(AlphaBlendMode.entries.size, alphaRows.size, "one row per AlphaBlendMode constant")
 		assertEquals(alphaRows.size, alphaRows.map { it.mode }.toSet().size, "modes are distinct")
+
 		for (row in alphaRows) {
 			assertEquals(row.mode, alphaBlendOfToken(row.token), "token ${row.token}")
 			assertEquals(row.mode, alphaBlendOfPacked(row.packedAlpha shl 8), "packed alphaMode ${row.packedAlpha}")

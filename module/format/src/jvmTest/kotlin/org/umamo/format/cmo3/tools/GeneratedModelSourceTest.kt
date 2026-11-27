@@ -1,5 +1,6 @@
 package org.umamo.format.cmo3.tools
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -21,9 +22,9 @@ class GeneratedModelSourceTest {
 	@Test
 	fun parsesEveryDeclarationInTheRealGeneratedModel() {
 		if (!generatedModel.isFile) {
-			println("GeneratedModel.kt not found at ${generatedModel.absolutePath}; skipping")
-			return
+			skipTest("GeneratedModel.kt not found at ${generatedModel.absolutePath}; skipping")
 		}
+
 		val model = parseGeneratedModel(generatedModel)
 		// Cross-check against a source the parser cannot influence: the raw @SerialTag count.
 		val declaredTags = generatedModel.readLines().count { it.startsWith("@SerialTag(") }
@@ -40,8 +41,9 @@ class GeneratedModelSourceTest {
 	@Test
 	fun parsesTheBracelessEmptyClassForm() {
 		if (!generatedModel.isFile) {
-			return
+			skipTest("GeneratedModel.kt not found at ${generatedModel.absolutePath}; skipping")
 		}
+
 		val model = parseGeneratedModel(generatedModel)
 		// `public class CBlend_Normal : ACBlend()` has no body -- the shape that broke the old parser.
 		val bodyless = model.classes.values.filter { it.isBodyless }
@@ -52,11 +54,13 @@ class GeneratedModelSourceTest {
 	@Test
 	fun capturesFieldsInDeclarationOrderWithTheirAnnotations() {
 		if (!generatedModel.isFile) {
-			return
+			skipTest("GeneratedModel.kt not found at ${generatedModel.absolutePath}; skipping")
 		}
+
 		val model = parseGeneratedModel(generatedModel)
 		val withFields = model.classes.values.filter { it.fields.isNotEmpty() }
 		assertTrue(withFields.isNotEmpty(), "classes with fields must parse")
+
 		// Every field's captured lines must actually contain its own declaration.
 		for (modelClass in withFields) {
 			for (field in modelClass.fields) {
@@ -66,6 +70,7 @@ class GeneratedModelSourceTest {
 				)
 			}
 		}
+
 		assertTrue(
 			model.classes.values.any { modelClass -> modelClass.fields.any { it.dontSerializeIfDefault } },
 			"@DontSerializeIfDefault must be carried through, or a merge would drop it",

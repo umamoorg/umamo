@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * `*.cdi3.json` - display info: human-readable names and grouping for parameters/parts, plus
- * 2-axis "combined parameter" hints. Purely cosmetic (no runtime effect).
+ * 2-axis "combined parameter" hints.  Purely cosmetic (no runtime effect).
  *
  * Keys/order match the `cdi3.json` the editor exports, with one addition: `Drawables` is an Umamo
  * extension (MOC3.md §6.3 documents no such key) carrying drawable display names, which the `.moc3`

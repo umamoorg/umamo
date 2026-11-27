@@ -36,6 +36,7 @@ class PosedBoundsTest {
 				listOf(KeyformAxis(paramA, floatArrayOf(0f))),
 				listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(deltas))),
 			)
+
 		return cellsByLinearIndex(grid)
 	}
 

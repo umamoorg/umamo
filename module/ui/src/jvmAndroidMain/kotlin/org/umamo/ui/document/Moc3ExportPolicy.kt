@@ -3,7 +3,6 @@ package org.umamo.ui.document
 import org.umamo.interop.moc3.Moc3ExportOptions
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.render.PuppetTextures
-import org.umamo.render.canvasToParentSpaceFor
 import org.umamo.render.encodeAtlasPng
 import org.umamo.render.withTexturePagesFrom
 import org.umamo.runtime.model.PuppetModel
@@ -44,13 +43,13 @@ fun prepareMoc3Export(
 	// FileKit appends the extension, so the destination's own name is the family's base name.
 	val basename = Moc3Sidecars.basenameFor(destinationName)
 	val moc3Document = document as? Moc3Document
+
 	return Moc3Sidecars.bundle(
 		puppet = bound,
 		basename = basename,
 		pages = atlasPagesFor(effectiveTextures, moc3Document, basename),
 		sidecars = exportedSidecarsFor(passThroughSidecars(moc3Document), options),
 		source = moc3Document?.manifest,
-		canvasToParentSpace = canvasToParentSpaceFor(bound),
 		options = options,
 	)
 }
@@ -58,7 +57,6 @@ fun prepareMoc3Export(
 /**
  * The pass-through sidecars an export carries under [options].
  *
- * Physics and user data are the two a rigger can opt out of; every other kind always rides along.
  * Filtered HERE, before the bundle, because the manifest derives its physics/userData references
  * from the sidecar list it is handed - dropping a sidecar upstream drops its reference with it,
  * so the two cannot disagree.
@@ -74,7 +72,9 @@ internal fun exportedSidecarsFor(
 	sidecars.filter { sidecar ->
 		when (sidecar.kind) {
 			Moc3Sidecars.SidecarKind.Physics -> options.includePhysics
+
 			Moc3Sidecars.SidecarKind.UserData -> options.includeUserData
+
 			Moc3Sidecars.SidecarKind.Pose,
 			Moc3Sidecars.SidecarKind.Expression,
 			Moc3Sidecars.SidecarKind.Motion,
@@ -86,19 +86,17 @@ internal fun exportedSidecarsFor(
  * The atlas pages the family writes, in the decoded set's page order.
  *
  * Page names come from the SOURCE manifest when there is one, so a re-export lands the family in the
- * shape (and the subdirectory) the model already used.  A CMO3-origin document has no manifest, so
- * its pages are named the way the official editor's bake names them - a `Basename.Resolution/`
- * subfolder holding `texture_NN.png` files (two-digit minimum, underscore separated); every corpus
- * manifest follows exactly this shape, and runtimes' tooling expects it.  Bytes are the source PNGs
- * verbatim when the document retains them - both faster and lossless - and a re-encode of the
- * decoded RGBA only when it does not.
+ * shape (and the subdirectory) the model already used.  A document of any other origin has no manifest,
+ * so its pages are named the way the official editor's bake names them - a `Basename.Resolution/`
+ * subfolder holding `texture_NN.png` files, the shape every corpus manifest follows.  Bytes are the
+ * source PNGs verbatim when the document retains them, which is both faster and lossless.
  *
  * Driven by the DECODED set rather than the retained bytes: that set is what the model's page indices
  * were resolved against, so a source whose manifest lists more pages than decoded cannot silently
  * emit a page nothing samples.
  *
  * @param PuppetTextures textures     The document's decoded atlas set, which drives the page list.
- * @param Moc3Document?  moc3Document The document when it came from a moc, else null (a CMO3 origin,
+ * @param Moc3Document?  moc3Document The document when it came from a moc, else null (any other origin,
  *                                    which has neither source names nor source bytes).
  * @param String         basename     The family base name, for synthesized page names.
  * @return List The pages to write.
@@ -109,13 +107,15 @@ internal fun atlasPagesFor(
 	basename: String,
 ): List<Moc3Sidecars.AtlasPage> {
 	val textureFolder = "$basename.${atlasResolutionFor(textures)}"
+
 	return textures.atlases.mapIndexed { pageIndex, atlas ->
 		val sourceName = moc3Document?.manifest?.fileReferences?.textures?.getOrNull(pageIndex)
 		Moc3Sidecars.AtlasPage(
 			fileName = sourceName ?: "$textureFolder/texture_${paddedPageIndex(pageIndex)}.png",
-			// The verbatim-bytes preference is only reachable for a MOC3-origin document, which the
-			// repack's availability gate excludes (no atlas tiles) - so a recomposed effective set can
-			// never be shadowed by stale retained bytes here.
+			// The verbatim-bytes preference is only reachable for a MOC3-origin document, whose pages
+			// nothing recomposes: the repack's availability gate needs atlas tiles, and Import Artwork
+			// refuses a document whose drawables have none (refuseArtworkAdd) - so a recomposed effective
+			// set can never be shadowed by stale retained bytes here.
 			bytes = moc3Document?.atlasPages?.getOrNull(pageIndex) ?: encodeAtlasPng(atlas),
 		)
 	}

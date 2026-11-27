@@ -8,6 +8,7 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PartId
@@ -15,6 +16,7 @@ import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
 import org.umamo.runtime.model.partByDrawable
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -37,10 +39,11 @@ class Moc3ImportTest {
 	@Test
 	fun mapsCorpusModelToStructuralTree() {
 		val file = sample
+
 		if (file == null) {
-			println("moc3.sample not present; skipping import test")
-			return
+			skipTest("moc3.sample not present; skipping import test")
 		}
+
 		val mocDocument = Moc3.read(file.readBytes())
 		val displayInfo = siblingDisplayInfo(file)
 		val puppet = Moc3Import.fromMocDocument(mocDocument, displayInfo)
@@ -67,19 +70,19 @@ class Moc3ImportTest {
 		println("[Umamo][moc3import] parameterTree top=${puppet.parameterTree.size} links=${puppet.parameterLinks.size}")
 		println(
 			"[Umamo][moc3import] canvas=${puppet.canvasWidth}x${puppet.canvasHeight} " +
-				"origin=(${puppet.worldOriginX}, ${puppet.worldOriginY})",
+				"origin=(${puppet.worldOriginX}, ${puppet.worldOriginZ})",
 		)
 
 		// Model A: BLEND_SHAPE-typed parameters carry their kind through the import (MOC3 section 114).
 		if (file.name.startsWith("modelA")) {
 			assertEquals(
 				12,
-				puppet.parameters.count { it.kind == org.umamo.runtime.model.ParameterKind.BLEND_SHAPE },
+				puppet.parameters.count { it.kind == ParameterKind.BLEND_SHAPE },
 				"modelA: blend-shape parameter kinds mapped",
 			)
 		}
 
-		// Golden gate: for the EricaTamamo corpus, pin the imported structure. Drawable-derived counts
+		// Golden gate: for the EricaTamamo corpus, pin the imported structure.  Drawable-derived counts
 		// intentionally differ from the CMO3 sample's (177 drawables / 31470 vertices / 337 art
 		// interpolations): the bake drops the three sketch ("Guide Image") drawables.
 		if (file.name.startsWith("EricaTamamo")) {
@@ -97,7 +100,7 @@ class Moc3ImportTest {
 			assertEquals(4500f, puppet.canvasWidth, "canvas width")
 			assertEquals(6500f, puppet.canvasHeight, "canvas height")
 			assertEquals(2250f, puppet.worldOriginX, "world origin x")
-			assertEquals(-3250f, puppet.worldOriginY, "world origin y")
+			assertEquals(-3250f, puppet.worldOriginZ, "world origin y")
 			assertEquals(
 				listOf(
 					ParameterLink(ParameterId("ParamAngleX"), ParameterId("ParamAngleY")),
@@ -131,19 +134,24 @@ class Moc3ImportTest {
 			}
 		}
 		checkOrgChildren(puppet.rootChildren, "root")
+
 		for (part in puppet.parts) {
 			checkOrgChildren(part.children, "part ${part.id.raw}")
 		}
+
 		val placedDrawables = puppet.partByDrawable().keys
+
 		for (drawable in puppet.drawables) {
 			assertTrue(drawable.id in placedDrawables, "drawable ${drawable.id.raw} is missing from the org tree")
 			drawable.parentDeformerId?.let {
 				assertTrue(it in deformerIds, "drawable ${drawable.id.raw} -> unknown deformer ${it.raw}")
 			}
+
 			for (mask in drawable.maskedBy) {
 				assertTrue(mask in drawableIds, "drawable ${drawable.id.raw} -> unknown mask ${mask.raw}")
 			}
 		}
+
 		for (deformer in puppet.deformers) {
 			deformer.parent?.let {
 				assertTrue(it in deformerIds, "deformer ${deformer.id.raw} -> unknown parent ${it.raw}")
@@ -170,37 +178,46 @@ class Moc3ImportTest {
 			)
 		}
 
-		// Deformer labels: the id, optionally anchored with the one drawable the deformer reaches. The
+		// Deformer labels: the id, optionally anchored with the one drawable the deformer reaches.  The
 		// anchor is checked for TRUTH rather than by restating the rule - whatever mesh a label names
 		// must really be deformed by that deformer, directly or through its descendants.
 		val subtreeDrawables = HashMap<Int, MutableSet<String>>()
+
 		for (artMesh in mocDocument.artMeshes) {
 			var ancestorIndex = artMesh.parentDeformerIndex
 			val visited = HashSet<Int>()
+
 			while (ancestorIndex in mocDocument.deformers.indices && visited.add(ancestorIndex)) {
 				subtreeDrawables.getOrPut(ancestorIndex) { HashSet() }.add(artMesh.id)
 				ancestorIndex = mocDocument.deformers[ancestorIndex].parentDeformerIndex
 			}
 		}
+
 		val labelPattern = Regex("""^(.*) \((.*)\)$""")
+
 		for ((deformerIndex, source) in mocDocument.deformers.withIndex()) {
 			val name = puppet.deformers[deformerIndex].name
 			val anchor = labelPattern.matchEntire(name)
+
 			if (anchor == null) {
 				assertEquals(source.id, name, "deformer $deformerIndex unanchored label is its id")
+
 				continue
 			}
+
 			assertEquals(source.id, anchor.groupValues[1], "deformer $deformerIndex anchored label keeps its id")
 			assertTrue(
 				anchor.groupValues[2] in subtreeDrawables[deformerIndex].orEmpty(),
 				"deformer ${source.id} is labelled with ${anchor.groupValues[2]}, which it does not deform",
 			)
 		}
+
 		val anchoredLabels = puppet.deformers.filter { labelPattern.matches(it.name) }
 		println(
 			"[Umamo][moc3import] deformer labels anchored=${anchoredLabels.size}/${puppet.deformers.size} " +
 				"e.g. ${anchoredLabels.take(3).map { it.name }}",
 		)
+
 		for (glue in puppet.glues) {
 			assertTrue(glue.meshA in drawableIds, "glue -> unknown mesh A ${glue.meshA.raw}")
 			assertTrue(glue.meshB in drawableIds, "glue -> unknown mesh B ${glue.meshB.raw}")
@@ -218,6 +235,7 @@ class Moc3ImportTest {
 		}
 		collectLeaves(puppet.renderRoot)
 		assertEquals(puppet.drawables.size, renderLeaves.size, "render tree leaf count")
+
 		for (leaf in renderLeaves) {
 			assertTrue((leaf as RenderDrawable).id in drawableIds, "render leaf -> unknown drawable")
 		}
@@ -258,10 +276,11 @@ class Moc3ImportTest {
 				?.toList()
 				.orEmpty()
 				.filter { file -> listOf("modelA", "modelB", "modelC").any { prefix -> file.name.startsWith(prefix) } }
+
 		if (samples.isEmpty()) {
-			println("moc3.samples not present; skipping blend-binding corpus gate")
-			return
+			skipTest("moc3.samples not present; skipping blend-binding corpus gate")
 		}
+
 		for (file in samples) {
 			val puppet = Moc3Import.fromMocDocument(Moc3.read(file.readBytes()), siblingDisplayInfo(file))
 			val drawableBindings = puppet.drawables.flatMap { it.blendShapes }
@@ -270,6 +289,7 @@ class Moc3ImportTest {
 			val allBindings = drawableBindings + warpBindings + rotationBindings
 			val defaultByParameter = puppet.parameters.associate { it.id to it.default }
 			val kindByParameter = puppet.parameters.associate { it.id to it.kind }
+
 			for (binding in allBindings) {
 				val keys = binding.keys.toList()
 				assertEquals(keys, keys.sorted(), "${file.name}: binding keys ascending")
@@ -287,34 +307,40 @@ class Moc3ImportTest {
 					}
 				}
 				assertEquals(
-					org.umamo.runtime.model.ParameterKind.BLEND_SHAPE,
+					ParameterKind.BLEND_SHAPE,
 					kindByParameter[binding.parameterId],
 					"${file.name}: driving parameter is BLEND_SHAPE-typed",
 				)
 			}
+
 			// The rotation forms' flips must pin the FLIP tracks' value at the default pose.  The statics are
 			// not lifted until compaction runs at the end of the import, so a form built from the statics
 			// would read constant false and silently un-mirror a reflected deformer's morph targets - the
 			// regression this block guards.  The count is printed so the gate's coverage stays visible.
 			var reflectedForms = 0
 			val defaultPose: (ParameterId) -> Float = { id -> defaultByParameter[id] ?: 0f }
+
 			for (rotation in puppet.deformers.filterIsInstance<Deformer.Rotation>()) {
 				val expectedFlipX = rotation.channelGrids.flagAt(FormChannel.FLIP_X, rotation.flipX, defaultPose)
 				val expectedFlipY = rotation.channelGrids.flagAt(FormChannel.FLIP_Y, rotation.flipY, defaultPose)
+
 				for (binding in rotation.blendShapes) {
 					for (form in binding.forms) {
 						if (form == null) {
 							continue
 						}
+
 						assertEquals(expectedFlipX, form.flipX, "${file.name}: rotation blend form flipX pins the default-pose flip")
 						assertEquals(expectedFlipY, form.flipY, "${file.name}: rotation blend form flipY pins the default-pose flip")
+
 						if (form.flipX || form.flipY) {
 							reflectedForms++
 						}
 					}
 				}
 			}
-			val blendParameterCount = puppet.parameters.count { it.kind == org.umamo.runtime.model.ParameterKind.BLEND_SHAPE }
+
+			val blendParameterCount = puppet.parameters.count { it.kind == ParameterKind.BLEND_SHAPE }
 			val nonNeutralForms = allBindings.sumOf { binding -> binding.forms.count { it != null } }
 			val limitCurves = allBindings.sumOf { it.limits.size }
 			val limitPoints = allBindings.sumOf { binding -> binding.limits.sumOf { it.points.size } }
@@ -323,6 +349,7 @@ class Moc3ImportTest {
 					"(drawable=${drawableBindings.size} warp=${warpBindings.size} rotation=${rotationBindings.size}) " +
 					"forms=$nonNeutralForms limits=$limitCurves points=$limitPoints reflectedForms=$reflectedForms",
 			)
+
 			// Goldens mirror Cmo3ImportTest.blendShapeBindingsAcrossCorpus (Model C's PART record
 			// excluded on both sides; MOC3 limit refs expand the dedup pool per record, one curve
 			// per ref, two points per corpus curve).
@@ -335,6 +362,7 @@ class Moc3ImportTest {
 				assertEquals(118, nonNeutralForms, "Model A: non-neutral forms")
 				assertEquals(0, limitCurves, "Model A: no limits")
 			}
+
 			if (file.name.startsWith("modelB")) {
 				assertEquals(5, blendParameterCount, "Model B: blend parameters")
 				assertEquals(45, allBindings.size, "Model B: bindings")
@@ -344,6 +372,7 @@ class Moc3ImportTest {
 				assertEquals(44, limitCurves, "Model B: limit curves")
 				assertEquals(88, limitPoints, "Model B: limit points")
 			}
+
 			if (file.name.startsWith("modelC")) {
 				assertEquals(33, blendParameterCount, "Model C: blend parameters")
 				assertEquals(123, allBindings.size, "Model C: bindings (PART record excluded)")
@@ -366,9 +395,11 @@ class Moc3ImportTest {
 	private fun siblingDisplayInfo(mocFile: File): Cdi3Json? {
 		val basename = Moc3Sidecars.basenameFor(mocFile.name)
 		val cdi3File = mocFile.parentFile.resolve("$basename.cdi3.json")
+
 		if (!cdi3File.isFile) {
 			return null
 		}
+
 		return Moc3.readCdi3(cdi3File.readText())
 	}
 }

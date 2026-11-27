@@ -4,7 +4,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -21,14 +23,34 @@ import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
 import kotlin.math.roundToInt
 
-/** Places a popup at a fixed window point (the drag cursor), nudged down-right so it clears the pointer. */
-private class CursorPopupPositionProvider(private val cursorX: Float, private val cursorY: Float) : PopupPositionProvider {
+/**
+ * Places a popup at the drag pointer, nudged down-right so it clears the pointer.
+ *
+ * The pointer is read while the popup is laid out, so the chip is laid out again as the pointer moves,
+ * with nothing recomposed.
+ *
+ * @property Function pointerInWindow The drag pointer, in window pixels.
+ */
+private class CursorPopupPositionProvider(private val pointerInWindow: () -> Offset) : PopupPositionProvider {
+	/**
+	 * Computes the chip's top-left in window coordinates.
+	 *
+	 * @param IntRect anchorBounds The Popup's anchor layout bounds (unused - the pointer is the anchor).
+	 * @param IntSize windowSize The host window size (unused - the chip may run off the window's edge).
+	 * @param LayoutDirection layoutDirection The layout direction (unused; the nudge is the pointer's).
+	 * @param IntSize popupContentSize The measured chip size (unused).
+	 * @return IntOffset The chip's top-left.
+	 */
 	override fun calculatePosition(
 		anchorBounds: IntRect,
 		windowSize: IntSize,
 		layoutDirection: LayoutDirection,
 		popupContentSize: IntSize,
-	): IntOffset = IntOffset((cursorX + 14f).roundToInt(), (cursorY + 8f).roundToInt())
+	): IntOffset {
+		val pointer = pointerInWindow()
+
+		return IntOffset((pointer.x + 14f).roundToInt(), (pointer.y + 8f).roundToInt())
+	}
 }
 
 /**
@@ -36,17 +58,20 @@ private class CursorPopupPositionProvider(private val cursorX: Float, private va
  * obviously "in hand" beyond the faded source row.  Non-focusable and mounted at the space root,
  * positioned in window coordinates at the drag pointer - the one chip every row-dragging space shows.
  *
- * @param String label   The dragged row's display name.
- * @param Float  cursorX The drag pointer X, in window pixels.
- * @param Float  cursorY The drag pointer Y, in window pixels.
+ * The pointer is handed over as something to ask, not as a value: the space that mounts the chip then
+ * reads which row is in hand and nothing that moves, and only the chip follows the pointer.
+ *
+ * @param String   label           The dragged row's display name.
+ * @param Function pointerInWindow The drag pointer, in window pixels; asked while the chip is laid out.
  */
 @Composable
-fun RowDragLabel(label: String, cursorX: Float, cursorY: Float) {
+fun RowDragLabel(label: String, pointerInWindow: () -> Offset) {
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
 	val typography = LocalUmamoTypography.current
+	val positionProvider = remember(pointerInWindow) { CursorPopupPositionProvider(pointerInWindow) }
 	Popup(
-		popupPositionProvider = CursorPopupPositionProvider(cursorX, cursorY),
+		popupPositionProvider = positionProvider,
 		properties = PopupProperties(focusable = false, clippingEnabled = false),
 	) {
 		Surface(

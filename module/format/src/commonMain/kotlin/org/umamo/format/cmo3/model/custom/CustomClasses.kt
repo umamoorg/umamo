@@ -1,5 +1,8 @@
 package org.umamo.format.cmo3.model.custom
 
+import org.umamo.format.cmo3.model.gen.ACDeformerForm
+import org.umamo.format.cmo3.model.gen.ACDeformerOriginalShape
+import org.umamo.format.cmo3.model.gen.ACImageLayer
 import org.umamo.format.cmo3.model.type.FileRef
 import org.umamo.format.cmo3.serialize.annotations.DontSerializeIfDefault
 import org.umamo.format.cmo3.serialize.annotations.SerialAttribute
@@ -8,8 +11,8 @@ import org.umamo.format.cmo3.serialize.annotations.SerialTag
 
 /*
  * Value/leaf classes whose scalar fields are written as attributes, modelled as reflective classes with
- * @SerialAttribute for the fields the editor writes as attributes. Field order mirrors each class's
- * serialize() method (verified by the byte-identity gate). Object fields are Any? - they reference
+ * @SerialAttribute for the fields the editor writes as attributes.  Field order mirrors each class's
+ * serialize() method (verified by the byte-identity gate).  Object fields are Any? - they reference
  * already-typed or still-verbatim objects and round-trip by identity regardless.
  */
 
@@ -46,7 +49,7 @@ public class CLabelColor {
 
 /** A warp-deformer original shape, extending the generated ACDeformerOriginalShape. */
 @SerialTag("WarpDeformerOriginalShape")
-public class WarpDeformerOriginalShape : org.umamo.format.cmo3.model.gen.ACDeformerOriginalShape() {
+public class WarpDeformerOriginalShape : ACDeformerOriginalShape() {
 	@SerialName("lastUpdatedTimeString")
 	public var ownLastUpdatedTimeString: String? = null
 
@@ -65,7 +68,7 @@ public class WarpDeformerOriginalShape : org.umamo.format.cmo3.model.gen.ACDefor
 
 /** A rotation-deformer original shape, extending the generated ACDeformerOriginalShape. */
 @SerialTag("RotationDeformerOriginalShape")
-public class RotationDeformerOriginalShape : org.umamo.format.cmo3.model.gen.ACDeformerOriginalShape() {
+public class RotationDeformerOriginalShape : ACDeformerOriginalShape() {
 	@SerialName("lastUpdatedTimeString")
 	public var ownLastUpdatedTimeString: String? = null
 
@@ -97,7 +100,7 @@ public class CSize {
  * extending ACDeformerForm (the engine nests its `<super>` automatically).
  */
 @SerialTag("CRotationDeformerForm")
-public class CRotationDeformerForm : org.umamo.format.cmo3.model.gen.ACDeformerForm() {
+public class CRotationDeformerForm : ACDeformerForm() {
 	@SerialAttribute
 	public var angle: Float = 0f
 
@@ -203,12 +206,12 @@ public class GEditableMesh2 {
 }
 
 /**
- * An image layer. Extends the generated ACImageLayer (whose
+ * An image layer.  Extends the generated ACImageLayer (whose
  * ancestor ACLayerEntry carries the IOption `_optionOfIOption`); we override it here so the same value
  * is written both in `<super>` and directly, matching the editor.
  */
 @SerialTag("CLayer")
-public class CLayer : org.umamo.format.cmo3.model.gen.ACImageLayer() {
+public class CLayer : ACImageLayer() {
 	public var imageResource: Any? = null
 	public var boundsOnImageDoc: Any? = null
 	public var layerIdentifier: Any? = null

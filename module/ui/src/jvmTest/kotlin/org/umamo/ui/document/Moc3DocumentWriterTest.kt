@@ -26,6 +26,7 @@ class Moc3DocumentWriterTest {
 	 */
 	private fun bundleOf(basename: String): Moc3Sidecars.Bundle {
 		val mocFileName = "$basename.moc3"
+
 		return Moc3Sidecars.Bundle(
 			files =
 				listOf(

@@ -39,6 +39,7 @@ public object MocDerivedIndexes {
 		 */
 		fun prefixSum(counts: List<Int>, base: Int = 0): List<Int> {
 			var running = base
+
 			return counts.map { count ->
 				val start = running
 				running += count
@@ -75,6 +76,7 @@ public object MocDerivedIndexes {
 		sink.putInts(Section.PARAM_SNAP_TYPE, List(doc.parameters.size) { SNAP_TYPE })
 
 		sink.putIds(Section.GLUE_ID, doc.glues.map { it.id })
+
 		return sink.toMap()
 	}
 

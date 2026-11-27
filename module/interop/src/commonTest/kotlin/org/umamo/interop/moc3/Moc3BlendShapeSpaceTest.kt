@@ -76,7 +76,7 @@ class Moc3BlendShapeSpaceTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh =
-				DrawableMesh(
+				DrawableMesh.withLocalEqualToCanvas(
 					positions = FloatArray(authoredDeltas.size),
 					uvs = FloatArray(authoredDeltas.size),
 					indices = intArrayOf(0, 1, 0),
@@ -107,6 +107,7 @@ class Moc3BlendShapeSpaceTest {
 			document.blendShapes.single { blendShape ->
 				blendShape.target == BlendShapeTarget.ART_MESH && blendShape.targetIndex == drawableIndex
 			}
+
 		return (record.keyforms[1] as BlendShapeKeyform.Mesh).form.vertexPositions
 	}
 

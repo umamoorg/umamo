@@ -9,15 +9,14 @@ import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
  * A coordination seam between an in-flight panel row drag and the editor shell's Escape precedence,
- * mirroring [org.umamo.ui.kit.InlineEditController].  A panel's drag state is remembered per panel
+ * mirroring [org.umamo.ui.kit.textentry.InlineEditController].  A panel's drag state is remembered per panel
  * instance and invisible to the shell, yet Escape must reach it: a row drag almost always coexists
  * with a non-empty selection (the press that starts the drag already selected the row), so without
  * this seam the shell's clear-selection Escape branch fires instead of cancelling the drag.  While a
  * drag is in flight the owning panel parks its cancel callback here; the shell checks it before
  * clearing the selection.  Several row-dragging panels (outliner, parameters, sources) across several
  * areas may exist, but one pointer means at most one in-flight drag anywhere, so a single shared slot
- * suffices for all of them.  Holds null whenever no row drag is in flight.  Only the dragging panel
- * should write it.
+ * suffices for all of them.  Only the dragging panel should write it.
  *
  * @property Function cancel Cancels the in-flight row drag, or null when none is in flight.
  */
@@ -42,11 +41,16 @@ val LocalRowDragCancel = staticCompositionLocalOf { RowDragCancelController() }
 fun RowDragController<*>.parkCancelOnSeam() {
 	val seam = LocalRowDragCancel.current
 	DisposableEffect(isDragging) {
+		val cancelDrag: () -> Unit = { cancel() }
+
 		if (isDragging) {
-			seam.cancel = { cancel() }
+			seam.cancel = cancelDrag
 		}
+
 		onDispose {
-			seam.cancel = null
+			if (seam.cancel === cancelDrag) {
+				seam.cancel = null
+			}
 		}
 	}
 }

@@ -1,0 +1,255 @@
+package org.umamo.ui.workspace.commands
+
+import okio.Path.Companion.toPath
+import okio.fakefilesystem.FakeFileSystem
+import org.umamo.edit.EditorMode
+import org.umamo.edit.EditorSession
+import org.umamo.edit.Selection
+import org.umamo.edit.SelectionTarget
+import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
+import org.umamo.runtime.model.Drawable
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RuntimeTarget
+import org.umamo.settings.Settings
+import org.umamo.storage.OkioAppStorage
+import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandRegistry
+import org.umamo.ui.model.EditorModeHandle
+import org.umamo.ui.model.SelectionHandle
+import org.umamo.ui.workspace.AreaCameraHub
+import org.umamo.ui.workspace.AreaOverlayHub
+import org.umamo.ui.workspace.AreaToolbarHub
+import org.umamo.ui.workspace.KeyformSheetViews
+import org.umamo.ui.workspace.RelationPickController
+import org.umamo.ui.workspace.ShellOverlayState
+import org.umamo.ui.workspace.ViewportChromeState
+import org.umamo.ui.workspace.area.AreaDragController
+import org.umamo.ui.workspace.area.SplitterDragCancelController
+import org.umamo.ui.workspace.layout.WorkspaceLayoutController
+import org.umamo.ui.workspace.layout.WorkspaceNames
+import org.umamo.ui.workspace.layout.defaultLayout
+import org.umamo.ui.workspace.operationstrip.OperationStripState
+import org.umamo.ui.workspace.rowdrag.RowDragCancelController
+import org.umamo.ui.workspace.sidebar.AreaSidebarHub
+import kotlin.test.assertEquals
+
+/*
+ * The fixtures the command-table tests share: a session parked in a given mode, and the whole command
+ * table the way the shell, the settings-backed shell, and the app register it.
+ *
+ * Registration happens inside composables, so no test can read the list the shell really registers.
+ * Holding the test-side copy once at least keeps every table-wide assertion looking at the same set.
+ */
+
+/**
+ * A session in [mode] with one mesh drawable selected and one warp in the model - Edit mode is refused with
+ * nothing to edit, and Pose mode with nothing to pose.
+ *
+ * @param EditorMode mode The mode to leave the session in.
+ * @param RuntimeTarget runtimeTarget The document's runtime target, unrestricted unless a case varies it.
+ * @return EditorSession The session, verified to be in [mode].
+ */
+internal fun commandFixtureSession(
+	mode: EditorMode,
+	runtimeTarget: RuntimeTarget = RuntimeTarget.NoTarget,
+): EditorSession {
+	val drawable =
+		Drawable(
+			id = DrawableId("a"),
+			name = "a",
+			parentDeformerId = null,
+			blendMode = BlendMode.Normal,
+			maskedBy = emptyList(),
+			mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2)),
+			geometryGrid = null,
+		)
+	// One deformer, because Pose mode is refused on a model with nothing to pose.
+	val warp =
+		Deformer.Warp(
+			id = DeformerId("w"),
+			name = "w",
+			parent = null,
+			partId = null,
+			rows = 1,
+			columns = 1,
+			isQuadTransform = true,
+			geometryGrid = null,
+		)
+	val session =
+		EditorSession(
+			PuppetModel(
+				parameters = emptyList(),
+				parts = emptyList(),
+				deformers = listOf(warp),
+				drawables = listOf(drawable),
+				rootChildren = emptyList(),
+				rootPartId = null,
+				runtimeTarget = runtimeTarget,
+			),
+		)
+	val target = SelectionTarget.Drawable(DrawableId("a"))
+	session.setSelection(Selection(setOf(target), target))
+	session.setMode(mode)
+	// A case reading the mode through a command's availability would pass its "is hidden" half against a
+	// fixture that quietly stayed in Object mode, while testing nothing.
+	assertEquals(mode, session.mode.value, "the fixture must really be in the mode the case names")
+
+	return session
+}
+
+/**
+ * The selection and mode handles over [session], reading the session directly where the app's handle
+ * reads a Compose mirror of it.
+ *
+ * @property EditorSession session The session both handles read and write.
+ */
+private class SessionHandles(private val session: EditorSession) : SelectionHandle, EditorModeHandle {
+	override val selection: Selection get() = session.selection.value
+
+	/**
+	 * Routes a selection to the session.
+	 *
+	 * @param Selection selection The new selection.
+	 */
+	override fun set(selection: Selection) {
+		session.setSelection(selection)
+	}
+
+	override val mode: EditorMode get() = session.mode.value
+
+	/**
+	 * Routes a mode change to the session.
+	 *
+	 * @param EditorMode mode The new mode.
+	 */
+	override fun set(mode: EditorMode) {
+		session.setMode(mode)
+	}
+
+	/**
+	 * Routes the Edit toggle to the session.
+	 */
+	override fun toggleEdit() {
+		session.toggleEditMode()
+	}
+
+	/**
+	 * Routes the Pose toggle to the session.
+	 */
+	override fun togglePose() {
+		session.togglePoseMode()
+	}
+}
+
+/**
+ * Settings over an in-memory filesystem, for the tests that read or write a key.
+ *
+ * @return Settings Empty settings that persist nowhere real.
+ */
+internal fun inMemorySettings(): Settings {
+	val configDirectory = "/config".toPath()
+	val fileSystem = FakeFileSystem()
+	fileSystem.createDirectories(configDirectory)
+
+	return Settings.load(OkioAppStorage(fileSystem, configDirectory, "/data".toPath()), "{}")
+}
+
+/**
+ * The chrome workspace names are made from, in English, as the shell resolves it inside its locale key.
+ *
+ * @return WorkspaceNames The names.
+ */
+internal fun fixtureWorkspaceNames(): WorkspaceNames =
+	WorkspaceNames(
+		newBaseName = "Workspace",
+		copySuffix = "copy",
+		builtinTitles = mapOf("modelling" to "Modelling", "texture" to "Texture", "physics" to "Physics"),
+	)
+
+/**
+ * Every command table the shell, the settings-backed shell, and the app register, in the shell's
+ * registration order.
+ *
+ * @param EditorSession? session The session the document-scoped tables close over, or null for the
+ *   no-document tables (every availability then answers for a closed document).
+ * @return List<Command> Every command.
+ */
+internal fun everyCommandTable(session: EditorSession? = null): List<Command> = everyCommandTableFunction(session).flatten()
+
+/**
+ * What [everyCommandTable] holds, one list per table function: the unit a family's own commands, or one section's,
+ * must come from whole, since registration order holds only inside one.
+ *
+ * @param EditorSession? session The session the document-scoped tables close over, or null for the
+ *   no-document tables.
+ * @return List<List<Command>> Each table function's commands, in the shell's registration order.
+ */
+internal fun everyCommandTableFunction(session: EditorSession? = null): List<List<Command>> =
+	shellCommandTableFunctions(session) +
+		listOf(
+			workspaceFileCommands({}, {}, {}),
+			logCommands {},
+			fileCommands({}, {}, {}, {}, { true }, {}, {}, {}, { emptyList() }, {}),
+			logFolderCommands {},
+			updateCommands {},
+			fileExportCommands({ true }, {}, {}),
+		)
+
+/**
+ * The command tables the shell itself registers, in its registration order - everything but what the
+ * settings-backed shell and the app add around it.
+ *
+ * @param EditorSession? session The session the document-scoped tables close over, or null for the
+ *   no-document tables.
+ * @return List<Command> The shell's commands.
+ */
+internal fun shellCommandTables(session: EditorSession? = null): List<Command> = shellCommandTableFunctions(session).flatten()
+
+/**
+ * What [shellCommandTables] holds, one list per table function.
+ *
+ * @param EditorSession? session The session the document-scoped tables close over, or null for the
+ *   no-document tables.
+ * @return List<List<Command>> Each of the shell's table functions' commands, in its registration order.
+ */
+private fun shellCommandTableFunctions(session: EditorSession? = null): List<List<Command>> {
+	val overlays = ShellOverlayState()
+	val workspaces = WorkspaceLayoutController(defaultLayout()) {}
+	val routing = CommandRouting { null }
+	val availability = SessionAvailability(session)
+	val sheets = KeyformSheetViews()
+	val handles = session?.let { live -> SessionHandles(live) }
+
+	return listOf(
+		chromeCommands(overlays, AreaDragController(), SplitterDragCancelController(), RowDragCancelController(), workspaces) {},
+		workspaceCommands(workspaces, overlays) { fixtureWorkspaceNames() },
+		documentCommands(overlays),
+		viewCommands(AreaCameraHub(), routing, viewportPresent = false),
+		overlayCommands(AreaOverlayHub(), routing, viewportPresent = false),
+		frameCommands(CommandRegistry(), routing),
+		viewportChromeCommands(AreaToolbarHub(), AreaSidebarHub(), routing) { ViewportChromeState() },
+		sidebarCommands(AreaSidebarHub(), routing),
+		modeCommands(handles, handles),
+		historyCommands(session, availability, OperationStripState()),
+		objectCommands(session, handles, availability),
+		relationCommands(session, RelationPickController(), routing, availability),
+		parameterCommands(session, availability),
+		transformCommands(session, routing, availability),
+		selectCommands(session, routing, sheets, availability),
+		snapCommands(session, routing, availability, AreaOverlayHub()),
+		uvCommands(session, routing, availability),
+		topologyCommands(session, routing, availability),
+		meshGenerationCommands(availability, routing, null, null),
+		latticeCommands(session, routing, availability),
+		proportionalCommands(session, availability),
+		displayCommands(session, availability),
+		atlasCommands(availability, routing, null),
+		fileArtworkCommands(routing) { null },
+		fileImageExportCommands(routing) { null },
+		keyformCommands(session, { null }, routing, sheets, availability),
+	)
+}

@@ -35,6 +35,7 @@ class TiffDecodeTest {
 	 */
 	private fun encodeValues(field: Field): ByteArray {
 		val out = Buffer()
+
 		for (value in field.values) {
 			if (field.type == typeShort) {
 				out.writeByte(value and 0xFF)
@@ -46,6 +47,7 @@ class TiffDecodeTest {
 				out.writeByte((value ushr 24) and 0xFF)
 			}
 		}
+
 		return out.readByteArray()
 	}
 
@@ -76,15 +78,19 @@ class TiffDecodeTest {
 		fields += Field(277, typeShort, intArrayOf(samplesPerPixel))
 		fields += Field(278, typeLong, intArrayOf(height))
 		fields += Field(279, typeLong, intArrayOf(stripData.size))
+
 		if (predictor != null) {
 			fields += Field(317, typeShort, intArrayOf(predictor))
 		}
+
 		if (colorMap != null) {
 			fields += Field(320, typeShort, colorMap)
 		}
+
 		if (extraSamples != null) {
 			fields += Field(338, typeShort, extraSamples)
 		}
+
 		fields.sortBy { it.tag }
 
 		val ifdOffset = 8
@@ -92,8 +98,10 @@ class TiffDecodeTest {
 		var externalCursor = ifdOffset + ifdSize
 		val externalBlocks = ArrayList<Pair<Int, ByteArray>>()
 		val valueField = HashMap<Field, Int>()
+
 		for (field in fields) {
 			val encoded = encodeValues(field)
+
 			if (encoded.size <= 4) {
 				valueField[field] = 0 // inline; filled below from encoded bytes
 			} else {
@@ -102,10 +110,12 @@ class TiffDecodeTest {
 				externalCursor += encoded.size
 			}
 		}
+
 		val stripOffset = externalCursor
 
 		val totalSize = stripOffset + stripData.size
 		val out = ByteArray(totalSize)
+
 		// Header.
 		if (bigEndian) {
 			out[0] = 0x4D
@@ -118,16 +128,19 @@ class TiffDecodeTest {
 			out[2] = 0x2A
 			out[3] = 0x00
 		}
+
 		putU32(out, 4, ifdOffset, bigEndian)
 
 		// IFD.
 		putU16(out, ifdOffset, fields.size, bigEndian)
 		var entryOffset = ifdOffset + 2
+
 		for (field in fields) {
 			putU16(out, entryOffset, field.tag, bigEndian)
 			putU16(out, entryOffset + 2, field.type, bigEndian)
 			putU32(out, entryOffset + 4, field.values.size, bigEndian)
 			val totalBytes = field.values.size * typeLength(field.type)
+
 			if (field === stripOffsetsField) {
 				putU32(out, entryOffset + 8, stripOffset, bigEndian)
 			} else if (totalBytes <= 4) {
@@ -136,8 +149,10 @@ class TiffDecodeTest {
 			} else {
 				putU32(out, entryOffset + 8, valueField[field]!!, bigEndian)
 			}
+
 			entryOffset += 12
 		}
+
 		putU32(out, entryOffset, 0, bigEndian) // next IFD = none
 
 		// External data blocks (all SHORT arrays here). encodeValues wrote them little-endian; byte-swap
@@ -146,14 +161,17 @@ class TiffDecodeTest {
 			val reordered = if (bigEndian) swapShorts(block) else block
 			reordered.copyInto(out, offset)
 		}
+
 		// Strip data.
 		stripData.copyInto(out, stripOffset)
+
 		return out
 	}
 
 	/** Writes a field's short/long values inline into the 4-byte value slot, in file byte order. */
 	private fun putInlineField(out: ByteArray, at: Int, field: Field, bigEndian: Boolean) {
 		var cursor = at
+
 		for (value in field.values) {
 			if (field.type == typeShort) {
 				putU16(out, cursor, value, bigEndian)
@@ -169,11 +187,13 @@ class TiffDecodeTest {
 	private fun swapShorts(littleEndianBlock: ByteArray): ByteArray {
 		val out = ByteArray(littleEndianBlock.size)
 		var index = 0
+
 		while (index + 1 < littleEndianBlock.size) {
 			out[index] = littleEndianBlock[index + 1]
 			out[index + 1] = littleEndianBlock[index]
 			index += 2
 		}
+
 		return out
 	}
 
@@ -207,12 +227,14 @@ class TiffDecodeTest {
 	private fun packBitsEncode(data: ByteArray): ByteArray {
 		val out = Buffer()
 		var index = 0
+
 		while (index < data.size) {
 			val runLength = minOf(128, data.size - index)
 			out.writeByte(runLength - 1) // control: copy next runLength literal bytes
 			out.write(data, index, runLength)
 			index += runLength
 		}
+
 		return out.readByteArray()
 	}
 
@@ -242,6 +264,7 @@ class TiffDecodeTest {
 		fun emit(code: Int) {
 			bitBuffer = (bitBuffer shl codeSize) or code
 			bitCount += codeSize
+
 			while (bitCount >= 8) {
 				out.writeByte((bitBuffer ushr (bitCount - 8)) and 0xFF)
 				bitCount -= 8
@@ -252,6 +275,7 @@ class TiffDecodeTest {
 
 		fun reset() {
 			dictionary.clear()
+
 			for (value in 0..255) {
 				dictionary[value.toString()] = value
 			}
@@ -264,28 +288,36 @@ class TiffDecodeTest {
 		codeSize = 9
 		emit(clearCode)
 		var current = ""
+
 		for (rawByte in data) {
 			val symbol = (rawByte.toInt() and 0xFF).toString()
 			val combined = if (current.isEmpty()) symbol else "$current,$symbol"
+
 			if (dictionary.containsKey(combined)) {
 				current = combined
 			} else {
 				emit(dictionary[current]!!)
 				dictionary[combined] = next++
+
 				if (next == (1 shl codeSize) - 1 && codeSize < 12) {
 					codeSize++
 				}
+
 				current = symbol
 			}
 		}
+
 		if (current.isNotEmpty()) {
 			emit(dictionary[current]!!)
 		}
+
 		emit(eoiCode)
+
 		// Flush remaining bits.
 		if (bitCount > 0) {
 			out.writeByte((bitBuffer shl (8 - bitCount)) and 0xFF)
 		}
+
 		return out.readByteArray()
 	}
 
@@ -293,8 +325,10 @@ class TiffDecodeTest {
 	private fun predictHorizontal(data: ByteArray, width: Int, height: Int, samplesPerPixel: Int): ByteArray {
 		val out = data.copyOf()
 		val rowBytes = width * samplesPerPixel
+
 		for (row in 0 until height) {
 			val base = row * rowBytes
+
 			for (column in width - 1 downTo 1) {
 				for (sample in 0 until samplesPerPixel) {
 					val offset = base + column * samplesPerPixel + sample
@@ -302,6 +336,7 @@ class TiffDecodeTest {
 				}
 			}
 		}
+
 		return out
 	}
 

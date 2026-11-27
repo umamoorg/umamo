@@ -25,6 +25,7 @@ class Moc3SpaceSeamTest {
 	fun pointsRoundTripThroughEverySpace() {
 		for (space in PointSpace.entries) {
 			val stored = convertPointsToMoc(space, convertPointsToRuntime(space, points, canvas), canvas)
+
 			for (index in points.indices) {
 				assertTrue(
 					kotlin.math.abs(stored[index] - points[index]) <= 1e-3f,
@@ -38,6 +39,7 @@ class Moc3SpaceSeamTest {
 	fun deltasRoundTripThroughEverySpace() {
 		for (space in PointSpace.entries) {
 			val stored = convertDeltasToMoc(space, convertDeltasToRuntime(space, points, canvas), canvas)
+
 			for (index in points.indices) {
 				assertTrue(
 					kotlin.math.abs(stored[index] - points[index]) <= 1e-3f,
@@ -66,6 +68,7 @@ class Moc3SpaceSeamTest {
 	fun aDegenerateCanvasIsTheIdentity() {
 		val degenerate = MocCanvasMapping(pixelsPerUnit = 0f, originX = 0f, originY = 0f)
 		val stored = convertPointsToMoc(PointSpace.ModelRoot, points, degenerate)
+
 		for (value in stored) {
 			assertTrue(value.isFinite(), "a zero ppu must not produce infinities: $value")
 		}

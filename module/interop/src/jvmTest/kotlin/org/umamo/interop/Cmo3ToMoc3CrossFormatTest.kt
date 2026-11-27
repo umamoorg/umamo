@@ -4,12 +4,17 @@ import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.MocDocument
-import org.umamo.format.moc3.model.RotationDeformer
-import org.umamo.format.moc3.model.WarpDeformer
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.fidelity.DivergenceAspect
+import org.umamo.interop.fidelity.FidelityGate
+import org.umamo.interop.fidelity.FidelityLedger
+import org.umamo.interop.fidelity.MocAttribute
+import org.umamo.interop.fidelity.MocObjectKind
+import org.umamo.interop.fidelity.compareMocDocuments
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.partByDrawable
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -23,21 +28,24 @@ import kotlin.test.assertTrue
  * own reading of it.  Every other MOC3 gate starts from a moc: import it, write it back, compare.
  * That proves self-consistency and nothing about whether our lowering agrees with Cubism's.
  *
- * STRUCTURE is compared as equality, and by id: object sets, kinds, parentage, mesh topology, mask
- * lists, parameter ranges.  Those are decisions, not arithmetic - if the editor put a drawable under a
- * warp, so must we.
+ * The export is written, read back, and compared with the bake through the fidelity comparator the
+ * export gates share, every object matched by id.  Structure compares as equality: object sets,
+ * kinds, parentage, mesh topology, mask lists, parameter ranges.  Those are decisions, not arithmetic -
+ * if the editor put a drawable under a warp, so must we.  Keyform grids compare by what they evaluate
+ * to, within the comparator's tolerance.  The CMO3 holds the editor's source-space values and the moc
+ * its baked ones, and on every same-revision twin the export reproduces that transform to float
+ * precision, so a value past the tolerance is a lowering that disagrees with the editor's.
+ * `Cmo3ToMoc3OracleTest` compares the evaluated result through the runtime as well.  Object order is
+ * not compared.
  *
- * The TEXTURE PAGE is not compared, and cannot be: a CMO3 has no atlas.  Its pixels are
- * embedded per drawable, and the packed pages a moc indexes into are produced BY the bake - so the
- * editor's page numbers describe a packing this file does not contain.  What the export writes is its
- * own page set (one per embedded image, or the retained atlas for a MOC3-origin document), and the
- * family it writes is self-consistent with it.
+ * The TEXTURE PAGE is not compared, and cannot be: a CMO3 has no per-drawable page field (it binds
+ * through the layered-art web), so a CMO3-origin drawable carries no page index, and the packed pages a
+ * moc indexes into are produced BY the bake - so the editor's page numbers describe a packing the
+ * imported rig does not record.  What the export writes is its own page set (one per embedded image, or
+ * the retained atlas for a MOC3-origin document), and the family it writes is self-consistent with it.
+ * The UVs are compared.
  *
- * GEOMETRY is not compared here at all.  The two files are separate authoring artifacts: the CMO3
- * holds the editor's source-space values and the moc holds its baked ones, and the transform between
- * them is the editor's own, not a spec.  `Cmo3ToMoc3OracleTest` compares the EVALUATED result through
- * the official core instead, which is the question that actually matters and the only one with a
- * defensible tolerance.
+ * A divergence fails unless it is a known loss of this path.
  *
  * Gated on `cmo3.probe` + `moc3.samples`, joined by base name; self-skips whenever the two sets share
  * no base name, which includes either property being absent.
@@ -64,6 +72,7 @@ class Cmo3ToMoc3CrossFormatTest {
 				?.filter { file -> file.isFile && file.extension == "moc3" && file.parentFile?.name != "work" }
 				?.associateBy { file -> file.nameWithoutExtension }
 				.orEmpty()
+
 		return cmo3Files.keys
 			.intersect(moc3Files.keys)
 			.sorted()
@@ -71,34 +80,40 @@ class Cmo3ToMoc3CrossFormatTest {
 	}
 
 	/**
-	 * Exports [cmo3File]'s rig at [baked]'s own version, so the comparison is version-for-version.
+	 * Exports [cmo3File]'s rig at [baked]'s own version, so the comparison is version-for-version, and
+	 * reads the written file back.
 	 *
 	 * @param File        cmo3File The source CMO3.
 	 * @param MocDocument baked    The editor's bake of the same model.
-	 * @return MocDocument Our lowering of the CMO3.
+	 * @return Pair The imported rig, and our lowering of it as written.
 	 */
 	private fun exportedFrom(cmo3File: File, baked: MocDocument): Pair<PuppetModel, MocDocument> {
 		val model = Cmo3.read(cmo3File)
 		val root = model.root as? CModelSource ?: error("${cmo3File.name}: root is not a CModelSource")
 		val imported = Cmo3Import.fromModelSource(root)
-		return imported to Moc3Export.toMocDocument(imported, baked.version).document
+
+		return imported to Moc3.read(Moc3.write(Moc3Export.toMocDocument(imported, baked.version).document))
 	}
 
 	@Test
 	fun everyTwinLowersToTheSameStructure() {
 		val twins = twins()
+
 		if (twins.isEmpty()) {
-			println("no cmo3/moc3 twins in the corpus; skipping cross-format comparison")
-			return
+			skipTest("no cmo3/moc3 twins in the corpus; skipping cross-format comparison")
 		}
+
 		val failures = ArrayList<String>()
+		val ledger = FidelityLedger(FidelityGate.CMO3_TO_MOC3_VS_EDITOR)
 		val differentRevisions = ArrayList<String>()
 		var compared = 0
+
 		for ((name, cmo3File, moc3File) in twins) {
 			val baked = Moc3.read(moc3File.readBytes())
 			val (source, ours) =
 				runCatching { exportedFrom(cmo3File, baked) }.getOrElse { failure ->
 					failures.add("$name: the CMO3 would not lower to a moc ($failure)")
+
 					continue
 				}
 			// A twin pair is only an oracle when the two files are the same REVISION of the model.  The
@@ -109,10 +124,13 @@ class Cmo3ToMoc3CrossFormatTest {
 			// silently stops comparing cannot hide.
 			val bakedMeshIds = baked.artMeshes.map { it.id }.toSet()
 			val missingMeshes = bakedMeshIds - ours.artMeshes.map { it.id }.toSet()
+
 			if (missingMeshes.size > bakedMeshIds.size / 10) {
 				differentRevisions.add("$name (${missingMeshes.size}/${bakedMeshIds.size} art meshes absent)")
+
 				continue
 			}
+
 			compared++
 			// What the editor's bake omits and ours keeps: HIDDEN objects.  The official bake deletes them
 			// unless "export invisible drawable" is ticked; Umamo asks the same through Moc3ExportOptions,
@@ -130,121 +148,27 @@ class Cmo3ToMoc3CrossFormatTest {
 				source.drawables
 					.filter { drawable -> partByDrawable[drawable.id]?.raw in hiddenParts }
 					.mapTo(HashSet()) { drawable -> drawable.id.raw }
-
-			/**
-			 * Records a divergence against this twin.
-			 *
-			 * @param String what     What differed.
-			 * @param Any?   expected The editor's bake.
-			 * @param Any?   actual   Our lowering.
-			 */
-			fun check(what: String, expected: Any?, actual: Any?) {
-				if (expected != actual) {
-					failures.add("$name: $what editor=$expected umamo=$actual")
+			val divergences =
+				compareMocDocuments(baked, ours, ignoredAttributes = setOf(MocAttribute.TEXTURE)).filterNot { divergence ->
+					divergence.aspect == DivergenceAspect.Extra &&
+						(
+							(divergence.kind == MocObjectKind.ART_MESH && (divergence.id in hiddenDrawables || divergence.id in hiddenByPart)) ||
+								(divergence.kind == MocObjectKind.PART && divergence.id in hiddenParts)
+						)
 				}
-			}
-
-			/**
-			 * Compares two id sets, reporting only what differs.
-			 *
-			 * Dumping both sets whole is what a plain equality assert does, and on a real model that is a
-			 * thousand ids of which two matter.
-			 *
-			 * @param String what           The object category.
-			 * @param Set    expected       The editor's ids.
-			 * @param Set    actual         Ours.
-			 * @param Set    keptWhenHidden Ids ours may carry that the bake drops for being hidden.
-			 */
-			fun checkIds(what: String, expected: Set<String>, actual: Set<String>, keptWhenHidden: Set<String>) {
-				val missing = (expected - actual).sorted()
-				val extra = (actual - expected - keptWhenHidden).sorted()
-				if (missing.isNotEmpty() || extra.isNotEmpty()) {
-					failures.add(
-						"$name: $what differ - ${missing.size} missing ${missing.take(4)}, " +
-							"${extra.size} unexpected ${extra.take(4)}",
-					)
-				}
-			}
-
-			checkIds(
-				"art mesh ids",
-				baked.artMeshes.map { it.id }.toSet(),
-				ours.artMeshes.map { it.id }.toSet(),
-				hiddenDrawables + hiddenByPart,
-			)
-			checkIds("part ids", baked.parts.map { it.id }.toSet(), ours.parts.map { it.id }.toSet(), hiddenParts)
-			checkIds("parameter ids", baked.parameters.map { it.id }.toSet(), ours.parameters.map { it.id }.toSet(), emptySet())
-			checkIds("deformer ids", baked.deformers.map { it.id }.toSet(), ours.deformers.map { it.id }.toSet(), emptySet())
-
-			val ourMeshes = ours.artMeshes.associateBy { it.id }
-			val ourParts = ours.parts.associateBy { it.id }
-			val ourDeformers = ours.deformers.associateBy { it.id }
-			val ourParameters = ours.parameters.associateBy { it.id }
-
-			for (mesh in baked.artMeshes) {
-				val mine = ourMeshes[mesh.id] ?: continue
-				check("${mesh.id} vertex count", mesh.vertexCount, mine.vertexCount)
-				check("${mesh.id} triangle indices", mesh.triangleIndices.size, mine.triangleIndices.size)
-				// Resolved to IDS: the two files number their objects independently, so an index compare
-				// would report every model with a different authoring order as wrong.
-				check(
-					"${mesh.id} parent deformer",
-					baked.deformers.getOrNull(mesh.parentDeformerIndex)?.id,
-					ours.deformers.getOrNull(mine.parentDeformerIndex)?.id,
-				)
-				check(
-					"${mesh.id} owning part",
-					baked.parts.getOrNull(mesh.parentPartIndex)?.id,
-					ours.parts.getOrNull(mine.parentPartIndex)?.id,
-				)
-				check(
-					"${mesh.id} clip masks",
-					mesh.maskDrawableIndices.filter { it >= 0 }.mapNotNull { baked.artMeshes.getOrNull(it)?.id }.sorted(),
-					mine.maskDrawableIndices.filter { it >= 0 }.mapNotNull { ours.artMeshes.getOrNull(it)?.id }.sorted(),
-				)
-			}
-
-			for (part in baked.parts) {
-				val mine = ourParts[part.id] ?: continue
-				check(
-					"part ${part.id} parent",
-					baked.parts.getOrNull(part.parentPartIndex)?.id,
-					ours.parts.getOrNull(mine.parentPartIndex)?.id,
-				)
-			}
-
-			for (deformer in baked.deformers) {
-				val mine = ourDeformers[deformer.id] ?: continue
-				check("deformer ${deformer.id} kind", deformer::class.simpleName, mine::class.simpleName)
-				check(
-					"deformer ${deformer.id} parent",
-					baked.deformers.getOrNull(deformer.parentDeformerIndex)?.id,
-					ours.deformers.getOrNull(mine.parentDeformerIndex)?.id,
-				)
-				if (deformer is WarpDeformer && mine is WarpDeformer) {
-					check("deformer ${deformer.id} lattice", deformer.rows to deformer.columns, mine.rows to mine.columns)
-				}
-				if (deformer is RotationDeformer && mine is RotationDeformer) {
-					check("deformer ${deformer.id} base angle", deformer.baseAngle, mine.baseAngle)
-				}
-			}
-
-			for (parameter in baked.parameters) {
-				val mine = ourParameters[parameter.id] ?: continue
-				check("parameter ${parameter.id} minimum", parameter.minimumValue, mine.minimumValue)
-				check("parameter ${parameter.id} maximum", parameter.maximumValue, mine.maximumValue)
-				check("parameter ${parameter.id} default", parameter.defaultValue, mine.defaultValue)
-				check("parameter ${parameter.id} type", parameter.type, mine.type)
-			}
+			ledger.record(name, divergences)
 		}
+
 		assertTrue(compared > 0, "no twin could be lowered")
 		assertTrue(
 			differentRevisions.size < twins.size / 2,
 			"most corpus twins are no longer the same revision, so this gate has stopped testing anything: " +
 				differentRevisions,
 		)
+		ledger.tallyLines().forEach(::println)
+		failures.addAll(ledger.problems())
 		println(
-			"[cross-format] $compared cmo3/moc3 twins compared, ${failures.size} structural divergences" +
+			"[cross-format] $compared cmo3/moc3 twins compared, ${failures.size} divergences" +
 				(if (differentRevisions.isEmpty()) "" else "; skipped as different revisions: $differentRevisions"),
 		)
 		assertEquals(emptyList(), failures.take(25), "our lowering disagrees with the editor's bake")

@@ -24,6 +24,7 @@ import org.umamo.ui.theme.LocalUmamoColors
 @Composable
 private fun umamoScrollbarStyle(): ScrollbarStyle {
 	val colors = LocalUmamoColors.current
+
 	return ScrollbarStyle(
 		minimalHeight = SCROLLBAR_MIN_THUMB,
 		thickness = SCROLLBAR_THICKNESS,
@@ -36,8 +37,6 @@ private fun umamoScrollbarStyle(): ScrollbarStyle {
 
 /**
  * Desktop actual: Foundation's draggable VerticalScrollbar, gated on the content overflowing.
- *
- * デスクトップ実装：内容がはみ出すときのみ Foundation のスクロールバーを描画する。
  *
  * @param ScrollState scrollState The scroll state of the verticalScroll content to drive and gate on.
  */
@@ -54,8 +53,6 @@ actual fun BoxScope.VerticalScrollbarOverlay(scrollState: ScrollState) {
 
 /**
  * Desktop actual: Foundation's draggable VerticalScrollbar for a LazyColumn, gated on it being scrollable.
- *
- * デスクトップ実装：LazyColumn がスクロール可能なときのみバーを描画する。
  *
  * @param LazyListState listState The LazyColumn's state to drive and gate on.
  */

@@ -5,10 +5,10 @@ import org.umamo.format.raster.RasterImage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableLayerBinding
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.atlasPixelOf
-import org.umamo.runtime.model.identityUvAffine
-import org.umamo.runtime.model.invertUvAffine
+import org.umamo.runtime.model.identityAffine
+import org.umamo.runtime.model.invertAffine
 import org.umamo.runtime.model.layerPixelOf
 import org.umamo.runtime.model.layerUvAffineOf
 import org.umamo.runtime.model.layerUvsFromAtlasUvs
@@ -151,13 +151,15 @@ class SourceArtRastersTest {
 					placementOf(positionX = 292f, positionY = 409.0863f, scaleX = 1.16431f, scaleY = 1.16431f, rotationDegrees = 90f),
 			)
 		val storedUvs = floatArrayOf(0.1f, 0.2f, 0.9f, 0.8f, 0.5f, 0.5f)
+
 		for ((label, placement) in shapes) {
 			val binding = DrawableLayerBinding("layer", placement, pageWidth = 2048, pageHeight = 1024)
 			val toLayer = layerUvAffineOf(binding, layerWidth = 576, layerHeight = 646)
 			assertNotNull(toLayer, "$label: the layer affine resolves")
-			val toStored = invertUvAffine(toLayer)
+			val toStored = invertAffine(toLayer)
 			assertNotNull(toStored, "$label: the affine inverts")
-			val roundTripped = applyUvAffine(applyUvAffine(storedUvs, toLayer), toStored)
+			val roundTripped = applyAffine(applyAffine(storedUvs, toLayer), toStored)
+
 			for (componentIndex in storedUvs.indices) {
 				assertEquals(storedUvs[componentIndex], roundTripped[componentIndex], 1e-4f, "$label: component $componentIndex")
 			}
@@ -170,11 +172,11 @@ class SourceArtRastersTest {
 		val binding = DrawableLayerBinding("layer", placement = null, pageWidth = 0, pageHeight = 0)
 		val toLayer = layerUvAffineOf(binding, layerWidth = 64, layerHeight = 64)
 		assertNotNull(toLayer, "an unpacked binding still maps")
-		assertTrue(toLayer.contentEquals(identityUvAffine()), "an unpacked mapping is the identity")
-		val toStored = invertUvAffine(toLayer)
+		assertTrue(toLayer.contentEquals(identityAffine()), "an unpacked mapping is the identity")
+		val toStored = invertAffine(toLayer)
 		assertNotNull(toStored, "the identity inverts")
 		val storedUvs = floatArrayOf(0.1f, 0.2f, 0.9f, 0.8f)
-		assertTrue(applyUvAffine(storedUvs, toStored).contentEquals(storedUvs), "and changes nothing coming back")
+		assertTrue(applyAffine(storedUvs, toStored).contentEquals(storedUvs), "and changes nothing coming back")
 	}
 
 	/** A mapping that cannot be formed reports it rather than producing a wrong one. */
@@ -184,7 +186,7 @@ class SourceArtRastersTest {
 		assertNull(layerUvAffineOf(degenerate, 64, 64), "a collapsed placement axis has no mapping")
 		val sane = DrawableLayerBinding("layer", placementOf(), pageWidth = 512, pageHeight = 512)
 		assertNull(layerUvAffineOf(sane, layerWidth = 0, layerHeight = 64), "a zero-width layer has no mapping")
-		assertNull(invertUvAffine(floatArrayOf(0f, 0f, 5f, 0f, 0f, 5f)), "a collapsed affine does not invert")
+		assertNull(invertAffine(floatArrayOf(0f, 0f, 5f, 0f, 0f, 5f)), "a collapsed affine does not invert")
 	}
 
 	/** A layer with no usable size cannot host a mapping; report it rather than dividing by zero. */
@@ -284,13 +286,31 @@ class SourceArtRastersTest {
 		assertSame(first, store.rasterFor(late), "a remembered miss does not outlive the raster's arrival")
 	}
 
-	/** A tile the supplier has no bytes for decodes to nothing, and the empty store has none at all. */
+	/**
+	 * Two stores never share what was added to one of them.
+	 *
+	 * Documents hand their own store to every artwork import, which decodes into it - so a store shared
+	 * between documents would read one document's art back out under the next document's tile ids.
+	 */
+	@Test
+	fun addedRastersStayInTheStoreTheyWereAddedTo() {
+		val tileId = AtlasTileId("tile-1")
+		val store = SourceArtRasters { null }
+		val other = SourceArtRasters { null }
+
+		store.addDecoded(mapOf(tileId to DecodedImage(ByteArray(4) { 0xFF.toByte() }, 1, 1)))
+
+		assertNotNull(store.rasterFor(tileId), "the store it was added to has it")
+		assertNull(other.rasterFor(tileId), "another document's store does not")
+	}
+
+	/** A tile the supplier has no bytes for decodes to nothing, and a store over no pixels has none at all. */
 	@Test
 	fun aTileWithoutBytesDecodesToNothing() {
 		val known = AtlasTileId("a")
 		val store = SourceArtRasters.fromPng { requested -> if (requested == known) onePixelPng() else null }
 		assertNotNull(store.rasterFor(known), "a known tile decodes")
 		assertNull(store.rasterFor(AtlasTileId("missing")), "an unknown tile has no bytes")
-		assertNull(SourceArtRasters.EMPTY.rasterFor(known), "the empty store has no rasters")
+		assertNull(SourceArtRasters { null }.rasterFor(known), "a store over no pixels at all has no rasters")
 	}
 }

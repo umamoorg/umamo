@@ -7,10 +7,9 @@ import kotlinx.serialization.json.JsonPrimitive
 /**
  * `*.physics3.json` - the physics rig definition (input/output bindings, particle chains).
  *
- * EN: Physical quantities (weights, scales, positions, forces, normalization bounds) are kept as
- *     [JsonPrimitive] so the editor's exact numeric tokens round-trip (it prints integral floats
- *     without a trailing `.0`). The physics math is out of scope here; this only models the file.
- * JA: 物理演算リグ定義。数値はトークン保持。
+ * Physical quantities (weights, scales, positions, forces, normalization bounds) are kept as
+ * [JsonPrimitive] so the editor's exact numeric tokens round-trip (it prints integral floats
+ * without a trailing `.0`).  The physics math is out of scope here; this only models the file.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §physics3.json</a>
  */

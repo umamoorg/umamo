@@ -33,16 +33,25 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.SourceLayerRef
+import org.umamo.runtime.model.canvasCenterWorldOriginX
+import org.umamo.runtime.model.canvasCenterWorldOriginZ
 import org.umamo.runtime.model.deriveRenderRoot
+import kotlin.math.floor
+import kotlin.math.roundToInt
 
 /*
  * The SourceArt -> PuppetModel bridge: the first point where a layered file (or a flat raster)
- * becomes an editable rig.  One drawable per raster layer over a quad birth mesh, one part per
- * folder, one atlas tile per layer bound to its source layer by the reader's key.
+ * becomes an editable rig.  One drawable per raster layer over a birth mesh, one part per folder, one
+ * atlas tile per layer bound to its source layer by the reader's key.  Every drawable is minted over a
+ * quad; under the Automatic birth mode the result also names it a pending birth, which the caller
+ * meshes with the art mesher and hands back (BirthMeshes.kt).
  *
  * The model comes out UNPACKED - every tile unplaced, every drawable's coordinates addressing its own
  * art - so this stays a pure conversion that the pack at open then moves onto pages through the same
  * repack primitive the Repack Atlas command uses.  Packing here would only duplicate that path.
+ *
+ * The art arrives already in the document canvas frame (SourceArtPlacement.kt): the bridge reads
+ * bounds as document positions and never shifts them itself.
  */
 
 /**
@@ -74,11 +83,22 @@ class ArtSourceDescriptor(
  *   when a layer is trimmed for its birth mesh; the pack at open trims under the same threshold.
  * @property Int             birthMeshMargin How far, in source pixels, the birth quad extends past
  *   the layer's opaque bounds on every side.
+ * @property ArtworkAnchor   anchor          Where a later file's canvas is anchored on the document
+ *   canvas ([SourceArtImport.offsetFor]); moot for a rig's first artwork, which sets the canvas.
+ * @property Int             nudgeX          Pixels added to the anchor's placement along x.
+ * @property Int             nudgeZ          Pixels added to the anchor's placement along z - up, the
+ *   viewport's world axis, so a negative nudge moves the art down the canvas.
+ * @property BirthMeshMode   birthMesh       How each new drawable gets its first mesh: the quad, or
+ *   the art mesher's mesh over every pixel at or above [alphaThreshold] (raised to the atlas's own).
  */
 class SourceArtImportOptions(
 	val parameters: List<Parameter> = emptyList(),
 	val alphaThreshold: Int = DEFAULT_ALPHA_THRESHOLD,
 	val birthMeshMargin: Int = SourceArtImport.DEFAULT_BIRTH_MESH_MARGIN,
+	val anchor: ArtworkAnchor = ArtworkAnchor.Default,
+	val nudgeX: Int = 0,
+	val nudgeZ: Int = 0,
+	val birthMesh: BirthMeshMode = BirthMeshMode.Quad,
 ) {
 	init {
 		require(alphaThreshold in 1..255) { "alphaThreshold must be in 1..255: $alphaThreshold" }
@@ -89,30 +109,70 @@ class SourceArtImportOptions(
 /**
  * What an import produced.
  *
- * @property PuppetModel puppet       The unpacked model.
- * @property Map         rasterByTile Each tile's pixels, by tile - the document's pixel supplier takes
+ * @property PuppetModel puppet        The unpacked model.
+ * @property Map         rasterByTile  Each tile's pixels, by tile - the document's pixel supplier takes
  *   them from here, since the model itself carries none.
- * @property List        notices      Everything the import could not carry as drawn, in document order.
+ * @property List        notices       Everything the import could not carry as drawn, in document order.
+ * @property List        pendingBirths The drawables the Automatic birth mode wants meshed, each still
+ *   over its quad until [withBirths] lands the meshes; empty under the Quad mode.
  */
 class SourceArtImportResult(
 	val puppet: PuppetModel,
 	val rasterByTile: Map<AtlasTileId, LayerRaster>,
 	val notices: List<SourceArtImportNotice>,
-)
+	val pendingBirths: List<PendingBirth> = emptyList(),
+) {
+	/**
+	 * This result with its pending births' outcomes landed: each born drawable over its new mesh, each
+	 * refused one over its quad with a notice naming why.
+	 *
+	 * @param BirthResolution resolution The outcome of every pending birth.
+	 * @return SourceArtImportResult The result, no birth pending.
+	 */
+	fun withBirths(resolution: BirthResolution): SourceArtImportResult {
+		if (pendingBirths.isEmpty()) {
+			return this
+		}
+
+		val puppet = puppet.copy(drawables = bornDrawables(puppet.drawables, pendingBirths, resolution))
+
+		return SourceArtImportResult(puppet, rasterByTile, notices + birthRefusalNotices(pendingBirths, resolution))
+	}
+}
 
 /**
  * What one artwork file adds to a model, with its pixels and its notes: the delta a fresh import
  * assembles into a new model and an open document appends to itself.
  *
- * @property ArtworkAdditions additions    The source record, tiles, drawables, parts, and root order.
- * @property Map              rasterByTile Each added tile's pixels, by tile.
- * @property List             notices      Everything the import could not carry as drawn, in document order.
+ * @property ArtworkAdditions additions     The source record, tiles, drawables, parts, and root order.
+ * @property Map              rasterByTile  Each added tile's pixels, by tile.
+ * @property List             notices       Everything the import could not carry as drawn, in document order.
+ * @property List             pendingBirths The added drawables the Automatic birth mode wants meshed,
+ *   each still over its quad until [withBirths] lands the meshes; empty under the Quad mode.
  */
 class SourceArtAdditions(
 	val additions: ArtworkAdditions,
 	val rasterByTile: Map<AtlasTileId, LayerRaster>,
 	val notices: List<SourceArtImportNotice>,
-)
+	val pendingBirths: List<PendingBirth> = emptyList(),
+) {
+	/**
+	 * These additions with their pending births' outcomes landed: each born drawable over its new mesh,
+	 * each refused one over its quad with a notice naming why.
+	 *
+	 * @param BirthResolution resolution The outcome of every pending birth.
+	 * @return SourceArtAdditions The additions, no birth pending.
+	 */
+	fun withBirths(resolution: BirthResolution): SourceArtAdditions {
+		if (pendingBirths.isEmpty()) {
+			return this
+		}
+
+		val drawables = bornDrawables(additions.drawables, pendingBirths, resolution)
+
+		return SourceArtAdditions(additions.copy(drawables = drawables), rasterByTile, notices + birthRefusalNotices(pendingBirths, resolution))
+	}
+}
 
 /** One raster layer that became a drawable, kept for the passes that run after the first. */
 private class ImportedLayer(
@@ -209,64 +269,136 @@ object SourceArtImport {
 		val added = additionsFor(art, source, options, blank)
 		val additions = added.additions
 
-		// Rest positions are canvas pixels with y down, the convention every import shares, and the
-		// world origin is the canvas center, negated into world space like every vertex.
-		val canvasWidth = art.widthPx.toFloat()
-		val canvasHeight = art.heightPx.toFloat()
-		// The tree is materialized flat (one leaf per parameter at the root) rather than left empty: the
-		// CMO3 export places parameters in the editor's group hierarchy from the tree alone, and the
-		// official editor logs a recovery for every parameter it finds outside it.  Same shape the
-		// editor's own parameter-create materializes.
-		val parameters = options.parameters
-		val model =
+		val assembled =
 			PuppetModel(
-				parameters = parameters,
-				parameterTree = parameters.map { parameter -> ParameterNode.Param(parameter.id) },
+				parameters = emptyList(),
 				parts = additions.parts,
 				deformers = emptyList(),
 				drawables = additions.drawables,
 				rootChildren = additions.rootChildren,
 				rootPartId = null,
-				canvasWidth = canvasWidth,
-				canvasHeight = canvasHeight,
-				worldOriginX = canvasWidth / 2f,
-				worldOriginY = -(canvasHeight / 2f),
-				// The official editor's own fresh-import state: the rigger sees the layers as drawn, and
-				// the pack that follows is what makes the document shippable.
-				rendersFromSourceLayers = true,
 				atlas = PuppetAtlas(pages = emptyList(), tiles = additions.tiles, storedUvsAddressPages = true),
 				sources = listOf(additions.source),
 			)
-		return SourceArtImportResult(model.copy(renderRoot = model.deriveRenderRoot()), added.rasterByTile, added.notices)
+		// The same two seeds a rig gets when this file is its first artwork, applied through the same
+		// helpers the add path uses, so a document built by importing art and a new document that then
+		// imports the same art come out identical.
+		val model = withSeedParameters(withFirstArtworkState(assembled, art), options.parameters)
+
+		return SourceArtImportResult(model.copy(renderRoot = model.deriveRenderRoot()), added.rasterByTile, added.notices, added.pendingBirths)
 	}
 
 	/**
+	 * [model] with the frame its FIRST artwork gives it: the file's canvas, the world origin at that
+	 * canvas's center, and the fresh-import display state.
+	 *
+	 * Source-layer display is the official editor's own state after an import - the rigger sees the
+	 * layers as drawn, and the pack that follows is what makes the document shippable.
+	 *
+	 * @param PuppetModel model The model to seed.
+	 * @param SourceArt   art   The artwork the frame comes from.
+	 * @return PuppetModel The seeded model.
+	 */
+	fun withFirstArtworkState(model: PuppetModel, art: SourceArt): PuppetModel {
+		val canvasWidth = art.widthPx.toFloat()
+		val canvasHeight = art.heightPx.toFloat()
+
+		return model.copy(
+			canvasWidth = canvasWidth,
+			canvasHeight = canvasHeight,
+			worldOriginX = canvasCenterWorldOriginX(canvasWidth),
+			worldOriginZ = canvasCenterWorldOriginZ(canvasHeight),
+			rendersFromSourceLayers = true,
+		)
+	}
+
+	/**
+	 * [model] with [parameters] as its axes, materialized flat in the parameter tree.
+	 *
+	 * The tree is materialized (one leaf per parameter at the root) rather than left empty: the CMO3
+	 * export places parameters in the editor's group hierarchy from the tree alone, and the official
+	 * editor logs a recovery for every parameter it finds outside it.  Seeding over authored
+	 * parameters would replace them, so the caller seeds only a model whose parameter list is empty.
+	 *
+	 * @param PuppetModel model      The model to seed.
+	 * @param List        parameters The template's parameters; an empty list leaves the model alone.
+	 * @return PuppetModel The seeded model.
+	 */
+	fun withSeedParameters(model: PuppetModel, parameters: List<Parameter>): PuppetModel {
+		if (parameters.isEmpty()) {
+			return model
+		}
+
+		return model.copy(
+			parameters = parameters,
+			parameterTree = parameters.map { parameter -> ParameterNode.Param(parameter.id) },
+		)
+	}
+
+	/**
+	 * Whether an artwork file added to [model] would be its FIRST, and so define the canvas
+	 * ([withFirstArtworkState]) rather than be placed within one.
+	 *
+	 * @param PuppetModel model The model the artwork would join.
+	 * @return Boolean True when the model has no art of its own yet.
+	 */
+	fun isFirstArtwork(model: PuppetModel): Boolean = model.drawables.isEmpty() && model.atlas.tiles.isEmpty()
+
+	/**
+	 * Where [art]'s canvas lands on [model]'s: the anchor's placement of the file's size within the
+	 * document's, plus the options' nudge, in the world axes (x right, z up).  Zero for a rig's first
+	 * artwork, which sets the canvas.
+	 *
+	 * @param PuppetModel            model   The model the artwork joins.
+	 * @param SourceArt              art     The file, for its canvas size.
+	 * @param SourceArtImportOptions options The anchor and nudge.
+	 * @return CanvasOffset The translation to place the file's art by.
+	 */
+	fun offsetFor(model: PuppetModel, art: SourceArt, options: SourceArtImportOptions): CanvasOffset {
+		if (isFirstArtwork(model) || model.canvasWidth <= 0f || model.canvasHeight <= 0f) {
+			return CanvasOffset.Zero
+		}
+
+		return CanvasOffset(
+			x = anchoredOffset(model.canvasWidth.roundToInt() - art.widthPx, options.anchor.horizontal) + options.nudgeX,
+			z = -anchoredOffset(model.canvasHeight.roundToInt() - art.heightPx, options.anchor.vertical) + options.nudgeZ,
+		)
+	}
+
+	/**
+	 * The canvas-frame offset an anchor places a file at along one axis: the spare room split by the
+	 * anchor's fraction, rounded down so a centered file with one odd pixel of room sits nearer the
+	 * top-left.  Canvas y runs down, so the caller negates the vertical result into z.
+	 *
+	 * @param Int   room     The document's extent minus the file's along the axis.
+	 * @param Float fraction How far along the room the file is anchored (0, 0.5, or 1).
+	 * @return Int The offset.
+	 */
+	private fun anchoredOffset(room: Int, fraction: Float): Int = floor(room * fraction).toInt()
+
+	/**
 	 * The additions [art] makes to [existing]: the delta an open document appends to itself, with every
-	 * id minted past the ones the document already has.
+	 * id minted past the ones the document already has.  The additions carry no placements: the caller
+	 * packs them around the document's art.
 	 *
-	 * Ids continue the existing sequences (`ArtMesh<n>` and `Part<n>` past their highest suffix, the
-	 * source past `art-<k>`), and a tile key that collides with an existing tile is disambiguated the
-	 * same way a duplicate layer key is.  The additions carry no placements: the caller packs them
-	 * around the document's art.
-	 *
-	 * @param SourceArt              art         The parsed source art.
+	 * @param SourceArt              art         The parsed source art, already in the DOCUMENT canvas frame
+	 *   ([SourceArt.placedBy] for a new file, [SourceArt.placedFor] for a listed file's read).
 	 * @param ArtSourceDescriptor    source      What to record about the file it came from.
 	 * @param SourceArtImportOptions options     The threshold and margin (the seed parameters are a fresh import's).
 	 * @param PuppetModel            existing    The model the additions will join.
 	 * @param ArtSourceId?           underSource The source the additions belong to when the file is one
-	 *   the model already lists (a reload adding the layers a file gained): the tiles bind to it and the
-	 *   returned record carries its id, so the caller merges rather than appends the record.  Only the
-	 *   folders the added layers live in become parts; a folder the document already keeps as a part
-	 *   (the part holding the most drawables of that folder, found through the source's bindings) takes
-	 *   the new layers as children instead of being minted again; and every new child of the root or of
-	 *   such a part is placed among the existing children where the file puts it, anchored to its
-	 *   nearest sibling in the file.  Null mints a new source with every folder of the file, the shape a
-	 *   fresh import and Add Artwork take.
+	 *   the model already lists (a reload adding the layers a file gained): the tiles bind to it, the
+	 *   returned record carries its id so the caller merges rather than appends the record, and the new
+	 *   children are placed among the existing ones where the file puts them.  Null mints a new source
+	 *   with every folder of the file, the shape a fresh import and Add Artwork take.
 	 * @param Set<String>?           layerKeys   The keys of the layers to mint, or null for every layer.  A
 	 *   reload names the layers the file gained while handing over the WHOLE file, so the placement can
 	 *   see the layers around them.
 	 * @param List<ArtSourceLayer>?  inventory   The inventory of [art] when the caller already computed it
 	 *   (it hashes every layer's pixels); computed here when null.
+	 * @param CanvasOffset           offset      The translation [art] was placed by, recorded on a NEW
+	 *   source's record so every later read of the file is placed the same way.  Ignored under
+	 *   [underSource], whose record keeps the offset it already carries.
 	 * @return SourceArtAdditions The delta, its tiles' pixels, and the import notices.
 	 */
 	fun additionsFor(
@@ -277,8 +409,13 @@ object SourceArtImport {
 		underSource: ArtSourceId? = null,
 		layerKeys: Set<String>? = null,
 		inventory: List<ArtSourceLayer>? = null,
+		offset: CanvasOffset = CanvasOffset.Zero,
 	): SourceArtAdditions {
 		val sourceId = underSource ?: ArtSourceId("art-${nextSuffix(existing.sources.map { candidate -> candidate.id.raw }, "art-", first = 0)}")
+		// A listed file's record keeps the frame it was placed in; the reload that hands its layers here
+		// has already placed the art by it.
+		val recorded = underSource?.let { listed -> existing.sources.firstOrNull { candidate -> candidate.id == listed } }
+		val recordedOffset = if (recorded == null) offset else CanvasOffset(recorded.offsetX, recorded.offsetZ)
 		val minter =
 			IdMinter(
 				nextDrawable = nextSuffix(existing.drawables.map { drawable -> drawable.id.raw }, "ArtMesh", first = 1),
@@ -287,32 +424,50 @@ object SourceArtImport {
 		val layersTopFirst = art.layers.sortedBy { layer -> layer.order }
 		val notices = ArrayList<SourceArtImportNotice>()
 
+		// Under the Automatic mode every pixel the quad would have drawn is meshed: the import's own
+		// threshold, raised only to the atlas's, since art the atlas does not draw is no art to mesh.
+		val birthSettings =
+			when (val mode = options.birthMesh) {
+				BirthMeshMode.Quad -> null
+				is BirthMeshMode.Automatic -> mode.settings.copy(alphaThreshold = maxOf(options.alphaThreshold, existing.atlas.composition.alphaThreshold))
+			}
+		val pendingBirths = ArrayList<PendingBirth>()
+
 		// Pass 1: one drawable and one tile per raster layer with art in it.
 		val imported = ArrayList<ImportedLayer>()
 		val drawables = ArrayList<Drawable>()
 		val tiles = ArrayList<AtlasTile>()
 		val rasterByTile = LinkedHashMap<AtlasTileId, LayerRaster>()
 		val usedTileKeys = existing.atlas.tiles.mapTo(HashSet()) { tile -> tile.id.raw }
+
 		for (layer in layersTopFirst) {
 			if (layerKeys != null && layer.id.raw !in layerKeys) {
 				continue
 			}
+
 			if (layer.kind != SourceLayerKind.Raster) {
 				notices.add(SourceArtImportNotice.NonRasterLayer(layer.name, layer.kind))
+
 				continue
 			}
+
 			val analysis = layer.analyzeAlpha(alphaThreshold = options.alphaThreshold)
+
 			if (analysis == null) {
 				notices.add(SourceArtImportNotice.EmptyLayer(layer.name))
+
 				continue
 			}
+
 			// The reader's key is the tile's identity too, disambiguated by draw order when a weak source
 			// key (the PSD name-and-order fallback) collides - the same rule the packer's adapter applies.
 			var tileKey = "${sourceId.raw}/${layer.id.raw}"
+
 			if (!usedTileKeys.add(tileKey)) {
 				tileKey = "$tileKey#${layer.order}"
 				usedTileKeys.add(tileKey)
 			}
+
 			val tileId = AtlasTileId(tileKey)
 			tiles.add(
 				AtlasTile(
@@ -326,11 +481,13 @@ object SourceArtImport {
 			rasterByTile[tileId] = layer.raster
 
 			val blendMapping = mapLayerBlend(layer.blend)
+
 			when (blendMapping) {
 				is LayerBlendMapping.Exact -> Unit
 				is LayerBlendMapping.Approximate -> notices.add(SourceArtImportNotice.BlendApproximated(layer.name, layer.blend, blendMapping.blendMode))
 				LayerBlendMapping.Unsupported -> notices.add(SourceArtImportNotice.BlendUnsupported(layer.name, layer.blend))
 			}
+
 			if (layer.channelMask != ChannelMask.ALL) {
 				notices.add(SourceArtImportNotice.ChannelMaskDropped(layer.name))
 			}
@@ -340,7 +497,9 @@ object SourceArtImport {
 			drawables.add(
 				Drawable(
 					id = drawableId,
-					name = layer.name,
+					// A layer with no name shows its drawable's id, like an art mesh the rigger never named.  The
+					// tile and the inventory row keep the layer's own name: they mirror the file.
+					name = layer.name.ifBlank { drawableId.raw },
 					parentDeformerId = null,
 					blendMode = blendMapping.blendMode,
 					maskedBy = emptyList(),
@@ -352,23 +511,32 @@ object SourceArtImport {
 				),
 			)
 			imported.add(ImportedLayer(layer, drawableId))
+
+			if (birthSettings != null) {
+				pendingBirths.add(PendingBirth(drawableId, layer.name, layer.raster, layer.bounds.left, layer.bounds.top, birthSettings))
+			}
 		}
 
 		// Pass 2: a clipping layer clips to the nearest non-clipped layer BELOW it in its own folder -
 		// Photoshop's "clip to layer below", which CLIP and Krita share.  Below is a greater order.
 		val drawableIndexById = drawables.withIndex().associate { (index, drawable) -> drawable.id to index }
+
 		for ((position, entry) in imported.withIndex()) {
 			if (!entry.layer.clipped) {
 				continue
 			}
+
 			val base =
 				imported.subList(position + 1, imported.size).firstOrNull { candidate ->
 					candidate.layer.groupPath == entry.layer.groupPath && !candidate.layer.clipped
 				}
+
 			if (base == null) {
 				notices.add(SourceArtImportNotice.ClipBaseMissing(entry.layer.name))
+
 				continue
 			}
+
 			val index = drawableIndexById.getValue(entry.drawableId)
 			drawables[index] = drawables[index].copy(maskedBy = listOf(base.drawableId))
 		}
@@ -381,55 +549,73 @@ object SourceArtImport {
 		// top-most layer sits, so the panel reads in the file's own order.
 		val existingPartByPath = if (underSource == null) emptyMap() else existingPartsByFolder(existing, underSource)
 		val folderByPath = LinkedHashMap<String, FolderNode>()
+
 		if (underSource == null) {
 			for (group in art.groups) {
 				folderByPath[group.path] = folderNodeOf(group)
 			}
 		} else {
 			val groupByPath = art.groups.associateBy { group -> group.path }
+
 			for (entry in imported) {
 				for (path in ancestorPathsOf(entry.layer.groupPath)) {
 					val group = groupByPath[path]
+
 					if (group != null && path !in folderByPath) {
 						folderByPath[path] = folderNodeOf(group)
 					}
 				}
 			}
 		}
+
 		for (entry in imported) {
 			ensureFolders(entry.layer.groupPath, folderByPath)
 		}
+
 		// Where a new child gathers: the root's list, an anchored part's list (placed among that part's
 		// existing children below), or a new folder's own node.
 		val rootGathered = ArrayList<FolderChild>()
 		val gatheredByAnchor = LinkedHashMap<String, MutableList<FolderChild>>()
 
+		/**
+		 * The list that gathers the children bound for a folder path: the root's, an existing part's, or a new
+		 * folder's own.
+		 *
+		 * @param String parentPath The folder path, empty for the root.
+		 * @return MutableList<FolderChild> The list to add a child to.
+		 */
 		fun gatheredFor(parentPath: String): MutableList<FolderChild> =
 			when {
 				parentPath.isEmpty() -> rootGathered
 				parentPath in existingPartByPath -> gatheredByAnchor.getOrPut(parentPath) { ArrayList() }
 				else -> folderByPath.getValue(parentPath).children
 			}
+
 		for (folder in folderByPath.values) {
 			if (folder.path in existingPartByPath) {
 				// Anchored to a part the document has: its children lower into that part, and the folder
 				// itself is never a child of anything new.
 				continue
 			}
+
 			gatheredFor(folder.path.substringBeforeLast('/', missingDelimiterValue = "")).add(FolderChild.Folder(folder))
 		}
+
 		for (entry in imported) {
 			gatheredFor(entry.layer.groupPath).add(FolderChild.Layer(entry.layer.order, entry.drawableId))
 			var ancestorPath = entry.layer.groupPath
+
 			while (ancestorPath.isNotEmpty()) {
 				val ancestor = folderByPath.getValue(ancestorPath)
 				ancestor.firstOrder = minOf(ancestor.firstOrder, entry.layer.order)
 				ancestorPath = ancestorPath.substringBeforeLast('/', missingDelimiterValue = "")
 			}
 		}
+
 		val parts = ArrayList<Part>()
 		val orgRoot: List<OrgChild>
 		val insertions: List<OrgInsertion>
+
 		if (underSource == null) {
 			orgRoot = orgChildrenOf(rootGathered, parts, minter, notices)
 			insertions = emptyList()
@@ -438,15 +624,28 @@ object SourceArtImport {
 			val placer = InsertionPlacer(art, existing, underSource, existingPartByPath, imported)
 			val placed = ArrayList<OrgInsertion>()
 			placer.place(container = null, containerPath = "", gathered = rootGathered, parts, minter, notices, placed)
+
 			for ((containerPath, gathered) in gatheredByAnchor) {
 				placer.place(existingPartByPath.getValue(containerPath), containerPath, gathered, parts, minter, notices, placed)
 			}
+
 			insertions = placed
 		}
 
 		return SourceArtAdditions(
 			ArtworkAdditions(
-				source = ArtSource(sourceId, source.name, source.path, source.format, inventory ?: inventoryOf(art), source.contentHash, source.lastModified),
+				source =
+					ArtSource(
+						sourceId,
+						source.name,
+						source.path,
+						source.format,
+						inventory ?: inventoryOf(art),
+						source.contentHash,
+						source.lastModified,
+						offsetX = recordedOffset.x,
+						offsetZ = recordedOffset.z,
+					),
 				tiles = tiles,
 				drawables = drawables,
 				parts = parts,
@@ -455,6 +654,7 @@ object SourceArtImport {
 			),
 			rasterByTile,
 			notices,
+			pendingBirths,
 		)
 	}
 
@@ -513,10 +713,14 @@ object SourceArtImport {
 			val existingChildren = if (container == null) existing.rootChildren else existing.parts.first { part -> part.id == container }.children
 			val present = HashSet<OrgChild>(existingChildren)
 			val siblings = fileSiblingsOf(containerPath)
+
 			for (child in gathered.sortedBy { candidate -> candidate.order }) {
 				val orgChild =
 					when (child) {
-						is FolderChild.Layer -> OrgChild.Drawable(child.drawableId)
+						is FolderChild.Layer -> {
+							OrgChild.Drawable(child.drawableId)
+						}
+
 						is FolderChild.Folder -> {
 							val minted = orgChildrenOf(listOf(child), parts, minter, notices).single()
 							newPartByPath[child.node.path] = (minted as OrgChild.Part).id
@@ -536,20 +740,25 @@ object SourceArtImport {
 		 */
 		private fun fileSiblingsOf(containerPath: String): List<FileSibling> {
 			val siblings = ArrayList<FileSibling>()
+
 			for (layer in art.layers) {
 				if (layer.groupPath == containerPath) {
 					siblings.add(FileSibling.Layer(layer.order, layer.id.raw))
 				}
 			}
+
 			val folderPaths = LinkedHashSet<String>(minOrderByPath.keys)
+
 			for (group in art.groups) {
 				folderPaths.add(group.path)
 			}
+
 			for (path in folderPaths) {
 				if (path.substringBeforeLast('/', missingDelimiterValue = "") == containerPath && path != containerPath) {
 					siblings.add(FileSibling.Folder(minOrderByPath[path] ?: Int.MAX_VALUE, path))
 				}
 			}
+
 			return siblings.sortedBy { sibling -> sibling.order }
 		}
 
@@ -566,16 +775,20 @@ object SourceArtImport {
 		private fun slotFor(order: Int, siblings: List<FileSibling>, present: Set<OrgChild>, self: OrgChild): OrgSlot {
 			for (sibling in siblings.filter { candidate -> candidate.order < order }.asReversed()) {
 				val anchor = shownChildOf(sibling, present, self)
+
 				if (anchor != null) {
 					return OrgSlot.After(anchor)
 				}
 			}
+
 			for (sibling in siblings.filter { candidate -> candidate.order > order }) {
 				val anchor = shownChildOf(sibling, present, self)
+
 				if (anchor != null) {
 					return OrgSlot.Before(anchor)
 				}
 			}
+
 			return OrgSlot.End
 		}
 
@@ -594,6 +807,7 @@ object SourceArtImport {
 					is FileSibling.Layer -> drawablesByKey[sibling.key].orEmpty().map { drawableId -> OrgChild.Drawable(drawableId) }
 					is FileSibling.Folder -> listOfNotNull((existingPartByPath[sibling.path] ?: newPartByPath[sibling.path])?.let { partId -> OrgChild.Part(partId) })
 				}
+
 			return candidates.firstOrNull { candidate -> candidate != self && candidate in present }
 		}
 	}
@@ -609,16 +823,21 @@ object SourceArtImport {
 	private fun boundDrawablesByLayerKey(existing: PuppetModel, sourceId: ArtSourceId): Map<String, List<DrawableId>> {
 		val drawablesByTile = existing.drawables.groupBy { drawable -> drawable.atlasTileId }
 		val result = HashMap<String, List<DrawableId>>()
+
 		for (tile in existing.atlas.tiles) {
 			val ref = tile.source ?: continue
+
 			if (ref.sourceId != sourceId) {
 				continue
 			}
+
 			val drawables = drawablesByTile[tile.id].orEmpty().map { drawable -> drawable.id }
+
 			if (drawables.isNotEmpty()) {
 				result[ref.layerKey] = result[ref.layerKey].orEmpty() + drawables
 			}
 		}
+
 		return result
 	}
 
@@ -630,21 +849,20 @@ object SourceArtImport {
 	 */
 	private fun minOrderByGroupPath(art: SourceArt): Map<String, Int> {
 		val minOrder = HashMap<String, Int>()
+
 		for (layer in art.layers) {
 			for (path in ancestorPathsOf(layer.groupPath)) {
 				minOrder[path] = minOf(minOrder[path] ?: Int.MAX_VALUE, layer.order)
 			}
 		}
+
 		return minOrder
 	}
 
 	/**
-	 * Which of [existing]'s parts stands for each folder of [sourceId]'s file: for every drawable bound
-	 * to the file, its layer's folder (from the recorded inventory) and the part holding the drawable
-	 * directly; a folder maps to the part holding the most of its drawables, and a folder with no
-	 * drawable of its own (one holding only sub-folders) to the part that holds a mapped sub-folder's
-	 * part.  A CMO3-origin document has no folder binding on its parts, so this is what says "Front
-	 * hair" already exists.
+	 * Which of [existing]'s parts stands for each folder of [sourceId]'s file: the part holding the most
+	 * of the drawables bound to that folder's layers.  A CMO3-origin document has no folder binding on its
+	 * parts, so this is what says "Front hair" already exists.
 	 *
 	 * @param PuppetModel existing The model the additions will join.
 	 * @param ArtSourceId sourceId The file whose folders are being placed.
@@ -653,23 +871,32 @@ object SourceArtImport {
 	private fun existingPartsByFolder(existing: PuppetModel, sourceId: ArtSourceId): Map<String, PartId> {
 		val rowByKey = existing.sources.firstOrNull { source -> source.id == sourceId }?.layers?.associateBy { row -> row.key }.orEmpty()
 		val folderByDrawable = HashMap<DrawableId, String>()
+
 		for (drawable in existing.drawables) {
 			val tile = drawable.atlasTileId?.let { tileId -> existing.atlas.tileById[tileId] } ?: continue
 			val ref = tile.source ?: continue
+
 			if (ref.sourceId != sourceId) {
 				continue
 			}
+
 			val folder = rowByKey[ref.layerKey]?.groupPath ?: continue
+
 			if (folder.isNotEmpty()) {
 				folderByDrawable[drawable.id] = folder
 			}
 		}
+
 		val countByFolderAndPart = LinkedHashMap<String, LinkedHashMap<PartId, Int>>()
 		val parentByPart = HashMap<PartId, PartId>()
+
 		for (part in existing.parts) {
 			for (child in part.children) {
 				when (child) {
-					is OrgChild.Part -> parentByPart[child.id] = part.id
+					is OrgChild.Part -> {
+						parentByPart[child.id] = part.id
+					}
+
 					is OrgChild.Drawable -> {
 						val folder = folderByDrawable[child.id] ?: continue
 						val counts = countByFolderAndPart.getOrPut(folder) { LinkedHashMap() }
@@ -678,21 +905,26 @@ object SourceArtImport {
 				}
 			}
 		}
+
 		val partByFolder = LinkedHashMap<String, PartId>()
+
 		for ((folder, counts) in countByFolderAndPart) {
 			partByFolder[folder] = counts.maxBy { (_, count) -> count }.key
 		}
+
 		// A folder no drawable sits in directly is reached through a mapped sub-folder: its part is the
 		// one holding that sub-folder's part.  A direct mapping always wins over an inferred one.
 		for ((folder, partId) in countByFolderAndPart.keys.associateWith { folder -> partByFolder.getValue(folder) }) {
 			var ancestorFolder = folder.substringBeforeLast('/', missingDelimiterValue = "")
 			var ancestorPart = parentByPart[partId]
+
 			while (ancestorFolder.isNotEmpty() && ancestorPart != null && ancestorFolder !in partByFolder) {
 				partByFolder[ancestorFolder] = ancestorPart
 				ancestorFolder = ancestorFolder.substringBeforeLast('/', missingDelimiterValue = "")
 				ancestorPart = parentByPart[ancestorPart]
 			}
 		}
+
 		return partByFolder
 	}
 
@@ -706,12 +938,15 @@ object SourceArtImport {
 		if (groupPath.isEmpty()) {
 			return emptyList()
 		}
+
 		val paths = ArrayList<String>()
 		var path = ""
+
 		for (segment in groupPath.split('/')) {
 			path = if (path.isEmpty()) segment else "$path/$segment"
 			paths.add(path)
 		}
+
 		return paths
 	}
 
@@ -752,15 +987,19 @@ object SourceArtImport {
 	 */
 	private fun nextSuffix(ids: Iterable<String>, prefix: String, first: Int): Int {
 		var highest: Int? = null
+
 		for (id in ids) {
 			if (!id.startsWith(prefix)) {
 				continue
 			}
+
 			val suffix = id.substring(prefix.length).toIntOrNull() ?: continue
+
 			if (highest == null || suffix > highest) {
 				highest = suffix
 			}
 		}
+
 		return if (highest == null) first else highest + 1
 	}
 
@@ -778,6 +1017,7 @@ object SourceArtImport {
 	fun birthMeshFor(layer: SourceLayer, alphaThreshold: Int, margin: Int): DrawableMesh? {
 		val analysis = layer.analyzeAlpha(alphaThreshold = alphaThreshold) ?: return null
 		val bounds = analysis.opaqueBounds
+
 		return birthQuad(layer, bounds.left, bounds.top, bounds.width, bounds.height, margin)
 	}
 
@@ -806,7 +1046,8 @@ object SourceArtImport {
 		val canvasTop = layer.bounds.top.toFloat()
 		val tileWidth = layer.raster.width.toFloat()
 		val tileHeight = layer.raster.height.toFloat()
-		return DrawableMesh(
+
+		return DrawableMesh.withLocalEqualToCanvas(
 			positions =
 				floatArrayOf(
 					canvasLeft + left,
@@ -861,9 +1102,12 @@ object SourceArtImport {
 		if (groupPath.isEmpty()) {
 			return
 		}
+
 		var path = ""
+
 		for (segment in groupPath.split('/')) {
 			path = if (path.isEmpty()) segment else "$path/$segment"
+
 			if (path !in folderByPath) {
 				folderByPath[path] = FolderNode(path, segment, visible = true, opacity = 1f, clipped = false, blend = LayerBlend.Normal, passThrough = true)
 			}
@@ -873,10 +1117,6 @@ object SourceArtImport {
 	/**
 	 * Lowers one level of gathered children onto org children, minting a part per folder in pre-order
 	 * so part ids follow the panel order.
-	 *
-	 * A folder composites like the art when it must: opacity under 1 or a non-Normal blend makes the
-	 * part Isolated with that composite, since pass-through would draw its layers as if the folder were
-	 * not there.  A folder that isolates for no visible reason stays pass-through, the model's default.
 	 *
 	 * @param List    children The gathered children of one folder (or the root).
 	 * @param MutableList parts Every part minted so far, appended to.
@@ -892,27 +1132,36 @@ object SourceArtImport {
 	): List<OrgChild> =
 		children.sortedBy { child -> child.order }.map { child ->
 			when (child) {
-				is FolderChild.Layer -> OrgChild.Drawable(child.drawableId)
+				is FolderChild.Layer -> {
+					OrgChild.Drawable(child.drawableId)
+				}
+
 				is FolderChild.Folder -> {
 					val node = child.node
 					val partId = PartId("Part${minter.nextPart}")
 					minter.nextPart++
 					// Reserve the slot before descending so a parent's id precedes its children's.
 					val slot = parts.size
-					parts.add(Part(partId, node.name, emptyList()))
+					parts.add(Part(partId, node.name.ifBlank { partId.raw }, emptyList()))
 					val nestedChildren = orgChildrenOf(node.children, parts, minter, notices)
 					val blendMapping = mapLayerBlend(node.blend)
+
 					if (blendMapping == LayerBlendMapping.Unsupported) {
 						notices.add(SourceArtImportNotice.FolderBlendUnsupported(node.path, node.blend))
 					}
+
 					if (node.clipped) {
 						notices.add(SourceArtImportNotice.FolderClipDropped(node.path))
 					}
+
+					// Pass-through would draw the layers as if the folder were not there, so a folder whose
+					// composite shows isolates; one that would isolate for no visible reason stays pass-through.
 					val composites = node.opacity < 1f || blendMapping.blendMode != BlendMode.Normal
 					parts[slot] =
 						Part(
 							id = partId,
-							name = node.name,
+							// A folder with no name shows its part's id.
+							name = node.name.ifBlank { partId.raw },
 							children = nestedChildren,
 							isVisible = node.visible,
 							groupMode = if (composites) PartGroupMode.Isolated else PartGroupMode.PassThrough,

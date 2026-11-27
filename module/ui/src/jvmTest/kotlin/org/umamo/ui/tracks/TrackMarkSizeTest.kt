@@ -74,11 +74,13 @@ class TrackMarkSizeTest {
 	private fun markPixelCount(markRadius: Dp?): Int {
 		var withMark: IntArray? = null
 		var without: IntArray? = null
+
 		for (drawMark in listOf(true, false)) {
 			runComposeUiTest {
 				setContent {
 					Box(modifier = Modifier.size(width = 400.dp, height = 60.dp).testTag("sheet")) {
 						val sheetRows = if (drawMark) rows else listOf(rows.single().copy(marks = emptyList()))
+
 						if (markRadius == null) {
 							TrackSheet(
 								rows = sheetRows,
@@ -100,6 +102,7 @@ class TrackMarkSizeTest {
 				val image = onNodeWithTag("sheet").captureToImage()
 				val pixels = IntArray(image.width * image.height)
 				image.readPixels(pixels)
+
 				if (drawMark) {
 					withMark = pixels
 				} else {
@@ -107,8 +110,10 @@ class TrackMarkSizeTest {
 				}
 			}
 		}
+
 		val marked = requireNotNull(withMark)
 		val bare = requireNotNull(without)
+
 		return marked.indices.count { pixelIndex -> marked[pixelIndex] != bare[pixelIndex] }
 	}
 }

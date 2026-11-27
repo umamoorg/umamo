@@ -9,6 +9,7 @@ import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -45,19 +46,23 @@ class Moc3DowngradeContentTest {
 	@Test
 	fun aDowngradedExportCarriesNothingItsVersionCannotHold() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping downgrade content gate")
-			return
+			skipTest("moc3.samples not present; skipping downgrade content gate")
 		}
+
 		val failures = ArrayList<String>()
 		var covered = 0
+
 		for (file in files) {
 			val source = Moc3.decode(MocCodec.read(file.readBytes()))
 			val puppet = Moc3Import.fromMocDocument(source, displayInfo = null)
+
 			for (targetVersion in listOf(MocVersion.V30, MocVersion.V42)) {
 				if (targetVersion.byteValue >= source.version.byteValue) {
 					continue
 				}
+
 				val label = "${file.name} → ${targetVersion.name}"
 				val exported = Moc3Export.toMocDocument(puppet, targetVersion).document
 				covered++
@@ -66,9 +71,11 @@ class Moc3DowngradeContentTest {
 				if (targetVersion.byteValue < 4 && exported.blendShapes.isNotEmpty()) {
 					failures.add("$label: carries ${exported.blendShapes.size} blend shapes below their v4 floor")
 				}
+
 				if (targetVersion.byteValue < 6 && exported.offscreens.isNotEmpty()) {
 					failures.add("$label: carries ${exported.offscreens.size} offscreens below their v6 floor")
 				}
+
 				// Per-object multiply/screen color arrived at v4; below that the tables do not exist, so a
 				// keyform must carry null rather than an identity or the lowering synthesizes a section the
 				// version cannot address.
@@ -83,26 +90,33 @@ class Moc3DowngradeContentTest {
 							?: exported.artMeshes.firstOrNull { mesh ->
 								mesh.keyforms.any { it.multiplyColor != null || it.screenColor != null }
 							}?.id
+
 					if (coloredObject != null) {
 						failures.add("$label: $coloredObject keeps a color channel below the v4 color floor")
 					}
+
 					val typedParameter = exported.parameters.firstOrNull { it.type != null }
+
 					if (typedParameter != null) {
 						failures.add("$label: parameter ${typedParameter.id} keeps a type below the v4 Parameter.Types floor")
 					}
 				}
+
 				// The packed extended blend is v6-only (MOC3 v6 §5.6 s153).
 				if (targetVersion.byteValue < 6) {
 					val extended: ArtMesh? = exported.artMeshes.firstOrNull { it.extendedBlend != 0 }
+
 					if (extended != null) {
 						failures.add("$label: art mesh ${extended.id} keeps extendedBlend=${extended.extendedBlend} below its v6 floor")
 					}
 				}
+
 				// The document has to survive its own writer: a section whose declared count exceeds its
 				// slice, or a table the version cannot address, fails here rather than in the official core.
 				MocCodec.read(MocEncoder.bakeFresh(targetVersion, exported))
 			}
 		}
+
 		// The whole point is the path where strip returns a DIFFERENT model; a run that only ever
 		// re-targeted upward exercised nothing.
 		assertTrue(covered > 0, "no export in this run actually downgraded - no corpus model was above V30/V42")

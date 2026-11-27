@@ -61,6 +61,7 @@ internal class MocArtMeshDecoder(
 		var vertexBase = 0
 		var indexBase = 0
 		var maskBase = offscreenMaskTotal
+
 		return drawables.mapIndexed { drawableIndex, drawable ->
 			val vertexCount = drawable.vertexCount
 			val uvs = uvData.copyOfRange(vertexBase * 2, vertexBase * 2 + vertexCount * 2)
@@ -106,6 +107,7 @@ internal class MocArtMeshDecoder(
 					colorTables.screenForKeyform(colorBase?.get(drawableIndex), gridIndex),
 				)
 			}
+
 		return ArtMesh(
 			drawable.id,
 			drawable.textureIndex,

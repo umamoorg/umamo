@@ -2,38 +2,43 @@ package org.umamo.ui.properties
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.Change
 import org.umamo.edit.DeformerChange
 import org.umamo.edit.DrawableChange
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.PartChange
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.editKeyedChannel
-import org.umamo.edit.previewChannelEdit
-import org.umamo.edit.setAtlasPins
-import org.umamo.edit.setDeformerBaseAngle
-import org.umamo.edit.setDeformerFlipX
-import org.umamo.edit.setDeformerFlipY
-import org.umamo.edit.setDeformerMultiplyColor
-import org.umamo.edit.setDeformerOpacity
-import org.umamo.edit.setDeformerQuadTransform
-import org.umamo.edit.setDeformerScreenColor
-import org.umamo.edit.setDrawableAlphaBlendMode
-import org.umamo.edit.setDrawableBlendMode
-import org.umamo.edit.setDrawableCulling
-import org.umamo.edit.setDrawableDrawOrder
-import org.umamo.edit.setDrawableInvertMask
-import org.umamo.edit.setDrawableMultiplyColor
-import org.umamo.edit.setDrawableOpacity
-import org.umamo.edit.setDrawableScreenColor
-import org.umamo.edit.setPartComposite
-import org.umamo.edit.setPartDrawOrder
-import org.umamo.edit.setPartGroupMode
-import org.umamo.edit.setPartSketch
+import org.umamo.edit.atlas.setAtlasPins
+import org.umamo.edit.keyform.cancelChannelPreview
+import org.umamo.edit.keyform.editKeyedChannel
+import org.umamo.edit.keyform.previewChannelEdit
+import org.umamo.edit.mesh.LATTICE_DIVISION_MAX
+import org.umamo.edit.property.setDeformerFlipX
+import org.umamo.edit.property.setDeformerFlipY
+import org.umamo.edit.property.setDeformerMultiplyColor
+import org.umamo.edit.property.setDeformerOpacity
+import org.umamo.edit.property.setDeformerScreenColor
+import org.umamo.edit.property.setDrawableAlphaBlendMode
+import org.umamo.edit.property.setDrawableBlendMode
+import org.umamo.edit.property.setDrawableCulling
+import org.umamo.edit.property.setDrawableDrawOrder
+import org.umamo.edit.property.setDrawableInvertMask
+import org.umamo.edit.property.setDrawableMultiplyColor
+import org.umamo.edit.property.setDrawableOpacity
+import org.umamo.edit.property.setDrawableScreenColor
+import org.umamo.edit.property.setPartComposite
+import org.umamo.edit.property.setPartDrawOrder
+import org.umamo.edit.property.setPartGroupMode
+import org.umamo.edit.property.setPartSketch
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
@@ -42,7 +47,9 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Part
+import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeFeature
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.displayMultiplyColor
@@ -50,16 +57,30 @@ import org.umamo.runtime.model.displayScreenColor
 import org.umamo.runtime.model.multiplyColor
 import org.umamo.runtime.model.opacity
 import org.umamo.runtime.model.screenColor
+import org.umamo.ui.action.CommandButton
+import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.graphics.formatHexColor
 import org.umamo.ui.graphics.parseHexColor
 import org.umamo.ui.graphics.toColorRgb
 import org.umamo.ui.graphics.toComposeColor
-import org.umamo.ui.kit.HexColorField
-import org.umamo.ui.kit.NumberField
-import org.umamo.ui.kit.SelectField
+import org.umamo.ui.kit.Text
+import org.umamo.ui.kit.button.Button
+import org.umamo.ui.kit.field.AspectLockFieldPair
+import org.umamo.ui.kit.field.HexColorField
+import org.umamo.ui.kit.field.NumberField
+import org.umamo.ui.kit.field.PropertyCheckboxRow
+import org.umamo.ui.kit.field.PropertyFieldRow
+import org.umamo.ui.kit.field.PropertyLine
+import org.umamo.ui.kit.field.SelectField
+import org.umamo.ui.kit.field.tint
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
+import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.UmamoIcon
+import org.umamo.ui.transform.setLatticeSizeAdjustable
+import org.umamo.ui.transform.setWarpQuadTransform
+import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 import kotlin.math.roundToInt
 
 /*
@@ -68,22 +89,29 @@ import kotlin.math.roundToInt
  * deformer, and a part each get their own face of this tab.
  */
 
-/** Data (drawable): mesh vertex / triangle counts. */
+/** Data (drawable): mesh vertex / triangle counts, and Generate Mesh from Art and Generate Quad Mesh for a drawable with a mesh. */
 internal val MeshSection =
 	PropertySection(
 		id = "data.mesh",
 		title = Res.string.properties_section_mesh,
 		rows = { context ->
 			val mesh = context.activeDrawable()?.mesh
-			listOf(
-				PropertyRow(terms = listOf(Res.string.properties_mesh)) { _ ->
-					if (mesh != null) {
-						PropertyLine(stringResource(Res.string.properties_mesh, mesh.vertexCount, mesh.triangleCount))
-					} else {
-						PropertyLine(stringResource(Res.string.properties_no_mesh))
-					}
-				},
-			)
+			buildList {
+				add(
+					PropertyRow(terms = listOf(Res.string.properties_mesh)) { _ ->
+						if (mesh != null) {
+							PropertyLine(stringResource(Res.string.properties_mesh, mesh.vertexCount, mesh.triangleCount))
+						} else {
+							PropertyLine(stringResource(Res.string.properties_no_mesh))
+						}
+					},
+				)
+
+				if (mesh != null) {
+					add(PropertyRow(terms = listOf(Res.string.cmd_mesh_generate_from_art)) { _ -> CommandButton("mesh.generateFromArt") })
+					add(PropertyRow(terms = listOf(Res.string.cmd_mesh_generate_quad)) { _ -> CommandButton("mesh.generateQuad") })
+				}
+			}
 		},
 	)
 
@@ -110,6 +138,7 @@ internal val TextureSection =
 						}
 					},
 				)
+
 				if (tile != null && tile.placement != null) {
 					add(
 						PropertyRow(terms = listOf(Res.string.properties_field_pinned)) { _ ->
@@ -117,6 +146,7 @@ internal val TextureSection =
 								checked = tile.pinned,
 								onCheckedChange = { checked -> session?.setAtlasPins(listOf(tile.id), checked) },
 								label = stringResource(Res.string.properties_field_pinned),
+								description = stringResource(Res.string.properties_field_pinned_description),
 							)
 						},
 					)
@@ -132,16 +162,18 @@ internal val BlendSection =
 		title = Res.string.properties_section_blend,
 		rows = { context ->
 			val drawable = context.activeDrawable()
+
 			if (drawable != null) {
 				val session = context.session
 				val target = context.puppet.runtimeTarget
 				listOfNotNull(
-					// Opacity and draw order are keyable channels like the colours below, each with its own
+					// Opacity and draw order are keyable channels like the colors below, each with its own
 					// static and its own optional track.  Draw order is a FLOAT here, unlike a part's int:
 					// it blends per pose, so a fractional value between two keys is meaningful.
 					PropertyRow(terms = listOf(Res.string.properties_field_draw_order)) { _ ->
 						KeyableScalarChannelRow(
 							label = stringResource(Res.string.properties_field_draw_order),
+							description = stringResource(Res.string.properties_field_draw_order_description),
 							owner = KeyformOwner.Drawable(drawable.id),
 							channel = FormChannel.DRAW_ORDER,
 							stored = drawable.drawOrder,
@@ -156,6 +188,7 @@ internal val BlendSection =
 					PropertyRow(terms = listOf(Res.string.properties_field_opacity)) { _ ->
 						KeyableScalarChannelRow(
 							label = stringResource(Res.string.properties_field_opacity),
+							description = stringResource(Res.string.properties_field_opacity_description),
 							owner = KeyformOwner.Drawable(drawable.id),
 							channel = FormChannel.OPACITY,
 							stored = drawable.opacity,
@@ -169,7 +202,10 @@ internal val BlendSection =
 					},
 					PropertyRow(terms = listOf(Res.string.properties_field_blend_mode)) { _ ->
 						val blendLabels = blendModeLabels()
-						PropertyFieldRow(stringResource(Res.string.properties_field_blend_mode)) {
+						PropertyFieldRow(
+							stringResource(Res.string.properties_field_blend_mode),
+							description = stringResource(Res.string.properties_field_blend_mode_description),
+						) {
 							SelectField(
 								selected = drawable.blendMode,
 								modifier = Modifier.fillMaxWidth(),
@@ -184,7 +220,10 @@ internal val BlendSection =
 					} else {
 						PropertyRow(terms = listOf(Res.string.properties_field_alpha_mode)) { _ ->
 							val alphaLabels = alphaBlendModeLabels()
-							PropertyFieldRow(stringResource(Res.string.properties_field_alpha_mode)) {
+							PropertyFieldRow(
+								stringResource(Res.string.properties_field_alpha_mode),
+								description = stringResource(Res.string.properties_field_alpha_mode_description),
+							) {
 								SelectField(
 									selected = drawable.alphaBlendMode,
 									modifier = Modifier.fillMaxWidth(),
@@ -203,6 +242,7 @@ internal val BlendSection =
 						PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
 							KeyableColorChannelRow(
 								label = stringResource(Res.string.properties_field_multiply_color),
+								description = stringResource(Res.string.properties_field_multiply_color_description),
 								owner = KeyformOwner.Drawable(drawable.id),
 								channel = FormChannel.MULTIPLY_COLOR,
 								stored = drawable.displayMultiplyColor(),
@@ -218,6 +258,7 @@ internal val BlendSection =
 						PropertyRow(terms = listOf(Res.string.properties_field_screen_color)) { _ ->
 							KeyableColorChannelRow(
 								label = stringResource(Res.string.properties_field_screen_color),
+								description = stringResource(Res.string.properties_field_screen_color_description),
 								owner = KeyformOwner.Drawable(drawable.id),
 								channel = FormChannel.SCREEN_COLOR,
 								stored = drawable.displayScreenColor(),
@@ -232,6 +273,7 @@ internal val BlendSection =
 							checked = drawable.culling,
 							onCheckedChange = { culling -> session?.setDrawableCulling(drawable.id, culling) },
 							label = stringResource(Res.string.properties_field_culling),
+							description = stringResource(Res.string.properties_field_culling_description),
 						)
 					},
 					// Clipping lives with the blend data, not under Relations: it is how the drawable is
@@ -249,6 +291,7 @@ internal val BlendSection =
 								checked = drawable.invertMask,
 								onCheckedChange = { invert -> session?.setDrawableInvertMask(drawable.id, invert) },
 								label = stringResource(Res.string.properties_field_invert_mask),
+								description = stringResource(Res.string.properties_field_invert_mask_description),
 							)
 						}
 					},
@@ -259,7 +302,38 @@ internal val BlendSection =
 		},
 	)
 
-/** Data (deformer): opacity and tint colors, plus the warp lattice / quad-transform flag or the rotation base angle and flip flags. */
+/**
+ * The active drawable's or deformer's blend shapes, read-only: one line per binding naming the parameter that drives
+ * it and how many keys it has.  Editing blend shapes belongs to their own workflow; this lists what the rig carries.
+ * Hidden for an item with none.
+ */
+internal val BlendShapesSection =
+	PropertySection(
+		id = "data.blendShapes",
+		title = Res.string.properties_section_blend_shapes,
+		rows = { context ->
+			val bindings =
+				context.activeDrawable()?.blendShapes?.map { binding -> binding.parameterId to binding.keys.size }
+					?: when (val deformer = context.activeDeformer()) {
+						is Deformer.Warp -> deformer.blendShapes.map { binding -> binding.parameterId to binding.keys.size }
+						is Deformer.Rotation -> deformer.blendShapes.map { binding -> binding.parameterId to binding.keys.size }
+						null -> emptyList()
+					}
+
+			bindings.map { (parameterId, keyCount) ->
+				PropertyRow(terms = listOf(Res.string.properties_section_blend_shapes)) { rowContext ->
+					// The parameter's name is the rig's own data, shown as authored.
+					val parameterName = rowContext.puppet.parameters.firstOrNull { parameter -> parameter.id == parameterId }?.name ?: parameterId.raw
+					PropertyLine(stringResource(Res.string.properties_blend_shape_binding, parameterName, keyCount))
+				}
+			}
+		},
+	)
+
+/**
+ * Data (deformer): opacity and tint colors, plus the warp's lattice key state, its Rows / Columns, and its
+ * quad-transform flag, or the rotation's base angle and flip flags.
+ */
 internal val DeformerSection =
 	PropertySection(
 		id = "data.deformer",
@@ -267,46 +341,44 @@ internal val DeformerSection =
 		rows = { context ->
 			val session = context.session
 			val target = context.puppet.runtimeTarget
+
 			when (val deformer = context.activeDeformer()) {
-				is Deformer.Warp ->
+				is Deformer.Warp -> {
 					deformerRenderChannelRows(deformer, session, target) +
 						listOfNotNull(
-							PropertyRow(terms = listOf(Res.string.properties_warp_grid)) { _ ->
-								// The lattice dimensions resize the control grid + every keyform, so they stay read-only here.
-								PropertyLine(stringResource(Res.string.properties_warp_grid, deformer.rows, deformer.columns))
+							PropertyRow(terms = listOf(Res.string.properties_warp_lattice)) { rowContext ->
+								WarpLatticeKeyRow(deformer, rowContext.puppet)
+							},
+							PropertyRow(terms = listOf(Res.string.properties_field_lattice_rows, Res.string.properties_field_lattice_columns)) { rowContext ->
+								WarpLatticeSizeRows(deformer, rowContext)
 							},
 							// The bilinear mode is the official dialog's "new warp deformer method" (3.3+).
 							if (!target.supports(RuntimeFeature.WarpQuadTransform)) {
 								null
 							} else {
-								PropertyRow(terms = listOf(Res.string.properties_field_quad_transform)) { _ ->
+								PropertyRow(terms = listOf(Res.string.properties_field_quad_transform)) { rowContext ->
 									PropertyCheckboxRow(
 										checked = deformer.isQuadTransform,
-										onCheckedChange = { quad -> session?.setDeformerQuadTransform(deformer.id, quad) },
+										onCheckedChange = { quad -> session?.setWarpQuadTransform(deformer.id, quad) },
 										label = stringResource(Res.string.properties_field_quad_transform),
+										description = stringResource(Res.string.properties_field_quad_transform_description),
+										enabled = context.session?.mode?.collectAsState()?.value == EditorMode.Edit,
 									)
 								}
 							},
 						)
+				}
 
-				is Deformer.Rotation ->
+				is Deformer.Rotation -> {
 					deformerRenderChannelRows(deformer, session, target) +
 						listOf(
 							PropertyRow(terms = listOf(Res.string.properties_field_base_angle)) { _ ->
-								PropertyFieldRow(stringResource(Res.string.properties_field_base_angle)) {
-									NumberField(
-										value = deformer.baseAngle,
-										onValueChange = { newAngle -> session?.setDeformerBaseAngle(deformer.id, newAngle) },
-										modifier = Modifier.fillMaxWidth(),
-										range = UNBOUNDED_RANGE,
-										decimals = 1,
-										unitSuffix = stringResource(Res.string.unit_degrees),
-									)
-								}
+								DeformerBaseAngleField(deformer, session)
 							},
 							PropertyRow(terms = listOf(Res.string.properties_field_flip_x)) { _ ->
 								KeyableFlagChannelRow(
 									label = stringResource(Res.string.properties_field_flip_x),
+									description = stringResource(Res.string.properties_field_flip_x_description),
 									owner = KeyformOwner.Deformer(deformer.id),
 									channel = FormChannel.FLIP_X,
 									stored = deformer.flipX,
@@ -318,6 +390,7 @@ internal val DeformerSection =
 							PropertyRow(terms = listOf(Res.string.properties_field_flip_y)) { _ ->
 								KeyableFlagChannelRow(
 									label = stringResource(Res.string.properties_field_flip_y),
+									description = stringResource(Res.string.properties_field_flip_y_description),
 									owner = KeyformOwner.Deformer(deformer.id),
 									channel = FormChannel.FLIP_Y,
 									stored = deformer.flipY,
@@ -327,8 +400,11 @@ internal val DeformerSection =
 								)
 							},
 						)
+				}
 
-				null -> emptyList()
+				null -> {
+					emptyList()
+				}
 			}
 		},
 	)
@@ -340,6 +416,7 @@ internal val PartSection =
 		title = Res.string.properties_section_part,
 		rows = { context ->
 			val part = context.activePart()
+
 			if (part != null) {
 				val session = context.session
 				val target = context.puppet.runtimeTarget
@@ -350,6 +427,7 @@ internal val PartSection =
 								checked = part.isSketch,
 								onCheckedChange = { sketch -> session?.setPartSketch(part.id, sketch) },
 								label = stringResource(Res.string.properties_field_sketch),
+								description = stringResource(Res.string.properties_field_sketch_description),
 							)
 						},
 					)
@@ -358,7 +436,10 @@ internal val PartSection =
 							KeyablePropertyRow(
 								target = KeyableTarget(KeyformOwner.Part(part.id), FormChannel.DRAW_ORDER),
 							) {
-								PropertyFieldRow(stringResource(Res.string.properties_field_draw_order)) {
+								PropertyFieldRow(
+									stringResource(Res.string.properties_field_draw_order),
+									description = stringResource(Res.string.properties_field_draw_order_part_description),
+								) {
 									val target = KeyableTarget(KeyformOwner.Part(part.id), FormChannel.DRAW_ORDER)
 									NumberField(
 										keyState = keyedFieldStateOf(KeyformOwner.Part(part.id), FormChannel.DRAW_ORDER),
@@ -381,6 +462,7 @@ internal val PartSection =
 										onPreview = { order: Int ->
 											session?.previewChannelEdit(target, ChannelValue.Scalar(order.toFloat()))
 										},
+										onScrubCancel = { session?.cancelChannelPreview(target) },
 										range = 0..1000,
 										modifier = Modifier.fillMaxWidth(),
 									)
@@ -391,7 +473,10 @@ internal val PartSection =
 					add(
 						PropertyRow(terms = listOf(Res.string.properties_field_group_mode)) { _ ->
 							val groupLabels = partGroupModeLabels()
-							PropertyFieldRow(stringResource(Res.string.properties_field_group_mode)) {
+							PropertyFieldRow(
+								stringResource(Res.string.properties_field_group_mode),
+								description = stringResource(Res.string.properties_field_group_mode_description),
+							) {
 								SelectField(
 									selected = part.groupMode.kind(),
 									modifier = Modifier.fillMaxWidth(),
@@ -410,11 +495,13 @@ internal val PartSection =
 					// stops being editable.  No inner gates - 5.3 support implies every lower tier (colors, alpha,
 					// reversed mask).
 					val composite = part.activeComposite
+
 					if (composite != null && target.supports(RuntimeFeature.PartComposite)) {
 						add(
 							PropertyRow(terms = listOf(Res.string.properties_field_opacity)) { _ ->
 								KeyableScalarChannelRow(
 									label = stringResource(Res.string.properties_field_opacity),
+									description = stringResource(Res.string.properties_field_opacity_part_description),
 									owner = KeyformOwner.Part(part.id),
 									channel = FormChannel.OPACITY,
 									stored = composite.opacity,
@@ -432,7 +519,10 @@ internal val PartSection =
 						add(
 							PropertyRow(terms = listOf(Res.string.properties_field_blend_mode)) { _ ->
 								val blendLabels = blendModeLabels()
-								PropertyFieldRow(stringResource(Res.string.properties_field_blend_mode)) {
+								PropertyFieldRow(
+									stringResource(Res.string.properties_field_blend_mode),
+									description = stringResource(Res.string.properties_field_blend_mode_part_description),
+								) {
 									SelectField(
 										selected = composite.blendMode,
 										modifier = Modifier.fillMaxWidth(),
@@ -443,11 +533,15 @@ internal val PartSection =
 								}
 							},
 						)
+
 						if (!composite.blendMode.ignoresAlphaBlend) {
 							add(
 								PropertyRow(terms = listOf(Res.string.properties_field_alpha_mode)) { _ ->
 									val alphaLabels = alphaBlendModeLabels()
-									PropertyFieldRow(stringResource(Res.string.properties_field_alpha_mode)) {
+									PropertyFieldRow(
+										stringResource(Res.string.properties_field_alpha_mode),
+										description = stringResource(Res.string.properties_field_alpha_mode_part_description),
+									) {
 										SelectField(
 											selected = composite.alphaBlendMode,
 											modifier = Modifier.fillMaxWidth(),
@@ -459,10 +553,12 @@ internal val PartSection =
 								},
 							)
 						}
+
 						add(
 							PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
 								KeyableColorChannelRow(
 									label = stringResource(Res.string.properties_field_multiply_color),
+									description = stringResource(Res.string.properties_field_multiply_color_part_description),
 									owner = KeyformOwner.Part(part.id),
 									channel = FormChannel.MULTIPLY_COLOR,
 									stored = composite.multiplyColor,
@@ -478,6 +574,7 @@ internal val PartSection =
 							PropertyRow(terms = listOf(Res.string.properties_field_screen_color)) { _ ->
 								KeyableColorChannelRow(
 									label = stringResource(Res.string.properties_field_screen_color),
+									description = stringResource(Res.string.properties_field_screen_color_part_description),
 									owner = KeyformOwner.Part(part.id),
 									channel = FormChannel.SCREEN_COLOR,
 									stored = composite.screenColor,
@@ -491,7 +588,7 @@ internal val PartSection =
 						)
 						add(
 							PropertyRow(terms = listOf(Res.string.properties_field_masked_by)) { rowContext ->
-								PartMaskEditor(part, composite, rowContext)
+								PartMaskEditor(part, rowContext)
 							},
 						)
 						add(
@@ -500,6 +597,7 @@ internal val PartSection =
 									checked = composite.invertMask,
 									onCheckedChange = { invert -> session?.setPartComposite(part.id, composite.copy(invertMask = invert)) },
 									label = stringResource(Res.string.properties_field_invert_mask),
+									description = stringResource(Res.string.properties_field_invert_mask_part_description),
 								)
 							},
 						)
@@ -520,8 +618,8 @@ internal val PartSection =
  */
 internal fun dataTabSections(context: PropertyContext): List<PropertySection> =
 	when (context.activeTarget) {
-		is SelectionTarget.Drawable -> listOf(MeshSection, TextureSection, BlendSection)
-		is SelectionTarget.Deformer -> listOf(DeformerSection)
+		is SelectionTarget.Drawable -> listOf(MeshSection, TextureSection, BlendSection, BlendShapesSection)
+		is SelectionTarget.Deformer -> listOf(DeformerSection, BlendShapesSection)
 		is SelectionTarget.Part -> listOf(PartSection)
 		null -> emptyList()
 	}
@@ -535,27 +633,33 @@ internal fun dataTabSections(context: PropertyContext): List<PropertySection> =
  */
 internal fun dataTabIcon(context: PropertyContext): UmamoIcon =
 	when (val target = context.activeTarget) {
-		is SelectionTarget.Drawable -> LocalUmamoIcons.mesh
+		is SelectionTarget.Drawable -> {
+			LocalUmamoIcons.mesh
+		}
+
 		// Through the shared glyph so the tab icon and the Relations row can never disagree about a deformer.
-		is SelectionTarget.Deformer ->
+		is SelectionTarget.Deformer -> {
 			context.puppet.deformers.firstOrNull { it.id == target.id }
 				?.let { deformer -> deformerIcon(deformer) }
 				?: LocalUmamoIcons.warpDeformer
+		}
 
-		is SelectionTarget.Part -> LocalUmamoIcons.part
-		null -> LocalUmamoIcons.mesh
+		is SelectionTarget.Part -> {
+			LocalUmamoIcons.part
+		}
+
+		null -> {
+			LocalUmamoIcons.mesh
+		}
 	}
 
 /**
- * One keyable COLOR channel's field row: the label, the hex field with its keyed tint, the
- * track-resolved display value, and the keyed-goes-pending edit routing.
- *
- * ONE composable for every color channel row - drawable or part, multiply or screen - rather than the
- * routing rule hand-copied per row: a rule duplicated across every row is exactly the kind of thing that
- * drifts, and a row missing it writes a static the track shadows, so the edit appears to be silently
- * rejected.
+ * One keyable color channel's field row, shared by every color channel row so the keyed-goes-pending edit
+ * routing is never hand-copied: a row missing it would write a static the track shadows, and the edit would
+ * appear to be silently rejected.
  *
  * @param String label The row's field label.
+ * @param String description What the channel does, as the label's tooltip.
  * @param KeyformOwner owner The entity the row edits.
  * @param FormChannel channel The color channel the row edits.
  * @param ColorRgb stored The owner's static color.
@@ -566,6 +670,7 @@ internal fun dataTabIcon(context: PropertyContext): UmamoIcon =
 @Composable
 private fun KeyableColorChannelRow(
 	label: String,
+	description: String,
 	owner: KeyformOwner,
 	channel: FormChannel,
 	stored: ColorRgb,
@@ -575,7 +680,7 @@ private fun KeyableColorChannelRow(
 ) {
 	val target = KeyableTarget(owner, channel)
 	KeyablePropertyRow(target = target) {
-		PropertyFieldRow(label) {
+		PropertyFieldRow(label, description = description) {
 			HexColorField(
 				keyState = keyedFieldStateOf(owner, channel),
 				// What is APPLIED, not what is stored: on a keyed channel the static is shadowed by the
@@ -602,6 +707,7 @@ private fun KeyableColorChannelRow(
  * field on the pivot form - but from the row's point of view it keys exactly like the others.
  *
  * @param String label The checkbox's label.
+ * @param String description What the channel does, as the label's tooltip.
  * @param KeyformOwner owner The entity the row edits.
  * @param FormChannel channel The flag channel the row edits.
  * @param Boolean stored The owner's static value.
@@ -612,6 +718,7 @@ private fun KeyableColorChannelRow(
 @Composable
 private fun KeyableFlagChannelRow(
 	label: String,
+	description: String,
 	owner: KeyformOwner,
 	channel: FormChannel,
 	stored: Boolean,
@@ -629,7 +736,73 @@ private fun KeyableFlagChannelRow(
 				session?.editKeyedChannel(target, ChannelValue.Flag(flag), changeFor(flag)) { writeStatic(flag) }
 			},
 			label = label,
+			description = description,
 		)
+	}
+}
+
+/**
+ * A warp's lattice resolution as an aspect-lockable Rows / Columns pair.  A commit resizes the lattice with its art
+ * kept in place and registers the resize on the operation strip.  The pair is live only in Edit mode, which edits the
+ * lattice at rest; it is inert in Object mode, and in Pose mode, which shapes the lattice at a pose rather than
+ * rewriting every form.
+ *
+ * @param Deformer.Warp warp The warp the rows describe.
+ * @param PropertyContext context The current context.
+ */
+@Composable
+private fun WarpLatticeSizeRows(warp: Deformer.Warp, context: PropertyContext) {
+	val session = context.session
+	// Read here, called in the commit: the answer is the pointer's state as the release lands.
+	val stripArea = LocalOperationStripArea.current
+	AspectLockFieldPair(
+		firstLabel = stringResource(Res.string.properties_field_lattice_rows),
+		firstDescription = stringResource(Res.string.properties_field_lattice_rows_description),
+		firstValue = warp.rows,
+		secondLabel = stringResource(Res.string.properties_field_lattice_columns),
+		secondDescription = stringResource(Res.string.properties_field_lattice_columns_description),
+		secondValue = warp.columns,
+		range = 1..LATTICE_DIVISION_MAX,
+		enabled = session != null && session.mode.collectAsState().value == EditorMode.Edit,
+		onCommit = { rows, columns -> session?.setLatticeSizeAdjustable(warp.id, rows, columns, stripArea()) },
+	)
+}
+
+/**
+ * A warp's lattice as a keyable row: the parameters its geometry grid is keyed on, tinted by its keyed state at the
+ * displayed pose (on a key, between keys, or holding an unkeyed Pose-mode shape).  The row publishes the warp's
+ * geometry track on hover and carries the keyframe menu, so insert and delete over it key the lattice at the pose -
+ * the pending shape when there is one - as they do over the keyform sheet's geometry row.
+ *
+ * @param Deformer.Warp warp The warp the row describes.
+ * @param PuppetModel puppet The rig, whose parameters name the axes.
+ */
+@Composable
+private fun WarpLatticeKeyRow(
+	warp: Deformer.Warp,
+	puppet: PuppetModel,
+) {
+	val state = keyedLatticeStateOf(warp)
+	val colors = LocalUmamoColors.current
+	val parameterNameById = remember(puppet) { puppet.parameters.associate { parameter -> parameter.id to parameter.name } }
+	val keyedOn = warp.geometryGrid?.axes?.map { axis -> parameterNameById[axis.parameterId] ?: axis.parameterId.raw }.orEmpty()
+	val separator = stringResource(Res.string.properties_warp_lattice_separator)
+	val summary =
+		if (keyedOn.isEmpty()) {
+			stringResource(Res.string.properties_warp_lattice_unkeyed)
+		} else {
+			stringResource(Res.string.properties_warp_lattice_keyed_on, keyedOn.joinToString(separator))
+		}
+	KeyablePropertyRow(track = KeyformTrackRef.Geometry(KeyformOwner.Deformer(warp.id))) {
+		PropertyFieldRow(stringResource(Res.string.properties_warp_lattice), description = stringResource(Res.string.properties_warp_lattice_description)) {
+			Text(
+				text = summary,
+				style = LocalUmamoTypography.current.bodySmall,
+				color = state.tint(colors) ?: colors.text,
+				maxLines = 1,
+				overflow = TextOverflow.Ellipsis,
+			)
+		}
 	}
 }
 
@@ -638,8 +811,7 @@ private fun KeyableFlagChannelRow(
  *
  * Shared by both subtypes because both carry them and both cascade them.  Listed FIRST in the section, so
  * the channels a rigger keys sit above the structural fields (lattice dimensions, base angle) that are set
- * once and left alone.  Opacity is always shown; the two color rows are each gated on [target] supporting
- * their feature, so the result can be fewer than three rows.
+ * once and left alone.
  *
  * @param Deformer deformer The deformer the rows edit.
  * @param EditorSession? session The open document's session, or null.
@@ -652,10 +824,12 @@ private fun deformerRenderChannelRows(
 	target: RuntimeTarget,
 ): List<PropertyRow> {
 	val owner = KeyformOwner.Deformer(deformer.id)
+
 	return listOfNotNull(
 		PropertyRow(terms = listOf(Res.string.properties_field_opacity)) { _ ->
 			KeyableScalarChannelRow(
 				label = stringResource(Res.string.properties_field_opacity),
+				description = stringResource(Res.string.properties_field_opacity_deformer_description),
 				owner = owner,
 				channel = FormChannel.OPACITY,
 				stored = deformer.opacity,
@@ -674,6 +848,7 @@ private fun deformerRenderChannelRows(
 			PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
 				KeyableColorChannelRow(
 					label = stringResource(Res.string.properties_field_multiply_color),
+					description = stringResource(Res.string.properties_field_multiply_color_deformer_description),
 					owner = owner,
 					channel = FormChannel.MULTIPLY_COLOR,
 					stored = deformer.multiplyColor,
@@ -689,6 +864,7 @@ private fun deformerRenderChannelRows(
 			PropertyRow(terms = listOf(Res.string.properties_field_screen_color)) { _ ->
 				KeyableColorChannelRow(
 					label = stringResource(Res.string.properties_field_screen_color),
+					description = stringResource(Res.string.properties_field_screen_color_deformer_description),
 					owner = owner,
 					channel = FormChannel.SCREEN_COLOR,
 					stored = deformer.screenColor,
@@ -705,6 +881,7 @@ private fun deformerRenderChannelRows(
  * One keyable SCALAR channel's field row: [KeyableColorChannelRow]'s counterpart for a number field.
  *
  * @param String label The row's field label.
+ * @param String description What the channel does, as the label's tooltip.
  * @param KeyformOwner owner The entity the row edits.
  * @param FormChannel channel The scalar channel the row edits.
  * @param Float stored The owner's static value.
@@ -718,6 +895,7 @@ private fun deformerRenderChannelRows(
 @Composable
 private fun KeyableScalarChannelRow(
 	label: String,
+	description: String,
 	owner: KeyformOwner,
 	channel: FormChannel,
 	stored: Float,
@@ -730,7 +908,7 @@ private fun KeyableScalarChannelRow(
 ) {
 	val target = KeyableTarget(owner, channel)
 	KeyablePropertyRow(target = target) {
-		PropertyFieldRow(label) {
+		PropertyFieldRow(label, description = description) {
 			NumberField(
 				keyState = keyedFieldStateOf(owner, channel),
 				// What is APPLIED: a keyed channel's track shadows the static.
@@ -749,6 +927,9 @@ private fun KeyableScalarChannelRow(
 				onPreview = { previewed: Float ->
 					session?.previewChannelEdit(target, ChannelValue.Scalar(previewed))
 				},
+				// A cancelled scrub retires its preview the way a commit would, or the last frame would stay
+				// pending - the viewport stuck on it and the field tinted as an edit nobody made.
+				onScrubCancel = { session?.cancelChannelPreview(target) },
 			)
 		}
 	}

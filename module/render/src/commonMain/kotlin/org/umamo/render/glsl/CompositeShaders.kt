@@ -23,10 +23,8 @@ internal fun compositeVertexShader(dialect: GlslDialect): String =
 		"}\n"
 
 /**
- * The composite fragment shader: samples the rendered layer and the destination snapshot at the
- * fragment's screen position, applies the composite's channels (opacity, mask coverage,
- * multiply/screen colors) to the layer, then computes the color blend B(Cb, Cs) and the alpha
- * mode's Porter-Duff combination in-shader, writing premultiplied with blending DISABLED.
+ * The composite fragment shader: blends the rendered layer over the destination snapshot entirely
+ * in-shader, writing premultiplied with blending DISABLED.
  *
  * The colorMode/alphaMode ints are the MOC3 packed halves (colorMode 0-17, alphaMode 0-4).  The legacy
  * "(Before 5.3)" Add/Multiply (colorMode 1/2) take the fixed-function premultiplied branch regardless of

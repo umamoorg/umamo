@@ -1,6 +1,5 @@
 // :storage — multiplatform app-file foundation: per-OS config/data directories, file IO (okio), and a
-// native open/save dialog contract. The low-level base :settings (and later the editor UI) build on.
-// :storage — マルチプラットフォームのアプリ保存基盤：OS 別の設定/データ場所、ファイル IO（okio）、ファイルダイアログ契約。
+// native open/save dialog contract.  The low-level base :settings (and later the editor UI) build on.
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
@@ -25,11 +24,14 @@ kotlin {
 				// surface, so consumers (:settings, apps) see them transitively.
 				api(libs.okio)
 				// `api` again: FileKit's `PlatformFile` is the FilePicker contract's return type, and the
-				// apps call `FileKit.init`, so both must reach consumers transitively. Pulls filekit-core.
+				// apps call `FileKit.init`, so both must reach consumers transitively.  Pulls filekit-core.
 				api(libs.filekitDialogs)
 				// `api` because UmamoLog's retained-log buffer exposes a StateFlow in its public surface, so
 				// consumers (the UI's Logs panel) see kotlinx-coroutines transitively - same rule as okio/FileKit.
 				api(libs.kotlinxCoroutinesCore)
+				// The session log file's lock: its writes are synchronous, so a crash handler's last line is
+				// on disk before the process exits.
+				implementation(libs.atomicfu)
 			}
 		}
 		commonTest {
@@ -37,6 +39,8 @@ kotlin {
 				implementation(kotlin("test"))
 				// okio's in-memory FileSystem, so OkioAppStorage's tests run with no real disk.
 				implementation(libs.okio.fakefilesystem)
+				// runTest, for the session log's concurrent-writer test.
+				implementation(libs.kotlinxCoroutinesTest)
 			}
 		}
 	}

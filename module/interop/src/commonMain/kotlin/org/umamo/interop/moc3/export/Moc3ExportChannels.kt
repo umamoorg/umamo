@@ -73,6 +73,7 @@ internal fun ChannelGrids.onlyChannels(
 	vararg channels: FormChannel,
 ): ChannelGrids {
 	val keep = channels.toSet()
+
 	return ChannelGrids(
 		gridsByChannel.filterKeys { channel -> channel in keep },
 	)

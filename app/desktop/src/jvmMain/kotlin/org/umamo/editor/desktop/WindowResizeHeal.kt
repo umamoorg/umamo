@@ -21,12 +21,10 @@ private const val HEAL_CHECK_INTERVAL_MILLIS = 250
 /**
  * Heals the window when the OS changes its bounds behind AWT's event stream (Escape-canceled
  * resize).  After every healthy resize the root pane is laid out to exactly the frame's bounds
- * minus its insets, so a persistent mismatch is proof of a lost resize notification.  On a
- * mismatch this re-validates the component tree, which resizes the ComposeWindowPanel and with it
- * the Compose scene, then dispatches a synthetic COMPONENT_RESIZED so Compose's own window
- * listener refreshes WindowState.size.  While bounds and layout agree - the permanent state on
- * every platform outside this Windows quirk - each tick is two int comparisons on the EDT, so the
- * watchdog runs unconditionally rather than behind an OS gate.
+ * minus its insets, so a persistent mismatch is proof of a lost resize notification.  While
+ * bounds and layout agree - the permanent state on every platform outside this Windows quirk -
+ * each tick is two int comparisons on the EDT, so the watchdog runs unconditionally rather than
+ * behind an OS gate.
  *
  * This composable emits no UI - it only owns the watchdog timer's lifecycle.
  *
@@ -40,10 +38,12 @@ fun WindowResizeHeal(window: JFrame) {
 				if (!window.isShowing) {
 					return@Timer
 				}
+
 				val insets = window.insets
 				val expectedWidth = window.width - insets.left - insets.right
 				val expectedHeight = window.height - insets.top - insets.bottom
 				val rootPane = window.rootPane
+
 				if (expectedWidth > 0 &&
 					expectedHeight > 0 &&
 					(rootPane.width != expectedWidth || rootPane.height != expectedHeight)

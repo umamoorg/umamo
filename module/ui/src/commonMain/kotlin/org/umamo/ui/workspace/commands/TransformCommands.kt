@@ -1,17 +1,29 @@
 package org.umamo.ui.workspace.commands
 
-import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.TargetShape
+import org.umamo.edit.editsElements
+import org.umamo.edit.transform.beginMeshOperator
+import org.umamo.edit.transform.beginObjectOperator
+import org.umamo.edit.transform.beginUvOperator
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandSection
+import org.umamo.ui.action.CommandState
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoIcons
+import org.umamo.ui.workspace.SpaceScope
 
 /**
- * The modal transform commands (Blender G / S / R) and their cancel.
+ * The modal transform commands (Blender G / S / R) and their cancel, and To Shape, the one-shot wrap of the selected
+ * points onto a cylinder or a sphere.
  *
  * One binding serves every surface and mode: the operator dispatches by where the pointer is and which
  * mode is active, so the keymap binds a bare letter with no context of its own.  Each session method
- * guards its own preconditions, so an out-of-mode or ineligible press is a safe no-op.
+ * guards its own preconditions, so an out-of-mode or ineligible press is a safe no-op.  To Shape runs in Pose
+ * mode over the pointer's 2D viewport, whose operation strip then switches between its two shapes.
  *
  * @param EditorSession? editorSession The open document's session, or null (every command then no-ops).
  * @param CommandRouting routing Resolves which area the pointer means at dispatch time.
@@ -23,30 +35,89 @@ internal fun transformCommands(
 	routing: CommandRouting,
 	availability: SessionAvailability,
 ): List<Command> =
-	listOf(
-		Command("mesh.grab", title = Res.string.cmd_mesh_grab, availability = availability.hasDocument) {
+	commandTable(
+		CommandTable.Transform,
+		// The toolbar's transforms, in its order: each wears its tool glyph and is lit while its operator is in flight.
+		Command(
+			"mesh.grab",
+			title = Res.string.cmd_mesh_grab,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.WorkSurfaces,
+			hint = CommandHint(Res.string.status_bind_grab),
+			group = CommandSection.ToolTransform,
+			icon = LocalUmamoIcons.toolGrab,
+			state = operatorState(editorSession, MeshOperatorKind.Grab),
+		) {
 			beginTransform(editorSession, MeshOperatorKind.Grab, routing)
 		},
-		Command("mesh.scale", title = Res.string.cmd_mesh_scale, availability = availability.hasDocument) {
-			beginTransform(editorSession, MeshOperatorKind.Scale, routing)
-		},
-		Command("mesh.rotate", title = Res.string.cmd_mesh_rotate, availability = availability.hasDocument) {
+		Command(
+			"mesh.rotate",
+			title = Res.string.cmd_mesh_rotate,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.WorkSurfaces,
+			hint = CommandHint(Res.string.status_bind_rotate),
+			group = CommandSection.ToolTransform,
+			icon = LocalUmamoIcons.toolRotate,
+			state = operatorState(editorSession, MeshOperatorKind.Rotate),
+		) {
 			beginTransform(editorSession, MeshOperatorKind.Rotate, routing)
+		},
+		Command(
+			"mesh.scale",
+			title = Res.string.cmd_mesh_scale,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.WorkSurfaces,
+			hint = CommandHint(Res.string.status_bind_scale),
+			group = CommandSection.ToolTransform,
+			icon = LocalUmamoIcons.toolScale,
+			state = operatorState(editorSession, MeshOperatorKind.Scale),
+		) {
+			beginTransform(editorSession, MeshOperatorKind.Scale, routing)
 		},
 		// Untitled and ungated: the ladder and the overlays dispatch it as a cleanup signal, and exactly
 		// one of the three latches can be live, so clearing all three unconditionally is the whole job.
-		Command("mesh.modalCancel", title = null) {
+		Command(
+			"mesh.modalCancel",
+			title = null,
+		) {
 			editorSession?.clearMeshOperator()
 			editorSession?.clearObjectOperator()
 			editorSession?.clearUvOperator()
 		},
+		Command(
+			"mesh.toShape.cylinder",
+			title = Res.string.cmd_mesh_to_shape_cylinder,
+			availability = availability.inPoseMode,
+			spaces = SpaceScope.Viewport2D,
+		) {
+			editorSession?.requestToShape(TargetShape.Cylinder, routing.viewportArea())
+		},
+		Command(
+			"mesh.toShape.sphere",
+			title = Res.string.cmd_mesh_to_shape_sphere,
+			availability = availability.inPoseMode,
+			spaces = SpaceScope.Viewport2D,
+		) {
+			editorSession?.requestToShape(TargetShape.Sphere, routing.viewportArea())
+		},
 	)
+
+/**
+ * Whether a modal transform of [kind] is in flight on the 2D viewport's geometry: an element operator in Edit or
+ * Pose mode, or an Object-mode one.  It is what lights the transform's toolbar button.
+ *
+ * @param EditorSession? editorSession The open document's session, or null, which has none in flight.
+ * @param MeshOperatorKind kind The transform.
+ * @return CommandState The state of the command that begins [kind].
+ */
+private fun operatorState(editorSession: EditorSession?, kind: MeshOperatorKind): CommandState =
+	CommandState { (editorSession?.activeMeshOperator?.value ?: editorSession?.activeObjectOperator?.value)?.kind == kind }
 
 /**
  * Begins a modal transform on [session] for the surface the pointer last touched: a UV operator over
  * texture coordinates in a hovered UV editor (Blender's hovered-area routing - the key acts where the
- * pointer is), else an Edit-mode mesh operator over the selected vertices or an Object-mode operator over
- * the selected drawables' whole geometry.
+ * pointer is), else an element operator over the selected vertices or lattice points (Edit and Pose mode) or an
+ * Object-mode operator over the selected objects' whole geometry.
  *
  * @param EditorSession? session The active session, or null when no document is open.
  * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
@@ -60,15 +131,21 @@ private fun beginTransform(session: EditorSession?, kind: MeshOperatorKind, rout
 	if (session == null) {
 		return
 	}
+
 	when (val target = routing.transformTarget()) {
-		is TransformTarget.Uv -> session.beginUvOperator(kind, target.areaId)
-		is TransformTarget.Viewport ->
-			if (session.mode.value == EditorMode.Edit) {
+		is TransformTarget.Uv -> {
+			session.beginUvOperator(kind, target.areaId)
+		}
+
+		is TransformTarget.Viewport -> {
+			if (session.mode.value.editsElements) {
 				session.beginMeshOperator(kind, target.areaId)
 			} else {
 				session.beginObjectOperator(kind, target.areaId)
 			}
+		}
+
 		// The pointer has never touched a viewport and is not over a UV editor: nowhere to run it.
-		null -> Unit
+		null -> {}
 	}
 }

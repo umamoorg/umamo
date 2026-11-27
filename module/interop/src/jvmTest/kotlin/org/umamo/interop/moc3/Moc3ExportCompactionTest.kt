@@ -4,6 +4,7 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -68,10 +69,12 @@ class Moc3ExportCompactionTest {
 		if (control.contentEquals(collapsed)) {
 			return
 		}
+
 		if (collapsed.size == 1 && control.all { value -> value == collapsed[0] }) {
 			// The legitimate collapse: every cell held the same value, so one cell says the same thing.
 			return
 		}
+
 		failures.add(
 			"$fileName: $what collapsed lossily (uncompacted=${control.toList().take(4)} " +
 				"compacted=${collapsed.toList().take(4)})",
@@ -81,17 +84,21 @@ class Moc3ExportCompactionTest {
 	@Test
 	fun compactionDoesNotChangeWhatTheExportWrites() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping export compaction test")
-			return
+			skipTest("moc3.samples not present; skipping export compaction test")
 		}
+
 		val failures = ArrayList<String>()
 		var covered = 0
+
 		for (file in files) {
 			val source = Moc3.decode(MocCodec.read(file.readBytes()))
+
 			if (source.version.byteValue !in supportedVersions) {
 				continue
 			}
+
 			covered++
 			val compacted =
 				Moc3Export.toMocDocument(
@@ -121,16 +128,19 @@ class Moc3ExportCompactionTest {
 			// and not identities - which is the whole point.
 			check("parameters", uncompacted.parameters, compacted.parameters)
 			val compactedParts = compacted.parts.associateBy { it.id }
+
 			for (part in uncompacted.parts) {
 				val other = compactedParts[part.id] ?: continue
 				check("part ${part.id} parent", part.parentPartIndex, other.parentPartIndex)
 				check("part ${part.id} visibility", part.isVisible, other.isVisible)
 				checkCollapsed(failures, file.name, "part ${part.id} draw order", part.drawOrderKeyforms, other.drawOrderKeyforms)
 			}
+
 			check("deformers", uncompacted.deformers, compacted.deformers)
 			// Geometry-less owners: a collapsed grid is expected, so assert the collapse is VALUE-preserving
 			// rather than demanding the same cell count.
 			val compactedGlues = compacted.glues.associateBy { it.id }
+
 			for (glue in uncompacted.glues) {
 				val other = compactedGlues[glue.id] ?: continue
 				check("glue ${glue.id} mesh pair", glue.meshAIndex to glue.meshBIndex, other.meshAIndex to other.meshBIndex)
@@ -140,33 +150,40 @@ class Moc3ExportCompactionTest {
 
 			// Field-level for art meshes: dumping whole objects buries which value moved.
 			val compactedMeshes = compacted.artMeshes.associateBy { it.id }
+
 			for (mesh in uncompacted.artMeshes) {
 				val other = compactedMeshes[mesh.id] ?: continue
 				check("mesh ${mesh.id} keyform count", mesh.keyforms.size, other.keyforms.size)
 				check("mesh ${mesh.id} binding", mesh.keyformBindingIndex, other.keyformBindingIndex)
+
 				for (keyIndex in mesh.keyforms.indices) {
-					val a = mesh.keyforms.getOrNull(keyIndex) ?: continue
-					val b = other.keyforms.getOrNull(keyIndex) ?: continue
-					if (!a.vertexPositions.contentEquals(b.vertexPositions)) {
+					val uncompactedKeyform = mesh.keyforms.getOrNull(keyIndex) ?: continue
+					val compactedKeyform = other.keyforms.getOrNull(keyIndex) ?: continue
+
+					if (!uncompactedKeyform.vertexPositions.contentEquals(compactedKeyform.vertexPositions)) {
 						val worst =
-							a.vertexPositions.indices.maxByOrNull { component ->
-								kotlin.math.abs(a.vertexPositions[component] - (b.vertexPositions.getOrNull(component) ?: 0f))
+							uncompactedKeyform.vertexPositions.indices.maxByOrNull { component ->
+								kotlin.math.abs(uncompactedKeyform.vertexPositions[component] - (compactedKeyform.vertexPositions.getOrNull(component) ?: 0f))
 							} ?: 0
 						failures.add(
 							"${file.name}: mesh ${mesh.id} keyform $keyIndex positions differ at $worst " +
-								"uncompacted=${a.vertexPositions.getOrNull(worst)} compacted=${b.vertexPositions.getOrNull(worst)}",
+								"uncompacted=${uncompactedKeyform.vertexPositions.getOrNull(worst)} compacted=${compactedKeyform.vertexPositions.getOrNull(worst)}",
 						)
 					}
-					check("mesh ${mesh.id} keyform $keyIndex opacity", a.opacity, b.opacity)
-					check("mesh ${mesh.id} keyform $keyIndex drawOrder", a.drawOrder, b.drawOrder)
+
+					check("mesh ${mesh.id} keyform $keyIndex opacity", uncompactedKeyform.opacity, compactedKeyform.opacity)
+					check("mesh ${mesh.id} keyform $keyIndex drawOrder", uncompactedKeyform.drawOrder, compactedKeyform.drawOrder)
 				}
 			}
+
 			check("render-order groups", uncompacted.renderOrderGroups, compacted.renderOrderGroups)
 			check("binding count", uncompacted.bindings.size, compacted.bindings.size)
+
 			for (index in uncompacted.bindings.indices) {
 				check("binding[$index]", uncompacted.bindings.getOrNull(index), compacted.bindings.getOrNull(index))
 			}
 		}
+
 		assertTrue(covered > 0, "no v1-v6 corpus model to compare")
 		println("[export] compaction-invariant across $covered v1-v6 models, ${failures.size} divergences")
 		assertEquals(emptyList(), failures.take(15), "compaction changed the exported document")

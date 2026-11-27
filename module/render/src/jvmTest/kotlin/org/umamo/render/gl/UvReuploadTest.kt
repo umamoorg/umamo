@@ -53,6 +53,7 @@ class UvReuploadTest {
 	private fun twoColorAtlas(): DecodedImage {
 		val size = 8
 		val rgba = ByteArray(size * size * 4)
+
 		for (row in 0 until size) {
 			for (col in 0 until size) {
 				val pixel = (row * size + col) * 4
@@ -62,6 +63,7 @@ class UvReuploadTest {
 				rgba[pixel + 3] = 0xFF.toByte()
 			}
 		}
+
 		return DecodedImage(rgba, size, size)
 	}
 
@@ -73,7 +75,7 @@ class UvReuploadTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(quadPositions.copyOf(), leftHalfUvs.copyOf(), quadIndices),
+				mesh = DrawableMesh.withLocalEqualToCanvas(quadPositions.copyOf(), leftHalfUvs.copyOf(), quadIndices),
 				// A single zero-delta keyform so the drawable is "keyed" (an unkeyed drawable is skipped
 				// by the renderer); the base mesh alone drives its shape.
 				geometryGrid =
@@ -82,6 +84,7 @@ class UvReuploadTest {
 						listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(quadPositions.size)))),
 					),
 			)
+
 		return PuppetModel(
 			parameters = listOf(Parameter(paramA, "A", -1f, 1f, 0f)),
 			parts = emptyList(),
@@ -100,7 +103,8 @@ class UvReuploadTest {
 	private fun uvShiftedModel(source: PuppetModel): PuppetModel {
 		val drawable = source.drawables.single()
 		val mesh = drawable.mesh!!
-		return source.copy(drawables = listOf(drawable.copy(mesh = DrawableMesh(mesh.positions, rightHalfUvs.copyOf(), mesh.indices))))
+
+		return source.copy(drawables = listOf(drawable.copy(mesh = mesh.withUvs(rightHalfUvs.copyOf()))))
 	}
 
 	@Test
@@ -174,6 +178,7 @@ class UvReuploadTest {
 		var sumX = 0.0
 		var sumY = 0.0
 		var count = 0
+
 		for (row in 0 until height) {
 			for (col in 0 until width) {
 				val pixel = (row * width + col) * 4
@@ -183,6 +188,7 @@ class UvReuploadTest {
 				val deltaRed = abs(red - (background.get(pixel).toInt() and 0xFF))
 				val deltaGreen = abs(green - (background.get(pixel + 1).toInt() and 0xFF))
 				val deltaBlue = abs(blue - (background.get(pixel + 2).toInt() and 0xFF))
+
 				if (maxOf(deltaRed, deltaGreen, deltaBlue) > threshold) {
 					sumRed += red
 					sumGreen += green
@@ -192,9 +198,11 @@ class UvReuploadTest {
 				}
 			}
 		}
+
 		if (count == 0) {
 			return ArtColorStats(0, 0f, 0f, 0f, 0f)
 		}
+
 		return ArtColorStats(count, (sumRed / count).toFloat(), (sumGreen / count).toFloat(), (sumX / count).toFloat(), (sumY / count).toFloat())
 	}
 
@@ -202,6 +210,7 @@ class UvReuploadTest {
 	private fun readPixels(width: Int, height: Int): ByteBuffer {
 		val buffer = BufferUtils.createByteBuffer(width * height * 4)
 		GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer)
+
 		return buffer
 	}
 
@@ -215,6 +224,7 @@ class UvReuploadTest {
 		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR)
 		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR)
 		GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, colorTexture, 0)
+
 		return framebuffer
 	}
 }

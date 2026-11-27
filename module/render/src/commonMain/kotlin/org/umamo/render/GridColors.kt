@@ -1,13 +1,12 @@
 package org.umamo.render
 
 /**
- * The three colors of the viewport grid backdrop, as 0..1 linear RGB triples: the flat canvas fill, the
- * major grid line color, and the minor (subdivision) grid line color.  Kept as plain floats (not a Compose
+ * The colors of the viewport grid backdrop, as 0..1 linear RGB triples: the flat canvas fill, the major
+ * grid line color, and the minor (subdivision) grid line color, plus a UV scene's surround and border
+ * colors and the border's width.  Kept as plain floats (not a Compose
  * Color) so :render stays free of any UI dependency; the editor maps its themed palette into this at the
  * call site.  [Classic] is a neutral grey grid, used as the default so a caller that does not theme the
  * backdrop still gets a sensible surface.
- *
- * ビューポートのグリッド背景の 3 色（0..1 の RGB）。背景・主線・副線。:render を UI 非依存に保つため素の float。
  *
  * @property Float backgroundRed   Red of the flat canvas fill.
  * @property Float backgroundGreen Green of the flat canvas fill.
@@ -18,6 +17,16 @@ package org.umamo.render
  * @property Float minorRed        Red of the minor (subdivision) grid line.
  * @property Float minorGreen      Green of the minor grid line.
  * @property Float minorBlue       Blue of the minor grid line.
+ * @property Float surroundRed     Red of what a UV scene paints outside its shown surface (the panel
+ *   behind the page); the canvas fill by default.
+ * @property Float surroundGreen   Green of the surround.
+ * @property Float surroundBlue    Blue of the surround.
+ * @property Float frameRed        Red of the border a UV scene draws around its shown surface; the major
+ *   line color by default.
+ * @property Float frameGreen      Green of the border.
+ * @property Float frameBlue       Blue of the border.
+ * @property Float frameWidthPx    The border's width in display pixels; the renderer scales it by the
+ *   render scale, as it does the grid lines.
  */
 data class GridColors(
 	val backgroundRed: Float,
@@ -29,7 +38,31 @@ data class GridColors(
 	val minorRed: Float,
 	val minorGreen: Float,
 	val minorBlue: Float,
+	val surroundRed: Float = backgroundRed,
+	val surroundGreen: Float = backgroundGreen,
+	val surroundBlue: Float = backgroundBlue,
+	val frameRed: Float = majorRed,
+	val frameGreen: Float = majorGreen,
+	val frameBlue: Float = majorBlue,
+	val frameWidthPx: Float = 1f,
 ) {
+	/**
+	 * These colors with the grid lines gone: the major and minor lines take the background color, so the
+	 * grid pass paints a flat fill while the surround and the frame keep their own colors.  How a frame hides
+	 * the grid lines without a second code path for the clear.
+	 *
+	 * @return GridColors The flat variant.
+	 */
+	fun withoutLines(): GridColors =
+		copy(
+			majorRed = backgroundRed,
+			majorGreen = backgroundGreen,
+			majorBlue = backgroundBlue,
+			minorRed = backgroundRed,
+			minorGreen = backgroundGreen,
+			minorBlue = backgroundBlue,
+		)
+
 	companion object {
 		/** A neutral dark-grey grid: #2E2E2E fill, #484848 major lines, #3A3A3A minor lines. */
 		val Classic: GridColors =
@@ -48,12 +81,11 @@ data class GridColors(
 }
 
 /**
- * The two world-axis line colors, as 0..1 linear RGB triples - the red X axis and the blue Z axis
- * drawn through the world origin behind the puppet (the project's display convention is Y+ forward,
- * Z+ up, so the vertical world axis is presented as Z).  Plain floats for the same reason as
- * [GridColors]: :render stays free of any UI dependency.
- *
- * ワールド軸線の 2 色（0..1 の RGB）。横が赤い X 軸、縦が青い Z 軸（表示規約は Y+ 前、Z+ 上）。
+ * The world-axis colors, as 0..1 linear RGB triples - the red X axis and the blue Z axis drawn through
+ * the world origin behind the puppet (the project uses Blender's axes, Y into the screen and Z up, so the
+ * vertical world axis is presented as Z), and the green Y axis, the depth no axis line shows, which only
+ * the depth rotation's chrome draws.  Plain floats for the same reason as [GridColors]: :render stays free of
+ * any UI dependency.
  *
  * @property Float xRed   Red of the horizontal X axis line.
  * @property Float xGreen Green of the horizontal X axis line.
@@ -61,6 +93,9 @@ data class GridColors(
  * @property Float zRed   Red of the vertical Z axis line.
  * @property Float zGreen Green of the vertical Z axis line.
  * @property Float zBlue  Blue of the vertical Z axis line.
+ * @property Float yRed   Red of the Y (depth) axis.
+ * @property Float yGreen Green of the Y (depth) axis.
+ * @property Float yBlue  Blue of the Y (depth) axis.
  */
 data class WorldAxisColors(
 	val xRed: Float,
@@ -69,9 +104,12 @@ data class WorldAxisColors(
 	val zRed: Float,
 	val zGreen: Float,
 	val zBlue: Float,
+	val yRed: Float,
+	val yGreen: Float,
+	val yBlue: Float,
 ) {
 	companion object {
-		/** Blender-like axis colors: a muted red X and a muted blue Z. */
-		val Classic: WorldAxisColors = WorldAxisColors(0.84f, 0.31f, 0.36f, 0.31f, 0.44f, 0.85f)
+		/** Blender-like axis colors: a muted red X, a muted blue Z, and a muted green Y. */
+		val Classic: WorldAxisColors = WorldAxisColors(0.84f, 0.31f, 0.36f, 0.31f, 0.44f, 0.85f, 0.47f, 0.71f, 0.27f)
 	}
 }

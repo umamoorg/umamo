@@ -81,6 +81,7 @@ internal class DeformerDecoder(
 		val warpToDeformer = ArrayList<Int>()
 		val rotationToDeformer = ArrayList<Int>()
 		val deformers = ArrayList<Deformer>(deformerCount)
+
 		for (deformerIndex in 0 until deformerCount) {
 			if (deformerType[deformerIndex] == 0) {
 				warpToDeformer.add(deformerIndex)
@@ -90,6 +91,7 @@ internal class DeformerDecoder(
 				deformers.add(rotationDeformer(deformerIndex, nextRotationLocal++))
 			}
 		}
+
 		return DecodedDeformers(deformers, warpToDeformer, rotationToDeformer, warpControlPointCounts)
 	}
 
@@ -114,6 +116,7 @@ internal class DeformerDecoder(
 					colorTables.screenForKeyform(warpColorBase?.get(warpLocalIndex), gridIndex),
 				)
 			}
+
 		return WarpDeformer(
 			id = deformerId.getOrElse(deformerIndex) { "" },
 			keyformBindingIndex = keyformBinding,
@@ -152,6 +155,7 @@ internal class DeformerDecoder(
 					colorTables.screenForKeyform(rotationColorBase?.get(rotationLocalIndex), gridIndex),
 				)
 			}
+
 		return RotationDeformer(
 			id = deformerId.getOrElse(deformerIndex) { "" },
 			keyformBindingIndex = keyformBinding,

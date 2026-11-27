@@ -4,19 +4,16 @@ package org.umamo.format.kra
  * Maps a Krita layer's color space onto a converter that packs each source pixel into the neutral
  * model's RGBA8888 straight-alpha format.
  *
- * Two things vary between Krita color spaces and must be handled here. First, channel byte order:
+ * Two things vary between Krita color spaces and must be handled here.  First, channel byte order:
  * Krita's integer RGB spaces store BGRA (KoBgrU8Traits / KoBgrU16Traits with blue at 0, green at 1,
  * red at 2), while its float RGB space stores RGBA (KoRgbColorSpaceTraits with red at 0, green at 1,
- * blue at 2). Grayscale is gray then alpha (KoGrayColorSpaceTraits). Second, bit depth: 8/16-bit
+ * blue at 2).  Grayscale is gray then alpha (KoGrayColorSpaceTraits).  Second, bit depth: 8/16-bit
  * integer and 32-bit float, down-converted to 8-bit (16-bit keeps the most-significant byte; float
- * is clamped to 0..1 and scaled). The model is always RGBA8888, so high-depth precision cannot be
+ * is clamped to 0..1 and scaled).  The model is always RGBA8888, so high-depth precision cannot be
  * preserved regardless - this is lossy by the model's contract.
  *
- * Scope: RGBA and GRAYA in U8, U16, and F32. Half-float (F16) and other models (CMYK, LAB, XYZ,
+ * Scope: RGBA and GRAYA in U8, U16, and F32.  Half-float (F16) and other models (CMYK, LAB, XYZ,
  * YCbCr) raise a clear error rather than silently mis-decoding.
- *
- * Krita のカラースペースを RGBA8888 へ変換する。整数 RGB は BGRA、浮動小数 RGB は RGBA、グレースケールは
- * gray, alpha の順。8/16/32 ビットに対応し 8 ビットへ縮約する。
  */
 internal enum class KraColorDepth {
 	UnsignedByte, // U8
@@ -70,6 +67,7 @@ internal class KraPixelFormat(
 					destination[destinationOffset + 2] = source[sourceOffset] // blue
 					destination[destinationOffset + 3] = source[sourceOffset + 3] // alpha
 				}
+
 				// KRA: KoBgrU16Traits - BGRA, little-endian; keep the MSB (offset+1 of each pair).
 				KraColorDepth.UnsignedShort -> {
 					destination[destinationOffset] = source[sourceOffset + 5] // red MSB
@@ -77,6 +75,7 @@ internal class KraPixelFormat(
 					destination[destinationOffset + 2] = source[sourceOffset + 1] // blue MSB
 					destination[destinationOffset + 3] = source[sourceOffset + 7] // alpha MSB
 				}
+
 				// KRA: KoRgbColorSpaceTraits - float RGB is red-first (RGBA), 32-bit little-endian.
 				KraColorDepth.Float32 -> {
 					destination[destinationOffset] = floatByteToUnorm8(source, sourceOffset) // red
@@ -86,9 +85,10 @@ internal class KraPixelFormat(
 				}
 			}
 		} else {
-			// Grayscale: replicate the single grey channel into R/G/B. KRA: KoGrayColorSpaceTraits.
+			// Grayscale: replicate the single grey channel into R/G/B.  KRA: KoGrayColorSpaceTraits.
 			val grayByte: Byte
 			val alphaByte: Byte
+
 			when (depth) {
 				KraColorDepth.UnsignedByte -> {
 					grayByte = source[sourceOffset]
@@ -105,6 +105,7 @@ internal class KraPixelFormat(
 					alphaByte = floatByteToUnorm8(source, sourceOffset + 4)
 				}
 			}
+
 			destination[destinationOffset] = grayByte
 			destination[destinationOffset + 1] = grayByte
 			destination[destinationOffset + 2] = grayByte
@@ -114,12 +115,12 @@ internal class KraPixelFormat(
 }
 
 /**
- * Reads a 32-bit little-endian float at offset in source and quantises it to an 8-bit unorm byte
+ * Reads a 32-bit little-endian float at offset in source and quantizes it to an 8-bit unorm byte
  * (clamped to 0..1, scaled by 255, rounded).
  *
  * @param ByteArray source   Buffer holding the float.
  * @param Int offset         Byte offset of the 4-byte little-endian float.
- * @return Byte the quantised 0..255 channel value (as a signed Byte).
+ * @return Byte the quantized 0..255 channel value (as a signed Byte).
  */
 private fun floatByteToUnorm8(source: ByteArray, offset: Int): Byte {
 	val bits =
@@ -129,6 +130,7 @@ private fun floatByteToUnorm8(source: ByteArray, offset: Int): Byte {
 			((source[offset + 3].toInt() and 0xFF) shl 24)
 	val value = Float.fromBits(bits)
 	val clamped = value.coerceIn(0f, 1f)
+
 	return (clamped * 255f + 0.5f).toInt().toByte()
 }
 
@@ -155,17 +157,27 @@ internal fun resolveKraPixelFormat(colorspaceName: String, tilePixelSize: Int): 
 
 	val depth =
 		when {
-			normalized.contains("F32") -> KraColorDepth.Float32
-			normalized.contains("F16") ->
-				error("Unsupported KRA color depth (half-float) '$colorspaceName'")
+			normalized.contains("F32") -> {
+				KraColorDepth.Float32
+			}
 
-			normalized.contains("16") -> KraColorDepth.UnsignedShort
-			else -> KraColorDepth.UnsignedByte
+			normalized.contains("F16") -> {
+				error("Unsupported KRA color depth (half-float) '$colorspaceName'")
+			}
+
+			normalized.contains("16") -> {
+				KraColorDepth.UnsignedShort
+			}
+
+			else -> {
+				KraColorDepth.UnsignedByte
+			}
 		}
 
 	val format = KraPixelFormat(channelCount = if (isRgb) 4 else 2, depth = depth, isRgb = isRgb)
 	require(format.pixelSize == tilePixelSize) {
 		"KRA pixel-size mismatch: tile header says $tilePixelSize, '$colorspaceName' implies ${format.pixelSize}"
 	}
+
 	return format
 }

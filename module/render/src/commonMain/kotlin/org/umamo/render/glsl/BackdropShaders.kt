@@ -2,11 +2,8 @@ package org.umamo.render.glsl
 
 // The canvas backdrop's GLSL - the world-aligned grid and the world-origin axis lines.
 //
-// These were previously hand-copied between the desktop and Android backends, identical but for the
-// preamble, with nothing pinning the two together.  They had already begun to drift: the Android copies
-// had silently lost three of the explanatory comments.  Only comments so far, which is precisely why
-// merging them now was worth doing - the next divergence would have been in the math, and nothing would
-// have caught it.
+// One source serves the desktop and Android backends, differing only in the preamble, so the two cannot
+// drift apart in the math.
 //
 // Metal shares none of this; see GlslDialect.
 
@@ -15,8 +12,6 @@ package org.umamo.render.glsl
  *
  * No vertex buffer - the three corners are derived from `gl_VertexID`, so no attributes are needed (and
  * on a core profile, only an empty VAO).
- *
- * 頂点バッファ無しの全画面パス。三角形の頂点は gl_VertexID から生成する。
  *
  * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
@@ -31,14 +26,8 @@ internal fun gridVertexShader(dialect: GlslDialect): String =
 		""".trimIndent()
 
 /**
- * The world-aligned grid backdrop's fragment shader.
- *
- * Each fragment recovers its world position by inverting the same world-to-NDC affine the puppet is
- * projected through, then draws anti-aliased lines wherever that world coord is near a multiple of the
- * major or minor spacing.  Colors and spacings arrive as uniforms so the backdrop follows the editor
- * theme and the per-document grid config.  Opaque, so it both clears and paints in one pass.
- *
- * ワールド整列グリッド。worldToNdc を逆変換して各フラグメントのワールド座標を求め、主線・副線を描く。
+ * The world-aligned grid backdrop's fragment shader, projected through the same world-to-NDC affine as
+ * the puppet.  Opaque, so it both clears and paints in one pass.
  *
  * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
@@ -56,6 +45,11 @@ internal fun gridFragmentShader(dialect: GlslDialect): String =
 		uniform vec3 majorColor;
 		uniform vec3 minorColor;
 		uniform vec2 gridOrigin;   // world point a major line passes through (the world axes)
+		uniform int useSurface;       // 1: a UV scene's surface bounds the grid
+		uniform vec4 surfaceBounds;   // the surface's minX, minY, maxX, maxY in world units
+		uniform vec3 surroundColor;   // painted outside the surface
+		uniform vec3 frameColor;      // the border just outside the surface's edge
+		uniform float frameWidthPx;   // the border's width in framebuffer pixels
 
 		// Anti-aliased line coverage for a coordinate on a lattice of the given spacing.  cellDist is the
 		// fractional distance to the nearest line in cell units (0 on a line, 0.5 mid-cell); scaling it by
@@ -87,6 +81,18 @@ internal fun gridFragmentShader(dialect: GlslDialect): String =
 			float major = lineCoverage(gridWorld, majorSpacing, worldPerPixel);
 			vec3 color = mix(backgroundColor, minorColor, minor);
 			color = mix(color, majorColor, major);
+			if (useSurface == 1) {
+				// How far outside the surface this fragment sits, in framebuffer pixels (negative inside):
+				// beyond the border the surround, across the border's band its color, inside the grid.  The
+				// band lies wholly outside the edge, so the surface drawn over the grid never covers it.
+				vec2 belowPx = (surfaceBounds.xy - world) / worldPerPixel;
+				vec2 abovePx = (world - surfaceBounds.zw) / worldPerPixel;
+				float outsidePx = max(max(belowPx.x, belowPx.y), max(abovePx.x, abovePx.y));
+				if (outsidePx > 0.0) {
+					float frame = clamp(frameWidthPx - outsidePx + 0.5, 0.0, 1.0);
+					color = mix(surroundColor, frameColor, frame);
+				}
+			}
 			fragColor = vec4(color, 1.0);
 		}
 		""".trimIndent()
@@ -96,8 +102,6 @@ internal fun gridFragmentShader(dialect: GlslDialect): String =
  *
  * The two endpoints come from `gl_VertexID` (-1 / +1 along the line); the fixed coordinate and the
  * orientation arrive as uniforms, so one program draws both axes.
- *
- * 軸線 1 本を描くパス。端点は gl_VertexID から生成し、固定座標と向きは uniform で受け取る。
  *
  * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.

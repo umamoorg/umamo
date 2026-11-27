@@ -7,11 +7,17 @@ import org.umamo.edit.UvPageKind
 import org.umamo.edit.UvPageRequest
 import org.umamo.edit.UvSnapKind
 import org.umamo.edit.UvSnapRequest
-import org.umamo.edit.placementSelectedTileIds
-import org.umamo.edit.setAtlasPins
+import org.umamo.edit.atlas.placementSelectedTileIds
+import org.umamo.edit.atlas.setAtlasPins
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandFamily
+import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandSection
+import org.umamo.ui.action.CommandTable
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.SpaceScope
 
 /**
  * The texture-coordinate commands: the axis mirrors, the UV editor's own snap pie, the texture
@@ -20,6 +26,9 @@ import org.umamo.ui.workspace.SpaceKind
  * Every snap entry runs through the session's UV snap request flow to the hovered UV editor's overlay,
  * which owns the shown surface's dimensions and display geometry.  The area is resolved HERE, at dispatch,
  * into the payload (like Select Linked), so the collector gates deterministically on its own area id.
+ *
+ * Every command here is scoped to the UV editor: each one is collected by that editor's overlay or
+ * space alone, so fired anywhere else it matches no collector and does nothing.
  *
  * @param EditorSession? editorSession The open document's session, or null (every command then no-ops).
  * @param CommandRouting routing Resolves which area the pointer means at dispatch time.
@@ -32,7 +41,8 @@ internal fun uvCommands(
 	availability: SessionAvailability,
 ): List<Command> {
 	/**
-	 * Fires one UV snap request at the hovered area.
+	 * Fires one UV snap request at the hovered area, in either mode: the Edit overlay snaps texture
+	 * coordinates and the Object overlay placed art tiles, each running only the requests made in its mode.
 	 *
 	 * @param UvSnapKind kind The snap to perform.
 	 */
@@ -71,66 +81,163 @@ internal fun uvCommands(
 	 */
 	fun setPins(pinned: Boolean) {
 		val session = editorSession ?: return
+
 		if (routing.areaOf(SpaceKind.UvEditor) == null) {
 			return
 		}
+
 		val tileIds = session.model.value.placementSelectedTileIds(session.selection.value)
+
 		if (tileIds.isEmpty()) {
 			session.emitNotice("notice.uv.placement.noPlacedArt", NoticePlacement.NearCursor)
+
 			return
 		}
+
 		session.setAtlasPins(tileIds, pinned)
 	}
-	return listOf(
+
+	return commandTable(
+		CommandTable.Uv,
 		// Mirror UVs (the duplicated-and-flipped texture regions workflow, e.g. both eyes sampling one
 		// eye texture): axis-aligned reflections about the transform pivot, palette-discoverable and
-		// unbound by default - an interactive flip is already S + axis + drag through the pivot.
-		Command("uv.mirrorU", title = Res.string.cmd_uv_mirror_u, availability = availability.inEditMode) {
+		// unbound by default - an interactive flip is already S + axis + drag through the pivot.  The pair is a
+		// family the UV editor's context menu lists, each under its axis.
+		Command(
+			"uv.mirrorU",
+			title = Res.string.cmd_uv_mirror_u,
+			availability = availability.inEditMode,
+			spaces = SpaceScope.UvEditor,
+			group = CommandFamily.UvMirror,
+			groupLabel = Res.string.menu_uv_mirror_x,
+		) {
 			requestUvMirror(mirrorU = true)
 		},
-		Command("uv.mirrorV", title = Res.string.cmd_uv_mirror_v, availability = availability.inEditMode) {
+		Command(
+			"uv.mirrorV",
+			title = Res.string.cmd_uv_mirror_v,
+			availability = availability.inEditMode,
+			spaces = SpaceScope.UvEditor,
+			group = CommandFamily.UvMirror,
+			groupLabel = Res.string.menu_uv_mirror_y,
+		) {
 			requestUvMirror(mirrorU = false)
 		},
-		Command("uv.snap.selectionToPixels", title = Res.string.cmd_uv_snap_selection_pixels, availability = availability.inEditMode) {
+		Command(
+			"uv.snap.selectionToPixels",
+			title = Res.string.cmd_uv_snap_selection_pixels,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+			group = CommandSection.UvSnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			requestUvSnap(UvSnapKind.SelectionToPixels)
 		},
-		Command("uv.snap.selectionToCursor", title = Res.string.cmd_uv_snap_selection_cursor, availability = availability.inEditMode) {
+		Command(
+			"uv.snap.selectionToCursor",
+			title = Res.string.cmd_uv_snap_selection_cursor,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+			group = CommandSection.UvSnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			requestUvSnap(UvSnapKind.SelectionToCursor)
 		},
-		Command("uv.snap.selectionToCursorOffset", title = Res.string.cmd_uv_snap_selection_cursor_offset, availability = availability.inEditMode) {
+		Command(
+			"uv.snap.selectionToCursorOffset",
+			title = Res.string.cmd_uv_snap_selection_cursor_offset,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+			group = CommandSection.UvSnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			requestUvSnap(UvSnapKind.SelectionToCursorOffset)
 		},
-		Command("uv.snap.selectionToGrid", title = Res.string.cmd_uv_snap_selection_grid, availability = availability.inEditMode) {
+		Command(
+			"uv.snap.selectionToGrid",
+			title = Res.string.cmd_uv_snap_selection_grid,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+			group = CommandSection.UvSnapSelection,
+			icon = LocalUmamoIcons.selection,
+		) {
 			requestUvSnap(UvSnapKind.SelectionToGrid)
 		},
-		Command("uv.snap.cursorToPixels", title = Res.string.cmd_uv_snap_cursor_pixels, availability = availability.inEditMode) {
+		Command(
+			"uv.snap.cursorToPixels",
+			title = Res.string.cmd_uv_snap_cursor_pixels,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+			group = CommandSection.UvSnapCursor,
+			icon = LocalUmamoIcons.pivotCursor,
+		) {
 			requestUvSnap(UvSnapKind.CursorToPixels)
 		},
-		Command("uv.snap.cursorToSelected", title = Res.string.cmd_uv_snap_cursor_selected, availability = availability.inEditMode) {
+		Command(
+			"uv.snap.cursorToSelected",
+			title = Res.string.cmd_uv_snap_cursor_selected,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+			group = CommandSection.UvSnapCursor,
+			icon = LocalUmamoIcons.pivotCursor,
+		) {
 			requestUvSnap(UvSnapKind.CursorToSelected)
 		},
-		Command("uv.snap.cursorToGrid", title = Res.string.cmd_uv_snap_cursor_grid, availability = availability.inEditMode) {
+		Command(
+			"uv.snap.cursorToGrid",
+			title = Res.string.cmd_uv_snap_cursor_grid,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+			group = CommandSection.UvSnapCursor,
+			icon = LocalUmamoIcons.pivotCursor,
+		) {
 			requestUvSnap(UvSnapKind.CursorToGrid)
 		},
 		// Texture page switching (the header selector's palette path): retargets the hovered UV
 		// editor's per-area texture selection - cycling pins with wrap-around, follow clears the pin.
 		// Mode-agnostic (reviewing pages is not an Edit-mode operation), palette-discoverable, and
 		// unbound by default like the rest of the table.
-		Command("uv.page.next", title = Res.string.cmd_uv_page_next, availability = availability.hasDocument) {
+		Command(
+			"uv.page.next",
+			title = Res.string.cmd_uv_page_next,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+		) {
 			requestUvPage(UvPageKind.NextPage)
 		},
-		Command("uv.page.previous", title = Res.string.cmd_uv_page_previous, availability = availability.hasDocument) {
+		Command(
+			"uv.page.previous",
+			title = Res.string.cmd_uv_page_previous,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+		) {
 			requestUvPage(UvPageKind.PreviousPage)
 		},
-		Command("uv.page.followSelection", title = Res.string.cmd_uv_page_follow, availability = availability.hasDocument) {
+		Command(
+			"uv.page.followSelection",
+			title = Res.string.cmd_uv_page_follow,
+			availability = availability.hasDocument,
+			spaces = SpaceScope.UvEditor,
+		) {
 			requestUvPage(UvPageKind.FollowSelection)
 		},
 		// Placement pins (Blender's P / Alt+P in the UV editor): Object mode, where the selection names
 		// whole drawables and so the tiles under them.
-		Command("uv.pinPlacement", title = Res.string.cmd_uv_pin_placement, availability = availability.inObjectMode) {
+		Command(
+			"uv.pinPlacement",
+			title = Res.string.cmd_uv_pin_placement,
+			availability = availability.inObjectMode,
+			spaces = SpaceScope.UvEditor,
+			hint = CommandHint(Res.string.status_bind_pin),
+		) {
 			setPins(pinned = true)
 		},
-		Command("uv.unpinPlacement", title = Res.string.cmd_uv_unpin_placement, availability = availability.inObjectMode) {
+		Command(
+			"uv.unpinPlacement",
+			title = Res.string.cmd_uv_unpin_placement,
+			availability = availability.inObjectMode,
+			spaces = SpaceScope.UvEditor,
+		) {
 			setPins(pinned = false)
 		},
 	)

@@ -37,12 +37,8 @@ private const val REGION_DRAG_THRESHOLD_PX = 3f
  * The Zoom Region overlay (Blender's Shift+B): a mode-agnostic top-level layer over the puppet image that,
  * while armed for this area, shows full-viewport crosshair guides and rubber-bands a box; on release it
  * frames that box into the viewport ([PuppetViewportService.zoomToRegion]).  Mounted above the Edit-mode
- * gizmo overlay so it captures the drag in Edit mode too, and self-gated on [EditorSession.zoomRegionArmedArea]
- * matching this [areaId] so only the armed area is live - every other area (and the unarmed state) composes
- * nothing here and passes pointer input through to the gizmo / navigation layers beneath.
- *
- * The crosshair cursor and dashed guides are drawn (the OS cursor is hidden while armed), so the affordance
- * matches the armed Box-select tool; the two share [drawCrosshairGuides].
+ * gizmo overlay so it captures the drag in Edit mode too; every area but the armed one composes nothing
+ * here and passes pointer input through to the gizmo / navigation layers beneath.
  *
  * @param String areaId The viewport area this overlay covers.
  * @param PuppetViewportService service The render service (for the zoom-to-region call).
@@ -64,9 +60,11 @@ fun ViewportRegionOverlay(
 ) {
 	val armedArea by session.zoomRegionArmedArea.collectAsState()
 	val overlayColors = LocalUmamoColors.current
+
 	if (armedArea != areaId || camera == null) {
 		return
 	}
+
 	val overlayStyle = selectionOverlayStyle(overlayColors)
 
 	var lastPointer by remember(areaId) { mutableStateOf(Offset.Zero) }
@@ -86,32 +84,40 @@ fun ViewportRegionOverlay(
 							val event = awaitPointerEvent()
 							val change = event.changes.firstOrNull() ?: continue
 							lastPointer = change.position
+
 							when (event.type) {
-								PointerEventType.Press ->
-									// Right-click cancels the armed gesture; left-click begins the region drag.
+								PointerEventType.Press -> {
+									// Right-click cancels the armed gesture, taking the press so no context menu opens
+									// under it; left-click begins the region drag.
 									if (event.buttons.isSecondaryPressed) {
 										session.disarmZoomRegion()
+										change.consume()
 									} else if (event.buttons.isPrimaryPressed) {
 										regionStart = change.position
 										regionCurrent = change.position
 										change.consume()
 									}
+								}
 
-								PointerEventType.Move ->
+								PointerEventType.Move -> {
 									if (regionStart != null) {
 										regionCurrent = change.position
 										change.consume()
 									}
+								}
 
 								PointerEventType.Release -> {
 									val start = regionStart
+
 									if (start != null) {
 										val end = change.position
+
 										// A real drag frames the box; a sub-threshold click just disarms (framing a
 										// point would jump to MAX_ZOOM).
 										if ((end - start).getDistance() > REGION_DRAG_THRESHOLD_PX) {
 											service.zoomToRegion(areaId, start.x, start.y, end.x, end.y)
 										}
+
 										regionStart = null
 										regionCurrent = null
 										session.disarmZoomRegion()
@@ -128,14 +134,17 @@ fun ViewportRegionOverlay(
 		Canvas(modifier = Modifier.fillMaxSize()) {
 			val start = regionStart
 			val current = regionCurrent
+
 			if (regionStart == null) {
 				drawCrosshairGuides(lastPointer, Size(widthPx.toFloat(), heightPx.toFloat()), overlayStyle)
 			}
+
 			if (start != null && current != null) {
 				val topLeft = Offset(min(start.x, current.x), min(start.y, current.y))
 				val boxSize = Size(abs(current.x - start.x), abs(current.y - start.y))
 				drawSelectionBox(topLeft, boxSize, overlayStyle)
 			}
+
 			drawCursor(LocalUmamoCursors.crosshair, lastPointer)
 		}
 	}

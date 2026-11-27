@@ -10,12 +10,19 @@ import org.umamo.runtime.model.SourceLayerRef
  * Reconciles existing rig bindings (the model's per-tile [SourceLayerRef]s) against freshly-read
  * source art - the headline "file refreshes" feature.
  *
- * Hard rule: re-import never destroys rig work. Matched layers update in place;
+ * Hard rule: re-import never destroys rig work.  Matched layers update in place;
  * added layers become new tiles bound to their layer; removed/renamed layers are flagged for review,
- * never silently deleted. The output [ReconcileReport] is therefore a reviewable diff, not an applied
+ * never silently deleted.  The output [ReconcileReport] is therefore a reviewable diff, not an applied
  * mutation - [ArtworkReloadPlanner] turns the matched and added halves into a model delta.
  */
 interface Reconciler {
+	/**
+	 * Classifies each binding against a new read of the artwork.
+	 *
+	 * @param List<SourceLayerRef> bindings The rig's source-layer bindings.
+	 * @param SourceArt newArt The artwork as just read.
+	 * @return ReconcileReport What matched, what was added, and what needs review.
+	 */
 	fun reconcile(bindings: List<SourceLayerRef>, newArt: SourceArt): ReconcileReport
 }
 
@@ -52,13 +59,16 @@ object KeyReconciler : Reconciler {
 	 */
 	override fun reconcile(bindings: List<SourceLayerRef>, newArt: SourceArt): ReconcileReport {
 		val rasterKeys = LinkedHashSet<String>()
+
 		for (layer in newArt.layers.sortedBy { candidate -> candidate.order }) {
 			if (layer.kind == SourceLayerKind.Raster) {
 				rasterKeys.add(layer.id.raw)
 			}
 		}
+
 		val boundKeys = bindings.mapTo(HashSet()) { binding -> binding.layerKey }
 		val results = ArrayList<ReconcileResult>(bindings.size + rasterKeys.size)
+
 		for (binding in bindings) {
 			if (binding.layerKey in rasterKeys) {
 				results.add(ReconcileResult.Matched(binding, binding.layerKey))
@@ -66,11 +76,13 @@ object KeyReconciler : Reconciler {
 				results.add(ReconcileResult.NeedsReview(binding, ReviewReason.LayerMissing))
 			}
 		}
+
 		for (key in rasterKeys) {
 			if (key !in boundKeys) {
 				results.add(ReconcileResult.Added(key))
 			}
 		}
+
 		return ReconcileReport(results)
 	}
 }

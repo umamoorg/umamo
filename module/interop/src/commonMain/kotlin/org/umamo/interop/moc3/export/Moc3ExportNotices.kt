@@ -42,6 +42,15 @@ internal class Moc3ExportNotices {
 	}
 
 	/**
+	 * Records a finding built whole, such as a document-level one.
+	 *
+	 * @param ExportNotice notice The finding.
+	 */
+	fun add(notice: ExportNotice) {
+		collected.add(notice)
+	}
+
+	/**
 	 * Records a notice for something the lowering could not express.
 	 *
 	 * @param ExportEntityCategory category The entity category.
@@ -50,23 +59,6 @@ internal class Moc3ExportNotices {
 	 */
 	fun unsupported(category: ExportEntityCategory, subject: String, reason: ExportNoticeReason) {
 		collected.add(ExportNotice.UnsupportedChange(category, subject, reason))
-	}
-
-	/**
-	 * Reports every channel a bundle had to drop to its static.
-	 *
-	 * @param ExportEntityCategory category The entity category.
-	 * @param String               subject  The entity's id.
-	 * @param Moc3ObjectKeyforms?  keyforms The lowered keyforms, or null when unrepresentable.
-	 */
-	fun reportDemotions(
-		category: ExportEntityCategory,
-		subject: String,
-		keyforms: Moc3ObjectKeyforms?,
-	) {
-		for (channel in keyforms?.demotedChannels.orEmpty()) {
-			unsupported(category, subject, ExportNoticeReason.ChannelDemotedToStatic(channel))
-		}
 	}
 
 	/**

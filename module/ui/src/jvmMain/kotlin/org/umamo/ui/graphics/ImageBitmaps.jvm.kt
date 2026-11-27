@@ -23,5 +23,6 @@ actual fun rgbaToImageBitmap(rgba: ByteArray, width: Int, height: Int, alphaType
 			RgbaAlphaType.Straight -> ColorAlphaType.UNPREMUL
 		}
 	val info = ImageInfo(width, height, ColorType.RGBA_8888, skiaAlphaType)
+
 	return Image.makeRaster(info, rgba, width * 4).toComposeImageBitmap()
 }

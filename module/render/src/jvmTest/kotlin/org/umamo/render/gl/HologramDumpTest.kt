@@ -38,6 +38,7 @@ class HologramDumpTest {
 		val mocDocument = Moc3.read(mocFile.readBytes())
 		val puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(mocDocument, null))
 		val textures = if (atlasPng.isFile) buildPuppetTextures(listOf(atlasPng.readBytes()), mocDocument.artMeshes.associate { it.id to 0 }) else null
+
 		for (hologram in listOf(0f, 1f)) {
 			val rgba = render(puppet, textures, mapOf(ParameterId("ParamHologram") to hologram))
 			writePng(rgba, File(out, "modelA_holo_$hologram.png"))
@@ -59,6 +60,7 @@ class HologramDumpTest {
 		renderer.render(drawTarget, display * supersample, display * supersample)
 		surface.resolve()
 		val image = device.readPixels(surface.resolveTarget)
+
 		return IntArray(image.rgba.size) { image.rgba[it].toInt() and 0xFF }
 	}
 
@@ -66,6 +68,7 @@ class HologramDumpTest {
 		val image = BufferedImage(display, display, BufferedImage.TYPE_INT_ARGB)
 		var pixel = 0
 		var index = 0
+
 		while (index < rgba.size) {
 			val x = pixel % display
 			val y = pixel / display
@@ -74,6 +77,7 @@ class HologramDumpTest {
 			pixel++
 			index += 4
 		}
+
 		ImageIO.write(image, "png", file)
 	}
 }

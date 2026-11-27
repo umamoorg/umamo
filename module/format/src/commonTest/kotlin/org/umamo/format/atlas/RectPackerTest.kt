@@ -91,10 +91,12 @@ class RectPackerTest {
 		val layout = packRects(requests, pageSize = 64, allowRotation = false, seeds = listOf(seed))
 
 		assertEquals(requests.size, layout.slots.size, "every request still finds room around the seed")
+
 		for (slot in layout.slots.filter { slot -> slot.pageIndex == 0 }) {
 			val separated = slot.x + 15 <= seed.x || seed.x + seed.width <= slot.x || slot.y + 15 <= seed.y || seed.y + seed.height <= slot.y
 			assertTrue(separated, "item ${slot.itemIndex} at (${slot.x}, ${slot.y}) overlaps the seed")
 		}
+
 		assertNoRectOverlap(requests, layout, pageSize = 64)
 		assertTrue(layout.usedWidths[0] >= seed.x + seed.width && layout.usedHeights[0] >= seed.y + seed.height, "the used extent covers the seed")
 	}
@@ -141,13 +143,16 @@ class RectPackerTest {
 				"item ${slot.itemIndex} runs outside the page",
 			)
 		}
+
 		for (firstIndex in layout.slots.indices) {
 			for (secondIndex in firstIndex + 1 until layout.slots.size) {
 				val first = layout.slots[firstIndex]
 				val second = layout.slots[secondIndex]
+
 				if (first.pageIndex != second.pageIndex) {
 					continue
 				}
+
 				val separated =
 					first.x + widthOf(first) <= second.x ||
 						second.x + widthOf(second) <= first.x ||

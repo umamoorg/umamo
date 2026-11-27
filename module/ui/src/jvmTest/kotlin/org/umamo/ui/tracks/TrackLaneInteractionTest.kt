@@ -12,11 +12,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.MouseButton
+import androidx.compose.ui.test.MouseInjectionScope
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performMouseInput
@@ -87,7 +87,7 @@ class TrackLaneInteractionTest {
 										label = "Opacity",
 										marks =
 											listOf(-30f, 0f, 30f).mapIndexed { keyIndex, position ->
-												TrackKeyMark(keyIndex, position, selected = keyIndex == selectedKeyIndex)
+												TrackKeyMark(keyIndex, position, selection = if (keyIndex == selectedKeyIndex) TrackMarkSelection.Selected else TrackMarkSelection.Unselected)
 											},
 									),
 								),
@@ -289,6 +289,40 @@ class TrackLaneInteractionTest {
 			assertTrue(assertNotNull(releasedAt) > 0f, "releasing to the right must report a larger domain value")
 		}
 
+	/**
+	 * A lane with no drag-release handler leaves its marks in place: a press on one that travels past the slop is
+	 * still a click on that mark, rather than a drag drawn at the pointer that can land nowhere.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun withNoDragHandlerAMarkPressIsAClickHoweverFarItTravels() =
+		runComposeUiTest {
+			var clicked: TrackKeyMark? = null
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheet(
+						rows = rows,
+						axis = axis,
+						playhead = null,
+						modifier = Modifier.fillMaxSize(),
+						expandedKeys = setOf("owner"),
+						onMarkClick = { _, mark, _ -> clicked = mark },
+					)
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				val laneCenterX = (width + labelColumnEdge()) / 2f
+				val rowY = childRowCenterY()
+				moveTo(Offset(laneCenterX, rowY))
+				press()
+				moveTo(Offset(laneCenterX + 60f, rowY))
+				moveTo(Offset(laneCenterX + 120f, rowY))
+				release()
+			}
+			waitForIdle()
+			assertEquals(0f, assertNotNull(clicked).position, "the press clicks the mark under it")
+		}
+
 	/** A secondary click over a mark resolves to THAT mark, so the menu can offer to remove it. */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
@@ -380,10 +414,10 @@ class TrackLaneInteractionTest {
 			assertTrue(!trackClicked, "a secondary press must not also clear the selection")
 		}
 
-	/** A drag stops at the mark's neighbour instead of running past it and snapping back on release. */
+	/** A drag may cross the mark's neighbour: a mark's walls are the axis ends, never the keys beside it. */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
-	fun aDragIsClampedAtItsNeighbour() =
+	fun aDragMayCrossItsNeighbour() =
 		runComposeUiTest {
 			var releasedAt: Float? = null
 			setContent {
@@ -399,16 +433,15 @@ class TrackLaneInteractionTest {
 				}
 			}
 			onNodeWithTag("sheet").performMouseInput {
-				// Grab the middle mark (at 0) and haul it far past the one at 30.
-				val laneCenterX = (width + labelColumnEdge()) / 2f
+				// Grab the first mark (at -30) and haul it past the one at 0, to where the lane draws 15.
 				val rowY = childRowCenterY()
-				moveTo(Offset(laneCenterX, rowY))
+				moveTo(Offset(laneXOf(axis, -30f), rowY))
 				press()
-				moveTo(Offset(width + 500f, rowY))
+				moveTo(Offset(laneXOf(axis, 15f), rowY))
 				release()
 			}
 			waitForIdle()
-			assertEquals(30f, assertNotNull(releasedAt), "the drag must stop at the neighbour, not run past it")
+			assertEquals(15f, assertNotNull(releasedAt), 0.05f, "the drag lands past its neighbour, where the pointer stopped")
 		}
 
 	/** An endpoint drag stops at the axis end rather than leaving the track. */
@@ -620,105 +653,10 @@ class TrackLaneInteractionTest {
 			waitForIdle()
 			assertNull(hits.last(), "leaving the lane must clear what it reported")
 		}
-
-	/** An armed marquee reports the region it enclosed, in window coordinates, and then disarms. */
-	@OptIn(ExperimentalTestApi::class)
-	@Test
-	fun anArmedMarqueeReportsItsRegion() =
-		runComposeUiTest {
-			var region: Rect? = null
-			var additive: Boolean? = null
-			var dismissed = false
-			setContent {
-				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
-					TrackSheetMarqueeOverlay(
-						armed = true,
-						onSelect = { enclosed, wasAdditive ->
-							region = enclosed
-							additive = wasAdditive
-						},
-						onDismiss = { dismissed = true },
-					)
-				}
-			}
-			onNodeWithTag("sheet").performMouseInput {
-				moveTo(Offset(100f, 40f))
-				press()
-				moveTo(Offset(300f, 120f))
-				release()
-			}
-			waitForIdle()
-			val enclosed = assertNotNull(region, "a drag must report its region")
-			assertEquals(200f, enclosed.width, "the region spans the drag horizontally")
-			assertEquals(80f, enclosed.height, "and vertically")
-			assertEquals(false, additive, "an unmodified drag replaces the selection")
-			assertTrue(dismissed, "and the marquee disarms itself afterwards")
-		}
-
-	/** A marquee dragged up-and-left still reports an ascending rectangle. */
-	@OptIn(ExperimentalTestApi::class)
-	@Test
-	fun aMarqueeNormalizesItsRegion() =
-		runComposeUiTest {
-			var region: Rect? = null
-			setContent {
-				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
-					TrackSheetMarqueeOverlay(
-						armed = true,
-						onSelect = { enclosed, _ -> region = enclosed },
-						onDismiss = {},
-					)
-				}
-			}
-			onNodeWithTag("sheet").performMouseInput {
-				moveTo(Offset(300f, 120f))
-				press()
-				moveTo(Offset(100f, 40f))
-				release()
-			}
-			waitForIdle()
-			val enclosed = assertNotNull(region)
-			assertTrue(enclosed.left < enclosed.right && enclosed.top < enclosed.bottom, "got $enclosed")
-		}
-
-	/** A disarmed marquee is not in the way at all - it composes nothing and takes no pointer input. */
-	@OptIn(ExperimentalTestApi::class)
-	@Test
-	fun aDisarmedMarqueeTakesNoInput() =
-		runComposeUiTest {
-			var region: Rect? = null
-			var trackScrubbed = false
-			setContent {
-				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
-					TrackSheet(
-						rows = rows,
-						axis = axis,
-						playhead = null,
-						modifier = Modifier.fillMaxSize(),
-						expandedKeys = setOf("owner"),
-						onTrackScrub = { _, _, _ -> trackScrubbed = true },
-					)
-					TrackSheetMarqueeOverlay(
-						armed = false,
-						onSelect = { enclosed, _ -> region = enclosed },
-						onDismiss = {},
-					)
-				}
-			}
-			onNodeWithTag("sheet").performMouseInput {
-				val laneStart = labelColumnEdge()
-				moveTo(Offset(laneStart + (width - laneStart) * 0.25f, childRowCenterY()))
-				press()
-				release()
-			}
-			waitForIdle()
-			assertNull(region, "a disarmed marquee reports nothing")
-			assertTrue(trackScrubbed, "and the lane underneath still gets its gesture")
-		}
 }
 
 /** The x just right of the label column and its separator, in pixels. */
-private fun androidx.compose.ui.test.MouseInjectionScope.labelColumnEdge(): Float = 190f
+private fun MouseInjectionScope.labelColumnEdge(): Float = 190f
 
 /** The y at the middle of the single child row: ruler, then the group row, then half a row. */
-private fun androidx.compose.ui.test.MouseInjectionScope.childRowCenterY(): Float = 20f + 32f + 16f
+private fun MouseInjectionScope.childRowCenterY(): Float = 20f + 32f + 16f

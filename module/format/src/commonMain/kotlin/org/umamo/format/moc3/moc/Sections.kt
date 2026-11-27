@@ -53,7 +53,7 @@ public object Sections {
 	public const val CI_BLENDSHAPE_SUB_CORNERS: Int = 29
 	public const val CI_BLENDSHAPE_SUB_BINDINGS: Int = 30
 
-	// MOC3 v5+ §5.6: blend-shape part objects. Note CountInfo is NOT hard-capped at 32 words on
+	// MOC3 v5+ §5.6: blend-shape part objects.  Note CountInfo is NOT hard-capped at 32 words on
 	// v5 - Model C (v5) carries CI 32/33; the reader is slice-length-driven, so these decode fine.
 	public const val CI_BLENDSHAPE_PARTS: Int = 32
 	public const val CI_BLENDSHAPE_ROTATIONS: Int = 33

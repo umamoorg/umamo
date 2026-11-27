@@ -9,6 +9,7 @@ import org.umamo.format.cmo3.caff.CompressOption
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.CImageCanvas
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -25,14 +26,10 @@ import kotlin.test.assertTrue
 class Cmo3AuthorTest {
 	@Test
 	fun tableDerivedPrologueMatchesTheCorpusVerbatim() {
-		val spec =
-			System.getProperty("cmo3.probe")
-				?: run {
-					println("cmo3.probe not present; skipping prologue derivation sweep")
-					return
-				}
+		val spec = System.getProperty("cmo3.probe") ?: skipTest("cmo3.probe not present; skipping prologue derivation sweep")
 		val files = spec.split(',').map { File(it.trim()) }.filter { it.isFile }
 		val failures = ArrayList<String>()
+
 		for (file in files) {
 			val archive = CaffCodec.read(file.readBytes())
 			val mainXml = archive.firstByTag(CaffArchive.TAG_MAIN_XML) ?: continue
@@ -44,19 +41,25 @@ class Cmo3AuthorTest {
 			collectTags(document.rootElement, tags)
 			val modelTags = tags - CMO3_STRUCTURAL_TAGS
 			val unmapped = modelTags.filter { tag -> tag !in CMO3_TAG_TO_FQCN }
+
 			if (unmapped.isNotEmpty()) {
 				failures.add("${file.name}: tags missing from CMO3_TAG_TO_FQCN: $unmapped")
+
 				continue
 			}
+
 			val derivedImports = modelTags.map { tag -> CMO3_TAG_TO_FQCN.getValue(tag) }.sorted()
+
 			if (derivedImports != actualImports) {
 				val missing = actualImports.toSet() - derivedImports.toSet()
 				val extra = derivedImports.toSet() - actualImports.toSet()
 				failures.add("${file.name}: import derivation differs (missing=$missing extra=$extra)")
 			}
+
 			// The version tables target the 5.4 era only; compare as a set (the editor's own PI
 			// order is HashMap iteration and carries no meaning).
 			val fileFormatVersion = document.rootElement.getAttributeValue("fileFormatVersion")
+
 			if (fileFormatVersion == Cmo3Author.FRESH_FILE_FORMAT_VERSION) {
 				val actualVersions =
 					instructions
@@ -65,9 +68,11 @@ class Cmo3AuthorTest {
 						.toSet()
 				val derivedVersions = HashSet<String>()
 				CMO3_VERSIONS_ALWAYS_5_4.forEach { (piName, number) -> derivedVersions.add("$piName:$number") }
+
 				for (tag in modelTags) {
 					CMO3_VERSIONS_BY_TAG_5_4[tag]?.let { (piName, number) -> derivedVersions.add("$piName:$number") }
 				}
+
 				if (derivedVersions != actualVersions) {
 					failures.add(
 						"${file.name}: version derivation differs " +
@@ -76,6 +81,7 @@ class Cmo3AuthorTest {
 				}
 			}
 		}
+
 		assertTrue(files.isNotEmpty(), "cmo3.probe matched no files")
 		assertTrue(failures.isEmpty(), "prologue derivation drift:\n" + failures.joinToString("\n"))
 	}
@@ -131,6 +137,7 @@ class Cmo3AuthorTest {
 	 */
 	private fun collectTags(element: Element, into: HashSet<String>) {
 		into.add(element.name)
+
 		for (child in element.children) {
 			collectTags(child as Element, into)
 		}

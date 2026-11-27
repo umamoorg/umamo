@@ -80,6 +80,7 @@ internal fun parseFirstDirectory(bytes: ByteArray): TiffDirectory {
 		if (magic == TiffConstants.BIGTIFF_MAGIC) "BigTIFF is not supported" else "Unsupported TIFF magic $magic"
 	}
 	val firstIfdOffset = reader.u32AsInt(4)
+
 	return readDirectory(reader, firstIfdOffset)
 }
 
@@ -96,24 +97,31 @@ private fun readDirectory(reader: ByteReader, offset: Int): TiffDirectory {
 	val values = HashMap<Int, LongArray>(entryCount)
 	val rawValues = HashMap<Int, ByteArray>()
 	var entryOffset = offset + 2
+
 	for (entryIndex in 0 until entryCount) {
 		if (entryOffset + 12 > reader.bytes.size) {
 			break
 		}
+
 		// TIFF: entry = tag(u16) | type(u16) | count(u32) | value-or-offset(4).
 		val tag = reader.u16(entryOffset)
 		val type = reader.u16(entryOffset + 2)
 		val valueCount = reader.u32AsInt(entryOffset + 4)
 		val numericValues = readNumericValues(reader, type, valueCount, entryOffset + 8)
+
 		if (numericValues != null) {
 			values[tag] = numericValues
 		}
+
 		val undefinedValues = readUndefinedValues(reader, type, valueCount, entryOffset + 8)
+
 		if (undefinedValues != null) {
 			rawValues[tag] = undefinedValues
 		}
+
 		entryOffset += 12
 	}
+
 	return TiffDirectory(values, rawValues, reader.littleEndian)
 }
 
@@ -131,11 +139,14 @@ private fun readUndefinedValues(reader: ByteReader, type: Int, count: Int, value
 	if (type != TiffConstants.TYPE_UNDEFINED || count <= 0) {
 		return null
 	}
+
 	// Up to four bytes are stored inline in the value field; longer strings live at the offset it holds.
 	val base = if (count <= 4) valueFieldOffset else reader.u32AsInt(valueFieldOffset)
+
 	if (base < 0 || base.toLong() + count > reader.bytes.size) {
 		return null
 	}
+
 	return reader.bytes.copyOfRange(base, base + count)
 }
 
@@ -159,16 +170,21 @@ private fun readNumericValues(reader: ByteReader, type: Int, count: Int, valueFi
 			type == TiffConstants.TYPE_SBYTE ||
 			type == TiffConstants.TYPE_SSHORT ||
 			type == TiffConstants.TYPE_SLONG
+
 	if (!numeric || typeLength <= 0 || count < 0) {
 		return null
 	}
+
 	val totalBytes = count.toLong() * typeLength
 	val base = if (totalBytes <= 4) valueFieldOffset else reader.u32AsInt(valueFieldOffset)
+
 	if (base < 0 || base + totalBytes > reader.bytes.size) {
 		return null
 	}
+
 	val out = LongArray(count)
 	var cursor = base
+
 	for (valueIndex in 0 until count) {
 		out[valueIndex] =
 			when (type) {
@@ -182,5 +198,6 @@ private fun readNumericValues(reader: ByteReader, type: Int, count: Int, valueFi
 			}
 		cursor += typeLength
 	}
+
 	return out
 }

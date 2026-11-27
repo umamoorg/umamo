@@ -5,7 +5,7 @@ import org.umamo.render.puppet.GlueVertexAttributes
 // The device's opaque handles and the specs used to create them.
 //
 // Handles are interfaces with no members on purpose: a caller can hold one and hand it back, and can do
-// nothing else with it. The concrete type is backend state - a GL name, an MTLBuffer - and keeping it
+// nothing else with it.  The concrete type is backend state - a GL name, an MTLBuffer - and keeping it
 // unreachable is what stops backend concepts leaking into the shared renderer.
 
 /** A texture the device owns, sampleable from a shader. */
@@ -26,9 +26,8 @@ public interface DeformCapturePipeline
 /**
  * A surface a pass renders into.
  *
- * Never implicitly current: every pass names the target it writes.  The renderer used to discover its own
- * target by reading the bound framebuffer out of ambient GL state, which worked only because the caller
- * happened to have bound it first - a coupling that was invisible at both ends.
+ * Never implicitly current: every pass names the target it writes, so no draw depends on whichever
+ * framebuffer a caller happened to bind first.
  */
 public interface RenderTarget {
 	/** This target's contents as a sampleable texture, or null when created with `sampled = false`. */
@@ -36,8 +35,9 @@ public interface RenderTarget {
 }
 
 /**
- * The shared store of pass-1 deformed world positions, addressed by GLOBAL vertex index across every
- * glue-involved mesh (see `org.umamo.render.puppet.planGlueLayout`).
+ * A store of deformed world positions: the shared glue store pass 1 fills, addressed by GLOBAL vertex
+ * index across every glue-involved mesh (see `org.umamo.render.puppet.planGlueLayout`), or a mesh
+ * overlay's, which its draws read by each mesh's store offset.
  *
  * How the GPU actually holds it is the backend's business - a texture buffer on desktop GL today, and a
  * 2D texture once the GLES 3.0 path lands, since texture buffers are 3.2 there.  The renderer only ever
@@ -65,7 +65,7 @@ public enum class TextureFilter {
 
 /** What a texture yields for a coordinate outside [0, 1]. */
 public enum class TextureWrap {
-	/** Repeats the nearest edge texel outward.  Correct for an atlas page, whose art never reaches its border. */
+	/** Repeats the nearest edge texel outward.  The default; art, atlas pages included, samples [ClampToTransparentBorder]. */
 	ClampToEdge,
 
 	/**
@@ -74,6 +74,7 @@ public enum class TextureWrap {
 	 * still for deformation coverage, so a drawable's coordinates run past its layer image by tens to
 	 * hundreds of pixels.  Clamping to the edge would repeat the border row or column across that overhang
 	 * as a streak; transparent black reproduces what the packed atlas showed there, which is its padding.
+	 * Atlas pages take it too: a document's page can be a single model image, with no padding at all.
 	 *
 	 * @note GL_CLAMP_TO_BORDER with a zero border color on the GL family (core in GL 3.3 and GLES 3.2),
 	 *   MTLSamplerAddressMode.clampToZero on Metal.
@@ -99,7 +100,10 @@ public enum class PipelinePurpose {
 	/** A glue art mesh: read pass-1 own/partner positions, weld, project, sample the atlas. */
 	PuppetGlueDraw,
 
-	/** The UV editor's flat atlas-page underlay quad (attribute-less; corners from the vertex index). */
+	/**
+	 * A UV scene's image quad - an atlas page or source-layer underlay, or the placement drag's crops and
+	 * scrims (attribute-less; corners from the vertex index).
+	 */
 	AtlasPageDraw,
 
 	/** The world-aligned grid backdrop (attribute-less full-screen triangle). */
@@ -114,6 +118,21 @@ public enum class PipelinePurpose {
 	 * fixed-function-expressible), writing with blending DISABLED.  Pair with [PipelineBlend.Opaque].
 	 */
 	Composite,
+
+	/**
+	 * The mesh overlay's face fills: one instance per triangle over a deformed-position store, the three
+	 * corners fetched by the vertex index; blends Normal, premultiplied in-shader.
+	 */
+	OverlayFaceFill,
+
+	/** The mesh overlay's edges: one instance per edge, expanded to a screen-space six-vertex band. */
+	OverlayEdge,
+
+	/** The mesh overlay's vertex dots: one instance per vertex, a round-masked six-vertex quad. */
+	OverlayVertexDot,
+
+	/** The mesh overlay's face-centroid dots: one instance per triangle, the quad at the mean of its corners. */
+	OverlayFaceDot,
 }
 
 /**
@@ -186,4 +205,41 @@ public class MeshSpec(
 	val uvs: FloatArray,
 	val indices: IntArray,
 	val glueAttributes: GlueVertexAttributes?,
+)
+
+/**
+ * One mesh's resident overlay instance data: the per-primitive buffers the overlay draws read, in the
+ * mesh's OWN vertex indices.  Opaque, like every handle; the device frees it through
+ * [RenderDevice.destroyOverlayMeshBuffers].
+ */
+public interface OverlayMeshBuffers
+
+/**
+ * One mesh's overlay instance data to upload: its edges and triangles as the mesh's own vertex indices
+ * (the draw adds the mesh's store offset), plus the flag of every vertex, edge, and triangle.  The flag
+ * arrays are updated in place by [RenderDevice.updateOverlayMeshFlags] at the same sizes.
+ *
+ * @property IntArray edgeEndpoints Two vertex indices per edge.
+ * @property IntArray faceCorners Three vertex indices per triangle.
+ * @property ByteArray vertexFlags One flag per vertex; its size is the mesh's vertex count.
+ * @property ByteArray edgeFlags One flag per edge.
+ * @property ByteArray faceFlags One flag per triangle.
+ * @property IntArray? faceDotCorners Three vertex indices per triangle whose centroid is where that triangle's face
+ *   dot draws, parallel to [faceCorners] and sharing its flags; null draws each dot at its own triangle's centroid.
+ *   A lattice points both triangles of a cell at the cell's center, so a cell shows one dot.
+ * @property Int vertexDotCount How many of the vertices, from the first, draw a vertex dot; the rest are anchors a
+ *   face dot points at and draw none.  Every vertex by default.
+ * @property Int trianglesPerFaceDot How many triangles in a row share one face dot, which reads the first one's
+ *   [faceDotCorners] entry and flag: one instance per run, so a dot drawn at less than full alpha blends once.  One by
+ *   default; above one only with [faceDotCorners], and the triangle count a multiple of it.
+ */
+public class OverlayMeshSpec(
+	val edgeEndpoints: IntArray,
+	val faceCorners: IntArray,
+	val vertexFlags: ByteArray,
+	val edgeFlags: ByteArray,
+	val faceFlags: ByteArray,
+	val faceDotCorners: IntArray? = null,
+	val vertexDotCount: Int = vertexFlags.size,
+	val trianglesPerFaceDot: Int = 1,
 )

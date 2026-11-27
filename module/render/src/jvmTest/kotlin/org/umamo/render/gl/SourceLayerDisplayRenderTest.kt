@@ -5,6 +5,7 @@ import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
 import org.umamo.render.DecodedImage
 import org.umamo.render.DrawableLayerDraw
+import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
@@ -26,8 +27,19 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import java.nio.ByteBuffer
 import kotlin.math.abs
+import kotlin.math.hypot
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertTrue
+
+// Erica's skin tone: the color of the upper-lip patch the rim fringe showed on.
+private const val SKIN_RED = 255
+private const val SKIN_GREEN = 244
+private const val SKIN_BLUE = 233
+
+// Rounding room for a render that should reproduce the backdrop exactly: the fixed-function blend and the
+// 8-bit target can each land a unit off.  The fringe it guards against runs to tens of units.
+private const val RIM_TOLERANCE = 2
 
 /**
  * Proves the puppet actually displays from SOURCE ARTWORK rather than the packed atlas, and keeps
@@ -66,12 +78,14 @@ class SourceLayerDisplayRenderTest {
 
 	private fun solidImage(red: Int, green: Int, size: Int = 8): DecodedImage {
 		val rgba = ByteArray(size * size * 4)
+
 		for (pixel in rgba.indices step 4) {
 			rgba[pixel] = red.toByte()
 			rgba[pixel + 1] = green.toByte()
 			rgba[pixel + 2] = 0
 			rgba[pixel + 3] = 0xFF.toByte()
 		}
+
 		return DecodedImage(rgba, size, size)
 	}
 
@@ -83,7 +97,7 @@ class SourceLayerDisplayRenderTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(quadPositions.copyOf(), uvs.copyOf(), quadIndices),
+				mesh = DrawableMesh.withLocalEqualToCanvas(quadPositions.copyOf(), uvs.copyOf(), quadIndices),
 				// One zero-delta keyform so the drawable is keyed; the base mesh alone drives its shape.
 				geometryGrid =
 					KeyformGrid(
@@ -91,6 +105,7 @@ class SourceLayerDisplayRenderTest {
 						listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(quadPositions.size)))),
 					),
 			)
+
 		return PuppetModel(
 			parameters = listOf(Parameter(paramA, "A", -1f, 1f, 0f)),
 			parts = emptyList(),
@@ -130,6 +145,7 @@ class SourceLayerDisplayRenderTest {
 	 */
 	private fun compositeEditedModel(source: PuppetModel): PuppetModel {
 		val drawable = source.drawables.single()
+
 		return source.copy(drawables = listOf(drawable.copy(culling = !drawable.culling)))
 	}
 
@@ -154,6 +170,7 @@ class SourceLayerDisplayRenderTest {
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
 			renderer.render(target, viewportSize, viewportSize)
+
 			return readPixels(viewportSize, viewportSize)
 		}
 
@@ -245,6 +262,7 @@ class SourceLayerDisplayRenderTest {
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
 			renderer.render(target, viewportSize, viewportSize)
+
 			return readPixels(viewportSize, viewportSize)
 		}
 
@@ -278,6 +296,56 @@ class SourceLayerDisplayRenderTest {
 	}
 
 	/**
+	 * A mesh overhanging the page it samples shows nothing past the page - the same streak, on the atlas.
+	 *
+	 * A document's page is not always a packed atlas with padding around every tile: a CMO3 draws some
+	 * drawables straight from their model image, and the renderer takes that image as the drawable's page.
+	 * So the page wraps to a transparent border like a layer image does, and this probe - the overhang
+	 * probe above, displayed from a page instead of its artwork - lights a quarter of its quad, not all of it.
+	 */
+	@Test
+	fun atlasDisplayShowsNothingWhereTheMeshOverhangsItsPage() {
+		requireHeadlessGl("[page-overhang]")
+		val source = probeModel(overhangUvs)
+		val device = GlRenderDevice()
+		val renderer =
+			PuppetRenderer(
+				source,
+				PuppetTextures(listOf(solidImage(red = 0xFF, green = 0x00, size = 256)), mapOf(probeId.raw to 0), premultipliedAlpha = false),
+				device,
+			)
+		renderer.initGl()
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
+		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
+
+		fun frame(): ByteBuffer {
+			renderer.setPose(emptyMap())
+			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+			renderer.render(target, viewportSize, viewportSize)
+
+			return readPixels(viewportSize, viewportSize)
+		}
+
+		renderer.setShownDrawables(emptySet())
+		val background = frame()
+		renderer.setShownDrawables(setOf(probeId))
+		val statsPage = artColorStats(frame(), background, viewportSize, viewportSize)
+
+		val quadPixels = 120 * 120
+		val expectedArtPixels = quadPixels * overhangArtAreaFraction
+		println("[page-overhang] page mass ${statsPage.mass} px (quad $quadPixels, art ~$expectedArtPixels) r=${statsPage.meanRed} g=${statsPage.meanGreen}")
+
+		assertTrue(statsPage.mass > expectedArtPixels * 0.7f, "the page did not render at all (mass ${statsPage.mass})")
+		assertTrue(
+			statsPage.mass < expectedArtPixels * 1.4f,
+			"the mesh's overhang sampled the page's border instead of nothing: ${statsPage.mass} px lit, " +
+				"~$expectedArtPixels expected (a whole-quad $quadPixels means edge clamping)",
+		)
+		assertTrue(statsPage.meanRed > 200f && statsPage.meanGreen < 60f, "what did render is not the page (r=${statsPage.meanRed} g=${statsPage.meanGreen})")
+	}
+
+	/**
 	 * The mode never shows a puppet half in artwork and half on its atlas.
 	 *
 	 * Source-artwork display exists so a rigger can INSPECT the art, so a mixed view is not a degraded
@@ -307,6 +375,7 @@ class SourceLayerDisplayRenderTest {
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
 			renderer.render(target, viewportSize, viewportSize)
+
 			return readPixels(viewportSize, viewportSize)
 		}
 
@@ -350,6 +419,135 @@ class SourceLayerDisplayRenderTest {
 		)
 	}
 
+	/**
+	 * Art drawn over its own color must vanish, rim included: the artwork display.
+	 *
+	 * The upper-lip patch on EricaTamamo is skin over skin, so a correct render shows nothing at all, and
+	 * any line around it is the filter blending the transparent texels' black into its soft rim.  Cubism
+	 * writes every layer that way, so a straight-alpha filter rings each one in a dark, texel-stepped
+	 * outline.
+	 */
+	@Test
+	fun artworkRimShowsNoFringeOverItsOwnColor() {
+		requireHeadlessGl("[layer-rim]")
+		val deviation = rimDeviationOverOwnColor(fromArtwork = true)
+		println("[layer-rim] largest deviation from the backdrop: $deviation")
+		assertTrue(deviation <= RIM_TOLERANCE, "the artwork's rim darkens where it meets transparent texels (deviation $deviation)")
+	}
+
+	/**
+	 * The same probe on an atlas page, which is how a regenerated page shows a tile: the composer copies a
+	 * tile's transparent texels as they are, so a page carries the black the layer did.
+	 */
+	@Test
+	fun atlasPageRimShowsNoFringeOverItsOwnColor() {
+		requireHeadlessGl("[page-rim]")
+		val deviation = rimDeviationOverOwnColor(fromArtwork = false)
+		println("[page-rim] largest deviation from the backdrop: $deviation")
+		assertTrue(deviation <= RIM_TOLERANCE, "the page's rim darkens where it meets transparent texels (deviation $deviation)")
+	}
+
+	/**
+	 * Renders [skinDiscImage] over a flat backdrop of the disc's own color and measures how far any pixel
+	 * strays from the backdrop.
+	 *
+	 * The probe overhangs the image by half its width on every side, so the image fills the middle 60x60
+	 * pixels - 3.75 pixels per texel, enough to spread a one-texel fringe across several pixels - and the
+	 * image's own border lies inside the drawn quad.
+	 *
+	 * @param Boolean fromArtwork True to display the disc as source artwork, false as the drawable's atlas page.
+	 * @return Int The largest per-channel difference from the backdrop, 0..255.
+	 */
+	private fun rimDeviationOverOwnColor(fromArtwork: Boolean): Int {
+		val disc = skinDiscImage()
+		val source = probeModel(overhangUvs)
+		val device = GlRenderDevice()
+		val page = if (fromArtwork) solidImage(red = 0xFF, green = 0x00) else disc
+		val renderer = PuppetRenderer(source, PuppetTextures(listOf(page), mapOf(probeId.raw to 0), premultipliedAlpha = false), device)
+		renderer.initGl()
+		val skinRed = SKIN_RED / 255f
+		val skinGreen = SKIN_GREEN / 255f
+		val skinBlue = SKIN_BLUE / 255f
+		// Lines in the backdrop's own color, so the backdrop is one flat skin tone the art should vanish into.
+		renderer.setGrid(GridColors(skinRed, skinGreen, skinBlue, skinRed, skinGreen, skinBlue, skinRed, skinGreen, skinBlue), 100f, 1)
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
+		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
+
+		fun frame(): ByteBuffer {
+			renderer.setPose(emptyMap())
+			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+			renderer.render(target, viewportSize, viewportSize)
+
+			return readPixels(viewportSize, viewportSize)
+		}
+
+		renderer.setShownDrawables(emptySet())
+		val background = frame()
+		renderer.setShownDrawables(setOf(probeId))
+
+		if (fromArtwork) {
+			renderer.setSourceLayerPlan(
+				LayerDrawPlan(
+					drawsByDrawableId = mapOf(probeId.raw to DrawableLayerDraw("skin", floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f))),
+					layerByteCostByKey = mapOf("skin" to disc.rgba.size.toLong()),
+				),
+			)
+			renderer.deliverSourceLayerRasters(LayerRasterBatch(rastersByLayerKey = mapOf("skin" to disc)))
+			val (ready, _, _) = renderer.sourceLayerDisplayState()
+			assertTrue(ready, "the artwork display did not engage, so the probe would measure the atlas")
+		}
+
+		val drawn = frame()
+		var largest = 0
+
+		for (index in 0 until viewportSize * viewportSize * 4) {
+			if (index % 4 == 3) {
+				continue
+			}
+
+			largest = maxOf(largest, abs((drawn.get(index).toInt() and 0xFF) - (background.get(index).toInt() and 0xFF)))
+		}
+
+		return largest
+	}
+
+	/**
+	 * A skin-colored disc with a one-texel soft rim, stored the way Cubism writes a layer: every fully
+	 * transparent texel is black.
+	 *
+	 * The disc sits right of center and runs off the image's right edge, so its rim meets transparent
+	 * texels inside the image on three sides and the image's border on the fourth, where the art is opaque.
+	 *
+	 * @param Int size The image's width and height in texels.
+	 * @return DecodedImage The disc.
+	 */
+	private fun skinDiscImage(size: Int = 16): DecodedImage {
+		val rgba = ByteArray(size * size * 4)
+		val centerX = size * 0.7f
+		val centerY = size * 0.5f
+		val radius = size * 0.4f
+
+		for (row in 0 until size) {
+			for (column in 0 until size) {
+				val coverage = (radius - hypot(column + 0.5f - centerX, row + 0.5f - centerY) + 0.5f).coerceIn(0f, 1f)
+				val alpha = (coverage * 255f).roundToInt()
+
+				if (alpha == 0) {
+					continue
+				}
+
+				val pixel = (row * size + column) * 4
+				rgba[pixel] = SKIN_RED.toByte()
+				rgba[pixel + 1] = SKIN_GREEN.toByte()
+				rgba[pixel + 2] = SKIN_BLUE.toByte()
+				rgba[pixel + 3] = alpha.toByte()
+			}
+		}
+
+		return DecodedImage(rgba, size, size)
+	}
+
 	/** The mean color and pixel centroid of the art (every pixel differing from [background]). */
 	private class ArtColorStats(val mass: Int, val meanRed: Float, val meanGreen: Float, val centroidX: Float, val centroidY: Float)
 
@@ -370,6 +568,7 @@ class SourceLayerDisplayRenderTest {
 		var sumX = 0.0
 		var sumY = 0.0
 		var count = 0
+
 		for (row in 0 until height) {
 			for (col in 0 until width) {
 				val pixel = (row * width + col) * 4
@@ -379,6 +578,7 @@ class SourceLayerDisplayRenderTest {
 				val deltaRed = abs(red - (background.get(pixel).toInt() and 0xFF))
 				val deltaGreen = abs(green - (background.get(pixel + 1).toInt() and 0xFF))
 				val deltaBlue = abs(blue - (background.get(pixel + 2).toInt() and 0xFF))
+
 				if (maxOf(deltaRed, deltaGreen, deltaBlue) > threshold) {
 					sumRed += red
 					sumGreen += green
@@ -388,9 +588,11 @@ class SourceLayerDisplayRenderTest {
 				}
 			}
 		}
+
 		if (count == 0) {
 			return ArtColorStats(0, 0f, 0f, 0f, 0f)
 		}
+
 		return ArtColorStats(count, (sumRed / count).toFloat(), (sumGreen / count).toFloat(), (sumX / count).toFloat(), (sumY / count).toFloat())
 	}
 
@@ -398,6 +600,7 @@ class SourceLayerDisplayRenderTest {
 	private fun readPixels(width: Int, height: Int): ByteBuffer {
 		val buffer = BufferUtils.createByteBuffer(width * height * 4)
 		GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer)
+
 		return buffer
 	}
 }

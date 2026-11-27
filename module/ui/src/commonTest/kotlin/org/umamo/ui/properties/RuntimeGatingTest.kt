@@ -70,6 +70,7 @@ class RuntimeGatingTest {
 		alphaBlendMode: AlphaBlendMode = AlphaBlendMode.Over,
 	): PropertyContext {
 		val selected = SelectionTarget.Drawable(drawableId)
+
 		return PropertyContext(
 			puppetWith(target, drawables = listOf(drawable(blendMode, alphaBlendMode))),
 			Selection(setOf(selected), selected),
@@ -81,6 +82,7 @@ class RuntimeGatingTest {
 	private fun isolatedPartContext(target: RuntimeTarget): PropertyContext {
 		val selected = SelectionTarget.Part(partId)
 		val isolated = Part(partId, "part", children = emptyList(), groupMode = PartGroupMode.Isolated)
+
 		return PropertyContext(
 			puppetWith(target, parts = listOf(isolated)),
 			Selection(setOf(selected), selected),
@@ -93,7 +95,8 @@ class RuntimeGatingTest {
 	fun blendModeOptionsFilterToLegacyPlusCurrent() {
 		val legacyOnly = blendModeDisplayOrder().filter { mode -> mode.isLegacy }
 		assertEquals(legacyOnly, blendModeOptionsFor(RuntimeTarget.Cubism50, BlendMode.Normal))
-		assertEquals(legacyOnly, blendModeOptionsFor(RuntimeTarget.Ayagami, BlendMode.Normal), "Ayagami is 5.0-level")
+		assertEquals(legacyOnly, blendModeOptionsFor(RuntimeTarget.Ayagami50, BlendMode.Normal), "Ayagami 5.0 is 5.0-level")
+		assertEquals(blendModeDisplayOrder(), blendModeOptionsFor(RuntimeTarget.Ayagami53, BlendMode.Normal), "Ayagami 5.3 is 5.3-level")
 
 		// An unsupported stored value stays selectable, in its display-order position.
 		val withCurrent = blendModeDisplayOrder().filter { mode -> mode.isLegacy || mode == BlendMode.Overlay }
@@ -199,6 +202,7 @@ class RuntimeGatingTest {
 					rootPartId = null,
 					runtimeTarget = target,
 				)
+
 			return PropertyContext(puppet, Selection(setOf(selected), selected), selected, session = null)
 		}
 

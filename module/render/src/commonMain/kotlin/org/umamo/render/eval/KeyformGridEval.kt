@@ -9,7 +9,7 @@ import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
 
 /*
- * Grid sampling over the runtime's shared multilinear corner selection. The corner selection,
+ * Grid sampling over the runtime's shared multilinear corner selection.  The corner selection,
  * bracket, and pose-sampling primitives (bindBracket / gridCorners / cellsByLinearIndex /
  * plus the blend-shape default-pose reference helpers) live in
  * org.umamo.runtime.eval (KeyformGridSampling.kt) so Moc3Import shares them - see the note there.
@@ -18,8 +18,8 @@ import org.umamo.runtime.model.ParameterId
 
 /**
  * Samples an art-mesh keyform grid into local (parent-deformer-space) vertex positions:
- * `base + Σ wᵢ·Δᵢ` (interleaved x,y). Because the corner weights sum to 1, this equals the
- * Umamo C++ Runtime's absolute-keyform blend. Returns null when the mesh is hidden at
+ * `base + Σ wᵢ·Δᵢ` (interleaved x,y).  Because the corner weights sum to 1, this equals the
+ * Umamo C++ Runtime's absolute-keyform blend.  Returns null when the mesh is hidden at
  * these parameters.
  *
  * @param KeyformGrid grid       The mesh's keyform grid.
@@ -33,13 +33,14 @@ internal fun sampleMeshLocal(
 	paramValue: (ParameterId) -> Float,
 ): FloatArray? {
 	val corners = gridCorners(grid, paramValue) ?: return null
+
 	return blendLocalFromCorners(grid, base, corners)
 }
 
 /**
- * Blends a mesh's local positions from precomputed corners: `base + Σ wᵢ·Δᵢ`. Splitting corner selection
+ * Blends a mesh's local positions from precomputed corners: `base + Σ wᵢ·Δᵢ`.  Splitting corner selection
  * out of [sampleMeshLocal] lets `preparePose` compute the weights once - backend-neutrally - and feed both
- * the CPU apply path and (later) the GPU shader the same corner set.
+ * the CPU apply path and the GPU shader the same corner set.
  *
  * A null [grid] is an UNKEYED drawable, not an error: it contributes no deltas, so the result is the rest
  * mesh.  An unkeyed drawable is a normal state - a freshly created one, or one whose last keyform axis was
@@ -53,13 +54,16 @@ internal fun sampleMeshLocal(
 internal fun blendLocalFromCorners(grid: KeyformGrid<MeshDeltaForm>?, base: FloatArray, corners: List<WeightedCell>): FloatArray {
 	val cells = if (grid != null) cellsByLinearIndex(grid) else emptyMap()
 	val out = base.copyOf()
+
 	for (corner in corners) {
 		val delta = cells[corner.linearIndex]?.form?.positionDeltas ?: continue
 		val count = minOf(out.size, delta.size)
+
 		for (coordIndex in 0 until count) {
 			out[coordIndex] += corner.weight * delta[coordIndex]
 		}
 	}
+
 	return out
 }
 
@@ -79,10 +83,10 @@ internal class PartRenderState(
 
 /**
  * Evaluates a direct (deformer-less) art mesh into world positions: the keyform-blended local
- * vertices with the Y component negated (`vp = (x, −y)`; only Y flips). This matches the CMO3/MOC3
+ * vertices with the Y component negated (`vp = (x, −y)`; only Y flips).  This matches the CMO3/MOC3
  * world-space convention, which is Y-down relative to the local mesh space Umamo blends in - required for
- * preview parity with the official Cubism Editor. Returns null when the mesh is hidden at these
- * parameters. Deformer-parented meshes go through the cascade instead, which applies the same negation
+ * preview parity with the official Cubism Editor.  Returns null when the mesh is hidden at these
+ * parameters.  Deformer-parented meshes go through the cascade instead, which applies the same negation
  * after composing through the parent transform.
  *
  * @param KeyformGrid grid       The mesh's keyform grid.
@@ -97,9 +101,11 @@ internal fun evalDirectMeshWorld(
 ): FloatArray? {
 	val world = sampleMeshLocal(grid, base, paramValue) ?: return null
 	var yIndex = 1
+
 	while (yIndex < world.size) {
 		world[yIndex] = -world[yIndex]
 		yIndex += 2
 	}
+
 	return world
 }

@@ -14,7 +14,7 @@ import org.umamo.format.moc3.model.WarpKeyform
 
 /**
  * The per-object payload sizes and row anchor a blend-shape record's delta rows need, over the
- * shared [KeyformValueTables]. Bundled so [BlendShapeDecoder] can lift the per-key delta payloads
+ * shared [KeyformValueTables].  Bundled so [BlendShapeDecoder] can lift the per-key delta payloads
  * without a dozen loose parameters.
  */
 internal class BlendDeltaTables(
@@ -58,11 +58,15 @@ internal class BlendLimitPool(sections: MocSections) {
 		if (!hasSubTables || recordIndex >= recordCornerCount.size) {
 			return emptyList()
 		}
+
 		val cornerCount = recordCornerCount[recordIndex]
+
 		if (cornerCount == 0) {
 			return emptyList()
 		}
+
 		val cornerStart = recordSubstart[recordIndex]
+
 		return (cornerStart until cornerStart + cornerCount).map { cornerIndex ->
 			val subBinding = subIndex[cornerIndex]
 			val keyOffset = subKeyOffset[subBinding]
@@ -82,9 +86,9 @@ internal class BlendLimitPool(sections: MocSections) {
  * The delta region follows the base rows (and, on MOC3 v6, the offscreen keyform prefix), holding
  * one row per (record, key) for warp, mesh, and rotation records in global record order - part
  * records own no color rows.  It anchors at the content-derived base-row total
- * ([BlendDeltaTables.colorDeltaRowStart]); anchoring at table length minus the delta total drifts
- * by the element region's 64-byte zero padding (2 rows on Model A, 10 on Model C - caught by
- * their authored color morphs).
+ * ([BlendDeltaTables.colorDeltaRowStart]); anchoring at table length minus the delta total would
+ * drift by the element region's 64-byte zero padding (2 rows on Model A, 10 on Model C, both of
+ * which carry authored color morphs).
  *
  * The region is also a later format addition, so presence is probed rather than assumed: a
  * 4.2-era bake with blend shapes carries the base rows only (corpus: Azxiana.moc3, V42 - CountInfo
@@ -113,18 +117,24 @@ internal class BlendColorDeltas(
 		// extent 1806 + 2 rows padding; modelC: 2208 = 2198 + 10).
 		var requiredRowEnd = deltaTables.colorDeltaRowStart
 		var rowProbeCursor = deltaTables.colorDeltaRowStart
+
 		for (recordIndex in 0 until recordCount) {
 			if (!partOwnedRecord[recordIndex]) {
 				val rowEnd = rowProbeCursor + bindingKeyCount[recordBinding[recordIndex]]
+
 				if (colorReadRecord[recordIndex] && rowEnd > requiredRowEnd) {
 					requiredRowEnd = rowEnd
 				}
+
 				rowProbeCursor = rowEnd
 			}
 		}
+
 		val rows = IntArray(recordCount) { -1 }
+
 		if (colorTables.isPresent && requiredRowEnd <= colorTables.rowCount) {
 			var colorRowCursor = deltaTables.colorDeltaRowStart
+
 			for (recordIndex in 0 until recordCount) {
 				if (!partOwnedRecord[recordIndex]) {
 					rows[recordIndex] = colorRowCursor
@@ -132,6 +142,7 @@ internal class BlendColorDeltas(
 				}
 			}
 		}
+
 		recordColorRow = rows
 	}
 
@@ -144,17 +155,22 @@ internal class BlendColorDeltas(
 	 */
 	private fun partOwnedRecords(sections: MocSections, recordCount: Int): BooleanArray {
 		val owned = BooleanArray(recordCount)
+
 		if (!sections.isPresent(Section.BLENDSHAPE_PART_OBJECT)) {
 			return owned
 		}
+
 		val partRecordStarts = sections.intArray(Section.BLENDSHAPE_PART_RECORD_START)
 		val partRecordCounts = sections.intArray(Section.BLENDSHAPE_PART_RECORD_COUNT)
+
 		for (groupIndex in partRecordStarts.indices) {
 			val partRecordEnd = partRecordStarts[groupIndex] + partRecordCounts[groupIndex]
+
 			for (recordIndex in partRecordStarts[groupIndex] until partRecordEnd) {
 				owned[recordIndex] = true
 			}
 		}
+
 		return owned
 	}
 
@@ -186,12 +202,15 @@ internal class BlendColorDeltas(
 					Section.BLENDSHAPE_ROTATION_RECORD_COUNT,
 				),
 			)
+
 		for ((objectSection, startSection, countSection) in groups) {
 			if (!sections.isPresent(objectSection)) {
 				continue
 			}
+
 			val recordStarts = sections.intArray(startSection)
 			val recordCounts = sections.intArray(countSection)
+
 			for (groupIndex in recordStarts.indices) {
 				for (recordIndex in recordStarts[groupIndex] until recordStarts[groupIndex] + recordCounts[groupIndex]) {
 					if (recordIndex in 0 until recordCount) {
@@ -200,6 +219,7 @@ internal class BlendColorDeltas(
 				}
 			}
 		}
+
 		return referenced
 	}
 
@@ -212,6 +232,7 @@ internal class BlendColorDeltas(
 	 */
 	fun multiplyDelta(recordIndex: Int, keyIndex: Int): Rgb? {
 		val colorRow = recordColorRow[recordIndex]
+
 		// Guarded here rather than folded into the row accessor: a negative row is the "no delta
 		// rows" sentinel, and offsetting it by keyIndex would land on a real row.
 		return if (colorRow < 0) {
@@ -230,6 +251,7 @@ internal class BlendColorDeltas(
 	 */
 	fun screenDelta(recordIndex: Int, keyIndex: Int): Rgb? {
 		val colorRow = recordColorRow[recordIndex]
+
 		// Same sentinel guard as multiplyDelta above.
 		return if (colorRow < 0) {
 			null
@@ -281,11 +303,13 @@ internal class BlendShapeDecoder(
 		val parameterBegin = sections.intArray(Section.BLENDSHAPE_PARAMETER_BEGIN)
 		val parameterBindingCount = sections.intArray(Section.BLENDSHAPE_PARAMETER_COUNT)
 		val owners = IntArray((0 until parameterCount).sumOf { parameterBindingCount[it] })
+
 		for (parameterIndex in 0 until parameterCount) {
 			for (bindingIndex in 0 until parameterBindingCount[parameterIndex]) {
 				owners[parameterBegin[parameterIndex] + bindingIndex] = parameterIndex
 			}
 		}
+
 		return owners
 	}
 
@@ -331,6 +355,7 @@ internal class BlendShapeDecoder(
 				BlendShapeTarget.PART,
 				null,
 			)
+
 		return blendShapes
 	}
 
@@ -355,18 +380,22 @@ internal class BlendShapeDecoder(
 		if (!sections.isPresent(objectSection)) {
 			return emptyList()
 		}
+
 		val objectIndices = sections.intArray(objectSection)
 		val recordStarts = sections.intArray(startSection)
 		val recordCounts = sections.intArray(countSection)
 		val groupShapes = ArrayList<BlendShape>()
+
 		for (groupIndex in objectIndices.indices) {
 			val localObjectIndex = objectIndices[groupIndex]
 			val objectIndex = toDeformer?.getOrElse(localObjectIndex) { localObjectIndex } ?: localObjectIndex
 			val recordStart = recordStarts[groupIndex]
+
 			for (recordIndex in recordStart until recordStart + recordCounts[groupIndex]) {
 				groupShapes.add(blendShape(target, localObjectIndex, objectIndex, recordIndex))
 			}
 		}
+
 		return groupShapes
 	}
 
@@ -391,6 +420,7 @@ internal class BlendShapeDecoder(
 				bindingKeyOffset[bindingIndex],
 				bindingKeyOffset[bindingIndex] + bindingKeyCount[bindingIndex],
 			)
+
 		return BlendShape(
 			target,
 			objectIndex,
@@ -422,10 +452,14 @@ internal class BlendShapeDecoder(
 	): List<BlendShapeKeyform> =
 		(0 until keyCount).map { keyIndex ->
 			val deltaRow = recordBase[recordIndex] + keyIndex
+
 			when (target) {
 				BlendShapeTarget.WARP -> warpDelta(localObjectIndex, recordIndex, keyIndex, deltaRow)
+
 				BlendShapeTarget.ART_MESH -> meshDelta(localObjectIndex, recordIndex, keyIndex, deltaRow)
+
 				BlendShapeTarget.ROTATION -> rotationDelta(recordIndex, keyIndex, deltaRow)
+
 				// MOC3 §5.6: part delta rows are draw-order floats in section 58.
 				BlendShapeTarget.PART -> BlendShapeKeyform.Part(keyformValues.partDrawOrder[deltaRow])
 			}
@@ -444,6 +478,7 @@ internal class BlendShapeDecoder(
 		// MOC3 §5.6: warp delta rows index packed position blocks via section 60 into 71.
 		val controlPointCount = deltaTables.warpControlPointCounts[localObjectIndex]
 		val positionOffset = keyformValues.warpPositionIndex[deltaRow]
+
 		return BlendShapeKeyform.Warp(
 			WarpKeyform(
 				keyformValues.positionValues.copyOfRange(positionOffset, positionOffset + controlPointCount * 2),
@@ -467,6 +502,7 @@ internal class BlendShapeDecoder(
 		// MOC3 §5.6: mesh delta rows index packed position blocks via section 70 into 71.
 		val vertexCount = deltaTables.drawableVertexCounts[localObjectIndex]
 		val positionOffset = keyformValues.positionIndex[deltaRow]
+
 		return BlendShapeKeyform.Mesh(
 			ArtMeshKeyform(
 				keyformValues.positionValues.copyOfRange(positionOffset, positionOffset + vertexCount * 2),

@@ -1,0 +1,593 @@
+package org.umamo.ui.workspace.spaces
+
+import androidx.compose.ui.unit.dp
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import org.umamo.render.FrameOverlays
+import org.umamo.runtime.model.ParameterGroupId
+import org.umamo.runtime.model.ParameterId
+import org.umamo.ui.l10n.UiText
+import org.umamo.ui.properties.PropertiesViewState
+import org.umamo.ui.properties.PropertyTabId
+import org.umamo.ui.sidebar.SidebarPanel
+import org.umamo.ui.tracks.TRACK_LABEL_COLUMN_DEFAULT_WIDTH
+import org.umamo.ui.tracks.TRACK_LABEL_COLUMN_MAX_WIDTH
+import org.umamo.ui.tracks.TrackWindow
+import org.umamo.ui.viewport.GridConfig
+import org.umamo.ui.workspace.PersistentSpaceState
+import org.umamo.ui.workspace.SpaceScope
+import org.umamo.ui.workspace.sidebar.SIDEBAR_MAX_WIDTH
+import org.umamo.ui.workspace.spaces.keyformsheet.KeyformSheetViewState
+import org.umamo.ui.workspace.spaces.outliner.OUTLINER_ROOT_ID
+import org.umamo.ui.workspace.spaces.outliner.OutlinerViewState
+import org.umamo.ui.workspace.spaces.parameters.ParametersViewState
+import org.umamo.ui.workspace.spaces.sources.SourcesFilter
+import org.umamo.ui.workspace.spaces.sources.SourcesViewState
+import org.umamo.ui.workspace.spaces.uv.UvEditorViewState
+import org.umamo.ui.workspace.spaces.uv.UvTextureSelection
+import org.umamo.ui.workspace.spaces.viewport2d.Viewport2DViewState
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/**
+ * Pins each space's saved view state (docs/format/UMA.md §7.3): what it writes comes back, a state at its
+ * defaults writes nothing but nulls, and a member that is the wrong shape is skipped rather than thrown over.
+ */
+class PersistentViewStatesTest {
+	/**
+	 * Whether [state] names every member as a null, which is what an untouched space writes.
+	 *
+	 * @param PersistentSpaceState state The state.
+	 * @return Boolean True when nothing deviates.
+	 */
+	private fun writesOnlyNulls(state: PersistentSpaceState): Boolean = state.toJson().values.all { value -> value is JsonNull }
+
+	@Test
+	fun theOutlinerRoundTripsItsFoldsFiltersAndColumns() {
+		val saved = OutlinerViewState()
+		assertTrue(writesOnlyNulls(saved), "an untouched outliner has nothing to save")
+		saved.query = "arm"
+		saved.expanded["part:12"] = true
+		saved.expanded["part:13"] = false
+		saved.expanded[OUTLINER_ROOT_ID] = false
+		saved.showDeformers = false
+		saved.showVisibilityColumn = false
+
+		val tree = saved.toJson()
+		val reopened = OutlinerViewState().also { state -> state.restore(tree) }
+
+		assertEquals("", reopened.query, "a search query is not saved")
+		assertTrue(reopened.isOpen("part:12"))
+		assertFalse(reopened.isOpen(OUTLINER_ROOT_ID), "a closed root is a deviation and is saved")
+		assertFalse("part:13" in reopened.expanded, "a branch closed at its default is no deviation")
+		assertFalse(reopened.showDeformers)
+		assertTrue(reopened.showParts && reopened.showDrawables && reopened.showSelectableColumn)
+		assertFalse(reopened.showVisibilityColumn)
+		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
+	}
+
+	@Test
+	fun theSourcesSpaceRoundTripsItsFoldsAndFilters() {
+		val saved = SourcesViewState()
+		assertTrue(writesOnlyNulls(saved))
+		saved.expanded["source:art-0"] = false
+		saved.expanded["layer:art-0/lyid:4"] = true
+		saved.setShown(SourcesFilter.Bound, false)
+		saved.setShown(SourcesFilter.NeedsReview, false)
+
+		val reopened = SourcesViewState().also { state -> state.restore(saved.toJson()) }
+
+		assertFalse(reopened.isOpen("source:art-0"))
+		assertTrue(reopened.isOpen("layer:art-0/lyid:4"))
+		assertTrue(reopened.isOpen("source:art-1"), "an unrecorded file is open by default")
+		assertEquals(setOf(SourcesFilter.Unbound, SourcesFilter.Missing), reopened.filters)
+	}
+
+	@Test
+	fun theParametersPanelRoundTripsItsGroupsEditorsAndFilter() {
+		val saved = ParametersViewState()
+		assertTrue(writesOnlyNulls(saved))
+		saved.expandedGroups[ParameterGroupId("face")] = true
+		saved.expandedGroups[ParameterGroupId("body")] = false
+		saved.openRangeEditors[ParameterId("ParamAngleX")] = true
+		saved.openRangeEditors[ParameterId("ParamAngleY")] = false
+		saved.showOnlySelected = true
+		saved.renamingParameterId = ParameterId("ParamAngleX")
+
+		val reopened = ParametersViewState().also { state -> state.restore(saved.toJson()) }
+
+		assertEquals(mapOf(ParameterGroupId("face") to true, ParameterGroupId("body") to false), reopened.expandedGroups.toMap())
+		assertEquals(mapOf(ParameterId("ParamAngleX") to true), reopened.openRangeEditors.toMap(), "a closed range editor is the default")
+		assertTrue(reopened.showOnlySelected)
+		assertEquals(null, reopened.renamingParameterId, "a rename in flight is not saved")
+	}
+
+	@Test
+	fun theKeyformSheetRoundTripsItsFoldsFiltersWindowAndWidth() {
+		val unseeded = KeyformSheetViewState()
+		assertTrue(writesOnlyNulls(unseeded), "a sheet that never seeded has no fold state of its own")
+
+		val saved = KeyformSheetViewState()
+		saved.seeded = true
+		saved.expandedKeys = setOf("part:3")
+		saved.collapsedParameters = setOf(ParameterId("ParamAngleX"))
+		saved.showBlendShapes = false
+		saved.window = TrackWindow(0.25f, 0.75f)
+		saved.labelColumnWidth = 240.dp
+		saved.boxSelectArmed = true
+
+		val reopened = KeyformSheetViewState().also { state -> state.restore(saved.toJson()) }
+
+		assertTrue(reopened.seeded, "a saved fold state counts as the seed")
+		assertEquals(setOf("part:3"), reopened.expandedKeys)
+		assertEquals(setOf(ParameterId("ParamAngleX")), reopened.collapsedParameters)
+		assertTrue(reopened.showGeometry && reopened.showChannels)
+		assertFalse(reopened.showBlendShapes)
+		assertEquals(TrackWindow(0.25f, 0.75f), reopened.window)
+		assertEquals(240.dp, reopened.labelColumnWidth)
+		assertFalse(reopened.boxSelectArmed, "a gesture in flight is not saved")
+	}
+
+	@Test
+	fun aSeededSheetWithEveryGroupClosedSavesAnEmptyList() {
+		val saved = KeyformSheetViewState()
+		saved.seeded = true
+
+		val reopened = KeyformSheetViewState().also { state -> state.restore(saved.toJson()) }
+
+		assertTrue(reopened.seeded, "collapse-everything survives: the reopened sheet does not seed itself open")
+		assertEquals(emptySet(), reopened.expandedKeys)
+	}
+
+	@Test
+	fun thePropertiesPanelRoundTripsItsTabSectionsAndListHeights() {
+		val saved = PropertiesViewState()
+		assertTrue(writesOnlyNulls(saved))
+		saved.query = "mask"
+		saved.activeTab = PropertyTabId.Data
+		saved.expandedSections["data.mesh"] = false
+		saved.expandedSections["data.blend"] = true
+		saved.listHeights["maskedBy"] = 220.dp
+
+		val reopened = PropertiesViewState().also { state -> state.restore(saved.toJson()) }
+
+		assertEquals("", reopened.query)
+		assertEquals(PropertyTabId.Data, reopened.activeTab)
+		assertEquals(mapOf("data.mesh" to false), reopened.expandedSections.toMap(), "an open section is the default")
+		assertEquals(mapOf("maskedBy" to 220.dp), reopened.listHeights.toMap())
+	}
+
+	@Test
+	fun theUvEditorRoundTripsEachTextureSelection() {
+		assertTrue(writesOnlyNulls(UvEditorViewState()), "following the selection is the default")
+
+		for (selection in listOf(UvTextureSelection.PinnedPage(2), UvTextureSelection.SourceLayer, UvTextureSelection.FollowSelection)) {
+			val saved = UvEditorViewState().also { state -> state.textureSelection = selection }
+			val reopened = UvEditorViewState().also { state -> state.restore(saved.toJson()) }
+			assertEquals(selection, reopened.textureSelection)
+		}
+	}
+
+	/** The 2D viewport's block: its overlays round-trip, every key of the surface named inside the object. */
+	@Test
+	fun theViewportRoundTripsItsOverlays() {
+		val saved = Viewport2DViewState()
+		assertTrue(writesOnlyNulls(saved), "an untouched viewport has nothing to save")
+		saved.overlays.showOverlays = false
+		saved.overlays.showCursor = false
+		saved.overlays.showDeformers = true
+
+		val tree = saved.toJson()
+		val overlays = tree["overlays"] as JsonObject
+		assertEquals(
+			listOf("all", "grid", "axes", "cursor", "info", "wireframe", "selectionTint", "deformers", "wireframeCulling", "dimBackFacing", "backFacingOpacity", "deformerOpacity", "wireframeOpacity", "gridGeometry"),
+			overlays.keys.toList(),
+			"every key is named, so a merge can take a deviation back out",
+		)
+		assertEquals(JsonPrimitive(false), overlays["all"])
+		assertEquals(JsonPrimitive(false), overlays["cursor"])
+		assertEquals(JsonPrimitive(true), overlays["deformers"])
+		assertTrue(
+			listOf("grid", "axes", "info", "wireframe", "selectionTint", "wireframeCulling", "dimBackFacing", "backFacingOpacity", "deformerOpacity", "wireframeOpacity", "gridGeometry").all { key -> overlays[key] is JsonNull },
+			"a flag at its default, an opacity that is whole, and a grid that follows, is a null",
+		)
+
+		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
+		assertFalse(reopened.overlays.showOverlays)
+		assertFalse(reopened.overlays.showCursor)
+		assertTrue(reopened.overlays.showGrid && reopened.overlays.showAxes && reopened.overlays.showInfo)
+		assertFalse(reopened.overlays.showWireframe)
+		assertTrue(reopened.overlays.showDeformers)
+		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
+	}
+
+	/** Flags set and unset again are back at their defaults: the member is a null, which the merge turns into a removal. */
+	@Test
+	fun overlaysBackAtTheirDefaultsWriteANull() {
+		val state = Viewport2DViewState()
+		state.overlays.showWireframe = true
+		state.overlays.showInfo = false
+		state.overlays.showWireframe = false
+		state.overlays.showInfo = true
+
+		assertEquals(JsonNull, state.toJson()["overlays"])
+		assertTrue(state.overlays.isAtDefaults)
+	}
+
+	/**
+	 * The 2D viewport's toolbar and sidebar round-trip beside its overlays: a toolbar the rigger hid, an open
+	 * sidebar dragged wider, a chosen tab, and folds against each panel's default - a tab and a panel no
+	 * contributor registers right now included, kept as read.
+	 */
+	@Test
+	fun theViewportRoundTripsItsToolbarAndSidebar() {
+		val saved = Viewport2DViewState()
+		saved.toolbar.choice = false
+		saved.sidebar.visibility.choice = true
+		saved.sidebar.width = 260.dp
+		saved.sidebar.activeTabId = "plugin.bones"
+		saved.sidebar.toggleExpanded(SidebarPanel("umamo.item.transform", "umamo.item", UiText.Literal("Transform"), 100, SpaceScope.Viewport2D, content = {}))
+		saved.sidebar.expandedByPanel["plugin.bones.chains"] = true
+
+		val tree = saved.toJson()
+		assertEquals(listOf("overlays", "toolbar", "sidebar"), tree.keys.toList(), "the block names its members in the spec's order")
+		assertEquals(JsonPrimitive(false), tree["toolbar"])
+		val sidebar = tree["sidebar"] as JsonObject
+		assertEquals(listOf("open", "width", "tab", "expandedPanels", "collapsedPanels"), sidebar.keys.toList(), "every sidebar key is named")
+		assertEquals(JsonPrimitive(true), sidebar["open"])
+		assertEquals(JsonPrimitive(260f), sidebar["width"])
+		assertEquals(JsonPrimitive("plugin.bones"), sidebar["tab"])
+
+		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
+		assertEquals(false, reopened.toolbar.choice)
+		assertEquals(true, reopened.sidebar.visibility.choice)
+		assertEquals(260.dp, reopened.sidebar.width)
+		assertEquals("plugin.bones", reopened.sidebar.activeTabId, "a tab no contributor registers is kept")
+		assertEquals(mapOf("umamo.item.transform" to false, "plugin.bones.chains" to true), reopened.sidebar.expandedByPanel.toMap(), "and so is a panel")
+		assertEquals(tree, reopened.toJson(), "and the restored state writes the same members")
+	}
+
+	/** A toolbar with no choice and a sidebar back at its defaults write nulls, which the merge turns into removals. */
+	@Test
+	fun aSidebarBackAtItsDefaultsWritesANull() {
+		val state = Viewport2DViewState()
+		val panel = SidebarPanel("umamo.item.transform", "umamo.item", UiText.Literal("Transform"), 100, SpaceScope.Viewport2D, content = {})
+		state.sidebar.width = 300.dp
+		state.sidebar.toggleExpanded(panel)
+		state.sidebar.width = 200.dp
+		state.sidebar.toggleExpanded(panel)
+
+		assertEquals(JsonNull, state.toJson()["sidebar"], "folding back to the default leaves nothing to save")
+		assertTrue(writesOnlyNulls(state))
+	}
+
+	/** Sidebar members of the wrong type are skipped, a width not above zero reads as the default, and one too wide is held. */
+	@Test
+	fun brokenSidebarMembersAreSkipped() {
+		val broken =
+			buildJsonObject {
+				put("toolbar", 1)
+				put(
+					"sidebar",
+					buildJsonObject {
+						put("open", "yes")
+						put("width", -3)
+						put("tab", 7)
+						put("expandedPanels", "x")
+						put("collapsedPanels", 4)
+					},
+				)
+			}
+		assertTrue(writesOnlyNulls(Viewport2DViewState().also { state -> state.restore(broken) }), "every broken member is skipped")
+		val tooWide = buildJsonObject { put("sidebar", buildJsonObject { put("width", 9999) }) }
+		assertEquals(SIDEBAR_MAX_WIDTH, Viewport2DViewState().also { state -> state.restore(tooWide) }.sidebar.width, "a width past the limit is held to it")
+	}
+
+	/**
+	 * The UV editor writes its overlays and its sidebar beside its texture selection, the overlays with only the keys
+	 * a UV editor has overlays for and the sidebar in the 2D viewport's shape.
+	 */
+	@Test
+	fun theUvEditorRoundTripsItsOverlaysAndSidebarBesideItsTexture() {
+		val saved = UvEditorViewState()
+		saved.textureSelection = UvTextureSelection.PinnedPage(1)
+		saved.overlays.showInfo = false
+		saved.sidebar.visibility.choice = true
+		saved.sidebar.activeTabId = "umamo.view"
+
+		val tree = saved.toJson()
+		assertEquals(listOf("texture", "overlays", "sidebar"), tree.keys.toList())
+		val sidebar = tree["sidebar"] as JsonObject
+		assertEquals(JsonPrimitive(true), sidebar["open"])
+		assertEquals(JsonPrimitive("umamo.view"), sidebar["tab"])
+		val overlays = tree["overlays"] as JsonObject
+		assertEquals(listOf("all", "grid", "cursor", "info", "wireframeOpacity", "gridGeometry"), overlays.keys.toList(), "a UV editor has no axes, no object wireframe, and no tint, while its islands fade by the opacity")
+		assertEquals(JsonPrimitive(false), overlays["info"])
+
+		val reopened = UvEditorViewState().also { state -> state.restore(tree) }
+		assertEquals(UvTextureSelection.PinnedPage(1), reopened.textureSelection)
+		assertFalse(reopened.overlays.showInfo)
+		assertTrue(reopened.overlays.showOverlays && reopened.overlays.showCursor && reopened.overlays.showGrid)
+		assertEquals(true, reopened.sidebar.visibility.choice)
+		assertEquals("umamo.view", reopened.sidebar.activeTabId)
+		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
+	}
+
+	/** The 2D viewport's own grid round-trips under gridGeometry, and back to following the member is a null. */
+	@Test
+	fun theViewportRoundTripsItsOwnGrid() {
+		val saved = Viewport2DViewState()
+		saved.overlays.gridGeometry = GridConfig(50f, 4)
+
+		val tree = saved.toJson()
+		assertEquals(
+			buildJsonObject {
+				put("scale", 50f)
+				put("subdivisions", 4)
+			},
+			(tree["overlays"] as JsonObject)["gridGeometry"],
+		)
+		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
+		assertEquals(GridConfig(50f, 4), reopened.overlays.gridGeometry)
+		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
+
+		saved.overlays.gridGeometry = null
+		assertEquals(JsonNull, saved.toJson()["overlays"], "following again with nothing else set, the member is a null")
+	}
+
+	/** A UV editor's own grid round-trips whole, its scale in texels, the one shape the 2D viewport writes. */
+	@Test
+	fun theUvEditorRoundTripsItsOwnGrid() {
+		val saved = UvEditorViewState()
+		saved.overlays.gridGeometry = GridConfig(123f, 4)
+
+		val tree = saved.toJson()
+		assertEquals(
+			buildJsonObject {
+				put("scale", 123f)
+				put("subdivisions", 4)
+			},
+			(tree["overlays"] as JsonObject)["gridGeometry"],
+			"the scale is written, in texels",
+		)
+		val reopened = UvEditorViewState().also { state -> state.restore(tree) }
+		assertEquals(GridConfig(123f, 4), reopened.overlays.gridGeometry)
+		assertEquals(GridConfig(123f, 4), reopened.overlays.grid, "the area's grid is its own, whole")
+		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
+	}
+
+	/** The tint off and an opacity round-trip on a 2D viewport, the opacity alone on a UV editor, and back at their defaults the member is a null. */
+	@Test
+	fun theTintAndTheOpacityRoundTrip() {
+		val saved = Viewport2DViewState()
+		saved.overlays.showSelectionTint = false
+		saved.overlays.cullHiddenWireframe = false
+		saved.overlays.dimBackFacing = false
+		saved.overlays.backFacingOpacity = 0.55f
+		saved.overlays.wireframeOpacity = 0.3f
+
+		val tree = saved.toJson()
+		val overlays = tree["overlays"] as JsonObject
+		assertEquals(JsonPrimitive(false), overlays["selectionTint"])
+		assertEquals(JsonPrimitive(false), overlays["wireframeCulling"])
+		assertEquals(JsonPrimitive(false), overlays["dimBackFacing"])
+		assertEquals(JsonPrimitive(0.55f), overlays["backFacingOpacity"])
+		assertEquals(JsonPrimitive(0.3f), overlays["wireframeOpacity"])
+		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
+		assertFalse(reopened.overlays.showSelectionTint)
+		assertFalse(reopened.overlays.cullHiddenWireframe)
+		assertFalse(reopened.overlays.dimBackFacing)
+		assertEquals(0.55f, reopened.overlays.backFacingOpacity)
+		assertEquals(0.3f, reopened.overlays.wireframeOpacity)
+		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
+
+		saved.overlays.showSelectionTint = true
+		saved.overlays.cullHiddenWireframe = true
+		saved.overlays.dimBackFacing = true
+		saved.overlays.backFacingOpacity = FrameOverlays.DEFAULT_BACK_FACING_OPACITY
+		saved.overlays.wireframeOpacity = 1f
+		assertEquals(JsonNull, saved.toJson()["overlays"], "back at their defaults the member is a null")
+
+		val uvSaved = UvEditorViewState()
+		uvSaved.overlays.wireframeOpacity = 0f
+		val uvTree = uvSaved.toJson()
+		assertEquals(JsonPrimitive(0f), (uvTree["overlays"] as JsonObject)["wireframeOpacity"], "zero is a value, not a default")
+		val uvReopened = UvEditorViewState().also { state -> state.restore(uvTree) }
+		assertEquals(0f, uvReopened.overlays.wireframeOpacity)
+		assertEquals(uvTree, uvReopened.toJson())
+	}
+
+	/** The deformers' opacity round-trips on a 2D viewport, 0 included, and back at whole the member is a null. */
+	@Test
+	fun theDeformerOpacityRoundTrips() {
+		val saved = Viewport2DViewState()
+		saved.overlays.deformerOpacity = 0.4f
+
+		val tree = saved.toJson()
+		assertEquals(JsonPrimitive(0.4f), (tree["overlays"] as JsonObject)["deformerOpacity"])
+		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
+		assertEquals(0.4f, reopened.overlays.deformerOpacity)
+		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
+
+		saved.overlays.deformerOpacity = 0f
+		val hiddenTree = saved.toJson()
+		assertEquals(JsonPrimitive(0f), (hiddenTree["overlays"] as JsonObject)["deformerOpacity"], "zero is a value, not a default")
+		assertEquals(0f, Viewport2DViewState().also { state -> state.restore(hiddenTree) }.overlays.deformerOpacity)
+
+		saved.overlays.deformerOpacity = 1f
+		assertEquals(JsonNull, saved.toJson()["overlays"], "back at whole the member is a null")
+	}
+
+	/** A deformerOpacity outside 0 to 1, or not a number, reads as whole. */
+	@Test
+	fun aBrokenDeformerOpacityReadsAsWhole() {
+		for (planted in listOf<JsonElement>(JsonPrimitive(1.5f), JsonPrimitive(-0.1f), JsonPrimitive("no"), JsonPrimitive(true))) {
+			val tree = buildJsonObject { put("overlays", buildJsonObject { put("deformerOpacity", planted) }) }
+			val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
+			assertEquals(1f, reopened.overlays.deformerOpacity, "$planted reads as whole")
+			assertTrue(writesOnlyNulls(reopened), "and nothing is written back")
+		}
+	}
+
+	/** A backFacingOpacity outside 0 to 1, or not a number, reads as its default; zero is a value it keeps. */
+	@Test
+	fun aBrokenBackFacingOpacityReadsAsItsDefault() {
+		for (planted in listOf<JsonElement>(JsonPrimitive(1.5f), JsonPrimitive(-0.1f), JsonPrimitive("no"), JsonPrimitive(true))) {
+			val tree = buildJsonObject { put("overlays", buildJsonObject { put("backFacingOpacity", planted) }) }
+			val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
+			assertEquals(FrameOverlays.DEFAULT_BACK_FACING_OPACITY, reopened.overlays.backFacingOpacity, "$planted reads as the default")
+			assertTrue(writesOnlyNulls(reopened), "and nothing is written back")
+		}
+
+		val hidden = buildJsonObject { put("overlays", buildJsonObject { put("backFacingOpacity", JsonPrimitive(0f)) }) }
+		assertEquals(0f, Viewport2DViewState().also { state -> state.restore(hidden) }.overlays.backFacingOpacity)
+	}
+
+	/** A wireframeOpacity outside 0 to 1, or not a number, reads as whole. */
+	@Test
+	fun aBrokenWireframeOpacityReadsAsWhole() {
+		for (planted in listOf<JsonElement>(JsonPrimitive(1.5f), JsonPrimitive(-0.1f), JsonPrimitive("no"), JsonPrimitive(true))) {
+			val tree = buildJsonObject { put("overlays", buildJsonObject { put("wireframeOpacity", planted) }) }
+			val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
+			assertEquals(1f, reopened.overlays.wireframeOpacity, "$planted reads as whole")
+			assertTrue(writesOnlyNulls(reopened), "and nothing is written back")
+		}
+	}
+
+	/** A gridGeometry that fails its checks leaves the area following the application's grid. */
+	@Test
+	fun aBrokenGridGeometryFollowsTheApplication() {
+		val zeroScale =
+			buildJsonObject {
+				put(
+					"overlays",
+					buildJsonObject {
+						put(
+							"gridGeometry",
+							buildJsonObject {
+								put("scale", 0)
+								put("subdivisions", 4)
+							},
+						)
+					},
+				)
+			}
+		assertNull(Viewport2DViewState().also { state -> state.restore(zeroScale) }.overlays.gridGeometry, "a zero scale")
+		val zeroSubdivisions =
+			buildJsonObject {
+				put(
+					"overlays",
+					buildJsonObject {
+						put(
+							"gridGeometry",
+							buildJsonObject {
+								put("scale", 50)
+								put("subdivisions", 0)
+							},
+						)
+					},
+				)
+			}
+		assertNull(Viewport2DViewState().also { state -> state.restore(zeroSubdivisions) }.overlays.gridGeometry, "zero subdivisions")
+		val subdivisionsAlone = buildJsonObject { put("overlays", buildJsonObject { put("gridGeometry", buildJsonObject { put("subdivisions", 4) }) }) }
+		assertNull(Viewport2DViewState().also { state -> state.restore(subdivisionsAlone) }.overlays.gridGeometry, "a grid without a scale")
+		assertNull(UvEditorViewState().also { state -> state.restore(subdivisionsAlone) }.overlays.gridGeometry, "on a UV editor too: the shape a UV grid was saved in before it carried a scale follows")
+	}
+
+	/** Keys a UV editor has no overlay for are ignored on read and never written back. */
+	@Test
+	fun axesAndWireframeUnderUvAreIgnored() {
+		val planted =
+			buildJsonObject {
+				put(
+					"overlays",
+					buildJsonObject {
+						put("axes", false)
+						put("wireframe", true)
+						put("selectionTint", false)
+						put("wireframeCulling", false)
+						put("deformers", true)
+						put("deformerOpacity", 0.4f)
+					},
+				)
+			}
+
+		val reopened = UvEditorViewState().also { state -> state.restore(planted) }
+
+		assertTrue(reopened.overlays.showAxes, "a UV editor's axes flag stays at its default")
+		assertFalse(reopened.overlays.showWireframe, "a UV editor's wireframe flag stays at its default")
+		assertTrue(reopened.overlays.showSelectionTint, "and so does its tint flag")
+		assertTrue(reopened.overlays.cullHiddenWireframe, "and its culling flag")
+		assertFalse(reopened.overlays.showDeformers, "and its deformers flag")
+		assertEquals(1f, reopened.overlays.deformerOpacity, "and the deformers' opacity")
+		assertTrue(writesOnlyNulls(reopened), "and nothing is written back")
+	}
+
+	/** Every member the wrong shape: nothing throws, and every state keeps its defaults (UMA §7.1). */
+	@Test
+	fun membersOfTheWrongShapeAreSkipped() {
+		val junk =
+			buildJsonObject {
+				for (memberName in listOf("expanded", "collapsed", "hidden", "hiddenColumns", "expandedGroups", "collapsedGroups", "openRangeEditors", "collapsedParameters", "collapsedSections")) {
+					put(memberName, "not an array")
+				}
+
+				put("onlySelected", "yes")
+				put("overlays", "yes")
+				put("toolbar", "yes")
+				put("sidebar", "yes")
+				put("tab", 7)
+				put("texture", buildJsonObject { put("page", "two") })
+				put(
+					"window",
+					buildJsonArray {
+						add(JsonPrimitive(0.9f))
+						add(JsonPrimitive(0.1f))
+					},
+				)
+				put("labelColumnWidth", 99999)
+				put(
+					"listHeights",
+					buildJsonObject {
+						put("maskedBy", -4)
+						put("other", "tall")
+					},
+				)
+			}
+
+		val outliner = OutlinerViewState().also { state -> state.restore(junk) }
+		val sources = SourcesViewState().also { state -> state.restore(junk) }
+		val parameters = ParametersViewState().also { state -> state.restore(junk) }
+		val sheet = KeyformSheetViewState().also { state -> state.restore(junk) }
+		val properties = PropertiesViewState().also { state -> state.restore(junk) }
+		val uvEditor = UvEditorViewState().also { state -> state.restore(junk) }
+		val viewport = Viewport2DViewState().also { state -> state.restore(junk) }
+
+		assertTrue(writesOnlyNulls(outliner) && writesOnlyNulls(sources) && writesOnlyNulls(parameters) && writesOnlyNulls(uvEditor) && writesOnlyNulls(viewport))
+		val nestedJunk =
+			buildJsonObject {
+				put(
+					"overlays",
+					buildJsonObject {
+						put("cursor", "no")
+						put("all", 1)
+					},
+				)
+			}
+		assertTrue(writesOnlyNulls(Viewport2DViewState().also { state -> state.restore(nestedJunk) }), "overlay keys of the wrong type are skipped")
+		assertFalse(sheet.seeded)
+		assertEquals(TrackWindow.Full, sheet.window, "a window that runs backwards keeps the whole domain")
+		assertEquals(TRACK_LABEL_COLUMN_MAX_WIDTH, sheet.labelColumnWidth, "a width past the sheet's limit is clamped to it")
+		assertEquals(PropertyTabId.Document, properties.activeTab)
+		assertEquals(emptyMap(), properties.listHeights.toMap())
+		assertEquals(TRACK_LABEL_COLUMN_DEFAULT_WIDTH, KeyformSheetViewState().also { state -> state.restore(JsonObject(emptyMap())) }.labelColumnWidth)
+	}
+}

@@ -4,6 +4,9 @@ import org.umamo.format.moc3.encode.MocEncoder
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
+import org.umamo.format.moc3.model.BlendShapeTarget
+import org.umamo.format.moc3.model.Part
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -38,7 +41,7 @@ class MocStructuralEditBakeTest {
 	 * @param List        parts    The replacement part list.
 	 * @return MocDocument The edited document.
 	 */
-	private fun withParts(document: MocDocument, parts: List<org.umamo.format.moc3.model.Part>): MocDocument =
+	private fun withParts(document: MocDocument, parts: List<Part>): MocDocument =
 		MocDocument(
 			version = document.version,
 			canvas = document.canvas,
@@ -57,12 +60,14 @@ class MocStructuralEditBakeTest {
 	@Test
 	fun addingAPartKeepsCountInfoAndTheDecodeConsistent() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping structural edit bake test")
-			return
+			skipTest("moc3.samples not present; skipping structural edit bake test")
 		}
+
 		var exercised = 0
 		val skippedForPartBlends = ArrayList<String>()
+
 		for (file in files) {
 			val original = MocCodec.read(file.readBytes())
 			val document = Moc3.decode(original)
@@ -75,10 +80,12 @@ class MocStructuralEditBakeTest {
 			// carried on the decoded model rather than recomputed at bake time.  Editing a model with
 			// part blend shapes therefore needs the blend layout re-derived, which is export-phase work.
 			// modelC is the only corpus sample with such a record.
-			if (document.blendShapes.any { it.target == org.umamo.format.moc3.model.BlendShapeTarget.PART }) {
+			if (document.blendShapes.any { it.target == BlendShapeTarget.PART }) {
 				skippedForPartBlends.add(file.name)
+
 				continue
 			}
+
 			// An appended ROOT part with the same binding as one that already works: its draw-order run
 			// simply extends section 58, and nothing else in the file refers to it by index.
 			val addedPart = lastPart.copy(id = "UmamoAddedPart", parentPartIndex = -1)
@@ -98,6 +105,7 @@ class MocStructuralEditBakeTest {
 				"${file.name}: CountInfo part count tracks the edit",
 			)
 			assertEquals(edited.parts, redecoded.parts, "${file.name}: parts round-trip through the edit")
+
 			// Every per-part column must have grown with the list, or the runtime reads past one of them.
 			for (section in listOf(Section.PART_ID, Section.PART_PARENT, Section.PART_KEYFORM_BINDING)) {
 				assertEquals(
@@ -106,6 +114,7 @@ class MocStructuralEditBakeTest {
 					"${file.name}: $section resized with the part list",
 				)
 			}
+
 			// The edit must not disturb anything else - a stale count elsewhere shows up here first.
 			assertEquals(document.deformers, redecoded.deformers, "${file.name}: deformers unchanged")
 			assertEquals(document.artMeshes, redecoded.artMeshes, "${file.name}: art meshes unchanged")
@@ -113,8 +122,10 @@ class MocStructuralEditBakeTest {
 			assertEquals(document.glues, redecoded.glues, "${file.name}: glues unchanged")
 			exercised++
 		}
+
 		assertTrue(exercised > 0, "no corpus model had a part to duplicate")
 		println("[structural-edit] added a part to $exercised models; CountInfo and every per-part column tracked it")
+
 		if (skippedForPartBlends.isNotEmpty()) {
 			println("[structural-edit] skipped (part-target blend records index the table this edit shifts): $skippedForPartBlends")
 		}

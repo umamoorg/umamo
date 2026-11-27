@@ -19,21 +19,22 @@ import org.umamo.format.cmo3.model.gen.KeyformOnGrid
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CColor
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 
 /**
  * Print-only probe for the CMO3 offscreen-drawing representation (Cubism 5.3 part feature): which
  * parts carry useOffscreen, their color/alpha composition enums, clipping lists, and keyformed
- * opacity/color payloads (CPartForm), plus the raw main.xml spellings.  Feeds the offscreen support
- * scratchpad (docs/plan/offscreen-support.md); pins nothing.  Skips gracefully without samples.
+ * opacity/color payloads (CPartForm), plus the raw main.xml spellings.  Pins nothing; skips
+ * gracefully without samples.
  */
 class OffscreenProbeTest {
 	private fun samples(): List<File> =
 		System.getProperty("cmo3.probe")?.split(',')?.map(::File)?.filter { it.isFile } ?: emptyList()
 
 	/**
-	 * Flattens a CMO3 collection field to a plain list (mirrors Cmo3Import.elementsOf).
+	 * Flattens a CMO3 collection field to a plain list (mirrors `:interop`'s elementsOf).
 	 *
 	 * @param Any? collection The raw collection field, held as Any?.
 	 * @return List<Any?> The contained elements.
@@ -61,10 +62,11 @@ class OffscreenProbeTest {
 	@Test
 	fun probeOffscreenParts() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("cmo3.probe not present; skipping offscreen probe")
-			return
+			skipTest("cmo3.probe not present; skipping offscreen probe")
 		}
+
 		for (file in files) {
 			val root = Cmo3.read(file).root as? CModelSource ?: continue
 			val partSources =
@@ -77,9 +79,11 @@ class OffscreenProbeTest {
 				parameterSources.associateBy(keySelector = { uuidOf(it.guid) }, valueTransform = { idOf(it.id) ?: it.name ?: "?" })
 			// Both parts and drawables are legal clip targets; index them all by guid for resolution.
 			val nameByUuid = HashMap<String?, String>()
+
 			for (part in partSources) {
 				nameByUuid[uuidOf(part.guid)] = "part:" + (part.localName ?: idOf(part.id) ?: "?")
 			}
+
 			for (drawableSource in drawableSources) {
 				val mesh = drawableSource as? CArtMeshSource ?: continue
 				nameByUuid[uuidOf(mesh.guid)] = "mesh:" + (mesh.localName ?: idOf(mesh.id) ?: "?")
@@ -105,14 +109,17 @@ class OffscreenProbeTest {
 				println("    axes: [$axisSummary]")
 				val axisOfBinding = bindings.withIndex().associate { (index, binding) -> binding to index }
 				val formByUuid = elementsOf(part.keyforms).associateBy { form -> uuidOf((form as? CPartForm)?.guid) }
+
 				for (cell in elementsOf(grid?.keyformsOnGrid).filterIsInstance<KeyformOnGrid>()) {
 					val form = formByUuid[uuidOf(cell.keyformGuid)] as? CPartForm ?: continue
 					val coordinate = IntArray(bindings.size)
 					val keyList = (cell.accessKey as? KeyformGridAccessKey)?._keyOnParameterList
+
 					for (keyOnParameter in elementsOf(keyList).filterIsInstance<KeyOnParameter>()) {
 						val axisIndex = axisOfBinding[keyOnParameter.binding] ?: continue
 						coordinate[axisIndex] = keyOnParameter.keyIndex
 					}
+
 					println(
 						"    cell ${coordinate.toList()}: drawOrder=${form.drawOrder} opacity=${form.opacity}" +
 							" multiply=${colorHex(form.multiplyColor)} screen=${colorHex(form.screenColor)}",
@@ -129,6 +136,7 @@ class OffscreenProbeTest {
 			val meshes = drawableSources.filterIsInstance<CArtMeshSource>()
 			println("  mesh colorComposition values: ${meshes.groupingBy { it.colorComposition?.toString() }.eachCount()}")
 			println("  mesh alphaComposition values: ${meshes.groupingBy { it.alphaComposition?.toString() }.eachCount()}")
+
 			// Per-mesh detail wherever a drawable authors a non-default blend or culling - the
 			// drawable-level extended-blend / culling extraction evidence.
 			for (mesh in meshes) {
@@ -136,6 +144,7 @@ class OffscreenProbeTest {
 				val alphaValue = mesh.alphaComposition?.toString()
 				val nonDefault =
 					mesh.culling || (colorValue != null && colorValue != "NORMAL") || (alphaValue != null && alphaValue != "OVER")
+
 				if (nonDefault) {
 					println(
 						"  mesh '${mesh.localName}' id=${idOf(mesh.id)} color=$colorValue alpha=$alphaValue" +
@@ -157,14 +166,17 @@ class OffscreenProbeTest {
 					"screenColor",
 				)
 			val seenFragments = LinkedHashSet<String>()
+
 			for (line in String(mainXml, Charsets.UTF_8).lineSequence()) {
 				if (keywords.any { keyword -> keyword in line }) {
 					seenFragments.add(line.trim())
+
 					if (seenFragments.size >= 24) {
 						break
 					}
 				}
 			}
+
 			seenFragments.forEach { fragment -> println("  xml: $fragment") }
 		}
 	}

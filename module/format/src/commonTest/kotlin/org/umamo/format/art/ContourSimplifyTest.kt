@@ -37,12 +37,14 @@ class ContourSimplifyTest {
 		// A unit staircase from (0, 0) to (10, 10) deviates at most sqrt(2)/2 from the true
 		// diagonal, so the 1.0 px default collapses it to a single segment.
 		val ringValues = mutableListOf(0, 0)
+
 		for (stepIndex in 1..10) {
 			ringValues.add(stepIndex)
 			ringValues.add(stepIndex - 1)
 			ringValues.add(stepIndex)
 			ringValues.add(stepIndex)
 		}
+
 		ringValues.add(0)
 		ringValues.add(10)
 		val ring = ringValues.toIntArray()
@@ -83,6 +85,7 @@ class ContourSimplifyTest {
 	 */
 	private fun assertMaxDeviationWithin(original: IntArray, simplified: IntArray, epsilon: Double) {
 		val originalCount = original.size / 2
+
 		for (pointIndex in 0 until originalCount) {
 			val distance =
 				distanceToRing(
@@ -95,6 +98,7 @@ class ContourSimplifyTest {
 				"dropped vertex index $pointIndex deviates $distance > $epsilon",
 			)
 		}
+
 		assertEquals(0, simplified.size % 2, "simplified ring stays flat pairs")
 	}
 
@@ -109,6 +113,7 @@ class ContourSimplifyTest {
 	private fun distanceToRing(pointX: Double, pointY: Double, ring: IntArray): Double {
 		val pointCount = ring.size / 2
 		var best = Double.MAX_VALUE
+
 		for (pointIndex in 0 until pointCount) {
 			val nextIndex = (pointIndex + 1) % pointCount
 			val startX = ring[pointIndex * 2].toDouble()
@@ -131,10 +136,12 @@ class ContourSimplifyTest {
 				sqrt(
 					(pointX - nearestX) * (pointX - nearestX) + (pointY - nearestY) * (pointY - nearestY),
 				)
+
 			if (distance < best) {
 				best = distance
 			}
 		}
+
 		return best
 	}
 }

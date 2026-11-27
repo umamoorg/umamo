@@ -14,6 +14,8 @@ import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.format.psd.PsdReader
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3SourceArtOf
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.atlasBindingFor
 import org.umamo.runtime.model.atlasPixelOf
@@ -73,6 +75,7 @@ class Cmo3AtlasIngestCorpusTest {
 		var minV = Float.MAX_VALUE
 		var maxV = -Float.MAX_VALUE
 		var componentIndex = 0
+
 		while (componentIndex + 1 < layerUvs.size) {
 			minU = minOf(minU, layerUvs[componentIndex])
 			maxU = maxOf(maxU, layerUvs[componentIndex])
@@ -80,18 +83,23 @@ class Cmo3AtlasIngestCorpusTest {
 			maxV = maxOf(maxV, layerUvs[componentIndex + 1])
 			componentIndex += 2
 		}
+
 		val spanU = maxU - minU
 		val spanV = maxV - minV
+
 		if (spanU <= 0f || spanV <= 0f) {
 			return 0f
 		}
+
 		val marginU = MESH_MARGIN_PIXELS / layerWidth
 		val marginV = MESH_MARGIN_PIXELS / layerHeight
 		val insideU = minOf(maxU, 1f + marginU) - maxOf(minU, -marginU)
 		val insideV = minOf(maxV, 1f + marginV) - maxOf(minV, -marginV)
+
 		if (insideU <= 0f || insideV <= 0f) {
 			return 0f
 		}
+
 		return (insideU * insideV) / (spanU * spanV)
 	}
 
@@ -116,6 +124,7 @@ class Cmo3AtlasIngestCorpusTest {
 		var minV = Float.MAX_VALUE
 		var maxV = -Float.MAX_VALUE
 		var componentIndex = 0
+
 		while (componentIndex + 1 < layerUvs.size) {
 			minU = minOf(minU, layerUvs[componentIndex])
 			maxU = maxOf(maxU, layerUvs[componentIndex])
@@ -123,8 +132,10 @@ class Cmo3AtlasIngestCorpusTest {
 			maxV = maxOf(maxV, layerUvs[componentIndex + 1])
 			componentIndex += 2
 		}
+
 		val marginU = MESH_MARGIN_PIXELS / layerWidth
 		val marginV = MESH_MARGIN_PIXELS / layerHeight
+
 		return minU <= marginU && minV <= marginV && maxU >= 1f - marginU && maxV >= 1f - marginV
 	}
 
@@ -157,6 +168,7 @@ class Cmo3AtlasIngestCorpusTest {
 		val transform = entry.materialLocalToAtlasTransform as? GTransform2 ?: return null
 		val position = transform.position as? GVector2
 		val scale = transform.scale as? GVector2
+
 		return AtlasPlacement(
 			pageIndex = pageIndex,
 			positionX = position?.x ?: 0f,
@@ -189,21 +201,27 @@ class Cmo3AtlasIngestCorpusTest {
 		var worstOverlap = 1f
 		var missedMappings = 0
 		val failures = mutableListOf<String>()
+
 		for (file in files) {
 			val root = Cmo3.read(file).root as? CModelSource ?: continue
 			val puppet = Cmo3Import.fromModelSource(root)
+
 			if (puppet.atlas.isEmpty) {
 				continue
 			}
+
 			filesWithLayers++
+
 			for (drawable in puppet.drawables) {
 				val binding = puppet.atlasBindingFor(drawable) ?: continue
 				boundDrawables++
 				val layer = puppet.atlas.tileById[drawable.atlasTileId] ?: continue
 				val uvs = drawable.mesh?.uvs ?: continue
+
 				if (uvs.isEmpty()) {
 					continue
 				}
+
 				val layerUvs = layerUvsFromAtlasUvs(uvs, binding, layer.width, layer.height) ?: continue
 				checkedMappings++
 				val overlap = frameOverlapFractionOf(layerUvs, layer.width, layer.height)
@@ -211,9 +229,11 @@ class Cmo3AtlasIngestCorpusTest {
 				// covering it (a trim-tight converted crop under a wide-reaching mesh).
 				val landsOnLayer = overlap >= MINIMUM_FRAME_OVERLAP || mappingCoversLayer(layerUvs, layer.width, layer.height)
 				worstOverlap = minOf(worstOverlap, overlap)
+
 				if (!landsOnLayer) {
 					missedMappings++
 				}
+
 				if (!landsOnLayer && failures.size < 10) {
 					failures.add(
 						"${file.name} ${drawable.id.raw} -> ${layer.name}: only $overlap of its mapping lands on the " +
@@ -253,21 +273,27 @@ class Cmo3AtlasIngestCorpusTest {
 		var checkedBindings = 0
 		var placedBindings = 0
 		val failures = mutableListOf<String>()
+
 		for (file in files) {
 			val root = Cmo3.read(file).root as? CModelSource ?: continue
 			val asSaved = Cmo3Import.fromModelSource(root)
+
 			if (asSaved.atlas.isEmpty) {
 				continue
 			}
+
 			checkedFiles++
 			val toggled = asSaved.copy(rendersFromSourceLayers = !asSaved.rendersFromSourceLayers)
+
 			for (drawable in asSaved.drawables) {
 				val before = asSaved.atlasBindingFor(drawable)
 				val after = toggled.atlasBindingFor(drawable)
 				checkedBindings++
+
 				if (before?.placement != null) {
 					placedBindings++
 				}
+
 				if (before != after && failures.size < 10) {
 					failures.add("${file.name} ${drawable.id.raw}: $before became $after when the display flipped")
 				}
@@ -328,12 +354,15 @@ class Cmo3AtlasIngestCorpusTest {
 					val placement = placementOf(entry, pageIndex) ?: continue
 
 					checkedEntries++
+
 					if (placement.rotationDegrees != 0f) {
 						checkedRotated++
 					}
+
 					if (placement.scaleX != 1f || placement.scaleY != 1f) {
 						checkedScaled++
 					}
+
 					for ((layerX, layerY) in samplePoints) {
 						val viaPlacement = atlasPixelOf(placement, layerX, layerY)
 						val throughFile = applyAffine(atlasToCanvas, viaPlacement[0], viaPlacement[1])
@@ -344,9 +373,11 @@ class Cmo3AtlasIngestCorpusTest {
 								kotlin.math.abs(throughFile[1] - expected[1]),
 							)
 						worstResidual = maxOf(worstResidual, residual)
+
 						if (placement.rotationDegrees != 0f) {
 							worstRotatedResidual = maxOf(worstRotatedResidual, residual)
 						}
+
 						if (residual > tolerance && failures.size < 10) {
 							failures.add(
 								"${file.name} guid=$guid angle=${placement.rotationDegrees} " +
@@ -391,17 +422,23 @@ class Cmo3AtlasIngestCorpusTest {
 	fun corpusTilesBindToTheLayeredImagesTheEditorDecomposed() {
 		val files = corpusFiles()
 		Assume.assumeTrue("cmo3.probe names no readable file", files.isNotEmpty())
+		var boundFileCount = 0
+
 		for (file in files) {
 			val puppet = Cmo3Import.fromModelSource(Cmo3.read(file.readBytes()).root as CModelSource)
+
 			if (puppet.atlas.tiles.isEmpty()) {
 				// The blank skeleton: no PSD was ever imported into it, so there is nothing to bind.
 				println("${file.name}: no tiles, nothing to bind")
+
 				continue
 			}
+
 			val sourceIds = puppet.sources.map { source -> source.id }.toSet()
 			assertTrue(puppet.sources.isNotEmpty(), "${file.name}: the layered images the editor imported are listed")
 			assertTrue(puppet.sources.all { source -> source.format.isNotEmpty() }, "${file.name}: every source records its format")
 			var bound = 0
+
 			for (tile in puppet.atlas.tiles) {
 				val source = tile.source ?: continue
 				bound++
@@ -410,25 +447,34 @@ class Cmo3AtlasIngestCorpusTest {
 				assertTrue(byLayerId || source.layerKey.startsWith("name:"), "${file.name}: tile '${tile.name}' is keyed by Photoshop layer id or by name")
 				assertEquals(byLayerId && '#' !in source.layerKey, source.stableKey, "${file.name}: a layer-id key is stable, a name or suffixed key is not")
 			}
+
 			assertTrue(bound > 0, "${file.name}: at least one tile recovers its source layer")
 			// The inventory walk lists the decomposed layer tree, and every binding names one of its rows
 			// under the same key - the Sources space shows a stray binding otherwise.
 			val inventoryKeysBySource = puppet.sources.associate { source -> source.id to source.layers.mapTo(HashSet()) { layer -> layer.key } }
 			assertTrue(puppet.sources.any { source -> source.layers.isNotEmpty() }, "${file.name}: the layered images list their layers")
+
 			for (source in puppet.sources) {
 				// The Sources space keys its rows on the layer key; Erica alone has twenty layers named "1".
 				assertEquals(source.layers.size, inventoryKeysBySource.getValue(source.id).size, "${file.name}: '${source.name}' lists one key per layer")
 			}
+
 			var stray = 0
+
 			for (tile in puppet.atlas.tiles) {
 				val source = tile.source ?: continue
+
 				if (source.layerKey !in inventoryKeysBySource[source.sourceId].orEmpty()) {
 					stray++
 				}
 			}
+
 			assertEquals(0, stray, "${file.name}: bindings that name no inventory row")
 			println("${file.name}: ${puppet.sources.size} source(s), ${puppet.sources.sumOf { source -> source.layers.size }} inventory rows, $bound of ${puppet.atlas.tiles.size} tiles bound")
+			boundFileCount++
 		}
+
+		Assume.assumeTrue("cmo3.probe names no file that carries tiles to bind", boundFileCount > 0)
 	}
 
 	/**
@@ -446,6 +492,7 @@ class Cmo3AtlasIngestCorpusTest {
 				if (psdFile.isFile) cmo3File to psdFile else null
 			}
 		Assume.assumeTrue("no corpus CMO3 has a same-named PSD beside it", pairs.isNotEmpty())
+
 		for ((cmo3File, psdFile) in pairs) {
 			val puppet = Cmo3Import.fromModelSource(Cmo3.read(cmo3File.readBytes()).root as CModelSource)
 			val psdNameByKey = PsdReader.read(psdFile.readBytes()).layers.associate { layer -> layer.id.raw to layer.name }
@@ -455,11 +502,13 @@ class Cmo3AtlasIngestCorpusTest {
 			val layerIdRows = source.layers.filter { layer -> layer.key.startsWith("lyid:") }
 			assertTrue(layerIdRows.isNotEmpty(), "${cmo3File.name}: the editor recorded Photoshop layer ids")
 			var shared = 0
+
 			for (row in layerIdRows) {
 				val psdName = psdNameByKey[row.key] ?: continue
 				shared++
 				assertEquals(psdName, row.name, "${cmo3File.name}: ${row.key} names the same layer in the CMO3 and the PSD")
 			}
+
 			assertTrue(shared * 2 >= layerIdRows.size, "${cmo3File.name}: the PSD shares most of the CMO3's layer ids ($shared of ${layerIdRows.size})")
 			println("${cmo3File.name} vs ${psdFile.name}: ${layerIdRows.size} layer-id rows, $shared shared with the PSD reader, every name agrees")
 		}
@@ -475,25 +524,31 @@ class Cmo3AtlasIngestCorpusTest {
 		val files = corpusFiles()
 		Assume.assumeTrue("cmo3.probe names no readable file", files.isNotEmpty())
 		var decodedLayers = 0
+
 		for (file in files) {
 			val cmo3 = Cmo3.read(file.readBytes())
 			val root = cmo3.root as CModelSource
 			val puppet = Cmo3Import.fromModelSource(root)
+
 			for (source in puppet.sources) {
 				val art = assertNotNull(cmo3SourceArtOf(root, source.id) { resource -> cmo3.extractLayerPng(resource) }, "${file.name}: '${source.name}' reads back")
 				assertEquals(source.layers.map { layer -> layer.key }, art.layers.map { layer -> layer.id.raw }, "${file.name}: '${source.name}' keys as the inventory does")
+
 				for ((row, layer) in source.layers.zip(art.layers)) {
 					assertEquals(row.left, layer.bounds.left)
 					assertEquals(row.top, layer.bounds.top)
+
 					if (layer.kind != SourceLayerKind.Raster) {
 						continue
 					}
+
 					assertEquals(row.width, layer.raster.width, "${file.name}: '${layer.name}' decodes at its bounds' width")
 					assertEquals(row.height, layer.raster.height, "${file.name}: '${layer.name}' decodes at its bounds' height")
 					decodedLayers++
 				}
 			}
 		}
+
 		assertTrue(decodedLayers > 0, "some raster layer decoded")
 		println("decomposed art: $decodedLayers layer(s) decoded across ${files.size} file(s)")
 	}

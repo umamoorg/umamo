@@ -5,6 +5,7 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
+import org.umamo.testkit.requireSample
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -47,8 +48,8 @@ class CompositeOracleTest {
 
 	@Test
 	fun compositeChannelsMatchOracle() {
-		val dumpModel = requireOracleInput("relive.dumpModel")
-		val coreLib = requireOracleInput("relive.coreLib")
+		val dumpModel = requireSample("relive.dumpModel")
+		val coreLib = requireSample("relive.coreLib")
 		val samplesByName =
 			System.getProperty("moc3.samples")
 				?.let(::File)
@@ -61,23 +62,30 @@ class CompositeOracleTest {
 
 		var comparedOffscreens = 0
 		val mismatches = ArrayList<String>()
+
 		for (compositeCase in cases) {
 			val mocFile = samplesByName[compositeCase.fileName]
+
 			if (mocFile == null) {
 				println("[oracle] ${compositeCase.fileName} not in corpus; skipping")
+
 				continue
 			}
+
 			val mocDocument = Moc3.read(mocFile.readBytes())
 			val puppet = Moc3Import.fromMocDocument(mocDocument, null)
 			// Part/drawable FILE order (oracle indices) - puppet.parts preserves it, puppet.drawables
 			// does not (panel reorder), so drawable joins go through the decoded artMesh list.
 			val drawableIdByFileIndex = mocDocument.artMeshes.map { DrawableId(it.id) }
 			val knownParameters = puppet.parameters.mapTo(HashSet()) { it.id.raw }
+
 			for (pose in compositeCase.poses) {
 				if (!pose.keys.all { it in knownParameters }) {
 					println("[oracle] ${compositeCase.fileName} pose=$pose names an unknown parameter; skipping")
+
 					continue
 				}
+
 				val dump = runOracleDump(dumpModel, coreLib, mocFile, pose)
 				assertEquals(
 					puppet.parts.count { it.activeComposite != null },
@@ -85,6 +93,7 @@ class CompositeOracleTest {
 					"${compositeCase.fileName}: offscreen count",
 				)
 				val inputs = preparePose(puppet, pose.entries.associate { ParameterId(it.key) to it.value })
+
 				for (oracleOffscreen in dump.offscreens) {
 					val part = puppet.parts[oracleOffscreen.ownerPartIndex]
 					val composite = assertNotNull(part.activeComposite, "${compositeCase.fileName}: ${part.id.raw} owns an offscreen")
@@ -110,9 +119,11 @@ class CompositeOracleTest {
 					val oracleMaskIds = oracleOffscreen.maskIndices.mapNotNull { drawableIdByFileIndex.getOrNull(it) }.toSet()
 					assertEquals(oracleMaskIds, composite.maskedBy.toSet(), "$label mask list")
 				}
+
 				println("[oracle] ${compositeCase.fileName} pose=$pose offscreens=${dump.offscreens.size} OK")
 			}
 		}
+
 		Assume.assumeTrue("[oracle] no offscreen corpus models resolvable", comparedOffscreens > 0)
 		// The channels are plain multilinear blends of stored floats on both sides - exact within
 		// 1e-5, no pinned floor needed; any mismatch is a real regression.

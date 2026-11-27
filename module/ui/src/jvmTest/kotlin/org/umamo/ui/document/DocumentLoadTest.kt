@@ -16,6 +16,7 @@ import kotlin.test.assertNotNull
 class DocumentLoadTest {
 	private fun pngOf(width: Int, height: Int, alpha: Int): ByteArray {
 		val rgba = ByteArray(width * height * 4) { index -> if (index % 4 == 3) alpha.toByte() else 0x40 }
+
 		return PngCodec.write(RasterImage(width, height, rgba))
 	}
 

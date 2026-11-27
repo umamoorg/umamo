@@ -16,6 +16,7 @@ import org.umamo.runtime.model.GluePair
  */
 internal fun importGlues(context: Moc3ImportContext): List<Glue> {
 	val mocDocument = context.mocDocument
+
 	return mocDocument.glues.mapNotNull { source ->
 		val meshA = context.drawableIdsByFileIndex.getOrNull(source.meshAIndex) ?: return@mapNotNull null
 		val meshB = context.drawableIdsByFileIndex.getOrNull(source.meshBIndex) ?: return@mapNotNull null

@@ -34,12 +34,11 @@ class RuntimeTargetTest {
 			assertTrue(!RuntimeTarget.Cubism42.supports(feature), "$feature is 5.0+, not 4.2")
 			assertTrue(RuntimeTarget.Cubism50.supports(feature), "$feature is supported at 5.0")
 		}
-		// Blend mode, offscreen drawing, parameter repeat: SDK5.3+.
-		listOf(RuntimeFeature.ExtendedBlendModes, RuntimeFeature.PartComposite, RuntimeFeature.ParameterRepeat)
-			.forEach { feature ->
-				assertTrue(!RuntimeTarget.Cubism50.supports(feature), "$feature is 5.3+, not 5.0")
-				assertTrue(RuntimeTarget.Cubism53.supports(feature), "$feature is supported at 5.3")
-			}
+		// Blend mode, offscreen drawing: SDK5.3+.
+		listOf(RuntimeFeature.ExtendedBlendModes, RuntimeFeature.PartComposite).forEach { feature ->
+			assertTrue(!RuntimeTarget.Cubism50.supports(feature), "$feature is 5.3+, not 5.0")
+			assertTrue(RuntimeTarget.Cubism53.supports(feature), "$feature is supported at 5.3")
+		}
 		// ArtPath is "Latest Cubism only": no Cubism ceiling allows it.
 		assertTrue(!RuntimeTarget.Cubism53.supports(RuntimeFeature.ArtPath), "ArtPath is beyond every Cubism target")
 		assertTrue(RuntimeTarget.NoTarget.supports(RuntimeFeature.ArtPath), "ArtPath is authorable with no target")
@@ -50,8 +49,13 @@ class RuntimeTargetTest {
 		assertEquals(emptyList(), RuntimeTarget.NoTarget.restrictedFeatures(), "NoTarget restricts nothing")
 		assertEquals(
 			RuntimeTarget.Cubism50.restrictedFeatures(),
-			RuntimeTarget.Ayagami.restrictedFeatures(),
-			"Ayagami is effectively Cubism 5.0 at present",
+			RuntimeTarget.Ayagami50.restrictedFeatures(),
+			"Ayagami's 5.0 build is effectively Cubism 5.0",
+		)
+		assertEquals(
+			RuntimeTarget.Cubism53.restrictedFeatures(),
+			RuntimeTarget.Ayagami53.restrictedFeatures(),
+			"Ayagami's 5.3 build is effectively Cubism 5.3",
 		)
 		assertEquals(listOf(RuntimeFeature.ArtPath), RuntimeTarget.Cubism53.restrictedFeatures())
 		assertEquals(
@@ -71,7 +75,8 @@ class RuntimeTargetTest {
 	@Test
 	fun cubismLevelTextTracksTheGatingLevel() {
 		assertNull(RuntimeTarget.NoTarget.cubismLevelText(), "no ceiling, no text")
-		assertEquals("5.0", RuntimeTarget.Ayagami.cubismLevelText(), "the Ayagami label's level feed")
+		assertEquals("5.0", RuntimeTarget.Ayagami50.cubismLevelText(), "the Ayagami 5.0 label's level feed")
+		assertEquals("5.3", RuntimeTarget.Ayagami53.cubismLevelText(), "the Ayagami 5.3 label's level feed")
 		assertEquals("3.3", RuntimeTarget.Cubism33.cubismLevelText())
 	}
 }

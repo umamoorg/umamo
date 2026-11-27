@@ -1,9 +1,11 @@
 package org.umamo.ui.theme
 
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.noto_sans_cjk_hk_regular
 import org.umamo.ui.resources.noto_sans_cjk_jp_regular
 import org.umamo.ui.resources.noto_sans_cjk_kr_regular
 import org.umamo.ui.resources.noto_sans_cjk_sc_regular
+import org.umamo.ui.resources.noto_sans_cjk_tc_regular
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -28,12 +30,22 @@ class CjkFontSelectionTest {
 	}
 
 	/**
-	 * Simplified Chinese takes the SC cut, from the setting's regional tag and the bare language alike.
+	 * Chinese takes the cut of its script or region: SC for Simplified and a bare zh, TC for Taiwan and the
+	 * Hant script, HK for Hong Kong and Macau.  A Hans script outranks the region.
 	 */
 	@Test
-	fun simplifiedChineseTakesTheSimplifiedCut() {
-		assertEquals(Res.font.noto_sans_cjk_sc_regular, cjkFontFor("zh-CN"), "zh-CN")
-		assertEquals(Res.font.noto_sans_cjk_sc_regular, cjkFontFor("zh"), "zh")
+	fun chineseTakesTheCutOfItsScriptOrRegion() {
+		for (simplifiedTag in listOf("zh-CN", "zh", "zh-Hans", "zh-SG", "zh-Hans-HK")) {
+			assertEquals(Res.font.noto_sans_cjk_sc_regular, cjkFontFor(simplifiedTag), simplifiedTag)
+		}
+
+		for (taiwanTag in listOf("zh-TW", "zh-Hant", "ZH_tw")) {
+			assertEquals(Res.font.noto_sans_cjk_tc_regular, cjkFontFor(taiwanTag), taiwanTag)
+		}
+
+		for (hongKongTag in listOf("zh-HK", "zh-Hant-HK", "zh-MO")) {
+			assertEquals(Res.font.noto_sans_cjk_hk_regular, cjkFontFor(hongKongTag), hongKongTag)
+		}
 	}
 
 	/**

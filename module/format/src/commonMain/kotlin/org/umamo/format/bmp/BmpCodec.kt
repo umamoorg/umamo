@@ -72,21 +72,26 @@ public object BmpCodec : RasterCodec {
 
 		val rowStride = ((bitCount * width + 31) / 32) * 4
 		val rgba = ByteArray(width * height * 4)
+
 		for (fileRow in 0 until height) {
 			val rowStart = pixelOffset + fileRow * rowStride
 			// Bottom-up storage (positive height) puts file row 0 at the image bottom; flip to top-first.
 			val imageRow = if (topDown) fileRow else (height - 1 - fileRow)
+
 			for (column in 0 until width) {
 				val destination = (imageRow * width + column) * 4
+
 				when (bitCount) {
 					24 -> {
 						// BMP: 24-bit BI_RGB pixels are stored B, G, R (no alpha).
 						val pixel = rowStart + column * 3
+
 						if (pixel + 2 < bytes.size) {
 							rgba[destination] = bytes[pixel + 2]
 							rgba[destination + 1] = bytes[pixel + 1]
 							rgba[destination + 2] = bytes[pixel]
 						}
+
 						rgba[destination + 3] = OPAQUE
 					}
 
@@ -106,6 +111,7 @@ public object BmpCodec : RasterCodec {
 				}
 			}
 		}
+
 		return RasterImage(width, height, rgba)
 	}
 
@@ -153,10 +159,11 @@ public object BmpCodec : RasterCodec {
 		out.writeIntLe(0) // gammaGreen
 		out.writeIntLe(0) // gammaBlue
 
-		// Pixel array, bottom-up: file row 0 is the image's bottom row. Each pixel is B, G, R, A.
+		// Pixel array, bottom-up: file row 0 is the image's bottom row.  Each pixel is B, G, R, A.
 		for (fileRow in 0 until model.height) {
 			val imageRow = model.height - 1 - fileRow
 			var source = imageRow * rowStride
+
 			for (column in 0 until model.width) {
 				out.writeByte(model.rgba[source + 2].toInt() and 0xFF) // B
 				out.writeByte(model.rgba[source + 1].toInt() and 0xFF) // G
@@ -165,6 +172,7 @@ public object BmpCodec : RasterCodec {
 				source += 4
 			}
 		}
+
 		return out.readByteArray()
 	}
 
@@ -196,8 +204,10 @@ public object BmpCodec : RasterCodec {
 				} else {
 					0
 				}
+
 			return ChannelMasks(red, green, blue, alpha)
 		}
+
 		// BI_RGB defaults: 32-bit is X8R8G8B8 (alpha unused → opaque); 16-bit is X1R5G5B5.
 		return if (bitCount == 32) {
 			ChannelMasks(0x00FF0000, 0x0000FF00, 0x000000FF, 0)
@@ -217,10 +227,12 @@ public object BmpCodec : RasterCodec {
 		if (mask == 0) {
 			return 0xFF
 		}
+
 		val shift = mask.countTrailingZeroBits()
 		val bits = mask.countOneBits()
 		val raw = (value ushr shift) and ((1 shl bits) - 1)
 		val maxValue = (1 shl bits) - 1
+
 		return if (bits == 8) raw else (raw * 255 + maxValue / 2) / maxValue
 	}
 

@@ -57,7 +57,7 @@ internal fun meshBlendShapesOf(
 ): List<BlendShapeBinding<MeshForm>> {
 	val defaultValue: (ParameterId) -> Float = context::defaultValueOf
 	val referenceDeltas = meshGridDefaultDeltas(drawable, defaultValue) ?: FloatArray(0)
-	// The scalar reference is each channel's own value at the DEFAULT pose. An untracked or
+	// The scalar reference is each channel's own value at the DEFAULT pose.  An untracked or
 	// out-of-range channel falls back to the drawable's static, which for an imported drawable is
 	// Cubism's 500 / full opacity - the same fallback meshBlendState uses, so the evaluator's
 	// subtraction cancels exactly even for an ungridded drawable.
@@ -68,14 +68,17 @@ internal fun meshBlendShapesOf(
 		drawable.channelGrids.colorAt(FormChannel.MULTIPLY_COLOR, drawable.multiplyColor, defaultValue)
 	val referenceScreen =
 		drawable.channelGrids.colorAt(FormChannel.SCREEN_COLOR, drawable.screenColor, defaultValue)
+
 	return records.mapNotNull { record ->
 		val payloads =
 			record.keyforms.map { keyform ->
 				(keyform as? BlendShapeKeyform.Mesh)?.form ?: return@mapNotNull null
 			}
+
 		if (payloads.size != record.keyPositions.size) {
 			return@mapNotNull null
 		}
+
 		bindingOfRecord(context, record) { keyIndex ->
 			MeshForm(
 				positionDeltas =
@@ -119,14 +122,17 @@ internal fun warpBlendShapesOf(
 	val referenceMultiply =
 		warp.channelGrids.colorAt(FormChannel.MULTIPLY_COLOR, warp.multiplyColor, defaultValue)
 	val referenceScreen = warp.channelGrids.colorAt(FormChannel.SCREEN_COLOR, warp.screenColor, defaultValue)
+
 	return records.mapNotNull { record ->
 		val payloads =
 			record.keyforms.map { keyform ->
 				(keyform as? BlendShapeKeyform.Warp)?.form ?: return@mapNotNull null
 			}
+
 		if (payloads.size != record.keyPositions.size) {
 			return@mapNotNull null
 		}
+
 		bindingOfRecord(context, record) { keyIndex ->
 			WarpForm(
 				addReference(reference, context.convertDeltas(space, payloads[keyIndex].controlPoints)),
@@ -140,10 +146,8 @@ internal fun warpBlendShapesOf(
 
 /**
  * Maps [records] onto [rotation] as affine blend bindings: origin/angle/scale delta rows plus
- * the grid-at-default reference.  The scale delta carries the same px→model seam factor as
- * the grid keyforms; flips are not blendable, so the FLIP tracks' value at the default pose
- * fills the form.  The deformer's own opacity/color rows get the same reference treatment as
- * the geometry and CASCADE onto every drawable underneath (see `DeformerCascade`).
+ * the grid-at-default reference, and the same treatment for the deformer's own render channels,
+ * which CASCADE onto every drawable underneath.
  *
  * @param Moc3ImportContext   context     The import's derived state.
  * @param Deformer.Rotation   rotation    The constructed runtime rotation (reference source).
@@ -170,14 +174,17 @@ internal fun rotationBlendShapesOf(
 		rotation.channelGrids.colorAt(FormChannel.MULTIPLY_COLOR, rotation.multiplyColor, defaultValue)
 	val referenceScreen =
 		rotation.channelGrids.colorAt(FormChannel.SCREEN_COLOR, rotation.screenColor, defaultValue)
+
 	return records.mapNotNull { record ->
 		val payloads =
 			record.keyforms.map { keyform ->
 				(keyform as? BlendShapeKeyform.Rotation)?.form ?: return@mapNotNull null
 			}
+
 		if (payloads.size != record.keyPositions.size) {
 			return@mapNotNull null
 		}
+
 		bindingOfRecord(context, record) { keyIndex ->
 			val originDelta =
 				context.convertDeltas(space, floatArrayOf(payloads[keyIndex].originX, payloads[keyIndex].originY))
@@ -222,14 +229,17 @@ internal fun partBlendShapesOf(
 ): List<BlendShapeBinding<PartForm>> {
 	val defaultValue: (ParameterId) -> Float = context::defaultValueOf
 	val referenceDrawOrder = channelGrids.scalarAt(FormChannel.DRAW_ORDER, staticOrder, defaultValue)
+
 	return records.mapNotNull { record ->
 		val payloads =
 			record.keyforms.map { keyform ->
 				(keyform as? BlendShapeKeyform.Part)?.drawOrderDelta ?: return@mapNotNull null
 			}
+
 		if (payloads.size != record.keyPositions.size) {
 			return@mapNotNull null
 		}
+
 		bindingOfRecord(context, record) { keyIndex ->
 			PartForm(drawOrder = referenceDrawOrder + payloads[keyIndex])
 		}

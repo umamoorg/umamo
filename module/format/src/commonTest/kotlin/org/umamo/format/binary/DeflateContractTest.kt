@@ -38,9 +38,11 @@ class DeflateContractTest {
 	@Test
 	fun corruptStreamYieldsEmptyRatherThanThrowing() {
 		val corrupt = compressed.copyOf()
+
 		for (index in 20 until minOf(60, corrupt.size)) {
 			corrupt[index] = 0x7F
 		}
+
 		assertEquals(0, inflateZlib(corrupt, 0, corrupt.size, raw.size).size, "corrupt stream decodes to nothing, without throwing")
 		assertEquals(0, inflateZlib(ByteArray(500) { 0x5A }, 0, 500, raw.size).size, "garbage decodes to nothing, without throwing")
 	}

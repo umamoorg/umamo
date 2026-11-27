@@ -6,6 +6,7 @@ import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.identity.Id
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

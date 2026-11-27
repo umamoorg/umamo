@@ -3,12 +3,11 @@ package org.umamo.cli
 import kotlin.system.exitProcess
 
 /*
- * The Umamo diagnostic CLI: dump / extract / atlas / convert / diff over cmo3, moc3, and source
- * artwork files.
+ * The Umamo diagnostic CLI: dump / extract / atlas / mesh / convert / diff over cmo3, moc3, and
+ * source artwork files.
  *
- * Replaces the diagnostic-tests-in-disguise workflow (Cmo3ResaveDumpTest's -Dcmo3.resave, ad-hoc
- * probe printlns) with a proper operator tool.  Data goes to stdout, diagnostics to stderr; exit 0
- * on success, 1 on a command failure, 2 on a usage error.
+ * Data goes to stdout, diagnostics to stderr; exit 0 on success, 1 on a command failure, 2 on a
+ * usage error.
  */
 
 private const val USAGE = """Umamo diagnostic CLI
@@ -17,6 +16,7 @@ Usage (via Gradle; -q suppresses Gradle's own build output, leaving only this to
   ./gradlew -q :cli:run --args="dump <file> [--sections] [--xml] [--puppet]"
   ./gradlew -q :cli:run --args="extract <file> [<directory>]"
   ./gradlew -q :cli:run --args="atlas <file> [<directory>] [options]"
+  ./gradlew -q :cli:run --args="mesh <file> [<directory>] [options]"
   ./gradlew -q :cli:run --args="convert <in> <out>"
   ./gradlew -q :cli:run --args="diff <a> <b>"
 
@@ -49,6 +49,34 @@ Commands:
                      --preview       Also write preview.png: the canvas recomposited
                                      from the packed pages (Source-over; blend modes
                                      and layer opacity ignored).
+  mesh <file> [<directory>]
+                   Run the art mesher over a source artwork document's raster layers.
+                   Prints each layer's vertex and triangle counts, outline, interior, and
+                   refinement point counts, smallest triangle angle and counts under 5,
+                   10, and 20 degrees, timing, and notices, then the run's smallest angles
+                   in 5-degree buckets, and writes the same to mesh.txt in a NEW
+                   subdirectory named after the input with a -mesh suffix.
+                     --layer=NAME    Mesh only the layer with this exact name.
+                     --preset=NAME   standard, fine, or coarse (Default: standard).
+                     --visible-only  Skip layers hidden by their own or a folder's eye.
+                     --fill-holes    Mesh over holes in the art instead of cutting them
+                                     out: one solid sheet per piece (lace, webs).
+                     --no-strand-rungs
+                                     Mesh thin strands from their outline alone, not as
+                                     rung strips paired across them.
+                     --preview       Also write NNN-<layer>.png: each mesh drawn over its
+                                     art (outline magenta, interior edges blue, triangles
+                                     under the minimum angle tinted orange, vertices
+                                     refinement added green).
+                     --scale=N       Magnify previews N times (Default: 1).
+                     --alpha-threshold=N, --outline-spacing=N, --interior-spacing=N,
+                     --outer-margin=N, --inner-margin=N, --minimum-margin=N,
+                     --minimum-outline-points=N, --vertex-budget=N, --minimum-angle=N,
+                     --interior-thinning-limit=N, --strand-width=N
+                                     Override one setting of the preset; distances
+                                     are in pixels, the angle in degrees (0 for no
+                                     refinement), the thinning limit in outline
+                                     spacings.
   convert <in> <out>
                    Direction by input format and output extension:
                      cmo3 -> cmo3  Resave (An unedited main.xml will reemit byte-identical.)
@@ -71,6 +99,7 @@ Commands:
  */
 fun main(args: Array<String>) {
 	val exitCode = runCli(args.toList())
+
 	if (exitCode != 0) {
 		exitProcess(exitCode)
 	}
@@ -85,15 +114,36 @@ fun main(args: Array<String>) {
 internal fun runCli(arguments: List<String>): Int {
 	if (arguments.isEmpty() || arguments[0] == "help" || arguments[0] == "--help") {
 		println(USAGE)
+
 		return if (arguments.isEmpty()) 2 else 0
 	}
+
 	return try {
 		when (arguments[0]) {
-			"dump" -> runDump(arguments.drop(1))
-			"extract" -> runExtract(arguments.drop(1))
-			"atlas" -> runAtlas(arguments.drop(1))
-			"convert" -> runConvert(arguments.drop(1))
-			"diff" -> runDiff(arguments.drop(1))
+			"dump" -> {
+				runDump(arguments.drop(1))
+			}
+
+			"extract" -> {
+				runExtract(arguments.drop(1))
+			}
+
+			"atlas" -> {
+				runAtlas(arguments.drop(1))
+			}
+
+			"mesh" -> {
+				runMesh(arguments.drop(1))
+			}
+
+			"convert" -> {
+				runConvert(arguments.drop(1))
+			}
+
+			"diff" -> {
+				runDiff(arguments.drop(1))
+			}
+
 			else -> {
 				System.err.println("unknown command '${arguments[0]}'")
 				System.err.println(USAGE)

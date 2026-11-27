@@ -46,6 +46,7 @@ class EnumLabelsTest {
 		assertEquals(PartGroupMode.PassThrough, partGroupModeOf(PartGroupModeKind.PassThrough))
 		assertEquals(PartGroupMode.Grouped, partGroupModeOf(PartGroupModeKind.Grouped))
 		assertEquals(PartGroupMode.Isolated, partGroupModeOf(PartGroupModeKind.Isolated))
+
 		for (kind in PartGroupModeKind.entries) {
 			assertEquals(kind, partGroupModeOf(kind).kind())
 		}

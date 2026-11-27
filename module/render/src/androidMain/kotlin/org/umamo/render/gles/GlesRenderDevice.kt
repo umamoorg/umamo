@@ -7,6 +7,8 @@ import org.umamo.render.device.FrameEncoder
 import org.umamo.render.device.GpuMesh
 import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.MeshSpec
+import org.umamo.render.device.OverlayMeshBuffers
+import org.umamo.render.device.OverlayMeshSpec
 import org.umamo.render.device.ReadbackTicket
 import org.umamo.render.device.RenderDevice
 import org.umamo.render.device.RenderPipeline
@@ -29,7 +31,7 @@ import org.umamo.render.device.TextureWrap
  *
  * The ONE real divergence is [createDeformedPositionStore].  The desktop device backs the glue store
  * with a texture buffer object, and TBOs are GLES 3.2 - the baseline here is 3.0.  The 3.0-clean
- * route (TODO.md Claude Note § Android GLES renderer backend, option (b)):
+ * route:
  *  - Store: a regular RG32F 2D texture, indexed `(index % width, index / width)` via texelFetch.
  *  - Capture: transform feedback IS core in ES 3.0 but can only target a buffer, so pass 1 becomes
  *    TF into a buffer, then buffer → texture via a GL_PIXEL_UNPACK_BUFFER bind + glTexSubImage2D
@@ -43,7 +45,10 @@ import org.umamo.render.device.TextureWrap
  * Validate against the same oracles the desktop device passes: `GpuDeformValidationTest` and
  * `GpuGlueValidationTest` are the correctness bar, run on-device or on an emulator.
  *
- * Android GLES 3.0 デバイスのスタブ。デスクトップ GL デバイスの移植入口。未実装。
+ * The mesh overlay (the Edit-mode wireframe, dots, and fills) is four more pipelines, instanced over a
+ * deformed-position store of its own: on this backend the per-instance index and flag buffers go through
+ * glVertexAttribDivisor and glDrawArraysInstanced (core in ES 3.0), and its `samplerBuffer` read needs the
+ * same 2D-texelFetch variant as the glue draw.
  */
 class GlesRenderDevice : RenderDevice {
 	override fun createTexture(
@@ -87,6 +92,20 @@ class GlesRenderDevice : RenderDevice {
 
 	override fun destroyRenderTarget(target: RenderTarget): Unit = TODO("GLES port")
 
+	override fun updateDeformedPositions(store: DeformedPositionStore, vertexOffset: Int, positions: FloatArray): Unit =
+		TODO("GLES port: glTexSubImage2D over the rows the vertices span in the RG32F 2D-texture store, or glBufferSubData on an ES 3.2 texture buffer")
+
+	override fun destroyDeformedPositionStore(store: DeformedPositionStore): Unit =
+		TODO("GLES port: glDeleteTextures + glDeleteBuffers of the store's texture buffer and buffer (texture buffers are core in ES 3.2)")
+
+	override fun createOverlayMeshBuffers(spec: OverlayMeshSpec): OverlayMeshBuffers =
+		TODO("GLES port: transliterate GlRenderDevice.createOverlayMeshBuffers (glVertexAttribDivisor and glDrawArraysInstanced are core in ES 3.0)")
+
+	override fun updateOverlayMeshFlags(buffers: OverlayMeshBuffers, vertexFlags: ByteArray, edgeFlags: ByteArray, faceFlags: ByteArray): Unit =
+		TODO("GLES port: glBufferSubData on the three flag buffers")
+
+	override fun destroyOverlayMeshBuffers(buffers: OverlayMeshBuffers): Unit = TODO("GLES port: delete the overlay VAOs and buffers")
+
 	override fun beginFrame(): FrameEncoder = TODO("GLES port: transliterate GlFrameEncoder")
 
 	override fun resolve(source: RenderTarget, destination: RenderTarget, region: ScissorRect?): Unit =
@@ -126,6 +145,11 @@ class GlesRenderDevice : RenderDevice {
 
 	override fun readPixels(target: RenderTarget, usedWidth: Int, usedHeight: Int): RasterImage =
 		TODO("GLES port: the full-target readPixels with glReadPixels(0, 0, usedWidth, usedHeight, ...)")
+
+	override fun maxRenderTargetSize(): Int =
+		TODO("GLES port: the least of GL_MAX_TEXTURE_SIZE, GL_MAX_RENDERBUFFER_SIZE, and both GL_MAX_VIEWPORT_DIMS")
+
+	override fun maxTextureSize(): Int = TODO("GLES port: GL_MAX_TEXTURE_SIZE")
 
 	override fun describeBackend(): String = TODO("GLES port: GLES20.glGetString(GL_RENDERER / GL_VERSION / GL_VENDOR)")
 }

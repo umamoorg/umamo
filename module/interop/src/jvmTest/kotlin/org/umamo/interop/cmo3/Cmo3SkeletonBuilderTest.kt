@@ -7,8 +7,12 @@ import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.interop.cmo3.export.Cmo3FreshFile
+import org.umamo.interop.cmo3.export.Cmo3SkeletonBuilder
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.RuntimeTarget
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -27,7 +31,7 @@ class Cmo3SkeletonBuilderTest {
 		val bytes =
 			Cmo3FreshFile.assemble(
 				skeleton.root,
-				skeleton.iconEntries.map { icon -> Cmo3FreshFile.PngEntry(icon.path, icon.pngBytes) },
+				skeleton.iconEntries,
 				obfuscateKey = 0x49C74776.toInt(),
 			)
 		// The assembled blank doubles as the manual official-editor gate's input: open
@@ -58,10 +62,7 @@ class Cmo3SkeletonBuilderTest {
 				?.split(',')
 				?.map { path -> File(path.trim()) }
 				?.firstOrNull { file -> file.name == "BareMinimum.cmo3" && file.isFile }
-				?: run {
-					println("BareMinimum.cmo3 not in cmo3.probe; skipping spine comparison")
-					return
-				}
+				?: skipTest("BareMinimum.cmo3 not in cmo3.probe; skipping spine comparison")
 		val blankArchive = CaffCodec.read(bareMinimum.readBytes())
 		val blankXml = blankArchive.firstByTag(CaffArchive.TAG_MAIN_XML) ?: error("BareMinimum has no main_xml")
 		val editorSpine = modelSourceChildren(XmlCodec.parse(blankXml.content).rootElement)
@@ -81,6 +82,7 @@ class Cmo3SkeletonBuilderTest {
 	private fun modelSourceChildren(rootElement: Element): List<Pair<String, String?>> {
 		val mainElement = rootElement.getChild("main") ?: error("no <main> element")
 		val modelSource = mainElement.children.filterIsInstance<Element>().firstOrNull() ?: error("no model root element")
+
 		return modelSource.children.filterIsInstance<Element>().map { child -> child.name to child.getAttributeValue("xs.n") }
 	}
 }

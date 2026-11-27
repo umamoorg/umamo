@@ -28,9 +28,8 @@ enum class ChannelValueKind {
 /**
  * One animatable non-geometry channel of a keyable entity.
  *
- * Every format citation for a keyformed scalar or color lives here, now that the bundled form classes
- * have retired to being import intermediates.  Adding a channel later is one constant, not a new field
- * on every owner.
+ * Every format citation for a keyformed scalar or color lives here; the bundled form classes are only
+ * import intermediates.  Adding a channel is one constant, not a new field on every owner.
  */
 enum class FormChannel(val valueKind: ChannelValueKind) {
 	// CMO3: CArtMeshForm field drawOrder / CPartForm field drawOrder; MOC3 §5.6 keyform draw order.
@@ -86,8 +85,8 @@ sealed interface ChannelValue {
  * One owner's non-geometry channel tracks, keyed by channel.
  *
  * A plain class with referential equality, matching [KeyformGrid], so the renderer's identity-based
- * model diff keeps behaving exactly as it does today - a data class here would make an unrelated
- * deep compare run on every frame's reconcile.  A channel with no entry falls back to the owner's
+ * model diff stays an identity check - a data class here would make an unrelated deep compare run on
+ * every frame's reconcile.  A channel with no entry falls back to the owner's
  * static field for that property, which after import compaction is the overwhelmingly common case;
  * [Empty] is shared so it allocates nothing.
  */
@@ -106,11 +105,9 @@ class ChannelGrids(val gridsByChannel: Map<FormChannel, KeyformGrid<ChannelValue
 	/**
 	 * Whether this owner's [channel] track holds any value other than [identity].
 	 *
-	 * A track's mere PRESENCE is not use.  A MOC3 import fans every channel out of one bundled grid, so a
-	 * drawable that was never tinted still gets a color track of pure identity cells - and compaction
-	 * deliberately leaves it alone when its axis does not bracket the parameter's range, since an
-	 * out-of-span pose has to fall back to the static.  Counting that as "the document uses color"
-	 * makes an export warn about losing a tint that does not exist.
+	 * A track's mere PRESENCE is not use: a MOC3 import gives a never-tinted drawable a color track of pure
+	 * identity cells, which compaction keeps when its axis does not span the parameter's range, and
+	 * counting that as use would make an export warn about losing a tint that does not exist.
 	 *
 	 * @param FormChannel channel  The channel to inspect.
 	 * @param ChannelValue identity The channel's neutral value.

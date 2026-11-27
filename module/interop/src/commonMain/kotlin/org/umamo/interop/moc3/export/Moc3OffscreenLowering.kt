@@ -37,6 +37,7 @@ internal fun lowerOffscreens(
 	noticeSink: Moc3ExportNotices,
 ): List<Offscreen> {
 	val isolated = plan.parts.filter { part -> part.isIsolated }
+
 	if (isolated.isEmpty()) {
 		return emptyList()
 	}
@@ -44,6 +45,7 @@ internal fun lowerOffscreens(
 	// One index for the whole batch - flattenedMasks' docblock requires it, and a per-composite rebuild
 	// would walk the whole part tree once per isolated part.
 	val subtrees = puppet.drawablesByPartSubtree()
+
 	return isolated
 		.map { part ->
 			val composite = part.composite
@@ -54,6 +56,7 @@ internal fun lowerOffscreens(
 				maskDrawables
 					.map { drawableId -> plan.drawableIndex(drawableId) }
 					.filter { index -> index >= 0 }
+
 			if (maskIndices.size < maskDrawables.size) {
 				noticeSink.unsupported(
 					ExportEntityCategory.Part,
@@ -61,6 +64,7 @@ internal fun lowerOffscreens(
 					ExportNoticeReason.OffscreenMaskNotInExport,
 				)
 			}
+
 			val bundle = keyformsByPartId[part.id]?.bundle
 			// Exactly the owner part's grid size: Σ over the owner bindings is CountInfo 36, so a row count
 			// that disagrees with the part's own keyform count desynchronizes every later offscreen.

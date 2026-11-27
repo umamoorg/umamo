@@ -1,0 +1,387 @@
+package org.umamo.ui.workspace.statusbar
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.EditorMode
+import org.umamo.edit.ElementTopology
+import org.umamo.edit.MeshSelectMode
+import org.umamo.edit.MeshTopology
+import org.umamo.edit.NoticePlacement
+import org.umamo.edit.SelectionTarget
+import org.umamo.edit.editTopologyOf
+import org.umamo.edit.editsElements
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableMesh
+import org.umamo.ui.action.LocalCommands
+import org.umamo.ui.action.LocalKeymap
+import org.umamo.ui.action.formatAccelerator
+import org.umamo.ui.action.primaryModifierLabel
+import org.umamo.ui.kit.Text
+import org.umamo.ui.model.LocalEditorSession
+import org.umamo.ui.model.LocalPuppet
+import org.umamo.ui.model.LocalSelection
+import org.umamo.ui.progress.LocalProgressTracker
+import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.workspace.LocalHoveredSurfaceTracker
+import org.umamo.ui.workspace.noticeText
+
+/*
+ * The status bar: the strip itself (this file), the shortcut suggestions it derives from command hints
+ * (StatusHints.kt), the vertex and triangle totals (MeshTotals.kt), and the running tasks (StatusProgress.kt).
+ */
+
+// The strip reads better a touch shorter than the area header (HEADER_HEIGHT = 28.dp in AreaHeader);
+// it is fixed-height chrome, so the area tree above takes the remaining height.
+private val STATUS_BAR_HEIGHT = 24.dp
+
+// Separates the inline entries within a zone; a middot-style bar keeps the run-on counts grouped.
+private const val STAT_SEPARATOR = " | "
+
+/**
+ * The bottom status strip: thin, always-present window chrome below the area tree, laid out as four
+ * conceptual zones left to right - the current context's input binds, a blank flexible middle, the
+ * selected item, and the model stats.  Lives in commonMain so the strip is shared chrome on desktop
+ * and Android.
+ *
+ * @param Modifier modifier The layout modifier (the shell passes fillMaxWidth).
+ */
+@Composable
+fun StatusBar(modifier: Modifier = Modifier) {
+	val colors = LocalUmamoColors.current
+	Column(modifier = modifier) {
+		// A hairline above the strip separates it from the area tree (and the offscreen GL viewport).
+		Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.divider))
+		Row(
+			modifier =
+				Modifier
+					.fillMaxWidth()
+					.height(STATUS_BAR_HEIGHT)
+					.background(colors.headerBackground)
+					.padding(horizontal = 8.dp),
+			verticalAlignment = Alignment.CenterVertically,
+		) {
+			// Weighted, and emitted even when it holds nothing: a weighted child is measured after the
+			// selected item and the stats, so a long hint run is cut before it can squeeze them, and a slot
+			// that is always there keeps the notice beside it from moving as the hints change.
+			Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+				ContextBindsZone()
+			}
+			// The flexible middle doubles as the transient-notice slot: a blank gap normally, a brief message
+			// when the session emits one (e.g. an Object-mode transform blocked by a part / deformer selection),
+			// and the running tasks while a long operation works.
+			Box(modifier = Modifier.weight(1f).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
+				StatusMiddle()
+			}
+			SelectedItemZone()
+			Spacer(modifier = Modifier.width(16.dp))
+			ModelStats()
+		}
+	}
+}
+
+/**
+ * The middle zone: the running tasks while any runs, else the transient notice.  A task outranks a
+ * notice - it is what the window is busy with - and the notice's timer starts only once it shows, so one
+ * raised while a task runs is shown in full when the task ends.  The tasks show with no document open
+ * too: an open runs before the document it opens has a session.
+ */
+@Composable
+private fun StatusMiddle() {
+	val tracker = LocalProgressTracker.current
+	val tasks = tracker?.tasks?.collectAsState()?.value.orEmpty()
+
+	if (tasks.isNotEmpty()) {
+		StatusProgress(tasks)
+
+		return
+	}
+
+	StatusNotice()
+}
+
+/** How long (ms) a transient status notice stays visible before it auto-dismisses. */
+private const val NOTICE_VISIBLE_MS = 4000L
+
+/**
+ * The transient-notice slot: shows the session's most recent status-bar-placed notice for a few seconds,
+ * then clears itself.  A notice is momentary feedback explaining why an action did nothing, so it lives
+ * outside the undo history and the change bus.
+ */
+@Composable
+private fun StatusNotice() {
+	val session = LocalEditorSession.current ?: return
+	val notice by session.notice.collectAsState()
+	val current = notice ?: return
+
+	if (current.placement != NoticePlacement.StatusBar && current.placement != NoticePlacement.StatusBarAndNearCursor) {
+		return
+	}
+
+	// Auto-dismiss this notice after the visible window; keyed on the serial so a repeat of the same text
+	// restarts the timer, and clearNotice only clears if a newer notice has not replaced it meanwhile.
+	LaunchedEffect(current.serial) {
+		delay(NOTICE_VISIBLE_MS)
+		session.clearNotice(current.serial)
+	}
+	Text(
+		text = noticeText(current.messageKey, current.arguments),
+		style = LocalUmamoTypography.current.labelMedium,
+		color = LocalUmamoColors.current.text,
+		maxLines = 1,
+		overflow = TextOverflow.Ellipsis,
+	)
+}
+
+/**
+ * The context-binds zone: the shortcuts worth suggesting for the space under the pointer, derived from
+ * what each command declares about itself rather than listed here (see [statusHintsFor]).
+ *
+ * An active modal transform operator overrides the list with its confirm / cancel pair.  Those two are
+ * literal strings because the inputs live in the overlay's own pointer loop and the shell's hardcoded
+ * modal branches, not in the keymap: there is nothing rebindable to resolve.
+ */
+@Composable
+private fun ContextBindsZone() {
+	val keymap = LocalKeymap.current
+	val commands = LocalCommands.current
+	val hoveredKind = LocalHoveredSurfaceTracker.current?.observedKind
+	val session = LocalEditorSession.current
+	val editorMode = session?.mode?.collectAsState()?.value
+	// The three latches are separate flows and at most one is live; the session's own activeOperator is
+	// an instantaneous read, so composition collects each (as the viewport HUD does).
+	val meshOperator = session?.activeMeshOperator?.collectAsState()?.value
+	val objectOperator = session?.activeObjectOperator?.collectAsState()?.value
+	val uvOperator = session?.activeUvOperator?.collectAsState()?.value
+	val axisConstraint = session?.axisConstraint?.collectAsState()?.value
+	val operatorActive = meshOperator != null || objectOperator != null || uvOperator != null
+	// The latch publishes its depth flag before the operator, so composing on the operator reads it settled.
+	val rotatesInDepth = session != null && meshOperator != null && session.meshOperatorRotatesInDepth(meshOperator.kind)
+	// The table is a plain map, so the revision is what re-reads it: a document swap lands its commands
+	// from effects AFTER the composition the swap caused, and only the bump brings this zone back.
+	val registered = remember(commands.revision) { commands.all() }
+	// Availability is a live query the snapshot system cannot see, so these keys ARE the contract: a
+	// hinted command's availability and its hint's suggestedWhen may depend on the registered table (and
+	// so the document), the mode, and nothing else - which is what CommandHint asks of them.
+	val hints = remember(registered, keymap, hoveredKind, editorMode) { statusHintsFor(registered, keymap, hoveredKind) }
+	val entries =
+		if (operatorActive) {
+			buildList {
+				add(stringResource(Res.string.status_bind_confirm))
+				add(stringResource(Res.string.status_bind_cancel))
+
+				// T cycles the surface for the whole rotation; the wheel pushes the pivot only about a locked axis.
+				if (rotatesInDepth) {
+					add(stringResource(Res.string.status_bind_depth_rotation))
+					add(stringResource(Res.string.status_bind_depth_surface))
+				}
+
+				if (rotatesInDepth && axisConstraint != null) {
+					add(stringResource(Res.string.status_bind_depth_push, primaryModifierLabel()))
+				}
+			}
+		} else {
+			hints.map { hint ->
+				val chordRun = hint.chords.joinToString(separator = "/") { chord -> formatAccelerator(chord) }
+				"$chordRun ${stringResource(hint.label)}"
+			}
+		}
+
+	if (entries.isEmpty()) {
+		return
+	}
+
+	Text(
+		text = entries.joinToString(separator = STAT_SEPARATOR),
+		style = LocalUmamoTypography.current.labelMedium,
+		color = LocalUmamoColors.current.textMuted,
+		maxLines = 1,
+		overflow = TextOverflow.Ellipsis,
+	)
+}
+
+/**
+ * The selected-item zone: in Object mode the active target's display name (or a "%d selected" count
+ * for a multi-selection); in Edit and Pose mode the selected element count over the domain total of
+ * every mesh or lattice in the session ("3/120 vertices", or points, grid lines, and cells for a
+ * lattice).  Renders nothing when nothing is selected or no document is open.
+ */
+@Composable
+private fun SelectedItemZone() {
+	val puppet = LocalPuppet.current
+	val session = LocalEditorSession.current
+
+	if (puppet == null || session == null) {
+		return
+	}
+
+	val editorMode by session.mode.collectAsState()
+	val text: String?
+
+	if (editorMode.editsElements) {
+		// The denominators sum over EVERY session owner (multi-mesh edit), so "3/240 vertices" reads
+		// against everything the session can select; a lattice session (Edit or Pose) counts points, grid lines,
+		// and cells.
+		val meshSelection by session.meshSelection.collectAsState()
+		val sessionTopologies =
+			remember(puppet, meshSelection.owners) {
+				meshSelection.owners.mapNotNull { owner -> puppet.editTopologyOf(owner) }
+			}
+		val latticeSession = meshSelection.editsLattices
+		text =
+			if (sessionTopologies.isEmpty() || meshSelection.isEmpty) {
+				null
+			} else {
+				when (meshSelection.selectMode) {
+					MeshSelectMode.Vertex -> {
+						val label = if (latticeSession) Res.string.status_lattice_points else Res.string.status_mesh_vertices
+						stringResource(label, meshSelection.size, sessionTopologies.sumOf { topology -> topology.vertexCount })
+					}
+
+					MeshSelectMode.Edge -> {
+						val totalEdges = remember(sessionTopologies) { sessionTopologies.sumOf { topology -> topology.edgeEndpoints.size / 2 } }
+						val label = if (latticeSession) Res.string.status_lattice_lines else Res.string.status_mesh_edges
+						stringResource(label, meshSelection.size, totalEdges)
+					}
+
+					MeshSelectMode.Face -> {
+						val label = if (latticeSession) Res.string.status_lattice_cells else Res.string.status_mesh_faces
+						stringResource(label, meshSelection.size, sessionTopologies.sumOf { topology -> topology.faceCount })
+					}
+				}
+			}
+	} else {
+		val selection = LocalSelection.current?.selection
+		text =
+			if (selection == null || selection.isEmpty) {
+				null
+			} else if (selection.size > 1) {
+				stringResource(Res.string.status_multi_selected, selection.size)
+			} else {
+				val target = selection.active ?: selection.targets.first()
+
+				when (target) {
+					is SelectionTarget.Part -> remember(puppet) { puppet.parts.associateBy { part -> part.id } }[target.id]?.name
+					is SelectionTarget.Drawable -> remember(puppet) { puppet.drawables.associateBy { drawable -> drawable.id } }[target.id]?.name
+					is SelectionTarget.Deformer -> remember(puppet) { puppet.deformers.associateBy { deformer -> deformer.id } }[target.id]?.name
+				}
+			}
+	}
+
+	if (text == null) {
+		return
+	}
+
+	Text(
+		text = text,
+		style = LocalUmamoTypography.current.labelMedium,
+		color = LocalUmamoColors.current.textMuted,
+	)
+}
+
+/**
+ * The model-stats zone: an inline summary of the open model's element counts plus its mesh vertex and
+ * triangle totals, which turn selection-relative ("Verts: 12/3400") while a selection exists.
+ */
+@Composable
+private fun ModelStats() {
+	val puppet = LocalPuppet.current ?: return
+	val session = LocalEditorSession.current
+	var selectedTotals: MeshTotals? = null
+	// The session meshes Edit mode scopes to (paired with their ids for per-mesh element lookups), or
+	// null in Object mode / no session; drives the denominator below.
+	var editedMeshes: List<Pair<DrawableId, DrawableMesh>>? = null
+
+	if (session != null) {
+		val editorMode by session.mode.collectAsState()
+
+		if (editorMode == EditorMode.Edit) {
+			val meshSelection by session.meshSelection.collectAsState()
+			val drawableById = remember(puppet) { puppet.drawables.associateBy { drawable -> drawable.id } }
+			val sessionMeshes =
+				remember(puppet, meshSelection.drawableIds) {
+					meshSelection.drawableIds.mapNotNull { drawableId -> drawableById[drawableId]?.mesh?.let { mesh -> drawableId to mesh } }
+				}
+			editedMeshes = sessionMeshes.takeIf { pairs -> pairs.isNotEmpty() }
+
+			if (sessionMeshes.isNotEmpty() && !meshSelection.isEmpty) {
+				selectedTotals =
+					remember(meshSelection, sessionMeshes) {
+						var coveredVertexTotal = 0
+						var coveredFaceTotal = 0
+
+						for ((drawableId, mesh) in sessionMeshes) {
+							val topology = ElementTopology.ofMesh(mesh)
+							val coveredVertexIndices = MeshTopology.coveredVertexIndices(meshSelection.elementsOf(drawableId), topology)
+							coveredVertexTotal += coveredVertexIndices.size
+							coveredFaceTotal += MeshTopology.facesWithAllVerticesSelected(topology, coveredVertexIndices).size
+						}
+
+						MeshTotals(vertexCount = coveredVertexTotal, triangleCount = coveredFaceTotal)
+					}
+			}
+		} else {
+			val selection = LocalSelection.current?.selection
+
+			if (selection != null && !selection.isEmpty) {
+				selectedTotals = remember(puppet, selection) { selectedMeshTotals(puppet, selection) }
+			}
+		}
+	}
+
+	// The stats denominator: in Edit mode the session meshes' own totals (so "3/240" reads against the
+	// meshes being edited, matching the selected-item zone), else the whole model's totals.  A val for
+	// the smart-cast to survive into the remember lambda.
+	val editedMeshesForTotals = editedMeshes
+	val totals =
+		if (editedMeshesForTotals != null) {
+			remember(editedMeshesForTotals) {
+				MeshTotals(
+					vertexCount = editedMeshesForTotals.sumOf { (_, mesh) -> mesh.vertexCount },
+					triangleCount = editedMeshesForTotals.sumOf { (_, mesh) -> mesh.triangleCount },
+				)
+			}
+		} else {
+			remember(puppet) { meshTotals(puppet) }
+		}
+	val vertsEntry =
+		selectedTotals?.let { selected -> stringResource(Res.string.status_verts_selected, selected.vertexCount, totals.vertexCount) }
+			?: stringResource(Res.string.status_verts_selected, "0", totals.vertexCount)
+	val trisEntry =
+		selectedTotals?.let { selected -> stringResource(Res.string.status_tris_selected, selected.triangleCount, totals.triangleCount) }
+			?: stringResource(Res.string.status_tris_selected, "0", totals.triangleCount)
+	val line =
+		listOf(
+			stringResource(Res.string.status_parts, puppet.parts.size),
+			stringResource(Res.string.status_drawables, puppet.drawables.size),
+			stringResource(Res.string.status_parameters, puppet.parameters.size),
+			stringResource(Res.string.status_deformers, puppet.deformers.size),
+			stringResource(Res.string.status_glues, puppet.glues.size),
+			vertsEntry,
+			trisEntry,
+		).joinToString(separator = STAT_SEPARATOR)
+	Text(
+		text = line,
+		style = LocalUmamoTypography.current.labelMedium,
+		color = LocalUmamoColors.current.textMuted,
+	)
+}

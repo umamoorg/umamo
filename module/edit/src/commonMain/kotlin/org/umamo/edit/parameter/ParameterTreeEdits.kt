@@ -1,0 +1,265 @@
+package org.umamo.edit.parameter
+
+import org.umamo.edit.EditorSession
+import org.umamo.edit.ParameterChange
+import org.umamo.edit.ParameterMoveSubject
+import org.umamo.runtime.model.ParameterGroupId
+import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.ParameterNode
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.findParameterGroup
+import org.umamo.runtime.model.materializedParameterTree
+
+/*
+ * Parameter-panel group-tree structure edits.  PuppetModel.parameterTree is the canonical panel order
+ * (an ordered mix of parameter leaves and named groups); the flat parameters list stays the id-keyed
+ * authoritative axis list, whose order the panel ignores once a tree exists.  So a reorder or a move
+ * into / out of a group rewrites ONLY parameterTree, leaving parameters and parameterLinks alone - the
+ * CMO3 export lowers the tree into the parameter groups' child lists.  A model imported with no groups
+ * has an empty tree; the first real structure edit materializes a flat all-leaves-at-root tree so there
+ * is one code path afterward.  Every edit snapshots the whole PuppetModel through EditorSession.mutate,
+ * so it undoes for free.
+ */
+
+/**
+ * A position anchor in the parameter tree - "insert before this node".  Null anywhere a ref is expected
+ * means "append at the destination's end".
+ */
+sealed interface ParameterNodeRef {
+	/** Anchor on a parameter leaf. */
+	data class Leaf(val id: ParameterId) : ParameterNodeRef
+
+	/** Anchor on a group. */
+	data class Group(val id: ParameterGroupId) : ParameterNodeRef
+}
+
+/**
+ * Every group id anywhere in [nodes], recursing into nested groups.  Used to mint collision-free ids and
+ * to validate a move destination.
+ *
+ * @param List nodes The tree (or subtree) to scan.
+ * @return Set<ParameterGroupId> Every group id present.
+ */
+internal fun collectParameterGroupIds(nodes: List<ParameterNode>): Set<ParameterGroupId> {
+	val ids = HashSet<ParameterGroupId>()
+
+	/**
+	 * Adds the id of every group in a node list, nested ones included.
+	 *
+	 * @param List<ParameterNode> list The node list to walk.
+	 */
+	fun walk(list: List<ParameterNode>) {
+		for (node in list) {
+			if (node is ParameterNode.Group) {
+				ids.add(node.id)
+				walk(node.children)
+			}
+		}
+	}
+	walk(nodes)
+
+	return ids
+}
+
+/**
+ * The leaf ids removed by a detach for [subject]; empty when it moves a group.
+ *
+ * @return Set<ParameterId> The moved leaf ids, or the empty set for a group.
+ */
+private fun ParameterMoveSubject.movedLeafIds(): Set<ParameterId> =
+	when (this) {
+		is ParameterMoveSubject.Leaves -> ids.toSet()
+		is ParameterMoveSubject.Group -> emptySet()
+	}
+
+/**
+ * The group id removed by a detach for [subject], or null when it moves leaves.
+ *
+ * @return ParameterGroupId? The moved group's id, or null for leaves.
+ */
+private fun ParameterMoveSubject.movedGroupId(): ParameterGroupId? =
+	when (this) {
+		is ParameterMoveSubject.Leaves -> null
+		is ParameterMoveSubject.Group -> id
+	}
+
+/**
+ * Removes the moved node(s) from a node list (non-recursively at this level), returning the survivors.
+ *
+ * @param ParameterMoveSubject subject The leaves or group being moved.
+ * @return List<ParameterNode> The nodes that stay.
+ */
+private fun List<ParameterNode>.detachSubject(subject: ParameterMoveSubject): List<ParameterNode> {
+	val movedLeaves = subject.movedLeafIds()
+	val movedGroup = subject.movedGroupId()
+
+	return filterNot { node ->
+		when (node) {
+			is ParameterNode.Param -> node.id in movedLeaves
+			is ParameterNode.Group -> node.id == movedGroup
+		}
+	}
+}
+
+/**
+ * This node list with [inserted] placed before [before] (or appended when [before] is null or absent).
+ *
+ * @param List<ParameterNode> inserted The nodes to place.
+ * @param ParameterNodeRef? before The node to place them before, or null to append.
+ * @return List<ParameterNode> The list with the nodes inserted.
+ */
+private fun List<ParameterNode>.withNodesInsertedBefore(inserted: List<ParameterNode>, before: ParameterNodeRef?): List<ParameterNode> {
+	val result = toMutableList()
+	val insertAt =
+		before?.let { ref ->
+			result.indexOfFirst { node -> node.matchesRef(ref) }
+		}?.takeIf { index -> index >= 0 } ?: result.size
+	result.addAll(insertAt, inserted)
+
+	return result
+}
+
+/**
+ * True when this node is the one [ref] names.
+ *
+ * @param ParameterNodeRef ref The reference to test against.
+ * @return Boolean True when the reference names this node.
+ */
+private fun ParameterNode.matchesRef(ref: ParameterNodeRef): Boolean =
+	when {
+		this is ParameterNode.Param && ref is ParameterNodeRef.Leaf -> id == ref.id
+		this is ParameterNode.Group && ref is ParameterNodeRef.Group -> id == ref.id
+		else -> false
+	}
+
+/**
+ * A copy of this model with [subject] relocated in the parameter-panel group tree: under
+ * [newParentGroupId] (null = the root level) and inserted before [before] there (null / absent =
+ * appended).  Layout only - the flat parameters list and the links are untouched.  The moved leaves
+ * land contiguously in [subject] order, so a linked pad keeps its two members adjacent whatever the UI
+ * anchor.
+ *
+ * @param ParameterMoveSubject subject The leaves or group to move.
+ * @param ParameterGroupId? newParentGroupId The destination group, or null for the root level.
+ * @param ParameterNodeRef? before The sibling to insert before, or null to append.
+ * @return PuppetModel The model with the move applied, or this if it was a no-op or illegal.
+ */
+fun PuppetModel.withParameterRowMoved(
+	subject: ParameterMoveSubject,
+	newParentGroupId: ParameterGroupId?,
+	before: ParameterNodeRef?,
+): PuppetModel {
+	// One level only: a group can be reordered among root nodes but never dropped inside another group.
+	if (subject is ParameterMoveSubject.Group && newParentGroupId != null) {
+		return this
+	}
+
+	val workingTree = materializedParameterTree()
+
+	if (newParentGroupId != null && newParentGroupId !in collectParameterGroupIds(workingTree)) {
+		return this
+	}
+
+	// Detached-first snapshot of what is being moved, resolved before the tree loses it.
+	val insertedNodes = collectSubjectNodes(workingTree, subject)
+
+	if (insertedNodes.isEmpty()) {
+		return this
+	}
+
+	// Detach at the root and inside every group.
+	val detachedRoot =
+		workingTree.detachSubject(subject).map { node ->
+			if (node is ParameterNode.Group) {
+				node.copy(children = node.children.detachSubject(subject))
+			} else {
+				node
+			}
+		}
+	val newTree: List<ParameterNode> =
+		if (newParentGroupId == null) {
+			detachedRoot.withNodesInsertedBefore(insertedNodes, before)
+		} else {
+			detachedRoot.map { node ->
+				if (node is ParameterNode.Group && node.id == newParentGroupId) {
+					node.copy(children = node.children.withNodesInsertedBefore(insertedNodes, before))
+				} else {
+					node
+				}
+			}
+		}
+
+	if (newTree == workingTree) {
+		return this
+	}
+
+	return copy(parameterTree = newTree)
+}
+
+/**
+ * The actual [ParameterNode]s named by [subject], found anywhere in [tree].  Leaves are returned as fresh
+ * [ParameterNode.Param]s in [subject] order (so a pad stays horizontal-then-vertical); a group is
+ * returned as its existing node with children intact.  Empty when nothing matched.
+ *
+ * @param List<ParameterNode> tree The group tree to search.
+ * @param ParameterMoveSubject subject The leaves or group being moved.
+ * @return List<ParameterNode> The matching nodes, empty when nothing matched.
+ */
+private fun collectSubjectNodes(tree: List<ParameterNode>, subject: ParameterMoveSubject): List<ParameterNode> =
+	when (subject) {
+		is ParameterMoveSubject.Leaves -> {
+			val present = collectLeafIds(tree)
+			subject.ids.filter { id -> id in present }.map { id -> ParameterNode.Param(id) }
+		}
+
+		is ParameterMoveSubject.Group -> {
+			val found = findParameterGroup(tree, subject.id)
+
+			if (found == null) {
+				emptyList()
+			} else {
+				listOf(found)
+			}
+		}
+	}
+
+/**
+ * Every leaf id anywhere in [nodes].
+ *
+ * @param List<ParameterNode> nodes The node list to walk.
+ * @return Set<ParameterId> The id of every leaf under it.
+ */
+private fun collectLeafIds(nodes: List<ParameterNode>): Set<ParameterId> {
+	val ids = HashSet<ParameterId>()
+
+	/**
+	 * Adds the id of every leaf in a node list, nested ones included.
+	 *
+	 * @param List<ParameterNode> list The node list to walk.
+	 */
+	fun walk(list: List<ParameterNode>) {
+		for (node in list) {
+			when (node) {
+				is ParameterNode.Param -> ids.add(node.id)
+				is ParameterNode.Group -> walk(node.children)
+			}
+		}
+	}
+	walk(nodes)
+
+	return ids
+}
+
+/**
+ * Moves a parameter row - one or two adjacent leaves, or a group - in the panel tree as one undo step.
+ * A refused or no-op move records nothing.
+ *
+ * @param ParameterMoveSubject subject The leaves or group to move.
+ * @param ParameterGroupId? newParentGroupId The destination group, or null for the root level.
+ * @param ParameterNodeRef? before The sibling to insert before, or null to append.
+ */
+fun EditorSession.moveParameterRow(subject: ParameterMoveSubject, newParentGroupId: ParameterGroupId?, before: ParameterNodeRef?) {
+	mutate(ParameterChange.MoveNode(subject, newParentGroupId)) { model ->
+		model.withParameterRowMoved(subject, newParentGroupId, before)
+	}
+}

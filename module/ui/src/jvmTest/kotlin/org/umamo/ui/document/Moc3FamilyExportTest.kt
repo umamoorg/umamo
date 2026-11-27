@@ -1,6 +1,7 @@
 package org.umamo.ui.document
 
 import org.umamo.format.moc3.Moc3
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -30,10 +31,10 @@ class Moc3FamilyExportTest {
 	 * Imports the sample, exports its family, and re-imports that.
 	 *
 	 * @param String basename The base name to export under.
-	 * @return Pair The source document and the re-imported one, or null when the sample is absent.
+	 * @return Pair The source document and the re-imported one.  The test is skipped when the sample is absent.
 	 */
-	private fun roundTrip(basename: String): Pair<Moc3Document, Moc3Document>? {
-		val sampleFile = sample ?: return null
+	private fun roundTrip(basename: String): Pair<Moc3Document, Moc3Document> {
+		val sampleFile = sample ?: skipTest("moc3.sample not present")
 		val directory = sampleFile.parentFile
 		val sourceName = sampleFile.name
 		val source =
@@ -51,12 +52,13 @@ class Moc3FamilyExportTest {
 			buildMoc3Document("$basename.moc3", "$basename.moc3", byName.getValue("$basename.moc3")) { reference ->
 				byName[reference]
 			}
+
 		return loaded to (assertIs<DocumentLoad.Loaded>(reimported).document as Moc3Document)
 	}
 
 	@Test
 	fun theExportedFamilyReimports() {
-		val (source, reimported) = roundTrip("Exported") ?: return
+		val (source, reimported) = roundTrip("Exported")
 		assertEquals(source.puppet.drawables.size, reimported.puppet.drawables.size, "drawable count")
 		assertEquals(source.puppet.parts.size, reimported.puppet.parts.size, "part count")
 		assertEquals(source.puppet.deformers.size, reimported.puppet.deformers.size, "deformer count")
@@ -66,7 +68,7 @@ class Moc3FamilyExportTest {
 
 	@Test
 	fun displayNamesSurviveTheFamily() {
-		val (source, reimported) = roundTrip("Exported") ?: return
+		val (source, reimported) = roundTrip("Exported")
 		// Compared BY ID: the export re-derives its own object ordering (parts pre-order, deformers
 		// parent-first), so a positional comparison would report every name as wrong on any model whose
 		// authored order differs from that walk.
@@ -94,7 +96,7 @@ class Moc3FamilyExportTest {
 
 	@Test
 	fun retainedSidecarsAreReemittedVerbatim() {
-		val (source, reimported) = roundTrip("Exported") ?: return
+		val (source, reimported) = roundTrip("Exported")
 		// Keyed by (kind, name) rather than compared directly: PassThroughSidecar has no value equality,
 		// and the KIND is half of what this asserts.  A sidecar that returns with the right bytes filed
 		// under the wrong manifest section is written beside the moc but no longer wired to the rig.
@@ -107,7 +109,7 @@ class Moc3FamilyExportTest {
 
 	@Test
 	fun theManifestNamesOnlyFilesTheBundleContains() {
-		val sampleFile = sample ?: return
+		val sampleFile = sample ?: skipTest("moc3.sample not present")
 		val directory = sampleFile.parentFile
 		val loaded =
 			assertIs<DocumentLoad.Loaded>(
@@ -132,9 +134,11 @@ class Moc3FamilyExportTest {
 				}
 			}
 		assertTrue(references.isNotEmpty(), "the manifest must reference something")
+
 		for (reference in references) {
 			assertContains(names, reference, "the manifest names $reference, which the bundle does not contain")
 		}
+
 		// The non-file sections are user data with no home in PuppetModel; losing them on a round trip
 		// would silently delete a rigger's eye-blink wiring.
 		assertEquals(loaded.manifest.groups, manifest.groups, "auto-wiring groups")

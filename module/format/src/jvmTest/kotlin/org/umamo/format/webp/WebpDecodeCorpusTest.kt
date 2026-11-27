@@ -1,5 +1,6 @@
 package org.umamo.format.webp
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -24,26 +25,31 @@ class WebpDecodeCorpusTest {
 			return listOfNotNull(File(path).takeIf(File::isFile))
 		}
 		var directory: File? = File(System.getProperty("user.dir"))
+
 		while (directory != null) {
 			val corpus = File(directory, "test/corpus")
+
 			if (corpus.isDirectory) {
 				return listOf(corpus, File(corpus, "webp"))
 					.filter(File::isDirectory)
 					.flatMap { folder -> folder.listFiles { file -> file.isFile && file.extension.equals("webp", ignoreCase = true) }?.toList() ?: emptyList() }
 					.sortedBy { it.name }
 			}
+
 			directory = directory.parentFile
 		}
+
 		return emptyList()
 	}
 
 	@Test
 	fun decodesEveryCorpusWebp() {
 		val samples = locateSamples()
+
 		if (samples.isEmpty()) {
-			println("no webp.sample and no test/corpus WebPs; skipping WebP corpus test")
-			return
+			skipTest("no webp.sample and no test/corpus WebPs; skipping WebP corpus test")
 		}
+
 		for (sample in samples) {
 			val bytes = sample.readBytes()
 			assertTrue(WebPReader.matches(bytes), "${sample.name}: detected as WebP by magic")

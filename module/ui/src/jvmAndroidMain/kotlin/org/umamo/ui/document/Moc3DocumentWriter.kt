@@ -9,7 +9,7 @@ import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.storage.UmamoLog
 
 /*
- * Writes an exported moc family to disk, and classifies the sidecars an import retained.
+ * Writes an exported moc family to disk, and hands over the sidecars an import retained.
  *
  * The picker hands back ONE destination - a `.moc3` - but a baked model is a family, so everything
  * else lands beside it under the manifest-relative names the bundle assigned.  That mirrors the
@@ -34,6 +34,7 @@ import org.umamo.storage.UmamoLog
  */
 fun existingBundleFiles(destination: PlatformFile, bundle: Moc3Sidecars.Bundle): List<String> {
 	val directory = runCatching { destination.absolutePath().toPath().parent }.getOrNull() ?: return emptyList()
+
 	return bundle.files
 		.map { file -> file.name }
 		.filter { name -> FileSystem.SYSTEM.exists(directory / name) }
@@ -58,17 +59,22 @@ suspend fun writeMoc3Bundle(destination: PlatformFile, bundle: Moc3Sidecars.Bund
 	destination.write(mocFile.bytes)
 
 	val directory = runCatching { destination.absolutePath().toPath().parent }.getOrNull()
+
 	if (directory == null) {
 		// The moc is written; the family is not.  Loud, because the result is a file no runtime can
 		// open on its own - and silent partial success is exactly what a rigger would not check for.
 		UmamoLog.error("exported ${destination.absolutePath()} alone: its directory is not writable from here")
+
 		return 1
 	}
+
 	var written = 1
+
 	for (file in bundle.files) {
 		if (file === mocFile) {
 			continue
 		}
+
 		val target = directory / file.name
 		runCatching {
 			target.parent?.let { parent -> FileSystem.SYSTEM.createDirectories(parent) }
@@ -78,16 +84,14 @@ suspend fun writeMoc3Bundle(destination: PlatformFile, bundle: Moc3Sidecars.Bund
 			UmamoLog.error("could not write ${file.name} beside the exported moc", failure)
 		}
 	}
+
 	return written
 }
 
 /**
  * The pass-through sidecars of [document], already classified by the manifest section that named
- * them (see `Moc3Document.sidecars`).
- *
- * Nothing is re-derived here.  Classifying by file name instead would drop any sidecar the rigger
- * named off-convention into the motion catch-all, and the export's manifest would stop pointing at
- * it - the file copied beside the moc, but silently unwired from the rig.
+ * them (see `Moc3Document.sidecars`); nothing is re-derived from file names, which only the manifest
+ * can classify.
  *
  * @param Moc3Document? document The imported document, or null for a non-MOC3 origin.
  * @return List The sidecars to re-emit, empty when there are none.

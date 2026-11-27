@@ -4,7 +4,7 @@ import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.json.Cdi3Json
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
@@ -18,6 +18,8 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
+import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -52,15 +54,16 @@ class Moc3Cmo3ParityTest {
 	fun mocImportMatchesCmo3Import() {
 		val cmo3File = cmo3Sample
 		val moc3File = moc3Sample
+
 		if (cmo3File == null || moc3File == null) {
-			println("cmo3.sample/moc3.sample not present; skipping parity test")
-			return
+			skipTest("cmo3.sample/moc3.sample not present; skipping parity test")
 		}
+
 		val cmo3Root = Cmo3.read(cmo3File).root as? CModelSource ?: error("root is not a CModelSource")
-		// The rest-mesh comparison normalizes BOTH sides through the same default-pose rewrite: CMO3's
-		// stored base is authored editing geometry that may drift a few pixels from the evaluated default
-		// pose (a moc has no way to recover the authored value), so comparing raw cmo3 bases against the
-		// moc's evaluated ones would measure that drift, not the conversion under test.
+		// The canvas-mesh comparison normalizes BOTH sides through the same default-pose pass: CMO3's
+		// stored editable mesh is authored editing geometry that may drift a few pixels from the evaluated
+		// default pose (a moc has no way to recover the authored value), so comparing raw cmo3 editable
+		// meshes against the moc's evaluated ones would measure that drift, not the conversion under test.
 		val fromCmo3 = restMeshesToCanvasSpace(Cmo3Import.fromModelSource(cmo3Root))
 		val fromMoc3 =
 			restMeshesToCanvasSpace(
@@ -71,16 +74,19 @@ class Moc3Cmo3ParityTest {
 		assertEquals(fromCmo3.canvasWidth, fromMoc3.canvasWidth, "canvas width")
 		assertEquals(fromCmo3.canvasHeight, fromMoc3.canvasHeight, "canvas height")
 		assertEquals(fromCmo3.worldOriginX, fromMoc3.worldOriginX, "world origin x")
-		assertEquals(fromCmo3.worldOriginY, fromMoc3.worldOriginY, "world origin y")
+		assertEquals(fromCmo3.worldOriginZ, fromMoc3.worldOriginZ, "world origin y")
 
 		// Parameters: identical axes (the bake preserves every parameter).
 		val cmo3Parameters = fromCmo3.parameters.associateBy { it.id }
+
 		for (mocParameter in fromMoc3.parameters) {
 			val cmo3Parameter = cmo3Parameters[mocParameter.id] ?: error("moc parameter ${mocParameter.id.raw} not in cmo3")
 			assertEquals(cmo3Parameter.min, mocParameter.min, "min of ${mocParameter.id.raw}")
 			assertEquals(cmo3Parameter.max, mocParameter.max, "max of ${mocParameter.id.raw}")
 			assertEquals(cmo3Parameter.default, mocParameter.default, "default of ${mocParameter.id.raw}")
+			assertEquals(cmo3Parameter.repeat, mocParameter.repeat, "repeat of ${mocParameter.id.raw}")
 		}
+
 		assertEquals(fromCmo3.parameterLinks, fromMoc3.parameterLinks, "parameter links")
 
 		val cmo3Drawables = fromCmo3.drawables.associateBy { it.id }
@@ -99,6 +105,7 @@ class Moc3Cmo3ParityTest {
 		var comparedVertices = 0
 		var maxRestDelta = 0f
 		val restOffenders = ArrayList<String>()
+
 		for (drawableId in sharedIds) {
 			val cmo3Drawable = cmo3Drawables.getValue(drawableId)
 			val moc3Drawable = moc3Drawables.getValue(drawableId)
@@ -115,40 +122,46 @@ class Moc3Cmo3ParityTest {
 				floatsClose(cmo3Mesh.uvs, moc3Mesh.uvs, 0.0005f),
 				"uvs of ${drawableId.raw}" + flipDiagnostic(cmo3Mesh.uvs, moc3Mesh.uvs),
 			)
-			// Rest positions: canvas space on both sides (the moc side through the default-pose rewrite),
+			// Canvas meshes: canvas space on both sides (the moc side through the default-pose pass),
 			// so this pins the whole conversion + cascade path.  Collected first (worst offender per
 			// drawable) so a failure reports the model-wide picture, not the first vertex hit.
 			assertEquals(cmo3Mesh.positions.size, moc3Mesh.positions.size, "position array of ${drawableId.raw}")
 			var drawableWorstDelta = 0f
 			var drawableWorstIndex = -1
+
 			for (coordIndex in cmo3Mesh.positions.indices) {
 				val delta = abs(cmo3Mesh.positions[coordIndex] - moc3Mesh.positions[coordIndex])
+
 				if (delta > drawableWorstDelta) {
 					drawableWorstDelta = delta
 					drawableWorstIndex = coordIndex
 				}
 			}
+
 			if (drawableWorstDelta > maxRestDelta) {
 				maxRestDelta = drawableWorstDelta
 			}
+
 			if (drawableWorstDelta > CANVAS_TOLERANCE_PX) {
 				restOffenders.add(
 					"${drawableId.raw}[$drawableWorstIndex] delta=$drawableWorstDelta " +
 						"cmo3=${cmo3Mesh.positions[drawableWorstIndex]} moc3=${moc3Mesh.positions[drawableWorstIndex]}",
 				)
 			}
+
 			comparedVertices += cmo3Mesh.vertexCount
 
 			compareMeshKeyforms(
 				drawableId,
 				cmo3Drawable.geometryGrid,
-				cmo3Mesh.positions,
+				cmo3Mesh.localPositions,
 				moc3Drawable.geometryGrid,
-				moc3Mesh.positions,
+				moc3Mesh.localPositions,
 				keyformTolerance(moc3Drawable.parentDeformerId),
 			)
 			compareMeshChannels(drawableId, cmo3Drawable.channelGrids, moc3Drawable.channelGrids)
 		}
+
 		println("[Umamo][parity] compared $comparedVertices rest vertices, max delta $maxRestDelta px")
 		assertTrue(
 			restOffenders.isEmpty(),
@@ -166,12 +179,11 @@ class Moc3Cmo3ParityTest {
 	 *
 	 * @param DrawableId   drawableId The drawable under comparison (for failure messages).
 	 * @param KeyformGrid? cmo3Grid   The CMO3 grid (deltas vs [cmo3Base]).
-	 * @param FloatArray   cmo3Base   The CMO3 rest positions.
+	 * @param FloatArray   cmo3Base   The CMO3 keyform-space base (DrawableMesh.localPositions).
 	 * @param KeyformGrid? moc3Grid   The MOC3 grid (deltas vs [moc3Base]).
-	 * @param FloatArray   moc3Base   The MOC3 rest positions.
+	 * @param FloatArray   moc3Base   The MOC3 keyform-space base.
 	 * @param Float        tolerance  The per-coordinate tolerance in the drawable's parent space.
 	 */
-
 	private fun compareMeshKeyforms(
 		drawableId: DrawableId,
 		cmo3Grid: KeyformGrid<MeshDeltaForm>?,
@@ -183,15 +195,18 @@ class Moc3Cmo3ParityTest {
 		if (cmo3Grid == null || moc3Grid == null) {
 			return
 		}
+
 		val cmo3Axes = cmo3Grid.axes.map { axis -> axis.parameterId to axis.keys.toList() }
 		val moc3Axes = moc3Grid.axes.map { axis -> axis.parameterId to axis.keys.toList() }
 		assertEquals(cmo3Axes, moc3Axes, "keyform axes of ${drawableId.raw}")
 		val moc3Cells = moc3Grid.cells.associateBy { cell -> cell.coordinate.toList() }
+
 		for (cmo3Cell in cmo3Grid.cells) {
 			val moc3Cell = moc3Cells[cmo3Cell.coordinate.toList()] ?: error("moc3 ${drawableId.raw} misses cell ${cmo3Cell.coordinate.toList()}")
 			val cmo3Deltas = cmo3Cell.form.positionDeltas
 			val moc3Deltas = moc3Cell.form.positionDeltas
 			assertEquals(cmo3Deltas.size, moc3Deltas.size, "delta array of ${drawableId.raw}")
+
 			for (coordIndex in cmo3Deltas.indices) {
 				val cmo3Absolute = cmo3Base[coordIndex] + cmo3Deltas[coordIndex]
 				val moc3Absolute = moc3Base[coordIndex] + moc3Deltas[coordIndex]
@@ -207,8 +222,8 @@ class Moc3Cmo3ParityTest {
 	/**
 	 * Asserts the two import paths agree on a drawable's scalar channel tracks, cell for cell.
 	 *
-	 * Draw order and opacity used to ride the geometry cell, so they were compared there; they are their
-	 * own tracks now, but the parity claim is unchanged - both paths must land on the same values.
+	 * Draw order and opacity are channel tracks of their own, apart from the geometry cells, and the parity
+	 * claim is the same: both paths must land on the same values.
 	 *
 	 * @param DrawableId drawableId The drawable under comparison (for failure messages).
 	 * @param ChannelGrids cmo3Channels The CMO3 import's tracks.
@@ -219,6 +234,7 @@ class Moc3Cmo3ParityTest {
 			val cmo3Track = cmo3Channels[channel] ?: continue
 			val moc3Track = moc3Channels[channel] ?: continue
 			val moc3Cells = moc3Track.cells.associateBy { cell -> cell.coordinate.toList() }
+
 			for (cmo3Cell in cmo3Track.cells) {
 				val coordinate = cmo3Cell.coordinate.toList()
 				val moc3Cell = moc3Cells[coordinate] ?: error("moc3 ${drawableId.raw} misses $channel cell $coordinate")
@@ -251,9 +267,11 @@ class Moc3Cmo3ParityTest {
 		val moc3Drawables = fromMoc3.drawables.associateBy { it.id }
 		val comparedPairs = HashSet<Pair<DeformerId, DeformerId>>()
 		var maxAngleDelta = 0f
+
 		for (drawableId in sharedIds) {
 			var cmo3Parent = cmo3Drawables.getValue(drawableId).parentDeformerId
 			var moc3Parent = moc3Drawables.getValue(drawableId).parentDeformerId
+
 			while (cmo3Parent != null || moc3Parent != null) {
 				assertTrue(
 					cmo3Parent != null && moc3Parent != null,
@@ -261,12 +279,15 @@ class Moc3Cmo3ParityTest {
 				)
 				val cmo3Deformer = cmo3Deformers.getValue(cmo3Parent)
 				val moc3Deformer = moc3Deformers.getValue(moc3Parent)
+
 				if (!comparedPairs.add(cmo3Deformer.id to moc3Deformer.id)) {
 					break
 				}
+
 				// A nested deformer's own keyform space is ITS parent's space.
 				val spaceTolerance =
 					if (moc3Deformer.parent != null && moc3Deformers[moc3Deformer.parent] is Deformer.Warp) LATTICE_TOLERANCE else CANVAS_TOLERANCE_PX
+
 				when (cmo3Deformer) {
 					is Deformer.Warp -> {
 						val mocWarp = moc3Deformer as? Deformer.Warp ?: error("kind mismatch above ${drawableId.raw}")
@@ -275,18 +296,22 @@ class Moc3Cmo3ParityTest {
 						assertEquals(cmo3Deformer.isQuadTransform, mocWarp.isQuadTransform, "warp mode above ${drawableId.raw}")
 						compareWarpGrids(drawableId, cmo3Deformer.geometryGrid, mocWarp.geometryGrid, spaceTolerance)
 					}
+
 					is Deformer.Rotation -> {
 						val mocRotation = moc3Deformer as? Deformer.Rotation ?: error("kind mismatch above ${drawableId.raw}")
 						val angleDelta = compareRotationGrids(drawableId, cmo3Deformer, mocRotation, spaceTolerance)
+
 						if (angleDelta > maxAngleDelta) {
 							maxAngleDelta = angleDelta
 						}
 					}
 				}
+
 				cmo3Parent = cmo3Deformer.parent
 				moc3Parent = moc3Deformer.parent
 			}
 		}
+
 		println("[Umamo][parity] compared ${comparedPairs.size} deformer pairs, max angle delta $maxAngleDelta deg")
 	}
 
@@ -300,13 +325,14 @@ class Moc3Cmo3ParityTest {
 	 */
 	private fun compareWarpGrids(
 		drawableId: DrawableId,
-		cmo3Grid: KeyformGrid<org.umamo.runtime.model.WarpLatticeForm>?,
-		moc3Grid: KeyformGrid<org.umamo.runtime.model.WarpLatticeForm>?,
+		cmo3Grid: KeyformGrid<WarpLatticeForm>?,
+		moc3Grid: KeyformGrid<WarpLatticeForm>?,
 		tolerance: Float,
 	) {
 		if (cmo3Grid == null || moc3Grid == null) {
 			return
 		}
+
 		// Hard-gate the grid shapes like compareMeshKeyforms does: silently skipping unmatched cells
 		// would let a systematic axis-order or coordinate regression pass this comparison vacuously.
 		assertEquals(
@@ -315,6 +341,7 @@ class Moc3Cmo3ParityTest {
 			"warp keyform axes above ${drawableId.raw}",
 		)
 		val moc3Cells = moc3Grid.cells.associateBy { cell -> cell.coordinate.toList() }
+
 		for (cmo3Cell in cmo3Grid.cells) {
 			val moc3Cell =
 				moc3Cells[cmo3Cell.coordinate.toList()]
@@ -322,6 +349,7 @@ class Moc3Cmo3ParityTest {
 			val cmo3Points = cmo3Cell.form.controlPoints
 			val moc3Points = moc3Cell.form.controlPoints
 			assertEquals(cmo3Points.size, moc3Points.size, "warp control-point count above ${drawableId.raw}")
+
 			for (coordIndex in cmo3Points.indices) {
 				assertTrue(
 					abs(cmo3Points[coordIndex] - moc3Points[coordIndex]) <= tolerance,
@@ -359,6 +387,7 @@ class Moc3Cmo3ParityTest {
 		)
 		val moc3Cells = moc3Grid.cells.associateBy { cell -> cell.coordinate.toList() }
 		var maxAngleDelta = 0f
+
 		for (cmo3Cell in cmo3Grid.cells) {
 			val moc3Cell =
 				moc3Cells[cmo3Cell.coordinate.toList()]
@@ -373,9 +402,11 @@ class Moc3Cmo3ParityTest {
 			val cmo3TotalAngle = cmo3Rotation.baseAngle + cmo3Cell.form.angle
 			val moc3TotalAngle = moc3Rotation.baseAngle + moc3Cell.form.angle
 			val angleDelta = abs(cmo3TotalAngle - moc3TotalAngle)
+
 			if (angleDelta > maxAngleDelta) {
 				maxAngleDelta = angleDelta
 			}
+
 			assertTrue(
 				angleDelta <= ANGLE_TOLERANCE_DEGREES,
 				"rotation angle above ${drawableId.raw}@${cmo3Cell.coordinate.toList()}: " +
@@ -383,15 +414,19 @@ class Moc3Cmo3ParityTest {
 			)
 			assertTrue(abs(cmo3Cell.form.scale - moc3Cell.form.scale) <= 0.001f, "rotation scale above ${drawableId.raw}")
 		}
-		// Reflections are FLAG channel tracks now, not pivot-form fields, but the parity claim is the same:
+
+		// Reflections are FLAG channel tracks, not pivot-form fields, and the parity claim is the same:
 		// both import paths must land on the same flip at every cell.
 		for (flipChannel in listOf(FormChannel.FLIP_X, FormChannel.FLIP_Y)) {
 			val cmo3Flips = cmo3Rotation.channelGrids[flipChannel]
 			val moc3Flips = moc3Rotation.channelGrids[flipChannel]
+
 			if (cmo3Flips == null || moc3Flips == null) {
 				continue
 			}
+
 			val moc3FlipCells = moc3Flips.cells.associateBy { cell -> cell.coordinate.toList() }
+
 			for (cmo3Cell in cmo3Flips.cells) {
 				val moc3Cell =
 					moc3FlipCells[cmo3Cell.coordinate.toList()]
@@ -399,6 +434,7 @@ class Moc3Cmo3ParityTest {
 				assertEquals(cmo3Cell.form, moc3Cell.form, "rotation $flipChannel above ${drawableId.raw}")
 			}
 		}
+
 		return maxAngleDelta
 	}
 
@@ -439,11 +475,13 @@ class Moc3Cmo3ParityTest {
 		if (left.size != right.size) {
 			return false
 		}
+
 		for (valueIndex in left.indices) {
 			if (abs(left[valueIndex] - right[valueIndex]) > tolerance) {
 				return false
 			}
 		}
+
 		return true
 	}
 
@@ -459,10 +497,12 @@ class Moc3Cmo3ParityTest {
 		if (cmo3Uvs.size != moc3Uvs.size) {
 			return " (size mismatch)"
 		}
+
 		val flipped =
 			FloatArray(moc3Uvs.size) { coordIndex ->
 				if (coordIndex % 2 == 1) 1f - moc3Uvs[coordIndex] else moc3Uvs[coordIndex]
 			}
+
 		return if (floatsClose(cmo3Uvs, flipped, 0.0005f)) " (moc3 V is flipped: import needs v -> 1 - v)" else ""
 	}
 
@@ -476,9 +516,11 @@ class Moc3Cmo3ParityTest {
 		// Case-insensitive strip, matching the document loader's basename rule.
 		val basename = if (mocFile.name.endsWith(".moc3", ignoreCase = true)) mocFile.name.dropLast(".moc3".length) else mocFile.name
 		val cdi3File = mocFile.parentFile.resolve("$basename.cdi3.json")
+
 		if (!cdi3File.isFile) {
 			return null
 		}
+
 		return Moc3.readCdi3(cdi3File.readText())
 	}
 }

@@ -1,6 +1,7 @@
 package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.interop.cmo3.export.fitAtlasPageToCanvasTransform
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -35,6 +36,7 @@ class Cmo3AtlasPlacementFitTest {
 		val positions =
 			FloatArray(uvs.size) { index ->
 				val vertexIndex = index / 2
+
 				if (index % 2 == 0) {
 					(0.002 * uvs[2 * vertexIndex] * pageWidth - 1.5).toFloat()
 				} else {
@@ -67,6 +69,7 @@ class Cmo3AtlasPlacementFitTest {
 		val uvs = FloatArray(2 * 16)
 		val positions = FloatArray(2 * 16)
 		var vertexIndex = 0
+
 		for (columnIndex in 0 until 4) {
 			for (rowIndex in 0 until 4) {
 				val pageX = patchOriginX + columnIndex * 247.0
@@ -78,11 +81,13 @@ class Cmo3AtlasPlacementFitTest {
 				vertexIndex += 1
 			}
 		}
+
 		val transform = fitAtlasPageToCanvasTransform(uvs, positions, pageWidth, pageHeight)
 		assertEquals(0f, transform.m00, 1e-3f, "x from page x (a quarter turn decouples them)")
 		assertEquals(1f, transform.m01, 1e-3f, "x from page y")
 		assertEquals(-1f, transform.m10, 1e-3f, "y from page x")
 		assertEquals(0f, transform.m11, 1e-3f, "y from page y")
+
 		for (checkedVertex in 0 until 16) {
 			val (canvasX, canvasY) =
 				apply(transform, uvs[2 * checkedVertex] * pageWidth.toDouble(), uvs[2 * checkedVertex + 1] * pageHeight.toDouble())
@@ -98,11 +103,13 @@ class Cmo3AtlasPlacementFitTest {
 		val uvs = floatArrayOf(0.0f, 0.5f, 0.25f, 0.5f, 1.0f, 0.5f)
 		val positions = floatArrayOf(10f, 7f, 12.5f, 7f, 20f, 7f)
 		val transform = fitAtlasPageToCanvasTransform(uvs, positions, 100, 100)
+
 		for (vertexIndex in 0 until 3) {
 			val (canvasX, canvasY) = apply(transform, uvs[2 * vertexIndex] * 100.0, uvs[2 * vertexIndex + 1] * 100.0)
 			assertEquals(positions[2 * vertexIndex].toDouble(), canvasX, 1e-3, "x of vertex $vertexIndex")
 			assertEquals(7.0, canvasY, 1e-3, "y of vertex $vertexIndex")
 		}
+
 		// The unconstrained direction takes its identity value, never zero: the editor inverts this
 		// transform to draw the mesh over its patch, and a singular one has no inverse.
 		val determinant = transform.m00 * transform.m11 - transform.m01 * transform.m10

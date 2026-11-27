@@ -4,6 +4,7 @@ import org.umamo.format.FormatRegistry
 import org.umamo.format.art.SourceArt
 import org.umamo.format.art.SourceLayerKind
 import org.umamo.format.art.analyzeAlpha
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -16,31 +17,36 @@ import kotlin.test.assertTrue
  * collide, text and empty layers - land on the model as the synthetic test says they should.
  *
  * Corpus-gated the way the readers' own tests are: every sample under `test/corpus/{psd,clip,krita}`
- * found by walking up from the working directory, self-skipping with a printed line when none exist.
+ * found by walking up from the working directory, self-skipping when none exist.
  */
 class SourceArtImportCorpusTest {
 	private fun locateSamples(): List<File> {
 		var directory: File? = File(System.getProperty("user.dir"))
+
 		while (directory != null) {
 			val corpus = File(directory, "test/corpus")
+
 			if (corpus.isDirectory) {
 				return listOf("psd", "clip", "krita")
 					.flatMap { folder -> File(corpus, folder).listFiles { file -> file.isFile }.orEmpty().toList() }
 					.filter { file -> file.extension.lowercase() in setOf("psd", "clip", "kra") }
 					.sortedBy { file -> file.name }
 			}
+
 			directory = directory.parentFile
 		}
+
 		return emptyList()
 	}
 
 	@Test
 	fun everyCorpusArtworkImportsToARig() {
 		val samples = locateSamples()
+
 		if (samples.isEmpty()) {
-			println("no test/corpus artwork samples; skipping the artwork import corpus test")
-			return
+			skipTest("no test/corpus artwork samples; skipping the artwork import corpus test")
 		}
+
 		for (sample in samples) {
 			checkSample(sample)
 		}
@@ -73,6 +79,7 @@ class SourceArtImportCorpusTest {
 			assertEquals(puppet.sources.single().id, source.sourceId)
 			assertTrue(puppet.sources.single().layers.any { entry -> entry.key == source.layerKey }, "${sample.name}: the binding names an inventory layer")
 		}
+
 		assertEquals(art.layers.size, puppet.sources.single().layers.size, "${sample.name}: the inventory lists every layer")
 		assertTrue(puppet.parts.size >= art.groups.size, "${sample.name}: every described folder is a part")
 		assertEquals(art.widthPx.toFloat(), puppet.canvasWidth, "${sample.name}: canvas width")

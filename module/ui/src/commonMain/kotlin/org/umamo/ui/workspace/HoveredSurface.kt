@@ -1,5 +1,8 @@
 package org.umamo.ui.workspace
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -28,24 +31,36 @@ internal data class HoveredSurface(val areaId: String, val kind: SpaceKind)
  *
  * It means "the last area touched that still exists": moving off an area deliberately does NOT clear it
  * (otherwise every shortcut would die whenever the pointer rested on the menu bar, the tab strip, or the
- * status bar), but an area that is closed or joined away releases it via [releaseArea] - the same
- * eviction-on-dispose the other per-area registries do.  An area switched to another space keeps its
- * general stamp (it still exists, and the next pointer event over it re-stamps the new kind) but gives
- * up its strip-host stamp at once through [releaseStripHost], since that stamp asserts a kind.
+ * status bar), but an area that is closed or joined away releases it via [releaseArea], and an area
+ * switched to another space is re-stamped under its new kind ([restampKind]).
  *
  * Stamped by [stampsHoveredSurface], installed once on every workspace leaf, so coverage is a property
  * of the area tree rather than something each space has to remember to opt into.
  *
- * [lastTouchedStripHost] is the one deliberate reach-back: the operation settings strip exists only in
- * a work surface (hostsOperationStrip), so a document-wide operation fired over a panel needs the work
- * surface the pointer touched LAST, however long ago, to place its strip.  It places a panel for an
- * operation that already ran; no command routes an action through it.  It must never name an area
- * that no longer hosts a strip: the area's host would refuse the record and the shell's fallback would
- * defer to the area, and the strip would show nowhere.
+ * [lastTouchedStripHost] and [lastTouchedViewport] are the two deliberate reach-backs, and neither routes
+ * an action.  A document-wide operation fired over a panel places its operation strip in the strip host
+ * the pointer touched LAST, however long ago, and Export Image, reached through the File menu over another
+ * area, frames what the last-touched viewport shows.
+ *
+ * [observedKind] is the one read composition MAY make, and it exposes the kind alone on purpose.  The
+ * status bar suggests shortcuts for the space under the pointer, which needs a reactive read; an area
+ * id read reactively would let an overlay gate itself onto "the active area" and paint in two viewports
+ * at once.  A kind cannot do that: two viewports share one, so it names no area to gate on.
  */
 internal class HoveredSurfaceTracker {
 	/** The surface the pointer last touched, or null before any was touched (or after that area died). */
 	var lastTouched: HoveredSurface? = null
+		set(value) {
+			field = value
+			observedKind = value?.kind
+		}
+
+	/**
+	 * The kind of [lastTouched], as snapshot state - display chrome's reactive view of where the pointer
+	 * is.  Written only through [lastTouched], so the two cannot disagree.
+	 */
+	var observedKind: SpaceKind? by mutableStateOf(null)
+		private set
 
 	/**
 	 * The strip-hosting surface the pointer last touched, or null before any was (or after it died or
@@ -54,16 +69,65 @@ internal class HoveredSurfaceTracker {
 	var lastTouchedStripHost: HoveredSurface? = null
 
 	/**
-	 * Releases [areaId]'s strip-host claim, if it holds one - the leaf calls this when its space changes,
-	 * because the claim asserts the kind the area had when touched and that kind is now gone.  The
-	 * general stamp is untouched; the area still exists.
+	 * The 2D viewport the pointer last touched, or null before any was (or after it died or stopped hosting
+	 * a 2D viewport).
+	 */
+	var lastTouchedViewport: HoveredSurface? = null
+
+	/**
+	 * Releases [areaId]'s kind-specific claims, if it holds any - the strip host and the last viewport.  The
+	 * leaf calls this when its space changes, because each claim asserts the kind the area had when touched
+	 * and that kind is now gone.  The general stamp is untouched; the area still exists.
 	 *
 	 * @param String areaId The leaf whose space changed.
 	 */
-	fun releaseStripHost(areaId: String) {
+	fun releaseKindClaims(areaId: String) {
 		if (lastTouchedStripHost?.areaId == areaId) {
 			lastTouchedStripHost = null
 		}
+
+		if (lastTouchedViewport?.areaId == areaId) {
+			lastTouchedViewport = null
+		}
+	}
+
+	/**
+	 * Takes up the kind-specific claims [stamp]'s kind makes, as a pointer event over that area does.
+	 *
+	 * @param HoveredSurface stamp The surface the pointer is over.
+	 */
+	fun claimKind(stamp: HoveredSurface) {
+		if (stamp.kind.hostsOperationStrip) {
+			lastTouchedStripHost = stamp
+		}
+
+		if (stamp.kind == SpaceKind.Viewport2D) {
+			lastTouchedViewport = stamp
+		}
+	}
+
+	/**
+	 * Re-stamps [areaId] under [kind] when it is the last-touched surface - the leaf calls this when its
+	 * space changes, so dispatch, the status bar, and the palette all read the space the area hosts NOW
+	 * rather than the one it hosted when the pointer last moved over it.
+	 *
+	 * Does what a pointer event over the switched area would: the stamp takes the new kind, and the
+	 * kind-specific claims follow when that kind makes them ([claimKind]).  A stamp naming another area is
+	 * left alone - a space switch says nothing about where the pointer is.
+	 *
+	 * @param String areaId The leaf whose space changed.
+	 * @param SpaceKind kind The space that leaf hosts now.
+	 */
+	fun restampKind(areaId: String, kind: SpaceKind) {
+		val current = lastTouched
+
+		if (current == null || current.areaId != areaId || current.kind == kind) {
+			return
+		}
+
+		val stamp = HoveredSurface(areaId, kind)
+		lastTouched = stamp
+		claimKind(stamp)
 	}
 
 	/**
@@ -79,8 +143,13 @@ internal class HoveredSurfaceTracker {
 		if (lastTouched?.areaId == areaId) {
 			lastTouched = null
 		}
+
 		if (lastTouchedStripHost?.areaId == areaId) {
 			lastTouchedStripHost = null
+		}
+
+		if (lastTouchedViewport?.areaId == areaId) {
+			lastTouchedViewport = null
 		}
 	}
 }
@@ -105,18 +174,18 @@ internal fun Modifier.stampsHoveredSurface(tracker: HoveredSurfaceTracker?, area
 	if (tracker == null) {
 		return this
 	}
+
 	return pointerInput(tracker, areaId, kind) {
 		val stamp = HoveredSurface(areaId, kind)
 		awaitPointerEventScope {
 			while (true) {
 				val event = awaitPointerEvent(PointerEventPass.Initial)
+
 				// Every pointer move over every leaf reaches here, so re-stamping an unchanged value would
 				// be the common case; compare first and leave the field alone when nothing moved areas.
 				if (event.type != PointerEventType.Exit && tracker.lastTouched != stamp) {
 					tracker.lastTouched = stamp
-					if (kind.hostsOperationStrip) {
-						tracker.lastTouchedStripHost = stamp
-					}
+					tracker.claimKind(stamp)
 				}
 			}
 		}

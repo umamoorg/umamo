@@ -6,7 +6,7 @@ import kotlin.test.assertEquals
 
 /**
  * Unit tests for the pure KRA tile primitives - LZF decode and color delinearisation - using
- * hand-built byte vectors, so they run with no external corpus. These verify the trickiest,
+ * hand-built byte vectors, so they run with no external corpus.  These verify the trickiest,
  * citation-bound logic in isolation; the corpus-gated KraReaderTest exercises the same code on real
  * Krita output (which is dense with back-references).
  */
@@ -24,7 +24,7 @@ class KraLzfTest {
 	@Test
 	fun lzfDecodesAnOverlappingBackReference() {
 		// Literal AB, then a back-reference copying 3 bytes at distance 2, an overlapping ABA,
-		// yielding ABABA. Control 32 = (stored length 1 shifted left 5) or high distance bits 0; the
+		// yielding ABABA.  Control 32 = (stored length 1 shifted left 5) or high distance bits 0; the
 		// next byte 1 is the low distance bits (stored distance = actual distance minus 1).
 		val stream = byteArrayOf(1, 'A'.code.toByte(), 'B'.code.toByte(), 32, 1)
 		val output = ByteArray(5)
@@ -36,7 +36,7 @@ class KraLzfTest {
 	@Test
 	fun delinearizeReinterleavesPlanarChannels() {
 		// 2 pixels times 4 channels: planar input is channel-major (stride = pixel count = 2); output
-		// is pixel-major (b,g,r,a,b,g,r,a). Distinct values per channel and pixel prove the mapping.
+		// is pixel-major (b,g,r,a,b,g,r,a).  Distinct values per channel and pixel prove the mapping.
 		val planar = byteArrayOf(10, 11, 20, 21, 30, 31, 40, 41)
 		val packed = ByteArray(8)
 		delinearizeColors(planar, packed, dataSize = 8, pixelSize = 4)

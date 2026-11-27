@@ -1,43 +1,51 @@
 package org.umamo.edit.export
 
-import org.umamo.edit.withAtlasPlacement
-import org.umamo.edit.withCanvasSize
-import org.umamo.edit.withDeformerBaseAngle
-import org.umamo.edit.withDeformerName
-import org.umamo.edit.withDeformerPart
-import org.umamo.edit.withDeformerSelectable
-import org.umamo.edit.withDrawableAlphaBlendMode
-import org.umamo.edit.withDrawableBlendMode
-import org.umamo.edit.withDrawableCulling
-import org.umamo.edit.withDrawableInvertMask
-import org.umamo.edit.withDrawableMaskedBy
-import org.umamo.edit.withDrawableName
-import org.umamo.edit.withDrawableParentDeformer
-import org.umamo.edit.withDrawableSelectable
-import org.umamo.edit.withDrawableVisibility
-import org.umamo.edit.withMeshPositions
-import org.umamo.edit.withMeshUvs
-import org.umamo.edit.withOrgChildMoved
-import org.umamo.edit.withParameterGroupRenamed
-import org.umamo.edit.withParameterLink
-import org.umamo.edit.withParameterRange
-import org.umamo.edit.withParameterRenamed
-import org.umamo.edit.withPartGroupMode
-import org.umamo.edit.withPartName
-import org.umamo.edit.withPartSketch
-import org.umamo.edit.withPartVisibility
-import org.umamo.edit.withRuntimeTarget
-import org.umamo.edit.withWorldOrigin
+import org.umamo.edit.atlas.withAtlasPlacement
+import org.umamo.edit.mesh.MeshRestPositions
+import org.umamo.edit.mesh.withMeshPositions
+import org.umamo.edit.mesh.withMeshUvs
+import org.umamo.edit.parameter.withParameterGroupRenamed
+import org.umamo.edit.parameter.withParameterLink
+import org.umamo.edit.parameter.withParameterRange
+import org.umamo.edit.parameter.withParameterRenamed
+import org.umamo.edit.property.withCanvasSize
+import org.umamo.edit.property.withDeformerBaseAngle
+import org.umamo.edit.property.withDeformerPart
+import org.umamo.edit.property.withDrawableAlphaBlendMode
+import org.umamo.edit.property.withDrawableBlendMode
+import org.umamo.edit.property.withDrawableCulling
+import org.umamo.edit.property.withDrawableInvertMask
+import org.umamo.edit.property.withDrawableMaskedBy
+import org.umamo.edit.property.withDrawableParentDeformer
+import org.umamo.edit.property.withPartGroupMode
+import org.umamo.edit.property.withPartSketch
+import org.umamo.edit.property.withRuntimeTarget
+import org.umamo.edit.property.withWorldOrigin
+import org.umamo.edit.structure.withDeformerName
+import org.umamo.edit.structure.withDeformerSelectable
+import org.umamo.edit.structure.withDeformerVisibility
+import org.umamo.edit.structure.withDrawableName
+import org.umamo.edit.structure.withDrawableSelectable
+import org.umamo.edit.structure.withDrawableVisibility
+import org.umamo.edit.structure.withOrgChildMoved
+import org.umamo.edit.structure.withPartName
+import org.umamo.edit.structure.withPartVisibility
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.drawable.CoordType
+import org.umamo.format.cmo3.model.gen.CArtMeshForm
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
+import org.umamo.format.cmo3.model.gen.CCachedImage
+import org.umamo.format.cmo3.model.gen.CCachedImageManager
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.CModelImageGroup
 import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
 import org.umamo.format.cmo3.model.gen.CTextureManager
+import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
@@ -46,18 +54,22 @@ import org.umamo.interop.DocumentField
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
-import org.umamo.interop.cmo3.Cmo3Export
-import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.export.Cmo3Export
+import org.umamo.interop.cmo3.import.Cmo3Import
 import org.umamo.interop.diffPuppetModels
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.atlasPixelOf
+import org.umamo.runtime.model.storedToArtAffineForTile
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -95,6 +107,7 @@ class Cmo3ExportRoundTripTest {
 		val report = Cmo3Export.apply(edited, cmo3)
 		val reimportedSource =
 			Cmo3.read(Cmo3.write(cmo3)).root as? CModelSource ?: error("re-read root is not a CModelSource")
+
 		return RoundTrip(edited, Cmo3Import.fromModelSource(reimportedSource), report)
 	}
 
@@ -104,17 +117,11 @@ class Cmo3ExportRoundTripTest {
 		assertTrue(residual.isEmpty, "$label: edits lost through export/import: $residual")
 	}
 
-	private fun skipMessageOrNull(): File? {
-		val file = sample
-		if (file == null) {
-			println("cmo3.sample not present; skipping export round-trip test")
-		}
-		return file
-	}
+	private fun sampleOrSkip(): File = sample ?: skipTest("cmo3.sample not present; skipping export round-trip test")
 
 	@Test
 	fun renamesSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				puppet
@@ -131,7 +138,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun visibilityAndSelectableFlagsSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				puppet
@@ -140,7 +147,7 @@ class Cmo3ExportRoundTripTest {
 					.withDrawableSelectable(puppet.drawables.first().id, selectable = false)
 					.let { model ->
 						val deformer = model.deformers.firstOrNull() ?: return@let model
-						model.withDeformerSelectable(deformer.id, selectable = false)
+						model.withDeformerSelectable(deformer.id, selectable = false).withDeformerVisibility(deformer.id, visible = !deformer.isVisible)
 					}
 			}
 		assertLossless(result, "visibility/selectable")
@@ -148,7 +155,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun blendCullingAndMaskEditsSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				val drawableId = puppet.drawables.first().id
@@ -165,7 +172,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun reparentEditsSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				// Detach a deformed drawable, and move a deformer to the tree root - both reference
@@ -173,20 +180,55 @@ class Cmo3ExportRoundTripTest {
 				val deformedDrawable = puppet.drawables.firstOrNull { it.parentDeformerId != null }
 				val partedDeformer = puppet.deformers.firstOrNull { it.partId != null }
 				var model = puppet
+
 				if (deformedDrawable != null) {
-					model = model.withDrawableParentDeformer(deformedDrawable.id, null)
+					model = model.withDrawableParentDeformer(deformedDrawable.id, null, localPositions = null)
 				}
+
 				if (partedDeformer != null) {
 					model = model.withDeformerPart(partedDeformer.id, null)
 				}
+
 				model
 			}
 		assertLossless(result, "reparent")
 	}
 
+	/**
+	 * A rebinding moves the owner's forms into its new parent's space, and the file says so: every form of a
+	 * drawable detached from its deformer is tagged for the root, the reused forms included, where the detach
+	 * alone rewrites nothing else about them.
+	 */
+	@Test
+	fun aDetachedDrawablesFormsAreTaggedForTheRoot() {
+		val file = sampleOrSkip()
+		val cmo3 = Cmo3.read(file.readBytes())
+		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
+		val puppet = Cmo3Import.fromModelSource(modelSource)
+		val deformed = puppet.drawables.firstOrNull { drawable -> drawable.parentDeformerId != null && drawable.geometryGrid?.axes?.isNotEmpty() == true }
+
+		if (deformed == null) {
+			skipTest("${file.name} has no keyed drawable under a deformer; skipping the form-space tag check")
+		}
+
+		val report = Cmo3Export.apply(puppet.withDrawableParentDeformer(deformed.id, null, localPositions = null), cmo3)
+		assertTrue(report.notices.none { notice -> notice is ExportNotice.UnsupportedChange }, "a detach lowers fully: ${report.notices}")
+		val reread = Cmo3.read(Cmo3.write(cmo3)).root as CModelSource
+		val source =
+			elementsOf((reread.drawableSourceSet as CDrawableSourceSet)._sources).filterIsInstance<CArtMeshSource>().first { candidate ->
+				(candidate.id as? Id)?.idstr == deformed.id.raw
+			}
+		val forms = elementsOf(source.keyforms).filterIsInstance<CArtMeshForm>()
+		assertTrue(forms.isNotEmpty(), "the detached drawable keeps its forms")
+
+		for (form in forms) {
+			assertEquals("Canvas", (form.coordType as? CoordType)?.coordName, "form ${(form.guid as? Guid)?.uuid} is read in the root's space now")
+		}
+	}
+
 	@Test
 	fun partFieldEditsSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				val partId = puppet.parts.first().id
@@ -199,24 +241,25 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun deformerFieldEditsSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val rotation =
 			run {
 				val cmo3 = Cmo3.read(file.readBytes())
 				Cmo3Import.fromModelSource(cmo3.root as CModelSource).deformers
-					.firstOrNull { it is org.umamo.runtime.model.Deformer.Rotation }
+					.firstOrNull { it is Deformer.Rotation }
 			}
+
 		if (rotation == null) {
-			println("${file.name} has no rotation deformer; skipping base-angle round trip")
-			return
+			skipTest("${file.name} has no rotation deformer; skipping base-angle round trip")
 		}
+
 		val result = roundTrip(file) { puppet -> puppet.withDeformerBaseAngle(rotation.id, 42.5f) }
 		assertLossless(result, "deformer fields")
 	}
 
 	@Test
 	fun parameterRangeAndLinkEditsSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		// Range edits change how a re-import COMPACTS channel tracks (axisSpansRange keys off the
 		// range), so a range edit on any axis-bearing parameter round-trips semantically equal but
 		// representationally different.  Pick a parameter no axis references at all - collected from
@@ -231,12 +274,15 @@ class Cmo3ExportRoundTripTest {
 					drawable.channelGrids.gridsByChannel.values.forEach { grid -> grid.axes.forEach { add(it.parameterId) } }
 					drawable.blendShapes.forEach { binding -> add(binding.parameterId) }
 				}
+
 				for (deformer in uncompacted.deformers) {
 					deformer.channelGrids.gridsByChannel.values.forEach { grid -> grid.axes.forEach { add(it.parameterId) } }
 				}
+
 				for (part in uncompacted.parts) {
 					part.channelGrids.gridsByChannel.values.forEach { grid -> grid.axes.forEach { add(it.parameterId) } }
 				}
+
 				for (glue in uncompacted.glues) {
 					glue.channelGrids.gridsByChannel.values.forEach { grid -> grid.axes.forEach { add(it.parameterId) } }
 				}
@@ -245,6 +291,7 @@ class Cmo3ExportRoundTripTest {
 		val result =
 			roundTrip(file) { puppet ->
 				var model = puppet
+
 				if (unreferenced != null) {
 					model =
 						model.withParameterRange(
@@ -254,10 +301,13 @@ class Cmo3ExportRoundTripTest {
 							unreferenced.max + 5f,
 						)
 				}
+
 				val existingLink = model.parameterLinks.firstOrNull()
+
 				if (existingLink != null) {
 					model = model.withParameterLink(existingLink.horizontal, existingLink.vertical, linked = false)
 				}
+
 				model
 			}
 		assertLossless(result, "parameter range/link")
@@ -265,7 +315,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun treeMovesSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				// Move the first part-owned drawable to the end of the root level - exercises both the
@@ -282,16 +332,17 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun parameterGroupEditsSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val hasGroup =
 			run {
 				val cmo3 = Cmo3.read(file.readBytes())
 				Cmo3Import.fromModelSource(cmo3.root as CModelSource).parameterTree.any { it is ParameterNode.Group }
 			}
+
 		if (!hasGroup) {
-			println("${file.name} has no parameter groups; skipping group round trip")
-			return
+			skipTest("${file.name} has no parameter groups; skipping group round trip")
 		}
+
 		val result =
 			roundTrip(file) { puppet ->
 				val group = puppet.parameterTree.filterIsInstance<ParameterNode.Group>().first()
@@ -302,7 +353,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun canvasAndRuntimeTargetSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				val newWidth = puppet.canvasWidth + 16f
@@ -328,15 +379,16 @@ class Cmo3ExportRoundTripTest {
 	 */
 	@Test
 	fun anAtlasPlacementMoveRewritesBothHalvesAndReportsTheStalePage() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val cmo3 = Cmo3.read(file.readBytes())
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 		val imported = Cmo3Import.fromModelSource(modelSource)
 		val packed = imported.atlas.tiles.firstOrNull { tile -> tile.placement != null }
+
 		if (packed == null) {
-			println("${file.name} packs no artwork; skipping the atlas placement round trip")
-			return
+			skipTest("${file.name} packs no artwork; skipping the atlas placement round trip")
 		}
+
 		val canvasBefore = assertNotNull(canvasPlacementOf(modelSource, packed.id.raw), "the packed tile declares a canvas placement")
 
 		val moved = packed.placement!!.copy(positionX = packed.placement!!.positionX + 8f)
@@ -374,21 +426,26 @@ class Cmo3ExportRoundTripTest {
 	/** The art's canvas placement, as the file declares it on its model image. */
 	private fun canvasPlacementOf(modelSource: CModelSource, tileId: String): Pair<Float, Float>? {
 		val textureManager = modelSource.textureManager as? CTextureManager ?: return null
+
 		for (group in elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
 			for (image in elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
 				if ((image.guid as? Guid)?.uuid != tileId) {
 					continue
 				}
+
 				val canvas = image._materialLocalToCanvasTransform as? CAffine ?: return null
+
 				return canvas.m02 to canvas.m12
 			}
 		}
+
 		return null
 	}
 
 	/** One tile's packed entry, wherever it sits. */
 	private fun atlasEntryOf(modelSource: CModelSource, tileId: String): ModelImageEntry? {
 		val textureManager = modelSource.textureManager as? CTextureManager ?: return null
+
 		for (atlas in elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()) {
 			for (entry in elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>()) {
 				if ((entry.modelImageGuid as? Guid)?.uuid == tileId) {
@@ -396,6 +453,7 @@ class Cmo3ExportRoundTripTest {
 				}
 			}
 		}
+
 		return null
 	}
 
@@ -410,14 +468,11 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun vertexNudgeSurvivesRoundTripWithAWeldNotice() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				val drawable = puppet.drawables.first { it.mesh != null }
-				val nudged = drawable.mesh!!.positions.copyOf()
-				nudged[0] += 3f
-				nudged[1] -= 2f
-				puppet.withMeshPositions(drawable.id, nudged)
+				puppet.withMeshPositions(drawable.id, nudgedFirstVertex(drawable.mesh!!))
 			}
 		// Exported geometry is written as authored rather than re-welded to Cubism's own topology,
 		// so the geometry survives exactly while the weld-divergence notice names the edited mesh.
@@ -431,9 +486,92 @@ class Cmo3ExportRoundTripTest {
 		assertTrue(residual.isEmpty, "vertex nudge lost through export/import: $residual")
 	}
 
+	/**
+	 * The first vertex of [mesh] nudged the way an Edit-mode move nudges it: three canvas pixels right and two
+	 * up on the canvas mesh, and the same small fraction of the base's own extent on the base, since the base
+	 * of a deformer child lives in the deformer's space.  A mesh that shares one array keeps sharing it.
+	 *
+	 * @param DrawableMesh mesh The mesh to nudge.
+	 * @return MeshRestPositions The nudged rest shape.
+	 */
+	private fun nudgedFirstVertex(mesh: DrawableMesh): MeshRestPositions {
+		val canvas = mesh.positions.copyOf()
+		canvas[0] += 3f
+		canvas[1] -= 2f
+
+		if (mesh.localPositions === mesh.positions) {
+			return MeshRestPositions.shared(canvas)
+		}
+
+		val local = mesh.localPositions.copyOf()
+		val xs = local.filterIndexed { componentIndex, _ -> componentIndex % 2 == 0 }
+		val ys = local.filterIndexed { componentIndex, _ -> componentIndex % 2 == 1 }
+		local[0] += (xs.max() - xs.min()) * 0.01f
+		local[1] -= (ys.max() - ys.min()) * 0.01f
+
+		return MeshRestPositions(canvas, local)
+	}
+
+	/**
+	 * Every CArtMeshForm's stored positions in [root], keyed by the source id and the form's index, copied so a
+	 * later export's writes cannot reach them.
+	 *
+	 * @param CModelSource root The CMO3's model source.
+	 * @return Map<String, FloatArray> The positions per form.
+	 */
+	private fun artMeshFormPositions(root: CModelSource): Map<String, FloatArray> {
+		val positionsByForm = LinkedHashMap<String, FloatArray>()
+		val sources = elementsOf((root.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>()
+
+		for (source in sources) {
+			val sourceId = (source.id as? Id)?.idstr ?: continue
+			elementsOf(source.keyforms).filterIsInstance<CArtMeshForm>().forEachIndexed { formIndex, form ->
+				val positions = form.positions as? FloatArray ?: return@forEachIndexed
+				positionsByForm["$sourceId#$formIndex"] = positions.copyOf()
+			}
+		}
+
+		return positionsByForm
+	}
+
+	/**
+	 * A canvas-only edit - the editable mesh moves and the keyform-space base does not - writes the source's
+	 * canvas mesh and nothing else: the forms are rebuilt from the base, which did not move, so every
+	 * CArtMeshForm in the file keeps its stored floats bit for bit.
+	 */
+	@Test
+	fun aCanvasOnlyEditLeavesEveryFormBitIdentical() {
+		val file = sampleOrSkip()
+		val cmo3 = Cmo3.read(file.readBytes())
+		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
+		val formsBefore = artMeshFormPositions(modelSource)
+		val puppet = Cmo3Import.fromModelSource(modelSource)
+		val drawable = puppet.drawables.first { candidate -> candidate.mesh != null && candidate.geometryGrid?.axes?.isNotEmpty() == true }
+		val mesh = drawable.mesh!!
+		val movedCanvas = FloatArray(mesh.positions.size) { componentIndex -> mesh.positions[componentIndex] + if (componentIndex % 2 == 0) 3f else -2f }
+		val edited = puppet.withMeshPositions(drawable.id, MeshRestPositions(movedCanvas, mesh.localPositions))
+
+		val report = Cmo3Export.apply(edited, cmo3)
+		assertTrue(report.notices.none { notice -> notice is ExportNotice.UnsupportedChange }, "a canvas edit lowers fully: ${report.notices}")
+		val reread = Cmo3.read(Cmo3.write(cmo3)).root as CModelSource
+		val formsAfter = artMeshFormPositions(reread)
+		assertEquals(formsBefore.keys, formsAfter.keys, "the export adds or drops no form")
+
+		for ((formKey, before) in formsBefore) {
+			val after = formsAfter.getValue(formKey)
+			assertEquals(before.map(Float::toRawBits), after.map(Float::toRawBits), "$formKey keeps its stored floats")
+		}
+
+		val rereadSource =
+			elementsOf((reread.drawableSourceSet as CDrawableSourceSet)._sources).filterIsInstance<CArtMeshSource>().first { candidate ->
+				(candidate.id as? Id)?.idstr == drawable.id.raw
+			}
+		assertEquals(movedCanvas.map(Float::toRawBits), (rereadSource.positions as FloatArray).map(Float::toRawBits), "the canvas mesh is written as edited")
+	}
+
 	@Test
 	fun uvEditsSurviveRoundTripOnPackedAndUnpackedDrawables() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		// Exercise both UV frame conventions when the model has both: a packed (atlas-region)
 		// drawable writes verbatim, an unpacked one goes through the forward model-image affine.
 		val cmo3 = Cmo3.read(file.readBytes())
@@ -443,6 +581,7 @@ class Cmo3ExportRoundTripTest {
 				val sources =
 					(((root.drawableSourceSet as? CDrawableSourceSet)?._sources as? Iterable<*>) ?: emptyList<Any?>())
 						.filterIsInstance<CArtMeshSource>()
+
 				for (source in sources) {
 					val extensions = (source._extensions as? Iterable<*>) ?: emptyList<Any?>()
 					val hasRegion =
@@ -452,6 +591,7 @@ class Cmo3ExportRoundTripTest {
 									?: emptyList<Any?>()
 							).any { it is CTextureInput_TextureAtlasRegion }
 						}
+
 					if (hasRegion) {
 						(source.id as? Id)?.idstr?.let { idStr -> add(DrawableId(idStr)) }
 					}
@@ -463,15 +603,19 @@ class Cmo3ExportRoundTripTest {
 		val result =
 			roundTrip(file) { puppet ->
 				var model = puppet
+
 				for (pick in listOfNotNull(packed, unpacked)) {
 					val mesh = model.drawables.first { it.id == pick.id }.mesh!!
 					val movedUvs = mesh.uvs.copyOf()
+
 					if (movedUvs.size >= 2) {
 						movedUvs[0] += 0.01f
 						movedUvs[1] += 0.01f
 					}
+
 					model = model.withMeshUvs(pick.id, movedUvs)
 				}
+
 				model
 			}
 		val weld = result.report.notices.filterIsInstance<ExportNotice.WeldDivergence>().singleOrNull()
@@ -484,11 +628,109 @@ class Cmo3ExportRoundTripTest {
 		assertTrue(residual.isEmpty, "UV edits lost through export/import: $residual")
 	}
 
+	/**
+	 * The first packed drawable over a reduced cache copy of its model image, classified straight off the
+	 * file: its texture names one of the image's cached resources other than the raster.
+	 *
+	 * @param CModelSource root The CMO3's model source.
+	 * @return CArtMeshSource? The drawable's source, or null when the file has none.
+	 */
+	private fun packedReducedCopyDrawable(root: CModelSource): CArtMeshSource? {
+		val textureManager = root.textureManager as? CTextureManager ?: return null
+		val copies = HashSet<CImageResource>()
+
+		for (group in ((textureManager._modelImageGroups as? Iterable<*>) ?: emptyList<Any?>()).filterIsInstance<CModelImageGroup>()) {
+			for (modelImage in ((group._modelImages as? Iterable<*>) ?: emptyList<Any?>()).filterIsInstance<CModelImage>()) {
+				val manager = modelImage.cachedImageManager as? CCachedImageManager ?: continue
+
+				for (cached in ((manager.cachedImages as? Iterable<*>) ?: emptyList<Any?>()).filterIsInstance<CCachedImage>()) {
+					val resource = cached._cachedImageResource as? CImageResource ?: continue
+
+					if (resource !== modelImage._filteredImage) {
+						copies.add(resource)
+					}
+				}
+			}
+		}
+
+		val sources = (((root.drawableSourceSet as? CDrawableSourceSet)?._sources as? Iterable<*>) ?: emptyList<Any?>()).filterIsInstance<CArtMeshSource>()
+
+		return sources.firstOrNull { source ->
+			val packed =
+				((source._extensions as? Iterable<*>) ?: emptyList<Any?>()).filterIsInstance<CTextureInputExtension>().any { extension ->
+					((extension._textureInputs as? Iterable<*>) ?: emptyList<Any?>()).any { input -> input is CTextureInput_TextureAtlasRegion }
+				}
+			packed && ((source.texture as? GTexture2D)?.srcImageResource as? CImageResource) in copies && (source.uvs as? FloatArray)?.let { uvs -> uvs.size >= 4 } == true
+		}
+	}
+
+	@Test
+	fun aUvEditOverAReducedCopyStoresTheEditorsCacheFrame() {
+		val spec = System.getProperty("cmo3.probe") ?: skipTest("cmo3.probe not present; skipping the reduced-copy UV round trip")
+		val files = spec.split(',').map { File(it.trim()) }.filter { it.isFile }
+
+		for (file in files) {
+			val cmo3 = Cmo3.read(file.readBytes())
+			val root = cmo3.root as? CModelSource ?: continue
+			val source = packedReducedCopyDrawable(root) ?: continue
+			val drawableId = DrawableId((source.id as Id).idstr)
+			val storedBefore = (source.uvs as FloatArray).copyOf()
+			val scale = (source.texture as GTexture2D).transformImageResource01toLogical01 as CAffine
+
+			val puppet = Cmo3Import.fromModelSource(root)
+			val movedUvs = puppet.drawables.first { drawable -> drawable.id == drawableId }.mesh!!.uvs.copyOf()
+			movedUvs[0] += 0.01f
+			movedUvs[1] += 0.01f
+			val edited = puppet.withMeshUvs(drawableId, movedUvs)
+			val report = Cmo3Export.apply(edited, cmo3)
+			assertTrue(report.notices.none { notice -> notice is ExportNotice.UnsupportedChange }, "${file.name}: a UV edit lowers fully: ${report.notices}")
+
+			val reread = Cmo3.read(Cmo3.write(cmo3))
+			val rereadRoot = reread.root as CModelSource
+			// Through the placement and the cache scale not every float has an exact preimage, so the edited
+			// pair comes back within a hair of a page texel; the untouched pairs, and the rest of the model,
+			// come back exactly.
+			val reimported = Cmo3Import.fromModelSource(rereadRoot)
+			val reimportedUvs = reimported.drawables.first { drawable -> drawable.id == drawableId }.mesh!!.uvs
+
+			for (componentIndex in 0 until 2) {
+				assertTrue(
+					kotlin.math.abs(reimportedUvs[componentIndex] - movedUvs[componentIndex]) <= 1e-6f,
+					"${file.name}: edited component $componentIndex re-imports as ${reimportedUvs[componentIndex]}, edited ${movedUvs[componentIndex]}",
+				)
+			}
+
+			for (componentIndex in 2 until movedUvs.size) {
+				assertEquals(movedUvs[componentIndex].toRawBits(), reimportedUvs[componentIndex].toRawBits(), "${file.name}: untouched component $componentIndex re-imports exactly")
+			}
+
+			val residual = diffPuppetModels(reimported, edited.withMeshUvs(drawableId, reimportedUvs))
+			assertTrue(residual.isEmpty, "${file.name}: the export changed more than the edited UVs: $residual")
+			val rereadSources = ((rereadRoot.drawableSourceSet as CDrawableSourceSet)._sources as Iterable<*>).filterIsInstance<CArtMeshSource>()
+			val storedAfter = rereadSources.first { candidate -> (candidate.id as? Id)?.idstr == drawableId.raw }.uvs as FloatArray
+			// The edited pair comes off the tile's page into its art's frame and is stored in the editor's cache
+			// frame; the untouched pairs byte for byte.
+			val storedToArt = assertNotNull(edited.drawables.first { drawable -> drawable.id == drawableId }.atlasTileId?.let { tileId -> edited.atlas.storedToArtAffineForTile(tileId) })
+			val artU = storedToArt[0] * movedUvs[0] + storedToArt[1] * movedUvs[1] + storedToArt[2]
+			val artV = storedToArt[3] * movedUvs[0] + storedToArt[4] * movedUvs[1] + storedToArt[5]
+			assertEquals(scale.m00 * artU + scale.m01 * artV + scale.m02, storedAfter[0], 1e-5f, "${file.name}: the edited u is stored in the cache frame")
+			assertEquals(scale.m10 * artU + scale.m11 * artV + scale.m12, storedAfter[1], 1e-5f, "${file.name}: the edited v is stored in the cache frame")
+
+			for (componentIndex in 2 until storedBefore.size) {
+				assertEquals(storedBefore[componentIndex].toRawBits(), storedAfter[componentIndex].toRawBits(), "${file.name}: untouched component $componentIndex keeps its stored bits")
+			}
+
+			return
+		}
+
+		skipTest("no cmo3.probe model draws over a reduced cache copy; skipping the reduced-copy UV round trip")
+	}
+
 	@Test
 	fun worldOriginEditReportsInsteadOfSilentlyDropping() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
-			roundTrip(file) { puppet -> puppet.withWorldOrigin(puppet.worldOriginX + 10f, puppet.worldOriginY) }
+			roundTrip(file) { puppet -> puppet.withWorldOrigin(puppet.worldOriginX + 10f, puppet.worldOriginZ) }
 		assertTrue(
 			result.report.notices.any { notice ->
 				notice is ExportNotice.UnsupportedChange &&
@@ -502,14 +744,10 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun renameSurvivesAcrossTheWholeCorpus() {
-		val spec =
-			System.getProperty("cmo3.probe")
-				?: run {
-					println("cmo3.probe not present; skipping corpus rename smoke")
-					return
-				}
+		val spec = System.getProperty("cmo3.probe") ?: skipTest("cmo3.probe not present; skipping corpus rename smoke")
 		val files = spec.split(',').map { File(it.trim()) }.filter { it.isFile }
 		val failures = ArrayList<String>()
+
 		for (file in files) {
 			val outcome =
 				runCatching {
@@ -519,16 +757,19 @@ class Cmo3ExportRoundTripTest {
 							// drawables; rename whichever entity the model has.
 							val drawable = puppet.drawables.firstOrNull()
 							val part = puppet.parts.firstOrNull()
+
 							when {
 								drawable != null -> puppet.withDrawableName(drawable.id, "Corpus Renamed")
 								part != null -> puppet.withPartName(part.id, "Corpus Renamed")
 								else -> puppet
 							}
 						}
+
 					if (!result.report.isEmpty) {
 						failures.add("${file.name}: notices ${result.report.notices}")
 					} else {
 						val residual = diffPuppetModels(result.reimported, result.edited)
+
 						if (!residual.isEmpty) {
 							failures.add("${file.name}: residual diff $residual")
 						}
@@ -536,6 +777,7 @@ class Cmo3ExportRoundTripTest {
 				}
 			outcome.exceptionOrNull()?.let { failure -> failures.add("${file.name}: threw $failure") }
 		}
+
 		assertTrue(failures.isEmpty(), "corpus rename smoke failed:\n" + failures.joinToString("\n"))
 	}
 }

@@ -20,8 +20,8 @@ class KeyformCell<TForm>(
 
 /**
  * The keyform grid for one controllable entity (drawable / deformer): the [axes] (one parameter each)
- * and the keyed [cells]. `cells.size == Π(axis key counts)` - the "interpolation" count the editor
- * reports. Cells are tagged with their coordinate rather than stored row-major, so the evaluator
+ * and the keyed [cells].  `cells.size == Π(axis key counts)` - the "interpolation" count the editor
+ * reports.  Cells are tagged with their coordinate rather than stored row-major, so the evaluator
  * can build whatever lookup the deformation math needs.
  */
 class KeyformGrid<TForm>(
@@ -40,10 +40,12 @@ class KeyformGrid<TForm>(
 	fun strides(): IntArray {
 		val strides = IntArray(axes.size)
 		var stride = 1
+
 		for (axisIndex in axes.indices) {
 			strides[axisIndex] = stride
 			stride *= axes[axisIndex].keys.size
 		}
+
 		return strides
 	}
 
@@ -60,37 +62,42 @@ class KeyformGrid<TForm>(
 		val strides = strides()
 		var linearIndex = 0
 		val axisCount = minOf(coordinate.size, strides.size)
+
 		for (axisIndex in 0 until axisCount) {
 			linearIndex += coordinate[axisIndex] * strides[axisIndex]
 		}
+
 		return linearIndex
 	}
 
 	/**
 	 * The cells indexed by their stride-folded linear index, built on first use and cached.
 	 *
-	 * Cached because the grid is immutable and the per-frame evaluator once rebuilt this map on every
-	 * channel sample of every entity - hundreds of transient HashMaps per scrub frame on a corpus rig.
+	 * Cached because the grid is immutable and the per-frame evaluator reads this map on every channel
+	 * sample of every entity - rebuilt per read, it would be hundreds of transient HashMaps per scrub
+	 * frame on a corpus rig.
 	 * PUBLICATION mode: a racing first read may compute twice but never blocks, and the render thread
 	 * must never take a lock.
 	 */
 	val cellsByLinearIndex: Map<Int, KeyformCell<TForm>> by lazy(LazyThreadSafetyMode.PUBLICATION) {
 		val byIndex = HashMap<Int, KeyformCell<TForm>>(cells.size)
+
 		for (cell in cells) {
 			byIndex[linearIndexOf(cell.coordinate)] = cell
 		}
+
 		byIndex
 	}
 }
 
 /**
- * A drawable keyform: per-vertex position deltas (interleaved x,y) relative to the mesh base
- * (`p = base + Σ wᵢ·Δᵢ`, stored as deltas to match the GPU vertex-shader morph), plus the animatable
- * scalars that ride on the same keyform. [drawOrder] (Cubism default 500) is the primary render-order
- * sort key; [opacity] (0..1) scales the drawable's alpha; [multiplyColor] / [screenColor] tint the
- * drawable per the Cubism per-art-mesh color (CMO3 `CArtMeshForm.multiplyColor`/`screenColor`, MOC3
- * color-table rows 108-113), left at their identities on pre-5.3 sources. All blend with the same
- * multilinear weights as the positions.
+ * A drawable keyform: per-vertex position deltas (interleaved x,y) relative to the mesh's keyform-space
+ * base (DrawableMesh.localPositions; `p = base + Σ wᵢ·Δᵢ`, stored as deltas to match the GPU
+ * vertex-shader morph), plus the animatable scalars that ride on the same keyform.  [drawOrder] (Cubism
+ * default 500) is the primary render-order sort key; [opacity] (0..1) scales the drawable's alpha;
+ * [multiplyColor] / [screenColor] tint the drawable per the Cubism per-art-mesh color (CMO3
+ * `CArtMeshForm.multiplyColor`/`screenColor`, MOC3 color-table rows 108-113), left at their identities
+ * on pre-5.3 sources.  All blend with the same multilinear weights as the positions.
  */
 class MeshForm(
 	val positionDeltas: FloatArray,
@@ -118,14 +125,14 @@ class PartForm(
 )
 
 /**
- * A warp-deformer keyform: the absolute FFD control-point positions (interleaved x,y). Warp
+ * A warp-deformer keyform: the absolute FFD control-point positions (interleaved x,y).  Warp
  * sources carry no separate rest lattice, so the forms are kept absolute; the evaluator interpolates
  * them directly.
  *
  * [opacity] / [multiplyColor] / [screenColor] are the deformer's own render channels, which CASCADE
- * down the deformer chain onto every drawable underneath (see `DeformerCascade`). Riggers use the
+ * down the deformer chain onto every drawable underneath (see `DeformerCascade`).  Riggers use the
  * opacity as a parameter-driven subtree show/hide switch, so dropping it renders whole effect
- * subtrees permanently visible. (CMO3 `ACDeformerForm.opacity`/`multiplyColor`/`screenColor`;
+ * subtrees permanently visible.  (CMO3 `ACDeformerForm.opacity`/`multiplyColor`/`screenColor`;
  * MOC3 `WarpKeyform`.) A deformer has no draw order - that is a drawable/part concept.
  */
 class WarpForm(

@@ -19,8 +19,10 @@ internal class JpegHuffmanTable(codeCountsPerLength: IntArray, private val value
 		// T.81 Figure F.15: assign canonical codes in increasing length, then increasing value order.
 		var code = 0
 		var valueIndex = 0
+
 		for (codeLength in 1..16) {
 			val countAtLength = codeCountsPerLength[codeLength - 1]
+
 			if (countAtLength == 0) {
 				// No codes of this length; the sentinel makes the DECODE comparison always fall through.
 				maxCode[codeLength] = -1
@@ -31,6 +33,7 @@ internal class JpegHuffmanTable(codeCountsPerLength: IntArray, private val value
 				code += countAtLength
 				maxCode[codeLength] = code - 1
 			}
+
 			code = code shl 1
 		}
 	}
@@ -44,13 +47,16 @@ internal class JpegHuffmanTable(codeCountsPerLength: IntArray, private val value
 	fun decode(reader: JpegBitReader): Int {
 		var code = reader.readBit()
 		var codeLength = 1
+
 		while (code > maxCode[codeLength]) {
 			code = (code shl 1) or reader.readBit()
 			codeLength++
 			require(codeLength <= 16) { "Invalid JPEG Huffman code (longer than 16 bits)" }
 		}
+
 		val index = valuePointer[codeLength] + code - minCode[codeLength]
 		require(index in values.indices) { "Invalid JPEG Huffman code (value index $index out of range)" }
+
 		return values[index]
 	}
 }
@@ -85,7 +91,9 @@ internal class JpegBitReader(private val data: ByteArray, position: Int) {
 				return 0
 			}
 		}
+
 		bitCount--
+
 		return (bitBuffer shr bitCount) and 1
 	}
 
@@ -97,9 +105,11 @@ internal class JpegBitReader(private val data: ByteArray, position: Int) {
 	 */
 	fun readBits(count: Int): Int {
 		var value = 0
+
 		for (bitIndex in 0 until count) {
 			value = (value shl 1) or readBit()
 		}
+
 		return value
 	}
 
@@ -111,35 +121,47 @@ internal class JpegBitReader(private val data: ByteArray, position: Int) {
 	private fun fillBitBuffer(): Boolean {
 		if (position >= data.size) {
 			markerReached = true
+
 			return false
 		}
+
 		var nextByte = data[position].toInt() and 0xFF
+
 		if (nextByte == 0xFF) {
 			// Skip any fill bytes preceding a marker (T.81 B.1.1.2 permits 0xFF padding).
 			var lookahead = position + 1
+
 			while (lookahead < data.size && (data[lookahead].toInt() and 0xFF) == 0xFF) {
 				lookahead++
 			}
+
 			if (lookahead >= data.size) {
 				position = data.size
 				markerReached = true
+
 				return false
 			}
+
 			val following = data[lookahead].toInt() and 0xFF
+
 			if (following != 0x00) {
 				// A real marker: leave the cursor on its 0xFF so the caller can identify it.
 				position = lookahead - 1
 				markerReached = true
+
 				return false
 			}
+
 			// A stuffed zero: the 0xFF is literal data and the 0x00 is dropped.
 			position = lookahead + 1
 			nextByte = 0xFF
 		} else {
 			position++
 		}
+
 		bitBuffer = nextByte
 		bitCount = 8
+
 		return true
 	}
 
@@ -153,24 +175,32 @@ internal class JpegBitReader(private val data: ByteArray, position: Int) {
 		markerReached = false
 		// The marker should sit at the cursor once bits are dropped, but tolerate stray fill bytes.
 		var scan = position
+
 		while (scan + 1 < data.size) {
 			if ((data[scan].toInt() and 0xFF) == 0xFF) {
 				val marker = data[scan + 1].toInt() and 0xFF
+
 				if (marker in JpegConstants.MARKER_RST0..JpegConstants.MARKER_RST7) {
 					position = scan + 2
+
 					return true
 				}
+
 				if (marker != 0xFF && marker != 0x00) {
 					// Some other marker: the scan is over, leave the cursor for the caller.
 					position = scan
 					markerReached = true
+
 					return false
 				}
 			}
+
 			scan++
 		}
+
 		position = data.size
 		markerReached = true
+
 		return false
 	}
 }
@@ -186,6 +216,7 @@ internal fun extendJpegValue(value: Int, length: Int): Int {
 	if (length == 0) {
 		return 0
 	}
+
 	// Values whose top bit is clear encode the negative half of the range.
 	return if (value < (1 shl (length - 1))) value - (1 shl length) + 1 else value
 }

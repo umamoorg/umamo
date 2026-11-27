@@ -1,0 +1,214 @@
+package org.umamo.ui.kit.field
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.dp
+import org.umamo.ui.kit.Text
+import org.umamo.ui.kit.menu.TextEditContextMenuArea
+import org.umamo.ui.kit.textentry.LocalInlineEditController
+import org.umamo.ui.kit.textentry.TextEntryControl
+import org.umamo.ui.kit.textentry.textEntrySurface
+import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoIcons
+import org.umamo.ui.theme.LocalUmamoShapes
+import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.theme.drawIcon
+
+/**
+ * A compact checkbox row: a small box (accent-filled with a checkmark when on, neutral when off) plus a
+ * label, the whole row toggling [onCheckedChange].  A disabled row ignores clicks and dims - it still
+ * shows its stored state, so a setting gated behind another one reads as "remembered but inert".
+ *
+ * @param Boolean  checked         Current state.
+ * @param Function onCheckedChange Toggle callback.
+ * @param String   label           The row label.
+ * @param KeyedFieldState keyState  The keyform state to tint the box's border with.
+ * @param Boolean  enabled         Whether the row accepts clicks; false renders it dimmed.
+ */
+@Composable
+fun Checkbox(
+	checked: Boolean,
+	onCheckedChange: (Boolean) -> Unit,
+	label: String,
+	keyState: KeyedFieldState = KeyedFieldState.None,
+	enabled: Boolean = true,
+) {
+	val colors = LocalUmamoColors.current
+	val interaction = remember { MutableInteractionSource() }
+	val boxFill =
+		when {
+			checked && enabled -> colors.accent
+			checked -> colors.controlBorder
+			else -> colors.controlBackground
+		}
+	// The keyed tint replaces the box's ordinary border, the way HexColorField does it - a checkbox is
+	// small enough that a second mark beside it would be the louder signal, not the quieter one.
+	val boxBorder = keyState.tint(colors) ?: colors.controlBorder
+	val labelColor = if (enabled) colors.text else colors.textDisabled
+	Row(
+		modifier =
+			Modifier
+				.fillMaxWidth()
+				.height(22.dp)
+				// NOT focusable, like SectionHeader: a toggle in transient chrome (the operation settings
+				// strip) would otherwise carry focus out of the composition with it and strand the keyboard.
+				.focusProperties { canFocus = false }
+				.clickable(
+					interactionSource = interaction,
+					indication = null,
+					enabled = enabled,
+					onClick = { onCheckedChange(!checked) },
+				)
+				.padding(horizontal = 4.dp),
+		verticalAlignment = Alignment.CenterVertically,
+	) {
+		Canvas(modifier = Modifier.size(13.dp)) {
+			val radius = CornerRadius(2.dp.toPx())
+			drawRoundRect(color = boxFill, cornerRadius = radius)
+			drawRoundRect(color = boxBorder, cornerRadius = radius, style = Stroke(1.dp.toPx()))
+
+			if (checked) {
+				drawIcon(LocalUmamoIcons.checkmark, colors.accentText)
+			}
+		}
+		Spacer(modifier = Modifier.width(6.dp))
+		Text(text = label, style = LocalUmamoTypography.current.labelMedium, color = labelColor)
+	}
+}
+
+/** The inset between a [TextField]'s border and its text or trailing control, left and right. */
+internal val TEXT_FIELD_HORIZONTAL_PADDING = 6.dp
+
+/**
+ * A compact bordered single-line text field wrapping Foundation's [BasicTextField].  Like [NumberField], it
+ * lends a cancel hook to [LocalInlineEditController] while focused so the editor shell's root key handler
+ * stops claiming keystrokes the field needs.
+ *
+ * @param String    value         The current text.
+ * @param Function  onValueChange Edit callback.
+ * @param Modifier  modifier      Layout modifier.
+ * @param String?   placeholder   Optional dimmed hint shown while the field is empty.
+ * @param Function? trailing      Optional control pinned inside the field's trailing edge (a clear
+ *   affordance, a unit label).  It takes its width out of the text's, so it never overlaps the value.
+ */
+@Composable
+fun TextField(
+	value: String,
+	onValueChange: (String) -> Unit,
+	modifier: Modifier = Modifier,
+	placeholder: String? = null,
+	trailing: (@Composable () -> Unit)? = null,
+) {
+	val colors = LocalUmamoColors.current
+	val shapes = LocalUmamoShapes.current
+	val controller = LocalInlineEditController.current
+	val focusManager = LocalFocusManager.current
+	var focused by remember { mutableStateOf(false) }
+	// Held as a TextFieldValue purely so the context menu can act on a selection; the public API stays
+	// String-shaped, and the caret is re-pinned to the end whenever the caller replaces the text out from
+	// under the field (a cleared search box, a reset).
+	var fieldValue by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+
+	if (fieldValue.text != value) {
+		fieldValue = TextFieldValue(value, TextRange(value.length))
+	}
+
+	// Park the cancel hook only while focused; the shell checks it to yield Space / letters to the field
+	// and to route Escape (clear focus) here.  Drop it on focus loss and on dispose-while-focused.
+	DisposableEffect(Unit) {
+		onDispose {
+			if (focused) {
+				controller.cancel = null
+			}
+		}
+	}
+	val applyEdit: (TextFieldValue) -> Unit = { edited ->
+		fieldValue = edited
+
+		if (edited.text != value) {
+			onValueChange(edited.text)
+		}
+	}
+	TextEditContextMenuArea(value = fieldValue, onValueChange = applyEdit) { gesture ->
+		BasicTextField(
+			value = fieldValue,
+			onValueChange = applyEdit,
+			textStyle = LocalUmamoTypography.current.bodySmall.copy(color = colors.text),
+			singleLine = true,
+			cursorBrush = SolidColor(colors.text),
+			modifier =
+				gesture
+					.then(modifier)
+					.textEntrySurface(controller)
+					.clip(shapes.small)
+					.background(colors.controlBackground)
+					.border(1.dp, colors.controlBorder, shapes.small)
+					.padding(horizontal = TEXT_FIELD_HORIZONTAL_PADDING, vertical = 4.dp)
+					.onFocusChanged { focusState ->
+						// hasFocus (not isFocused): BasicTextField focuses an internal child, so this node only
+						// ever sees its subtree's focus.
+						if (focusState.hasFocus) {
+							if (!focused) {
+								focused = true
+								controller.cancel = { focusManager.clearFocus() }
+							}
+						} else if (focused) {
+							focused = false
+							controller.cancel = null
+						}
+					},
+			decorationBox = { innerTextField ->
+				Row(verticalAlignment = Alignment.CenterVertically) {
+					// The weighted box IS the text viewport - BasicTextField scrolls the caret into THIS box - so
+					// a trailing control takes its width out of the text's rather than sitting on top of it.  An
+					// overlaid control would hide the caret exactly when the value outgrows the field.
+					Box(modifier = Modifier.weight(1f)) {
+						// Overlay the placeholder behind the field's own text so it disappears as soon as the user types.
+						if (placeholder != null && value.isEmpty()) {
+							Text(text = placeholder, style = LocalUmamoTypography.current.bodySmall, color = colors.textMuted)
+						}
+
+						innerTextField()
+					}
+
+					if (trailing != null) {
+						Spacer(modifier = Modifier.width(4.dp))
+						// Show the pointer for trailing icons.
+						TextEntryControl(controller) {
+							trailing()
+						}
+					}
+				}
+			},
+		)
+	}
+}

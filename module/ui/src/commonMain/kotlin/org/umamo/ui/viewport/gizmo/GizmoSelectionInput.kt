@@ -1,0 +1,210 @@
+package org.umamo.ui.viewport.gizmo
+
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isMetaPressed
+import androidx.compose.ui.input.pointer.isShiftPressed
+import androidx.compose.ui.unit.IntSize
+import org.umamo.edit.ActiveSelectTool
+import org.umamo.edit.EditorSession
+import org.umamo.edit.MeshSelection
+import org.umamo.edit.MeshSelectionOps
+import org.umamo.edit.MeshTopology
+import org.umamo.render.ViewportCamera
+
+/**
+ * The kind of an area-owned select tool, the key of the cancel backstop each overlay runs
+ * (`LaunchedEffect(selectToolKind) { marquee.cancel() }`).  It is the kind, not the whole tool value,
+ * because resizing a circle brush makes a new Circle that must not wipe the in-flight stroke.
+ *
+ * @param ActiveSelectTool? ownedSelectTool The select tool this area owns, or null.
+ * @return Int A kind ordinal: 0 none, 1 armed box, 2 circle.
+ */
+internal fun selectToolKind(ownedSelectTool: ActiveSelectTool?): Int =
+	when (ownedSelectTool) {
+		null -> 0
+		is ActiveSelectTool.BoxArmed -> 1
+		is ActiveSelectTool.Circle -> 2
+	}
+
+/**
+ * The marquee (box + circle) machinery over mesh elements, shared by the 2D viewport's Edit and Pose mode and
+ * the UV editor's: the stroke / rubber-band state and event rules are MarqueeSelectController's, and these callbacks
+ * bind them to the element domain.  An overlay holds one per area, so every callback reads the session and
+ * [geometries] when it runs.
+ *
+ * @param EditorSession session The session owning the mesh selection, the armed tool, and the gesture flag.
+ * @param Function geometries The shown meshes' gizmo geometry (the stamp and box domain), read per call.
+ * @param Function previewStroke Publishes the live stroke after every stamp and null when it ends (each
+ *   surface hands it to the renderer's mesh overlay, which draws it); defaults to nothing.
+ * @return MarqueeSelectController<MeshSelection> The marquee.
+ */
+internal fun meshMarquee(
+	session: EditorSession,
+	geometries: () -> List<GizmoMeshGeometry>,
+	previewStroke: (MeshSelection?) -> Unit = {},
+): MarqueeSelectController<MeshSelection> =
+	MarqueeSelectController(
+		seedStroke = { session.meshSelection.value },
+		stampStroke = { working, erasing, center, radiusPx, stampCamera, stampSize ->
+			circleSelection(working, erasing, center, radiusPx, geometries(), stampCamera, stampSize)
+		},
+		commitStroke = { stroke -> session.setMeshSelection(stroke) },
+		previewStroke = previewStroke,
+		applyBox = { start, end, additive, boxCamera, boxSize ->
+			val selection = session.meshSelection.value
+			val insideByOwner =
+				geometries().associate { geometry ->
+					geometry.owner to elementsInBox(selection.selectMode, geometry, start, end, boxCamera, boxSize)
+				}
+			session.setMeshSelection(MeshSelectionOps.box(selection, insideByOwner, additive = additive))
+		},
+		setCircleRadius = { radiusPx -> session.setCircleRadius(radiusPx) },
+		clearTool = { session.clearSelectTool() },
+		setGestureActive = { active -> session.setViewportGestureActive(active) },
+	)
+
+/**
+ * The mesh-element surfaces' pointer flow, shared by the 2D viewport's Edit and Pose mode and the UV editor's: the
+ * box select (un-armed and armed, one flow - see BoxSelectFlow) with the element domain's press pick and
+ * empty-click clear.  The surfaces differ only in the geometry and the cursor they pass; Object mode picks
+ * whole drawables and warps with its own [ObjectPickController] instead.
+ *
+ * @param EditorSession session The session owning the mesh selection, the armed tool, and the gesture flag.
+ * @param MarqueeSelectController<MeshSelection> marquee The box machinery the flow rubber-bands through.
+ * @param Function geometries The shown meshes' gizmo geometry (the hit-test domain), read per press.
+ * @param Function placeCursor Places the space's cursor at a Shift+RightClick, given the unprojected point.
+ */
+internal class MeshPickController(
+	private val session: EditorSession,
+	marquee: MarqueeSelectController<MeshSelection>,
+	private val geometries: () -> List<GizmoMeshGeometry>,
+	placeCursor: (Float, Float) -> Unit,
+) {
+	// The box gesture, with the element pick on press and the clear on a sub-threshold click.
+	private val boxFlow =
+		BoxSelectFlow(
+			session = session,
+			marquee = marquee,
+			placeCursor = placeCursor,
+			onClick = { _, _ -> clearSelection() },
+			pressSelects = { event, change, camera, size -> selectUnderPress(event, change, camera, size) },
+		)
+
+	/**
+	 * Handles one pointer event while no transform or circle tool owns the area: the box select, armed or
+	 * not, and the element pick.
+	 *
+	 * @param PointerEvent event The full pointer event (buttons and modifiers).
+	 * @param PointerInputChange change The event's first change (position and consumption).
+	 * @param Boolean armed True while Box select is armed in this area.
+	 * @param ViewportCamera camera The area camera.
+	 * @param IntSize size The area size in pixels.
+	 */
+	fun handleEvent(event: PointerEvent, change: PointerInputChange, armed: Boolean, camera: ViewportCamera, size: IntSize) {
+		boxFlow.handleEvent(event, change, armed, camera, size)
+	}
+
+	/**
+	 * Abandons an in-flight box, dropping the rubber-band without touching the selection; a no-op when none
+	 * is in flight, so callers invoke it unconditionally.
+	 */
+	fun cancel() {
+		boxFlow.cancel()
+	}
+
+	/**
+	 * Selects the element under an un-armed press, per the select mode.
+	 *
+	 * @param PointerEvent event The press (its modifiers pick toggle or replace).
+	 * @param PointerInputChange change The press's change (its position).
+	 * @param ViewportCamera camera The area camera.
+	 * @param IntSize size The area size in pixels.
+	 * @return Boolean True when an element was under the press (then no box starts).
+	 */
+	private fun selectUnderPress(event: PointerEvent, change: PointerInputChange, camera: ViewportCamera, size: IntSize): Boolean {
+		val current = session.meshSelection.value
+		val hit = hitTestMeshes(current.selectMode, geometries(), change.position, camera, size) ?: return false
+		val modifiers = event.keyboardModifiers
+		val updated =
+			when {
+				// Shift and Ctrl both toggle membership (Blender-style): a second modified click on a selected
+				// element deselects it.
+				modifiers.isShiftPressed || modifiers.isCtrlPressed || modifiers.isMetaPressed -> {
+					MeshSelectionOps.toggle(current, hit.owner, hit.element)
+				}
+
+				else -> {
+					MeshSelectionOps.replace(current, hit.owner, hit.element)
+				}
+			}
+		session.setMeshSelection(updated)
+
+		return true
+	}
+
+	/** An un-armed sub-threshold click on empty canvas clears the selection. */
+	private fun clearSelection() {
+		val current = session.meshSelection.value
+
+		if (!current.isEmpty) {
+			session.setMeshSelection(MeshSelectionOps.clear(current))
+		}
+	}
+}
+
+/**
+ * Select Linked (Blender's L / Ctrl+L): unions the mesh islands reached from the element under the
+ * pointer, or from every selected element, into the selection as one undo step.  The 2D viewport and
+ * the UV editor share the flood because UV islands are topology islands: UVs share the vertex index
+ * space.
+ *
+ * @param EditorSession session The session owning the selection.
+ * @param List<GizmoMeshGeometry> geometries The shown meshes' gizmo geometry.
+ * @param Boolean fromSelection True to flood from every selected element (Ctrl+L); false to flood
+ *   from the element under the pointer (L).
+ * @param Offset pointer The pointer in area-local pixels.
+ * @param ViewportCamera camera The area camera.
+ * @param IntSize size The area size in pixels.
+ */
+internal fun handleSelectLinkedRequest(
+	session: EditorSession,
+	geometries: List<GizmoMeshGeometry>,
+	fromSelection: Boolean,
+	pointer: Offset,
+	camera: ViewportCamera,
+	size: IntSize,
+) {
+	var selection = session.meshSelection.value
+
+	if (fromSelection) {
+		for (geometry in geometries) {
+			val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(geometry.owner), geometry.topology)
+
+			if (covered.isEmpty()) {
+				continue
+			}
+
+			val adjacency = geometry.topology.adjacency
+			val reached = HashSet<Int>()
+
+			for (seedVertex in covered) {
+				if (seedVertex !in reached) {
+					reached.addAll(MeshTopology.connectedVertices(adjacency, seedVertex))
+				}
+			}
+
+			selection = MeshSelectionOps.selectLinked(selection, geometry.owner, reached, geometry.topology)
+		}
+	} else {
+		val hit = hitTestMeshes(selection.selectMode, geometries, pointer, camera, size) ?: return
+		val geometry = geometries.firstOrNull { candidate -> candidate.owner == hit.owner } ?: return
+		val seedVertex = MeshTopology.coveredVertexIndices(setOf(hit.element), geometry.topology).firstOrNull() ?: return
+		selection =
+			MeshSelectionOps.selectLinked(selection, hit.owner, MeshTopology.connectedVertices(geometry.topology.adjacency, seedVertex), geometry.topology)
+	}
+
+	session.setMeshSelection(selection)
+}

@@ -17,22 +17,28 @@ internal fun decodePackBits(input: ByteArray, expectedSize: Int): ByteArray {
 	val out = ByteArray(expectedSize)
 	var source = 0
 	var destination = 0
+
 	while (destination < expectedSize && source < input.size) {
 		val control = input[source++].toInt() // signed
+
 		if (control >= 0) {
 			val literalCount = control + 1
 			var copied = 0
+
 			while (copied < literalCount && destination < expectedSize && source < input.size) {
 				out[destination++] = input[source++]
 				copied++
 			}
 		} else if (control != -128) {
 			val runCount = 1 - control
+
 			if (source >= input.size) {
 				break
 			}
+
 			val runValue = input[source++]
 			var written = 0
+
 			while (written < runCount && destination < expectedSize) {
 				out[destination++] = runValue
 				written++
@@ -40,5 +46,6 @@ internal fun decodePackBits(input: ByteArray, expectedSize: Int): ByteArray {
 		}
 		// control == -128 is a no-op.
 	}
+
 	return out
 }

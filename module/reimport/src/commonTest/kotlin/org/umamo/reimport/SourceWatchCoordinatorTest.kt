@@ -34,9 +34,11 @@ class SourceWatchCoordinatorTest {
 		override fun watch(path: String, listener: SourceWatcher.ChangeListener): SourceWatcher.Subscription {
 			listeners.getOrPut(path) { ArrayList() }.add(listener)
 			val signal = armed.getOrPut(path) { CompletableDeferred() }
+
 			if (!armByHand) {
 				signal.complete(Unit)
 			}
+
 			return object : SourceWatcher.Subscription {
 				override suspend fun awaitArmed() {
 					signal.await()
@@ -328,6 +330,7 @@ class SourceWatchCoordinatorTest {
 		for (mode in WatchMode.entries) {
 			assertEquals(mode, WatchMode.fromKey(mode.key))
 		}
+
 		assertEquals(WatchMode.Default, WatchMode.fromKey("not-a-mode"))
 		assertEquals(WatchMode.Default, WatchMode.fromKey(null))
 	}

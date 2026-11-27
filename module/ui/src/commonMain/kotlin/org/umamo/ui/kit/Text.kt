@@ -14,14 +14,17 @@ import org.umamo.ui.theme.LocalUmamoTypography
 
 /*
  * The custom design system (org.umamo.ui.kit): small, flat, hover-driven widgets on Compose Foundation, with
- * no Material. Names are unprefixed and read the theme tokens (LocalUmamoColors / LocalUmamoTypography /
- * LocalUmamoShapes) directly. There is no ripple - interaction feedback is hover-highlight throughout.
+ * no Material.  Names are unprefixed and read the theme tokens (LocalUmamoColors / LocalUmamoTypography /
+ * LocalUmamoShapes) directly.  There is no ripple - interaction feedback is hover-highlight throughout.
  *
- * 独自デザイン系。Material を使わない平坦な Foundation 製ウィジェット群。
+ * This package root holds the primitives the rest of the kit is built on - text, vertical text, surface,
+ * tooltip, scrollbar, progress bar, stacked shapes, click gestures, box gestures, resize drags, pointer
+ * fall-through, thumbnails, file drops, and popup placement - and imports none of the subpackages: button, chip,
+ * container, dialog, field, menu, and textentry.
  */
 
 /**
- * Renders text. Wraps Foundation's [BasicText] with the kit's type scale and color: the [style] defaults to
+ * Renders text.  Wraps Foundation's [BasicText] with the kit's type scale and color: the [style] defaults to
  * the body style, and the color resolves to [color] → the style's own color → the theme's text color.
  *
  * @param String       text      The text to render.

@@ -41,6 +41,7 @@ internal class SectionSink(private val version: MocVersion) {
 	 */
 	fun putBytes(section: Section, bytes: ByteArray) {
 		val index = section.indexIn(version)
+
 		if (index >= 0) {
 			sections[index] = bytes
 		}
@@ -128,9 +129,11 @@ internal class SectionSink(private val version: MocVersion) {
 	fun putIds(section: Section, identifiers: List<String>) {
 		requireElement(section, ElementType.ID)
 		val writer = LittleEndianWriter(identifiers.size * Sections.ID_STRIDE)
+
 		for (identifier in identifiers) {
 			writer.writeFixedString(identifier, Sections.ID_STRIDE)
 		}
+
 		putBytes(section, writer.toByteArray())
 	}
 
@@ -144,9 +147,11 @@ internal class SectionSink(private val version: MocVersion) {
 	fun <T> putFloatConcat(section: Section, items: List<T>, select: (T) -> FloatArray) {
 		requireElement(section, ElementType.F32)
 		val writer = LittleEndianWriter(items.sumOf { select(it).size } * 4)
+
 		for (item in items) {
 			select(item).forEach(writer::writeFloat32)
 		}
+
 		putBytes(section, writer.toByteArray())
 	}
 
@@ -160,9 +165,11 @@ internal class SectionSink(private val version: MocVersion) {
 	fun <T> putShortConcat(section: Section, items: List<T>, select: (T) -> ShortArray) {
 		requireElement(section, ElementType.I16)
 		val writer = LittleEndianWriter(items.sumOf { select(it).size } * 2)
+
 		for (item in items) {
 			select(item).forEach { shortValue -> writer.writeU16(shortValue.toInt()) }
 		}
+
 		putBytes(section, writer.toByteArray())
 	}
 

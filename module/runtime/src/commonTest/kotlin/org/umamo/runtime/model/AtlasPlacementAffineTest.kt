@@ -37,8 +37,10 @@ class AtlasPlacementAffineTest {
 	@Test
 	fun placementAffineMatchesAtlasPixelOf() {
 		val probePoints = listOf(0f to 0f, 12f to 34f, -5f to 100f, 250.5f to 0.25f)
+
 		for (placement in shapes) {
 			val affine = placementAffine(placement)
+
 			for ((layerX, layerY) in probePoints) {
 				val pointwise = atlasPixelOf(placement, layerX, layerY)
 				val viaMatrix = applyAffine(affine, layerX, layerY)
@@ -58,6 +60,7 @@ class AtlasPlacementAffineTest {
 			val inverse = assertNotNull(inversePlacementAffine(placement), "$placement inverts")
 			val composed = composeAffine(forward, inverse)
 			val identity = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f)
+
 			for (componentIndex in identity.indices) {
 				assertTrue(
 					abs(composed[componentIndex] - identity[componentIndex]) < 1e-3f,

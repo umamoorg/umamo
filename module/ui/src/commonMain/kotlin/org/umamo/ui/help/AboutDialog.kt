@@ -20,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
-import org.umamo.storage.UmamoLog
 import org.umamo.ui.kit.Surface
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.button.CloseButton
@@ -38,8 +37,6 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * The Help → About dialog: application name, version, license line, and the project URLs, in the
  * same scrim-plus-card modal family as the settings window (opened by the help.about command; the
  * shell owns the visible state and routes Escape, this composable only renders).
- *
- * バージョン情報ダイアログ。名称・バージョン・ライセンス・URL を設定ウィンドウと同系のモーダルで表示する。
  *
  * @param Function onDismiss Closes the dialog (Escape is routed here by the shell; also the scrim / close button).
  */
@@ -98,8 +95,6 @@ private fun LinkLine(url: String) {
 		style = LocalUmamoTypography.current.bodySmall,
 		color = LocalUmamoColors.current.accent,
 		modifier =
-			Modifier.clickable {
-				runCatching { uriHandler.openUri(url) }.onFailure { failure -> UmamoLog.error("could not open $url", failure) }
-			},
+			Modifier.clickable { uriHandler.openLinkQuietly(url) },
 	)
 }

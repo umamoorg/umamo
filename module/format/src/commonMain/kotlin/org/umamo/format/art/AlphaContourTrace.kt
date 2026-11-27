@@ -28,7 +28,9 @@ internal class AlphaMask(
 		if (columnIndex < 0 || columnIndex >= width || rowIndex < 0 || rowIndex >= height) {
 			return false
 		}
+
 		val pixelIndex = rowIndex * width + columnIndex
+
 		return (words[pixelIndex ushr 6] and (1L shl (pixelIndex and 63))) != 0L
 	}
 }
@@ -53,12 +55,17 @@ private class ContourPointBuffer {
 		if (size + 2 > storage.size) {
 			storage = storage.copyOf(storage.size * 2)
 		}
+
 		storage[size] = x
 		storage[size + 1] = y
 		size += 2
 	}
 
-	/** The accumulated points as a right-sized flat array. */
+	/**
+	 * The accumulated points as a right-sized flat array.
+	 *
+	 * @return IntArray The points, in a copy sized to fit.
+	 */
 	fun toArray(): IntArray = storage.copyOf(size)
 
 	private companion object {
@@ -80,6 +87,7 @@ private class ContourPointBuffer {
 internal fun signedAreaTwice(points: IntArray): Long {
 	var doubledArea = 0L
 	val pointCount = points.size / 2
+
 	for (pointIndex in 0 until pointCount) {
 		val nextIndex = if (pointIndex + 1 == pointCount) 0 else pointIndex + 1
 		val x = points[pointIndex * 2].toLong()
@@ -88,6 +96,7 @@ internal fun signedAreaTwice(points: IntArray): Long {
 		val nextY = points[nextIndex * 2 + 1].toLong()
 		doubledArea += x * nextY - nextX * y
 	}
+
 	return doubledArea
 }
 
@@ -95,27 +104,15 @@ internal fun signedAreaTwice(points: IntArray): Long {
  * Traces every closed boundary contour of the mask — outer island boundaries and enclosed
  * holes — as exact pixel-corner lattice rings.
  *
- * This is boundary tracing on the pixel-corner lattice (the axis-aligned "outline of the
- * union of pixel squares"), not the midpoint-interpolating marching-squares isoline, which
- * would offset every polygon by half a pixel and cut corners.  The walk keeps opaque pixels
- * on the right of the travel direction (y-down), so outer contours come out with positive
- * shoelace area and holes negative.  Saddle corners (the two diagonal pixels opaque) take the
- * tight right turn, i.e. 4-connected foreground / 8-connected background: a diagonal
- * checkerboard traces as separate unit squares and loops never cross themselves (though one
- * loop may touch itself at a saddle corner).  Vertices are emitted only where the heading
- * changes, so straight runs carry no interior points and the exact ring is already minimal.
+ * This traces the outline of the union of pixel squares, not a midpoint-interpolating
+ * marching-squares isoline, which would offset every polygon by half a pixel and cut corners.
+ * Every loop, outer or hole, contains at least one north edge (opaque pixel below, none above),
+ * which the walk always takes eastward, so marking walked north edges makes each loop
+ * discoverable exactly once, and the row-major scan fixes the contour order that downstream
+ * repacking relies on.
  *
- * Discovery is a row-major scan restricted to the trimmed bounds: every loop, outer or hole,
- * contains at least one "north edge" (transparent-or-border pixel above, opaque pixel below),
- * which this winding always walks eastward, so marking traversed north edges in one extra
- * bitset makes each loop discoverable exactly once.  The scan order also pins determinism —
- * each contour starts at its topmost-then-leftmost north edge and contours are listed in that
- * discovery order — which downstream repacking relies on.  Total cost is one bounds-restricted
- * mask scan plus O(total boundary length).
- *
- * Worst case to know about: a 50 percent checkerboard-noise mask yields one unit-square
- * contour per opaque pixel (millions of tiny rings on a large layer).  Pathological input; no
- * mitigation here.
+ * A 50 percent checkerboard-noise mask yields one unit-square contour per opaque pixel; that
+ * pathological input is not mitigated here.
  *
  * @param AlphaMask mask The thresholded pixel mask; must contain at least one opaque pixel.
  * @param LayerBounds opaqueBounds The pixel-tight trimmed bounds of the mask's opaque pixels.
@@ -126,21 +123,27 @@ internal fun traceAlphaContours(mask: AlphaMask, opaqueBounds: LayerBounds): Lis
 	// Bit per pixel: set when the north edge of that pixel (the edge to the pixel above) has
 	// been walked.  Same geometry as the mask itself.
 	val northEdgeVisited = LongArray(((mask.width * mask.height) + 63) ushr 6)
+
 	for (rowIndex in opaqueBounds.top until opaqueBounds.top + opaqueBounds.height) {
 		for (columnIndex in opaqueBounds.left until opaqueBounds.left + opaqueBounds.width) {
 			if (!mask.isOpaque(columnIndex, rowIndex)) {
 				continue
 			}
+
 			if (mask.isOpaque(columnIndex, rowIndex - 1)) {
 				continue
 			}
+
 			val edgeIndex = rowIndex * mask.width + columnIndex
+
 			if ((northEdgeVisited[edgeIndex ushr 6] and (1L shl (edgeIndex and 63))) != 0L) {
 				continue
 			}
+
 			contours.add(traceLoop(mask, northEdgeVisited, columnIndex, rowIndex))
 		}
 	}
+
 	return contours
 }
 
@@ -148,20 +151,10 @@ internal fun traceAlphaContours(mask: AlphaMask, opaqueBounds: LayerBounds): Lis
  * Walks one closed boundary loop starting from the north edge of the given opaque pixel,
  * heading east, and returns its ring with the hole flag derived from the shoelace sign.
  *
- * Walk invariant: every traversed lattice edge has an opaque pixel on its right and a
- * transparent one on its left (relative to the travel direction, y-down).  At each corner the
- * two pixels flanking the edge straight ahead pick the turn:
- *
- *   left opaque, right opaque  -> turn left  (hug the corner)
- *   left clear,  right opaque  -> straight
- *   left clear,  right clear   -> turn right (round the corner)
- *   left opaque, right clear   -> saddle     -> tight right turn (4-connected foreground)
- *
- * The loop terminates when it is about to re-traverse the starting directed edge (same corner
- * AND same heading — the corner alone is not enough, because a weakly simple loop may pass
- * through the start corner again with a different heading).  Every eastward edge walked is by
- * construction the north edge of the opaque pixel below it, and is marked in the visited
- * bitset so discovery never starts this loop twice.
+ * Every traversed lattice edge keeps an opaque pixel on its right and a transparent one on its
+ * left (y-down).  The loop ends when it is about to re-traverse the starting directed edge: the
+ * start corner alone is not enough, because a weakly simple loop may pass through it again with
+ * a different heading.
  *
  * @param AlphaMask mask The thresholded pixel mask.
  * @param LongArray northEdgeVisited Bit per pixel, set here for every eastward edge walked.
@@ -184,6 +177,7 @@ private fun traceLoop(
 	// pixel to its west having a north edge on the same loop would have been discovered
 	// first), so emitting it up front never duplicates a straight-run point.
 	points.add(cornerX, cornerY)
+
 	while (true) {
 		if (headingX == 1) {
 			// An eastward edge always has its opaque pixel below (opaque-on-right), so the
@@ -191,6 +185,7 @@ private fun traceLoop(
 			val edgeIndex = cornerY * mask.width + cornerX
 			northEdgeVisited[edgeIndex ushr 6] = northEdgeVisited[edgeIndex ushr 6] or (1L shl (edgeIndex and 63))
 		}
+
 		cornerX += headingX
 		cornerY += headingY
 		// The two pixels flanking the edge straight ahead.  The quadrant offsets reduce to
@@ -207,6 +202,7 @@ private fun traceLoop(
 			)
 		val newHeadingX: Int
 		val newHeadingY: Int
+
 		if (leftOpaque && rightOpaque) {
 			// Turn left.
 			newHeadingX = headingY
@@ -222,15 +218,20 @@ private fun traceLoop(
 			newHeadingX = -headingY
 			newHeadingY = headingX
 		}
+
 		if (cornerX == startColumn && cornerY == startRow && newHeadingX == 1 && newHeadingY == 0) {
 			break
 		}
+
 		if (newHeadingX != headingX || newHeadingY != headingY) {
 			points.add(cornerX, cornerY)
 		}
+
 		headingX = newHeadingX
 		headingY = newHeadingY
 	}
+
 	val ring = points.toArray()
+
 	return AlphaContour(ring, isHole = signedAreaTwice(ring) < 0L)
 }

@@ -11,10 +11,10 @@ import org.umamo.format.binary.inflateZlib
 /**
  * Decodes one PSD layer's channel image data into a straight-alpha RGBA8888 [LayerRaster].
  *
- * A pure-Kotlin pixel decoder, needed because TwelveMonkeys / javax.imageio is absent on
- * Android.  A layer's pixels are stored as separate
- * channel planes (R, G, B, alpha, …), each independently compressed; this object decompresses
- * each plane, reduces it to 8 bits, and interleaves them to RGBA cropped to the layer bounds.
+ * A pure-Kotlin pixel decoder, needed because TwelveMonkeys / javax.imageio is absent on Android.
+ * A layer's pixels are stored as separate channel planes (R, G, B, alpha, …), each independently
+ * compressed; this object decompresses each plane, reduces it to 8 bits, and interleaves them to
+ * RGBA cropped to the layer bounds.
  * A raster layer mask (channel -2, and -3 beside a vector mask) is decoded at its own rectangle
  * and multiplied into the alpha, so the raster is the layer as the artist sees it - the same
  * baking the CLIP reader applies.  Supported: 8/16-bit RGB(A) and Grayscale, Indexed-color, and
@@ -60,6 +60,7 @@ internal object PsdRaster {
 	fun decodeLayer(bytes: ByteArray, header: PsdHeaderInfo, colorModeData: ByteArray, record: PsdLayerRecord): LayerRaster {
 		val width = record.bounds.width
 		val height = record.bounds.height
+
 		if (width <= 0 || height <= 0) {
 			// A layer with no pixel area (an empty paint layer or a structural record): nothing to decode.
 			return LayerRaster(width = width.coerceAtLeast(0), height = height.coerceAtLeast(0), rgba = ByteArray(0))
@@ -70,6 +71,7 @@ internal object PsdRaster {
 		val planes = decoded.color
 
 		val rgba = ByteArray(width * height * 4)
+
 		when (header.colorMode) {
 			MODE_RGB -> assembleRgb(planes, rgba, width * height)
 			MODE_GRAYSCALE -> assembleGrayscale(planes, rgba, width * height)
@@ -77,9 +79,11 @@ internal object PsdRaster {
 			MODE_BITMAP -> assembleBitmap(planes, rgba, width * height)
 			else -> error("PSD color mode ${header.colorMode} is not supported")
 		}
+
 		for (maskPlane in decoded.masks) {
 			applyMask(rgba, width, height, record.bounds, maskPlane)
 		}
+
 		return LayerRaster(width = width, height = height, rgba = rgba)
 	}
 
@@ -101,11 +105,7 @@ internal object PsdRaster {
 
 	/**
 	 * Multiplies one mask into the raster's alpha: inside the mask rectangle the stored value, outside
-	 * it the mask's default color, so a mask that hides everything beyond its rectangle does exactly
-	 * that.  The rectangle is always read as canvas-placed: Photoshop sets the "relative to layer"
-	 * flag on every mask in the corpus while still writing canvas coordinates, and offsetting by the
-	 * layer as the flag suggests throws the mask clear of its layer (every masked layer then decodes
-	 * fully transparent).
+	 * it the mask's default color.
 	 *
 	 * @param ByteArray   rgba        The layer's RGBA8888 pixels, modified in place.
 	 * @param Int         width       The layer width in pixels.
@@ -118,12 +118,16 @@ internal object PsdRaster {
 		val plane = maskPlane.plane
 		val maskWidth = mask.bounds.width
 		val maskHeight = mask.bounds.height
-		// The mask rectangle's origin in LAYER pixel coordinates.
+		// The mask rectangle's origin in LAYER pixel coordinates.  The rectangle is canvas-placed whatever
+		// its relative-to-layer flag says (see [PsdLayerMask]); offsetting by the layer as the flag
+		// suggests would throw every mask clear of its layer.
 		val originX = mask.bounds.left - layerBounds.left
 		val originY = mask.bounds.top - layerBounds.top
+
 		for (row in 0 until height) {
 			val maskRow = row - originY
 			val rowInside = maskRow in 0 until maskHeight
+
 			for (column in 0 until width) {
 				val maskColumn = column - originX
 				val value =
@@ -132,9 +136,11 @@ internal object PsdRaster {
 					} else {
 						mask.defaultColor
 					}
+
 				if (value == 0xFF) {
 					continue
 				}
+
 				val alphaIndex = (row * width + column) * 4 + 3
 				val alpha = rgba[alphaIndex].toInt() and 0xFF
 				rgba[alphaIndex] = ((alpha * value + 127) / 255).toByte()
@@ -145,8 +151,6 @@ internal object PsdRaster {
 	/**
 	 * Decompresses every channel of [record] into an 8-bit-per-pixel plane: the displayable channels
 	 * keyed by id at the layer's size, and each enabled mask channel at its own mask rectangle's size.
-	 * A mask channel whose record describes no mask, or a disabled one, is skipped; the cursor advances
-	 * by each channel's full block length regardless, keeping the channels sequential.
 	 *
 	 * @param ByteArray bytes      The complete `.psd` file.
 	 * @param PsdLayerRecord record The layer whose channels to decode.
@@ -160,10 +164,12 @@ internal object PsdRaster {
 		val planes = HashMap<Int, ByteArray>(record.channels.size)
 		val masks = ArrayList<MaskPlane>(2)
 		var cursor = record.channelDataOffset
+
 		for (channel in record.channels) {
 			val blockStart = cursor
 			val blockEnd = blockStart + channel.length.toInt()
 			cursor = blockEnd
+
 			// PSD: each channel block begins with a 2-byte compression code, then the (possibly
 			// compressed) sample bytes for that one channel.
 			if (channel.id < CHANNEL_ALPHA) {
@@ -175,19 +181,24 @@ internal object PsdRaster {
 						CHANNEL_REAL_USER_MASK -> record.realUserMask
 						else -> null
 					}
+
 				if (mask == null || mask.disabled || mask.bounds.width <= 0 || mask.bounds.height <= 0) {
 					continue
 				}
+
 				val maskRowBytes = bytesPerRow(mask.bounds.width, depth)
 				val compression = readU16BE(bytes, blockStart)
 				val samples = decodeChannel(bytes, blockStart + 2, blockEnd, compression, mask.bounds.width, mask.bounds.height, depth, maskRowBytes)
 				masks.add(MaskPlane(mask, samplesToPlane(samples, mask.bounds.width, mask.bounds.height, depth, maskRowBytes)))
+
 				continue
 			}
+
 			val compression = readU16BE(bytes, blockStart)
 			val samples = decodeChannel(bytes, blockStart + 2, blockEnd, compression, width, height, depth, rowBytes)
 			planes[channel.id] = samplesToPlane(samples, width, height, depth, rowBytes)
 		}
+
 		return DecodedPlanes(planes, masks)
 	}
 
@@ -206,19 +217,28 @@ internal object PsdRaster {
 	 */
 	private fun decodeChannel(bytes: ByteArray, dataStart: Int, blockEnd: Int, compression: Int, width: Int, height: Int, depth: Int, rowBytes: Int): ByteArray {
 		val total = height * rowBytes
+
 		return when (compression) {
 			COMPRESSION_NONE -> {
 				// PSD: raw, uncompressed sample bytes, exactly height*rowBytes.
 				val out = ByteArray(total)
 				val available = minOf(total, blockEnd - dataStart, bytes.size - dataStart)
+
 				if (available > 0) {
 					bytes.copyInto(out, 0, dataStart, dataStart + available)
 				}
+
 				out
 			}
 
-			COMPRESSION_RLE -> decodeRle(bytes, dataStart, height, rowBytes)
-			COMPRESSION_ZIP -> inflate(bytes, dataStart, blockEnd - dataStart, total)
+			COMPRESSION_RLE -> {
+				decodeRle(bytes, dataStart, height, rowBytes)
+			}
+
+			COMPRESSION_ZIP -> {
+				inflate(bytes, dataStart, blockEnd - dataStart, total)
+			}
+
 			COMPRESSION_ZIP_PREDICTION -> {
 				val inflated = inflate(bytes, dataStart, blockEnd - dataStart, total)
 				// PSD: ZIP-with-prediction stores horizontal differences; un-apply per row, per sample.
@@ -226,7 +246,9 @@ internal object PsdRaster {
 				inflated
 			}
 
-			else -> error("unknown PSD compression $compression")
+			else -> {
+				error("unknown PSD compression $compression")
+			}
 		}
 	}
 
@@ -245,6 +267,7 @@ internal object PsdRaster {
 	private fun decodeRle(bytes: ByteArray, dataStart: Int, height: Int, rowBytes: Int): ByteArray {
 		var countCursor = dataStart
 		val rowCounts = IntArray(height)
+
 		for (rowIndex in 0 until height) {
 			rowCounts[rowIndex] = readU16BE(bytes, countCursor)
 			countCursor += 2
@@ -252,10 +275,12 @@ internal object PsdRaster {
 
 		val out = ByteArray(height * rowBytes)
 		var rowCursor = countCursor
+
 		for (rowIndex in 0 until height) {
 			unpackBits(bytes, rowCursor, rowCounts[rowIndex], out, rowIndex * rowBytes, rowBytes)
 			rowCursor += rowCounts[rowIndex]
 		}
+
 		return out
 	}
 
@@ -277,22 +302,28 @@ internal object PsdRaster {
 		val sourceEnd = minOf(sourceOffset + sourceLength, source.size)
 		var destinationIndex = destinationOffset
 		val destinationEnd = destinationOffset + destinationLength
+
 		while (sourceIndex < sourceEnd && destinationIndex < destinationEnd) {
 			val control = source[sourceIndex++].toInt() // signed
+
 			if (control >= 0) {
 				val literalCount = control + 1
 				var copied = 0
+
 				while (copied < literalCount && sourceIndex < sourceEnd && destinationIndex < destinationEnd) {
 					destination[destinationIndex++] = source[sourceIndex++]
 					copied++
 				}
 			} else if (control != -128) {
 				val runCount = 1 - control
+
 				if (sourceIndex >= sourceEnd) {
 					break
 				}
+
 				val runValue = source[sourceIndex++]
 				var written = 0
+
 				while (written < runCount && destinationIndex < destinationEnd) {
 					destination[destinationIndex++] = runValue
 					written++
@@ -316,12 +347,15 @@ internal object PsdRaster {
 	 */
 	private fun inflate(bytes: ByteArray, offset: Int, length: Int, expected: Int): ByteArray {
 		val inflated = inflateZlib(bytes, offset, length, expected)
+
 		if (inflated.size == expected) {
 			return inflated
 		}
+
 		// A short stream leaves the rest zero-filled; the layer is best-effort rather than a hard failure.
 		val out = ByteArray(expected)
 		inflated.copyInto(out, 0, 0, minOf(inflated.size, expected))
+
 		return out
 	}
 
@@ -341,8 +375,10 @@ internal object PsdRaster {
 			8 -> {
 				for (rowIndex in 0 until height) {
 					val base = rowIndex * rowBytes
+
 					for (column in 1 until width) {
 						val offset = base + column
+
 						if (offset < data.size) {
 							data[offset] = (data[offset] + data[offset - 1]).toByte()
 						}
@@ -353,8 +389,10 @@ internal object PsdRaster {
 			16 -> {
 				for (rowIndex in 0 until height) {
 					val base = rowIndex * rowBytes
+
 					for (column in 1 until width) {
 						val offset = base + column * 2
+
 						if (offset + 1 < data.size) {
 							val previous = ((data[offset - 2].toInt() and 0xFF) shl 8) or (data[offset - 1].toInt() and 0xFF)
 							val current = ((data[offset].toInt() and 0xFF) shl 8) or (data[offset + 1].toInt() and 0xFF)
@@ -366,7 +404,9 @@ internal object PsdRaster {
 				}
 			}
 
-			else -> error("PSD ZIP prediction unsupported for $depth-bit samples")
+			else -> {
+				error("PSD ZIP prediction unsupported for $depth-bit samples")
+			}
 		}
 	}
 
@@ -386,6 +426,7 @@ internal object PsdRaster {
 	 */
 	private fun samplesToPlane(samples: ByteArray, width: Int, height: Int, depth: Int, rowBytes: Int): ByteArray {
 		val plane = ByteArray(width * height)
+
 		when (depth) {
 			8 -> {
 				// rowBytes == width, so the samples are already a contiguous per-pixel plane.
@@ -396,6 +437,7 @@ internal object PsdRaster {
 			16 -> {
 				for (pixelIndex in 0 until width * height) {
 					val sampleOffset = pixelIndex * 2
+
 					if (sampleOffset < samples.size) {
 						plane[pixelIndex] = samples[sampleOffset] // big-endian high byte
 					}
@@ -405,8 +447,10 @@ internal object PsdRaster {
 			1 -> {
 				for (rowIndex in 0 until height) {
 					val rowBase = rowIndex * rowBytes
+
 					for (column in 0 until width) {
 						val byteIndex = rowBase + (column ushr 3)
+
 						if (byteIndex < samples.size) {
 							val bit = (samples[byteIndex].toInt() ushr (7 - (column and 7))) and 1
 							// PSD: in Bitmap mode a set bit is black; clear is white.
@@ -416,8 +460,11 @@ internal object PsdRaster {
 				}
 			}
 
-			else -> error("PSD $depth-bit depth is not supported")
+			else -> {
+				error("PSD $depth-bit depth is not supported")
+			}
 		}
+
 		return plane
 	}
 
@@ -433,6 +480,7 @@ internal object PsdRaster {
 		val green = planes[CHANNEL_GREEN]
 		val blue = planes[CHANNEL_BLUE]
 		val alpha = planes[CHANNEL_ALPHA]
+
 		for (pixelIndex in 0 until pixelCount) {
 			val destination = pixelIndex * 4
 			rgba[destination] = red?.get(pixelIndex) ?: 0
@@ -452,6 +500,7 @@ internal object PsdRaster {
 	private fun assembleGrayscale(planes: Map<Int, ByteArray>, rgba: ByteArray, pixelCount: Int) {
 		val gray = planes[CHANNEL_RED] // PSD: grayscale's single channel has id 0
 		val alpha = planes[CHANNEL_ALPHA]
+
 		for (pixelIndex in 0 until pixelCount) {
 			val destination = pixelIndex * 4
 			val value = gray?.get(pixelIndex) ?: 0
@@ -477,14 +526,17 @@ internal object PsdRaster {
 		val indices = planes[CHANNEL_RED] // PSD: the index channel has id 0
 		val alpha = planes[CHANNEL_ALPHA]
 		val paletteSize = colorModeData.size / 3
+
 		for (pixelIndex in 0 until pixelCount) {
 			val destination = pixelIndex * 4
 			val paletteIndex = (indices?.get(pixelIndex)?.toInt() ?: 0) and 0xFF
+
 			if (paletteSize > 0 && paletteIndex < paletteSize) {
 				rgba[destination] = colorModeData[paletteIndex]
 				rgba[destination + 1] = colorModeData[paletteSize + paletteIndex]
 				rgba[destination + 2] = colorModeData[2 * paletteSize + paletteIndex]
 			}
+
 			rgba[destination + 3] = alpha?.get(pixelIndex) ?: OPAQUE
 		}
 	}
@@ -498,6 +550,7 @@ internal object PsdRaster {
 	 */
 	private fun assembleBitmap(planes: Map<Int, ByteArray>, rgba: ByteArray, pixelCount: Int) {
 		val value = planes[CHANNEL_RED] // PSD: bitmap's single channel has id 0
+
 		for (pixelIndex in 0 until pixelCount) {
 			val destination = pixelIndex * 4
 			val gray = value?.get(pixelIndex) ?: 0
@@ -517,9 +570,13 @@ internal object PsdRaster {
 	 */
 	private fun bytesPerRow(width: Int, depth: Int): Int =
 		when (depth) {
-			1 -> (width + 7) / 8 // PSD: 1-bit rows are byte-padded.
+			// PSD: 1-bit rows are byte-padded.
+			1 -> (width + 7) / 8
+
 			8 -> width
+
 			16 -> width * 2
+
 			else -> error("PSD $depth-bit depth is not supported")
 		}
 

@@ -100,30 +100,36 @@ public fun compositeReference(
 		val out =
 			when (blendMode) {
 				// (ONE, ONE_MINUS_SRC_ALPHA) on both color and alpha - premultiplied source-over.
-				BlendMode.Normal ->
+				BlendMode.Normal -> {
 					floatArrayOf(
 						srcPremul[0] + dstPremul[0] * (1f - sourceAlpha),
 						srcPremul[1] + dstPremul[1] * (1f - sourceAlpha),
 						srcPremul[2] + dstPremul[2] * (1f - sourceAlpha),
 						sourceAlpha + destinationAlpha * (1f - sourceAlpha),
 					)
+				}
+
 				// (ONE, ONE) color, (ZERO, ONE) alpha.
-				BlendMode.AdditivePremultiplied ->
+				BlendMode.AdditivePremultiplied -> {
 					floatArrayOf(
 						srcPremul[0] + dstPremul[0],
 						srcPremul[1] + dstPremul[1],
 						srcPremul[2] + dstPremul[2],
 						destinationAlpha,
 					)
+				}
+
 				// (DST_COLOR, ONE_MINUS_SRC_ALPHA) color, (ZERO, ONE) alpha.
-				else ->
+				else -> {
 					floatArrayOf(
 						srcPremul[0] * dstPremul[0] + dstPremul[0] * (1f - sourceAlpha),
 						srcPremul[1] * dstPremul[1] + dstPremul[1] * (1f - sourceAlpha),
 						srcPremul[2] * dstPremul[2] + dstPremul[2] * (1f - sourceAlpha),
 						destinationAlpha,
 					)
+				}
 			}
+
 		return FloatArray(4) { channelIndex -> out[channelIndex].coerceIn(0f, 1f) }
 	}
 
@@ -149,27 +155,32 @@ public fun compositeReference(
 		}
 	val sourceFactor: Float
 	val destinationFactor: Float
+
 	when (alphaBlendMode) {
 		AlphaBlendMode.Over -> {
 			sourceFactor = 1f
 			destinationFactor = 1f - sourceAlpha
 		}
+
 		AlphaBlendMode.Atop -> {
 			sourceFactor = destinationAlpha
 			destinationFactor = 1f - sourceAlpha
 		}
+
 		// DST-out: the source erases the destination where it covers (ao = ab*(1-as)); Fa = 0 so
 		// the source contributes no color of its own.
 		AlphaBlendMode.Out -> {
 			sourceFactor = 0f
 			destinationFactor = 1f - sourceAlpha
 		}
+
 		// X Render conjoint over: maximal overlap - the destination shows only where it exceeds
 		// the source (ao = max(as, ab)).
 		AlphaBlendMode.Conjoint -> {
 			sourceFactor = 1f
 			destinationFactor = if (destinationAlpha <= 0f || sourceAlpha >= destinationAlpha) 0f else 1f - sourceAlpha / destinationAlpha
 		}
+
 		// X Render disjoint over: minimal overlap - the coverages pack side by side
 		// (ao = min(1, as + ab)).
 		AlphaBlendMode.Disjoint -> {
@@ -177,7 +188,9 @@ public fun compositeReference(
 			destinationFactor = if (destinationAlpha <= 0f) 0f else min(1f, (1f - sourceAlpha) / destinationAlpha)
 		}
 	}
+
 	val outAlpha = sourceAlpha * sourceFactor + destinationAlpha * destinationFactor
+
 	return floatArrayOf(
 		(sourceAlpha * sourceFactor * mixed[0] + destinationAlpha * destinationFactor * destinationColor[0]).coerceIn(0f, 1f),
 		(sourceAlpha * sourceFactor * mixed[1] + destinationAlpha * destinationFactor * destinationColor[1]).coerceIn(0f, 1f),
@@ -186,12 +199,19 @@ public fun compositeReference(
 	)
 }
 
-/** The straight-alpha color of a premultiplied pixel, clamped to [0,1] (0 where the alpha is 0). */
+/**
+ * The straight-alpha color of a premultiplied pixel, clamped to [0,1] (0 where the alpha is 0).
+ *
+ * @param FloatArray premul The premultiplied pixel, as r, g, b, a.
+ * @return FloatArray The straight r, g, b.
+ */
 private fun unpremultiply(premul: FloatArray): FloatArray {
 	val alpha = premul[3]
+
 	if (alpha <= 0f) {
 		return floatArrayOf(0f, 0f, 0f)
 	}
+
 	return floatArrayOf(
 		(premul[0] / alpha).coerceIn(0f, 1f),
 		(premul[1] / alpha).coerceIn(0f, 1f),
@@ -209,22 +229,37 @@ private fun unpremultiply(premul: FloatArray): FloatArray {
  */
 public fun blendColor(blendMode: BlendMode, backdrop: FloatArray, source: FloatArray): FloatArray =
 	when (blendMode) {
-		BlendMode.Normal -> source.copyOf()
+		BlendMode.Normal -> {
+			source.copyOf()
+		}
+
 		// The additive family reads as linear dodge (add) in the generic path; the legacy mode's
 		// fixed-function semantics apply only under Over (see compositeReference).  Add (Glow) has
 		// been checked against the official editor via Model A and matches this shared formula;
 		// Add's modern (_TSL) variant shares it too but is unconfirmed against the editor.
-		BlendMode.AdditivePremultiplied, BlendMode.Additive, BlendMode.AdditiveGlow ->
+		BlendMode.AdditivePremultiplied, BlendMode.Additive, BlendMode.AdditiveGlow -> {
 			perChannel(backdrop, source) { backdropChannel, sourceChannel -> min(1f, backdropChannel + sourceChannel) }
-		BlendMode.MultiplyPremultiplied, BlendMode.Multiply ->
+		}
+
+		BlendMode.MultiplyPremultiplied, BlendMode.Multiply -> {
 			perChannel(backdrop, source) { backdropChannel, sourceChannel -> backdropChannel * sourceChannel }
-		BlendMode.Darken -> perChannel(backdrop, source) { backdropChannel, sourceChannel -> min(backdropChannel, sourceChannel) }
-		BlendMode.Lighten -> perChannel(backdrop, source) { backdropChannel, sourceChannel -> max(backdropChannel, sourceChannel) }
-		BlendMode.Screen ->
+		}
+
+		BlendMode.Darken -> {
+			perChannel(backdrop, source) { backdropChannel, sourceChannel -> min(backdropChannel, sourceChannel) }
+		}
+
+		BlendMode.Lighten -> {
+			perChannel(backdrop, source) { backdropChannel, sourceChannel -> max(backdropChannel, sourceChannel) }
+		}
+
+		BlendMode.Screen -> {
 			perChannel(backdrop, source) { backdropChannel, sourceChannel ->
 				backdropChannel + sourceChannel - backdropChannel * sourceChannel
 			}
-		BlendMode.ColorBurn ->
+		}
+
+		BlendMode.ColorBurn -> {
 			perChannel(backdrop, source) { backdropChannel, sourceChannel ->
 				when {
 					backdropChannel >= 1f -> 1f
@@ -232,9 +267,13 @@ public fun blendColor(blendMode: BlendMode, backdrop: FloatArray, source: FloatA
 					else -> 1f - min(1f, (1f - backdropChannel) / sourceChannel)
 				}
 			}
-		BlendMode.LinearBurn ->
+		}
+
+		BlendMode.LinearBurn -> {
 			perChannel(backdrop, source) { backdropChannel, sourceChannel -> max(0f, backdropChannel + sourceChannel - 1f) }
-		BlendMode.ColorDodge ->
+		}
+
+		BlendMode.ColorDodge -> {
 			perChannel(backdrop, source) { backdropChannel, sourceChannel ->
 				when {
 					backdropChannel <= 0f -> 0f
@@ -242,9 +281,17 @@ public fun blendColor(blendMode: BlendMode, backdrop: FloatArray, source: FloatA
 					else -> min(1f, backdropChannel / (1f - sourceChannel))
 				}
 			}
-		BlendMode.Overlay -> perChannel(backdrop, source) { backdropChannel, sourceChannel -> hardLight(sourceChannel, backdropChannel) }
-		BlendMode.HardLight -> perChannel(backdrop, source) { backdropChannel, sourceChannel -> hardLight(backdropChannel, sourceChannel) }
-		BlendMode.SoftLight ->
+		}
+
+		BlendMode.Overlay -> {
+			perChannel(backdrop, source) { backdropChannel, sourceChannel -> hardLight(sourceChannel, backdropChannel) }
+		}
+
+		BlendMode.HardLight -> {
+			perChannel(backdrop, source) { backdropChannel, sourceChannel -> hardLight(backdropChannel, sourceChannel) }
+		}
+
+		BlendMode.SoftLight -> {
 			perChannel(backdrop, source) { backdropChannel, sourceChannel ->
 				if (sourceChannel <= 0.5f) {
 					backdropChannel - (1f - 2f * sourceChannel) * backdropChannel * (1f - backdropChannel)
@@ -252,18 +299,41 @@ public fun blendColor(blendMode: BlendMode, backdrop: FloatArray, source: FloatA
 					backdropChannel + (2f * sourceChannel - 1f) * (softLightD(backdropChannel) - backdropChannel)
 				}
 			}
-		BlendMode.LinearLight ->
+		}
+
+		BlendMode.LinearLight -> {
 			perChannel(backdrop, source) { backdropChannel, sourceChannel ->
 				(backdropChannel + 2f * sourceChannel - 1f).coerceIn(0f, 1f)
 			}
-		BlendMode.Hue -> setLuminosity(setSaturation(source, saturation(backdrop)), luminosity(backdrop))
-		BlendMode.Color -> setLuminosity(source, luminosity(backdrop))
+		}
+
+		BlendMode.Hue -> {
+			setLuminosity(setSaturation(source, saturation(backdrop)), luminosity(backdrop))
+		}
+
+		BlendMode.Color -> {
+			setLuminosity(source, luminosity(backdrop))
+		}
 	}
 
+/**
+ * Applies a separable blend to each of the three color channels.
+ *
+ * @param FloatArray backdrop The backdrop color, as r, g, b.
+ * @param FloatArray source The source color, as r, g, b.
+ * @param Function operation The blend for one channel, given the backdrop then the source.
+ * @return FloatArray The blended color.
+ */
 private inline fun perChannel(backdrop: FloatArray, source: FloatArray, operation: (Float, Float) -> Float): FloatArray =
 	FloatArray(3) { channelIndex -> operation(backdrop[channelIndex], source[channelIndex]) }
 
-/** W3C hard-light: multiply below the midpoint of [selector], screen above it. */
+/**
+ * W3C hard-light: multiply below the midpoint of [selector], screen above it.
+ *
+ * @param Float base The channel the blend is applied to.
+ * @param Float selector The channel that picks multiply or screen.
+ * @return Float The blended channel.
+ */
 private fun hardLight(base: Float, selector: Float): Float =
 	if (selector <= 0.5f) {
 		2f * selector * base
@@ -272,7 +342,12 @@ private fun hardLight(base: Float, selector: Float): Float =
 		screened
 	}
 
-/** W3C soft-light's D(x) helper. */
+/**
+ * W3C soft-light's D(x) helper.
+ *
+ * @param Float value The backdrop channel.
+ * @return Float The value of D at that channel.
+ */
 private fun softLightD(value: Float): Float =
 	if (value <= 0.25f) {
 		((16f * value - 12f) * value + 4f) * value
@@ -280,46 +355,79 @@ private fun softLightD(value: Float): Float =
 		sqrt(value)
 	}
 
-/** W3C Lum(C). */
+/**
+ * W3C Lum(C).
+ *
+ * @param FloatArray color The color, as r, g, b.
+ * @return Float The luminosity.
+ */
 private fun luminosity(color: FloatArray): Float = 0.3f * color[0] + 0.59f * color[1] + 0.11f * color[2]
 
-/** W3C Sat(C). */
+/**
+ * W3C Sat(C).
+ *
+ * @param FloatArray color The color, as r, g, b.
+ * @return Float The saturation.
+ */
 private fun saturation(color: FloatArray): Float =
 	max(color[0], max(color[1], color[2])) - min(color[0], min(color[1], color[2]))
 
-/** W3C ClipColor(C): pulls out-of-range channels back toward the luminosity. */
+/**
+ * W3C ClipColor(C): pulls out-of-range channels back toward the luminosity.
+ *
+ * @param FloatArray color The color, as r, g, b, possibly out of range.
+ * @return FloatArray The color with every channel in range.
+ */
 private fun clipColor(color: FloatArray): FloatArray {
 	val lum = luminosity(color)
 	val minChannel = min(color[0], min(color[1], color[2]))
 	val maxChannel = max(color[0], max(color[1], color[2]))
 	var result = color
+
 	if (minChannel < 0f) {
 		val below = result
 		result = FloatArray(3) { channelIndex -> lum + (below[channelIndex] - lum) * lum / (lum - minChannel) }
 	}
+
 	if (maxChannel > 1f) {
 		val above = result
 		result = FloatArray(3) { channelIndex -> lum + (above[channelIndex] - lum) * (1f - lum) / (maxChannel - lum) }
 	}
+
 	return result
 }
 
-/** W3C SetLum(C, l). */
+/**
+ * W3C SetLum(C, l).
+ *
+ * @param FloatArray color The color, as r, g, b.
+ * @param Float lum The luminosity to give it.
+ * @return FloatArray The color at that luminosity, clipped into range.
+ */
 private fun setLuminosity(color: FloatArray, lum: Float): FloatArray {
 	val delta = lum - luminosity(color)
+
 	return clipColor(floatArrayOf(color[0] + delta, color[1] + delta, color[2] + delta))
 }
 
-/** W3C SetSat(C, s): rescales the mid channel between min and max, on sorted channels. */
+/**
+ * W3C SetSat(C, s): rescales the mid channel between min and max, on sorted channels.
+ *
+ * @param FloatArray color The color, as r, g, b.
+ * @param Float sat The saturation to give it.
+ * @return FloatArray The color at that saturation.
+ */
 private fun setSaturation(color: FloatArray, sat: Float): FloatArray {
 	val result = FloatArray(3)
 	val indices = intArrayOf(0, 1, 2).sortedBy { color[it] }
 	val minIndex = indices[0]
 	val midIndex = indices[1]
 	val maxIndex = indices[2]
+
 	if (color[maxIndex] > color[minIndex]) {
 		result[midIndex] = (color[midIndex] - color[minIndex]) * sat / (color[maxIndex] - color[minIndex])
 		result[maxIndex] = sat
 	}
+
 	return result
 }

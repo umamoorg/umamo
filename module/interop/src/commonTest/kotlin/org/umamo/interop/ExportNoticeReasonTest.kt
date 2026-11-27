@@ -38,7 +38,7 @@ class ExportNoticeReasonTest {
 
 	@Test
 	fun aNestedRejectionPrintsThroughItsWrapper() {
-		// KeyformCannotBundle is the one case carrying another sealed type, so its log line depends on
+		// The two bundling cases carry another sealed type, so their log lines depend on
 		// KeyformBundleRejection honoring the same data-class rule.
 		val nested =
 			ExportNoticeReason.KeyformCannotBundle(
@@ -46,6 +46,9 @@ class ExportNoticeReasonTest {
 			)
 		assertTrue(nested.toString().contains("OPACITY"), nested.toString())
 		assertTrue(nested.toString().contains("KeysOutsideChannelSpan"), nested.toString())
+
+		val demoted = ExportNoticeReason.KeyformsDemotedToStatic(KeyformBundleRejection.KeysOutsideGeometrySpan)
+		assertTrue(demoted.toString().contains("KeysOutsideGeometrySpan"), demoted.toString())
 		assertEquals(
 			"KeysOutsideGeometrySpan",
 			KeyformBundleRejection.KeysOutsideGeometrySpan.toString(),

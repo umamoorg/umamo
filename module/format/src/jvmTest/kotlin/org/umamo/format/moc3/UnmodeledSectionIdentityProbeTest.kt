@@ -6,6 +6,7 @@ import org.umamo.format.moc3.moc.MocModel
 import org.umamo.format.moc3.moc.ParameterType
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -47,10 +48,13 @@ class UnmodeledSectionIdentityProbeTest {
 	 */
 	private fun rawInts(model: MocModel, index: Int, count: Int): IntArray? {
 		val bytes = model.section(index) ?: return null
+
 		if (count == 0 || bytes.size < count * 4) {
 			return null
 		}
+
 		val reader = LittleEndianReader(bytes)
+
 		return IntArray(count) { reader.readInt32() }
 	}
 
@@ -64,6 +68,7 @@ class UnmodeledSectionIdentityProbeTest {
 	 */
 	private fun prefixSum(counts: IntArray, base: Int = 0, scale: Int = 1): IntArray {
 		var running = base
+
 		return IntArray(counts.size) { index ->
 			val start = running
 			running += counts[index] * scale
@@ -78,10 +83,11 @@ class UnmodeledSectionIdentityProbeTest {
 	@Test
 	fun runtimeSlotSectionsAreAllZeroOnDisk() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping runtime slot probe")
-			return
+			skipTest("moc3.samples not present; skipping runtime slot probe")
 		}
+
 		// Section index → the CountInfo field sizing it, and how many u64 slots each object gets.
 		val slotSections =
 			listOf(
@@ -96,19 +102,24 @@ class UnmodeledSectionIdentityProbeTest {
 				Triple(154, Sections.CI_OFFSCREENS, 1),
 			)
 		var checked = 0
+
 		for (file in files) {
 			val model = MocCodec.read(file.readBytes())
+
 			for ((sectionIndex, countField, slotsPerObject) in slotSections) {
 				val count = model.countInfo.getOrElse(countField) { 0 } * slotsPerObject
 				val bytes = model.section(sectionIndex) ?: continue
+
 				if (count == 0) {
 					continue
 				}
+
 				val region = bytes.copyOf(minOf(bytes.size, count * 8))
 				assertTrue(region.all { it.toInt() == 0 }, "${file.name}: s$sectionIndex is not all-zero")
 				checked++
 			}
 		}
+
 		assertTrue(checked > 0, "no runtime slot sections were examined")
 		println("[section-probe] runtime slots: $checked all-zero regions across ${files.size} samples")
 	}
@@ -121,11 +132,13 @@ class UnmodeledSectionIdentityProbeTest {
 	@Test
 	fun startColumnsArePrefixSumsOfTheirCountColumns() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping start column probe")
-			return
+			skipTest("moc3.samples not present; skipping start column probe")
 		}
+
 		var checked = 0
+
 		for (file in files) {
 			val model = MocCodec.read(file.readBytes())
 			val drawables = model.countInfo.getOrElse(Sections.CI_DRAWABLES) { 0 }
@@ -168,6 +181,7 @@ class UnmodeledSectionIdentityProbeTest {
 				}
 			}
 		}
+
 		assertTrue(checked > 0, "no start columns were examined")
 		println("[section-probe] start columns: $checked prefix-sum identities held")
 	}
@@ -184,10 +198,11 @@ class UnmodeledSectionIdentityProbeTest {
 	@Test
 	fun perFormColorReferencesAreBasePlusGridIndex() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping per-form color reference probe")
-			return
+			skipTest("moc3.samples not present; skipping per-form color reference probe")
 		}
+
 		// (object count field, keyform-base section, form-count section, colorBase section,
 		//  multiply-ref section, screen-ref section, form count field)
 		val groups =
@@ -197,11 +212,14 @@ class UnmodeledSectionIdentityProbeTest {
 				Triple(Sections.CI_DRAWABLES, intArrayOf(35, 36, 107, 141, 142), 9),
 			)
 		var checkedForms = 0
+
 		for (file in files) {
 			val model = MocCodec.read(file.readBytes())
+
 			if (model.version.byteValue < 5) {
 				continue
 			}
+
 			for ((objectCountField, sections, formCountField) in groups) {
 				val objectCount = model.countInfo.getOrElse(objectCountField) { 0 }
 				val formCount = model.countInfo.getOrElse(formCountField) { 0 }
@@ -216,6 +234,7 @@ class UnmodeledSectionIdentityProbeTest {
 					screenRefs.toList(),
 					"${file.name}: s${sections[3]} and s${sections[4]} are not identical",
 				)
+
 				for (objectIndex in 0 until objectCount) {
 					for (gridIndex in 0 until formCounts[objectIndex]) {
 						val slot = keyformBase[objectIndex] + gridIndex
@@ -230,6 +249,7 @@ class UnmodeledSectionIdentityProbeTest {
 				}
 			}
 		}
+
 		assertTrue(checkedForms > 0, "no per-form color references were examined")
 		println("[section-probe] per-form color refs: $checkedForms forms matched base + gridIndex")
 	}
@@ -246,12 +266,14 @@ class UnmodeledSectionIdentityProbeTest {
 	@Test
 	fun parameterStartColumnsFollowTheTypedEmptySlotConvention() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping parameter start column probe")
-			return
+			skipTest("moc3.samples not present; skipping parameter start column probe")
 		}
+
 		var checkedEmpty = 0
 		var checkedFilled = 0
+
 		for (file in files) {
 			val model = MocCodec.read(file.readBytes())
 			val parameters = model.countInfo.getOrElse(Sections.CI_PARAMETERS) { 0 }
@@ -261,6 +283,7 @@ class UnmodeledSectionIdentityProbeTest {
 			val types = rawInts(model, Section.PARAM_TYPE.indexIn(model.version), parameters)
 
 			var running = 0
+
 			for (parameterIndex in 0 until parameters) {
 				if (bindingCounts[parameterIndex] > 0) {
 					assertEquals(
@@ -293,6 +316,7 @@ class UnmodeledSectionIdentityProbeTest {
 				}
 			}
 		}
+
 		assertTrue(checkedFilled > 0 && checkedEmpty > 0, "both filled and empty s56 slots must be exercised")
 		println("[section-probe] s56: $checkedFilled cursor slots, $checkedEmpty typed empty slots")
 	}

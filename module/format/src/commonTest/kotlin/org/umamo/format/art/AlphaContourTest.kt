@@ -89,6 +89,7 @@ class AlphaContourTest {
 		val first = assertNotNull(raster.analyzeAlpha(contourEpsilon = 0f))
 		val second = assertNotNull(raster.analyzeAlpha(contourEpsilon = 0f))
 		assertEquals(first.contours.size, second.contours.size)
+
 		for (contourIndex in first.contours.indices) {
 			assertContentEquals(first.contours[contourIndex].points, second.contours[contourIndex].points)
 		}
@@ -117,6 +118,7 @@ class AlphaContourTest {
 		val simplified = assertNotNull(raster.analyzeAlpha())
 		assertAnalysisInvariants(simplified, exactRings = false)
 		assertEquals(exact.contours.size, simplified.contours.size)
+
 		for (contourIndex in exact.contours.indices) {
 			assertSimplifiedIsVertexSubset(
 				exact.contours[contourIndex].points,

@@ -40,6 +40,7 @@ internal fun colorSections(context: MocLoweringContext): Map<Int, ByteArray> {
 					doc.artMeshes.any { mesh -> mesh.keyforms.any { it.multiplyColor != null } } ||
 					doc.offscreens.any { offscreen -> offscreen.keyforms.any { it.multiplyColor != null } }
 			)
+
 	if (hasColor) {
 		val multiplyRed = ArrayList<Float>()
 		val multiplyGreen = ArrayList<Float>()
@@ -80,6 +81,7 @@ internal fun colorSections(context: MocLoweringContext): Map<Int, ByteArray> {
 		for (offscreen in doc.offscreens) {
 			offscreen.keyforms.forEach { appendColors(it.multiplyColor, it.screenColor) }
 		}
+
 		// Per-FORM color-row references (137-142), one entry per form SLOT of each object kind, in
 		// that kind's own form order.  They are what the runtime dereferences to reach a form's color
 		// row, so a kind whose table is short or absent sends it reading past the end - which is a
@@ -93,6 +95,7 @@ internal fun colorSections(context: MocLoweringContext): Map<Int, ByteArray> {
 		val meshColorRefs = ArrayList<Int>()
 		val warpColorBase = ArrayList<Int>()
 		val rotationColorBase = ArrayList<Int>()
+
 		for (deformer in doc.deformers) {
 			when (deformer) {
 				is WarpDeformer -> {
@@ -112,7 +115,9 @@ internal fun colorSections(context: MocLoweringContext): Map<Int, ByteArray> {
 				}
 			}
 		}
+
 		val meshColorBase = ArrayList<Int>()
+
 		for (mesh in doc.artMeshes) {
 			meshColorBase.add(multiplyRed.size)
 			mesh.keyforms.forEach {
@@ -120,14 +125,17 @@ internal fun colorSections(context: MocLoweringContext): Map<Int, ByteArray> {
 				appendColors(it.multiplyColor, it.screenColor)
 			}
 		}
+
 		// A 4.2-era bake carries no delta region (see hasColorDeltaRows) - mirror its absence so
 		// the re-synthesized tables end at the base rows and stay byte-exact both ways.
 		if (context.hasBlendShapes && context.hasColorDeltaRows) {
 			val blendLayout = context.blendLayout
+
 			for (record in blendLayout.recordsInFileOrder) {
 				if (record.target == BlendShapeTarget.PART) {
 					continue
 				}
+
 				for (keyform in record.keyforms) {
 					when (keyform) {
 						is BlendShapeKeyform.Warp -> {
@@ -146,11 +154,12 @@ internal fun colorSections(context: MocLoweringContext): Map<Int, ByteArray> {
 						}
 
 						// A part owns no color rows at all, so it contributes no reference either.
-						is BlendShapeKeyform.Part -> Unit
+						is BlendShapeKeyform.Part -> {}
 					}
 				}
 			}
 		}
+
 		// The multiply and screen tables of each pair are bit-identical corpus-wide (the reference is to
 		// a ROW, and a row carries both colors), so one list feeds both.
 		sink.putInts(Section.WARP_FORM_MULTIPLY_ROW, warpColorRefs)
@@ -169,5 +178,6 @@ internal fun colorSections(context: MocLoweringContext): Map<Int, ByteArray> {
 		sink.putFloats(Section.COLOR_SCREEN_G, screenGreen)
 		sink.putFloats(Section.COLOR_SCREEN_B, screenBlue)
 	}
+
 	return sink.toMap()
 }

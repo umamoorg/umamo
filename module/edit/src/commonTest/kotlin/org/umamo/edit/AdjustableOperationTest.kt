@@ -49,6 +49,7 @@ class AdjustableOperationTest {
 	private fun runOperation(session: EditorSession, width: Int): AdjustableOperation {
 		session.mutate(PartChange.Rename(partId, "w$width")) { current -> current.renamed("w$width") }
 		val committed = session.model.value
+
 		return assertNotNull(
 			session.registerAdjustableOperation(committed, areaId = "area-1", parameters = parameters(width)) { record ->
 				val newWidth = record.parameters.intValue(widthKey, -1)
@@ -123,6 +124,40 @@ class AdjustableOperationTest {
 		session.adjustLastOperation(parameters(2))
 
 		assertTrue(session.dirty.value, "the adjusted result is unsaved content")
+	}
+
+	@Test
+	fun anAdjustmentNamesTheSettingItSetEvenAtItsOldValue() {
+		val session = EditorSession(model("seed"))
+		val seen = ArrayList<String?>()
+		session.mutate(PartChange.Rename(partId, "w1")) { current -> current.renamed("w1") }
+		val record = assertNotNull(session.registerAdjustableOperation(session.model.value, null, parameters(1)) { rerunWith -> seen.add(rerunWith.adjustedKey) })
+		assertNull(record.adjustedKey, "a fresh record names no setting")
+
+		session.adjustLastOperation(parameters(1), adjustedKey = widthKey)
+
+		val live = assertNotNull(session.adjustableOperation.value)
+		assertEquals(widthKey, live.adjustedKey, "setting the value it already had still names it")
+		assertEquals(widthKey, assertNotNull(session.reviseAdjustableParameters(live, parameters(5))).adjustedKey, "a revision keeps the named setting")
+		session.adjustLastOperation(parameters(2))
+		assertEquals(listOf(widthKey, null), seen, "both adjustments reran; an adjustment that names nothing names nothing")
+	}
+
+	@Test
+	fun aRevisionRewritesTheRowsWithoutARerunAndKeepsTheRecordLive() {
+		val session = EditorSession(model("seed"))
+		var reruns = 0
+		session.mutate(PartChange.Rename(partId, "w1")) { current -> current.renamed("w1") }
+		val record = assertNotNull(session.registerAdjustableOperation(session.model.value, null, parameters(1)) { reruns++ })
+
+		val revised = assertNotNull(session.reviseAdjustableParameters(record, parameters(7)))
+
+		assertEquals(0, reruns, "a revision never reruns the operation")
+		assertEquals(7, session.adjustableOperation.value!!.parameters.intValue(widthKey, -1))
+		assertTrue(session.amendLastCommit(revised, record.baseSnapshot.model.renamed("w7")), "the revised record still lands")
+		assertEquals("w7", liveName(session))
+		session.mutate(PartChange.Rename(partId, "other")) { current -> current.renamed("other") }
+		assertNull(session.reviseAdjustableParameters(revised, parameters(3)), "a record another push cleared is refused")
 	}
 
 	@Test

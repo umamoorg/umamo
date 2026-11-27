@@ -66,26 +66,30 @@ public class MocSections internal constructor(private val model: MocModel) {
 	 */
 	private fun rawSlice(section: Section): ByteArray? {
 		val index = section.indexIn(version)
+
 		if (index < 0) {
 			return null
 		}
+
 		// A zero-length section carries no data; treat it as absent so PER_* reads don't run past it
 		// (a bake emits empty slots for sections it omits, e.g. blend shapes on a stripped model).
 		return model.section(index)?.takeIf { it.isNotEmpty() }
 	}
 
-	/** Whether [section] is present in this model's version and has a section slice. */
+	/**
+	 * Whether [section] is present in this model's version and has a section slice.
+	 *
+	 * @param Section section The section to test.
+	 * @return Boolean True when the model has it.
+	 */
 	public fun isPresent(section: Section): Boolean = rawSlice(section) != null
 
 	/**
-	 * Number of elements [section] decodes to (CountInfo count, or whole-slice count for tables).
+	 * Number of elements [section] decodes to (CountInfo count, or whole-slice count for tables),
+	 * clamped to what the slice can hold.
 	 *
-	 * A per-object count is clamped to what the slice can actually hold.  CountInfo and the
-	 * section bytes are independent on disk, so a stripped or truncated file can claim more
-	 * objects than it stores; reading the claim would run off the end of the slice and fail the
-	 * whole decode, which [org.umamo.format.moc3.decode.MocDecoder] promises not to do for an
-	 * absent or partial id/flag section.  Clamping yields a short array instead, which every
-	 * caller already tolerates (they index through `getOrElse`).
+	 * A stripped or truncated file's CountInfo can claim more objects than the section stores;
+	 * clamping yields a short array, which every caller tolerates, instead of failing the whole decode.
 	 *
 	 * @param Section section The section to size.
 	 * @return Int The element count, 0 when the section is absent.
@@ -93,6 +97,7 @@ public class MocSections internal constructor(private val model: MocModel) {
 	public fun elementCount(section: Section): Int {
 		val slice = rawSlice(section) ?: return 0
 		val sliceCapacity = slice.size / section.element.size
+
 		return if (section.sizing == Sizing.TABLE) sliceCapacity else minOf(count(section.sizing), sliceCapacity)
 	}
 
@@ -106,6 +111,7 @@ public class MocSections internal constructor(private val model: MocModel) {
 		require(section.element == ElementType.I32 || section.element == ElementType.U32) { "$section is not an int section" }
 		val slice = rawSlice(section) ?: return IntArray(0)
 		val reader = LittleEndianReader(slice)
+
 		return IntArray(elementCount(section)) { reader.readInt32() }
 	}
 
@@ -119,6 +125,7 @@ public class MocSections internal constructor(private val model: MocModel) {
 		require(section.element == ElementType.F32) { "$section is not a float section" }
 		val slice = rawSlice(section) ?: return FloatArray(0)
 		val reader = LittleEndianReader(slice)
+
 		return FloatArray(elementCount(section)) { reader.readFloat32() }
 	}
 
@@ -132,6 +139,7 @@ public class MocSections internal constructor(private val model: MocModel) {
 		require(section.element == ElementType.I16) { "$section is not an i16 section" }
 		val slice = rawSlice(section) ?: return ShortArray(0)
 		val reader = LittleEndianReader(slice)
+
 		return ShortArray(elementCount(section)) { reader.readU16().toShort() }
 	}
 
@@ -144,6 +152,7 @@ public class MocSections internal constructor(private val model: MocModel) {
 	public fun byteArray(section: Section): ByteArray {
 		require(section.element == ElementType.U8) { "$section is not a u8 section" }
 		val slice = rawSlice(section) ?: return ByteArray(0)
+
 		return slice.copyOf(elementCount(section))
 	}
 
@@ -157,6 +166,7 @@ public class MocSections internal constructor(private val model: MocModel) {
 		require(section.element == ElementType.ID) { "$section is not an id section" }
 		val slice = rawSlice(section) ?: return emptyList()
 		val reader = LittleEndianReader(slice)
+
 		// One source of truth for the record width: ElementType.ID.size IS the id stride, and sizing the
 		// walk from anything else lets the two drift and silently misread every id after the first.
 		return List(elementCount(section)) { reader.readFixedString(section.element.size) }
@@ -172,27 +182,50 @@ public class MocSections internal constructor(private val model: MocModel) {
 	public fun reencodeElementRegion(section: Section): ByteArray {
 		val elementCount = elementCount(section)
 		val writer = LittleEndianWriter(elementCount * section.element.size + 8)
+
 		when (section.element) {
-			ElementType.I32, ElementType.U32 -> intArray(section).forEach(writer::writeInt32)
-			ElementType.F32 -> floatArray(section).forEach(writer::writeFloat32)
-			ElementType.I16 -> shortArray(section).forEach { shortValue -> writer.writeU16(shortValue.toInt()) }
-			ElementType.U8 -> writer.writeBytes(byteArray(section))
+			ElementType.I32, ElementType.U32 -> {
+				intArray(section).forEach(writer::writeInt32)
+			}
+
+			ElementType.F32 -> {
+				floatArray(section).forEach(writer::writeFloat32)
+			}
+
+			ElementType.I16 -> {
+				shortArray(section).forEach { shortValue -> writer.writeU16(shortValue.toInt()) }
+			}
+
+			ElementType.U8 -> {
+				writer.writeBytes(byteArray(section))
+			}
+
 			// Re-encoded from the decoded strings, so this genuinely exercises the id-record walk and the
 			// NUL-terminate-then-zero-pad convention rather than comparing raw bytes to themselves.  Every
 			// id record in the corpus pads cleanly with zeros after its terminator, which is what makes the
 			// round trip byte-exact; a file that padded with garbage would fail here, and should.
-			ElementType.ID ->
+			ElementType.ID -> {
 				idArray(section).forEach { identifier ->
 					writer.writeFixedString(identifier, section.element.size)
 				}
+			}
+
 			// A runtime slot is opaque (zero on disk, filled after the memory-cast), so there is no typed
 			// decode to re-serialize from and its element region round-trips as raw bytes.
-			ElementType.U64 -> writer.writeBytes(rawElementRegion(section))
+			ElementType.U64 -> {
+				writer.writeBytes(rawElementRegion(section))
+			}
 		}
+
 		return writer.toByteArray()
 	}
 
-	/** The element-region bytes straight from the file (first `elementCount × element.size` bytes). */
+	/**
+	 * The element-region bytes straight from the file (first `elementCount × element.size` bytes).
+	 *
+	 * @param Section section The section to read.
+	 * @return ByteArray The bytes, empty when the section is absent.
+	 */
 	public fun rawElementRegion(section: Section): ByteArray =
 		rawSlice(section)?.copyOf(elementCount(section) * section.element.size) ?: ByteArray(0)
 }

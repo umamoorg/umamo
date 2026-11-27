@@ -3,16 +3,18 @@ package org.umamo.runtime.eval
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.depthAt
 
 /*
  * Pure keyform-grid sampling: the multilinear corner selection and the pose-sampling helpers that
- * both the renderer's evaluator (:render) and the MOC3 import (Moc3Import) must agree on. Hoisted
- * from :render's eval so the import can compute the blend-shape delta reference (the grid form at
- * the DEFAULT pose) with the EXACT same arithmetic the evaluator later subtracts - any divergence
- * between the two would leak into every MOC3-imported blend shape as a residual offset.
+ * both the renderer's evaluator (:render) and the MOC3 import (Moc3Import) must agree on.  It lives
+ * here rather than in :render's eval so the import can compute the blend-shape delta reference (the
+ * grid form at the DEFAULT pose) with the EXACT same arithmetic the evaluator later subtracts - any
+ * divergence between the two would leak into every MOC3-imported blend shape as a residual offset.
  */
 
 // Bracket tolerances match the Umamo C++ Runtime, needed for ULP-parity with the differential-oracle test.
@@ -22,7 +24,7 @@ import org.umamo.runtime.model.WarpLatticeForm
 // must refuse against these exact values, not a second copy of them.
 
 /**
- * The key-coincidence tolerance. Public because :interop's keyform export refinement merges union
+ * The key-coincidence tolerance.  Public because :interop's keyform export refinement merges union
  * axes against the same snap distance the sampling here and the grid algebra use; every consumer
  * must bracket against this exact value, never a copy of it.
  */
@@ -31,7 +33,7 @@ public const val EPS_KEY: Float = 0.001f
 internal const val EPS_SPAN = 0.0015f
 
 // The Umamo C++ Runtime caps the multilinear corner set at 16 (kbCorners `maxc`); past that an axis snaps to its
-// lower key instead of splitting. Replicated for fidelity (matters only for >4 fractional axes).
+// lower key instead of splitting.  Replicated for fidelity (matters only for >4 fractional axes).
 private const val MAX_CORNERS = 16
 
 /**
@@ -57,27 +59,36 @@ public data class WeightedCell(val linearIndex: Int, val weight: Float)
  */
 public fun bindBracket(keys: FloatArray, value: Float): AxisBracket? {
 	val keyCount = keys.size
+
 	if (keyCount <= 1) {
 		if (keyCount == 0) {
 			return AxisBracket(0, 0f)
 		}
+
 		return if (value > keys[0] - EPS_KEY && value < keys[0] + EPS_KEY) AxisBracket(0, 0f) else null
 	}
+
 	if (value < keys[0] - EPS_KEY || value >= keys[keyCount - 1] + EPS_KEY) {
 		return null
 	}
+
 	if (value < keys[0] + EPS_KEY) {
 		return AxisBracket(0, 0f)
 	}
+
 	var hi = 1
+
 	while (hi < keyCount && keys[hi] + EPS_KEY <= value) {
 		hi++
 	}
+
 	if (value <= keys[hi] - EPS_KEY) {
 		val span = keys[hi] - keys[hi - 1]
 		val fraction = if (span >= EPS_SPAN) (value - keys[hi - 1]) / span else 0f
+
 		return AxisBracket(hi - 1, fraction)
 	}
+
 	return AxisBracket(hi, 0f)
 }
 
@@ -94,11 +105,14 @@ public fun bindBracket(keys: FloatArray, value: Float): AxisBracket? {
 public fun gridCorners(grid: KeyformGrid<*>, paramValue: (ParameterId) -> Float): List<WeightedCell>? {
 	var corners = mutableListOf(WeightedCell(0, 1f))
 	var stride = 1
+
 	for (axis in grid.axes) {
 		val bracket = bindBracket(axis.keys, paramValue(axis.parameterId)) ?: return null
 		val split = bracket.fraction > 0f && corners.size * 2 <= MAX_CORNERS
+
 		if (split) {
 			val next = ArrayList<WeightedCell>(corners.size * 2)
+
 			for (corner in corners) {
 				next.add(
 					WeightedCell(
@@ -113,6 +127,7 @@ public fun gridCorners(grid: KeyformGrid<*>, paramValue: (ParameterId) -> Float)
 					),
 				)
 			}
+
 			corners = next
 		} else {
 			// Snap (on a key, or over the corner budget): every corner takes the lower key, weight kept.
@@ -121,8 +136,10 @@ public fun gridCorners(grid: KeyformGrid<*>, paramValue: (ParameterId) -> Float)
 				corners[cornerIndex] = WeightedCell(corner.linearIndex + bracket.index * stride, corner.weight)
 			}
 		}
+
 		stride *= axis.keys.size
 	}
+
 	return corners
 }
 
@@ -130,8 +147,8 @@ public fun gridCorners(grid: KeyformGrid<*>, paramValue: (ParameterId) -> Float)
  * Indexes a grid's cells by their stride-folded linear index (axis `a`'s stride = Π key counts of the
  * earlier axes), so a [WeightedCell.linearIndex] from [gridCorners] resolves to the matching cell.
  *
- * A delegate to the grid's own CACHED index: the grid is immutable, and building the map per call put
- * hundreds of transient HashMaps on every scrub frame.
+ * A delegate to the grid's own CACHED index: the grid is immutable, and building the map per call would
+ * put hundreds of transient HashMaps on every scrub frame.
  *
  * @param KeyformGrid grid The grid to index.
  * @return Map<Int, KeyformCell> linear index → cell.
@@ -139,10 +156,73 @@ public fun gridCorners(grid: KeyformGrid<*>, paramValue: (ParameterId) -> Float)
 public fun <TForm> cellsByLinearIndex(grid: KeyformGrid<TForm>): Map<Int, KeyformCell<TForm>> = grid.cellsByLinearIndex
 
 /**
- * The drawable's grid form at the DEFAULT pose as position deltas vs the rest mesh - the shared
- * blend-shape delta reference (E5). Null when the drawable is ungridded or the default pose is out
- * of the grid's range (the reference is then zero). Static per drawable: the CPU pose prep, the
- * GPU delta-texture bake, and the MOC3 import all call this and must agree.
+ * The cell a drawable's keyform-space base is taken from: on every axis the key nearest the parameter's default
+ * (ties to the lower key), or the grid's first cell when no cell sits at that coordinate.  An importer makes
+ * this cell's absolute positions the base (DrawableMesh.localPositions), so its delta is exactly zero and the
+ * base is the rest shape whenever the default lands on keys.  The MOC3 import's index rule
+ * (`Moc3KeyformImport.defaultCellIndexOf`) picks the same cell over the moc's own grid layout.
+ *
+ * @param KeyformGrid grid      The grid.
+ * @param Function    defaultOf The default value per parameter id.
+ * @return KeyformCell? The reference cell, or null for a grid with no cells.
+ */
+public fun <TForm> referenceCellOf(grid: KeyformGrid<TForm>, defaultOf: (ParameterId) -> Float): KeyformCell<TForm>? {
+	if (grid.cells.isEmpty()) {
+		return null
+	}
+
+	val coordinate =
+		IntArray(grid.axes.size) { axisIndex ->
+			val axis = grid.axes[axisIndex]
+			val defaultValue = defaultOf(axis.parameterId)
+			var nearestKey = 0
+
+			for (keyIndex in axis.keys.indices) {
+				if (kotlin.math.abs(axis.keys[keyIndex] - defaultValue) < kotlin.math.abs(axis.keys[nearestKey] - defaultValue)) {
+					nearestKey = keyIndex
+				}
+			}
+
+			nearestKey
+		}
+
+	return cellsByLinearIndex(grid)[grid.linearIndexOf(coordinate)] ?: grid.cells.first()
+}
+
+/**
+ * The keyform-space base an importer gives a drawable whose keyforms it read as absolute positions: the
+ * [referenceCellOf] cell's absolutes, copied.  [canvas] itself (one shared array) when there is no grid, when
+ * the reference form's length does not match the mesh, or when its values are the canvas mesh's own - a
+ * drawable with no deformer whose rest shape is its editable mesh.
+ *
+ * @param FloatArray  canvas     The canvas editable mesh.
+ * @param KeyformGrid grid       The keyforms as read, or null for an unkeyed drawable.
+ * @param Function    defaultOf  The default value per parameter id.
+ * @param Function    absoluteOf A form's absolute positions.
+ * @return FloatArray The base.
+ */
+public fun <TForm> keyformBaseOf(
+	canvas: FloatArray,
+	grid: KeyformGrid<TForm>?,
+	defaultOf: (ParameterId) -> Float,
+	absoluteOf: (TForm) -> FloatArray,
+): FloatArray {
+	val reference = grid?.let { keyedGrid -> referenceCellOf(keyedGrid, defaultOf) } ?: return canvas
+	val absolute = absoluteOf(reference.form)
+
+	if (absolute.size != canvas.size || absolute.contentEquals(canvas)) {
+		return canvas
+	}
+
+	return absolute.copyOf()
+}
+
+/**
+ * The drawable's grid form at the DEFAULT pose as position deltas vs the keyform-space base
+ * (DrawableMesh.localPositions) - the shared blend-shape delta reference.  Null when the drawable is
+ * ungridded or the default pose is out of the grid's range (the reference is then zero).  Static per
+ * drawable: the CPU pose prep, the GPU delta-texture bake, and the MOC3 import all call this and must
+ * agree.
  *
  * @param Drawable drawable     The drawable.
  * @param Function defaultValue Default value per parameter id.
@@ -153,12 +233,15 @@ public fun meshGridDefaultDeltas(drawable: Drawable, defaultValue: (ParameterId)
 	val defaultCorners = gridCorners(grid, defaultValue) ?: return null
 	val deltas = FloatArray(grid.cells.firstOrNull()?.form?.positionDeltas?.size ?: 0)
 	val byLinearIndex = cellsByLinearIndex(grid)
+
 	for (corner in defaultCorners) {
 		val form = byLinearIndex[corner.linearIndex]?.form ?: continue
+
 		for (componentIndex in deltas.indices) {
 			deltas[componentIndex] += corner.weight * form.positionDeltas[componentIndex]
 		}
 	}
+
 	return deltas
 }
 
@@ -174,17 +257,69 @@ public fun warpControlPointsAt(grid: KeyformGrid<WarpLatticeForm>?, paramValue: 
 	if (grid == null) {
 		return null
 	}
+
 	val corners = gridCorners(grid, paramValue) ?: return null
 	val byLinearIndex = cellsByLinearIndex(grid)
 	var blended: FloatArray? = null
+
 	for (corner in corners) {
 		val form = byLinearIndex[corner.linearIndex]?.form ?: continue
 		val target = blended ?: FloatArray(form.controlPoints.size).also { blended = it }
+
 		for (componentIndex in target.indices) {
 			target[componentIndex] += corner.weight * form.controlPoints[componentIndex]
 		}
 	}
+
 	return blended
+}
+
+/**
+ * The lattice's depths grid-blended at the given pose with the same corner weights as [warpControlPointsAt], or null
+ * when the warp is unkeyed or the pose is out of the grid's range.  Flat when every corner it blends is flat.
+ *
+ * @param KeyformGrid? grid       The warp's keyform grid.
+ * @param Function     paramValue Value per parameter id defining the pose.
+ * @return LatticeDepth? The blended depth, or null.
+ */
+public fun warpDepthAt(grid: KeyformGrid<WarpLatticeForm>?, paramValue: (ParameterId) -> Float): LatticeDepth? {
+	if (grid == null) {
+		return null
+	}
+
+	val corners = gridCorners(grid, paramValue) ?: return null
+
+	return warpDepthOver(grid, corners)
+}
+
+/**
+ * The lattice's depths blended over [corners], for a caller that already walked the pose's corners for the points.
+ *
+ * @param KeyformGrid grid    The warp's keyform grid.
+ * @param List        corners The weighted corner cells [gridCorners] gave at the pose.
+ * @return LatticeDepth? The blended depth, or null when no corner resolves to a cell.
+ */
+public fun warpDepthOver(grid: KeyformGrid<WarpLatticeForm>, corners: List<WeightedCell>): LatticeDepth? {
+	val byLinearIndex = cellsByLinearIndex(grid)
+	var blended: FloatArray? = null
+	var resolvedAnyCell = false
+
+	for (corner in corners) {
+		val form = byLinearIndex[corner.linearIndex]?.form ?: continue
+		resolvedAnyCell = true
+		val depth = form.depth as? LatticeDepth.PerPoint ?: continue
+		val target = blended ?: FloatArray(form.controlPoints.size / 2).also { blended = it }
+
+		for (pointIndex in target.indices) {
+			target[pointIndex] += corner.weight * depth.depthAt(pointIndex)
+		}
+	}
+
+	if (!resolvedAnyCell) {
+		return null
+	}
+
+	return blended?.let { values -> LatticeDepth.PerPoint(values) } ?: LatticeDepth.Flat
 }
 
 /**
@@ -201,6 +336,7 @@ public fun rotationFormAt(grid: KeyformGrid<RotationPivotForm>?, paramValue: (Pa
 	if (grid == null) {
 		return null
 	}
+
 	val corners = gridCorners(grid, paramValue) ?: return null
 	val byLinearIndex = cellsByLinearIndex(grid)
 	var originX = 0f
@@ -208,6 +344,7 @@ public fun rotationFormAt(grid: KeyformGrid<RotationPivotForm>?, paramValue: (Pa
 	var angle = 0f
 	var scale = 0f
 	var resolvedAnyCell = false
+
 	for (corner in corners) {
 		val form = byLinearIndex[corner.linearIndex]?.form ?: continue
 		resolvedAnyCell = true
@@ -216,8 +353,10 @@ public fun rotationFormAt(grid: KeyformGrid<RotationPivotForm>?, paramValue: (Pa
 		angle += corner.weight * form.angle
 		scale += corner.weight * form.scale
 	}
+
 	if (!resolvedAnyCell) {
 		return null
 	}
+
 	return RotationPivotForm(originX, originY, angle, scale)
 }

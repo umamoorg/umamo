@@ -1,0 +1,130 @@
+package org.umamo.ui.kit.menu
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.IntOffset
+import org.umamo.ui.kit.AtPointPositionProvider
+import kotlin.math.roundToInt
+
+/**
+ * Wraps [content] so a context-menu request - a secondary (right) click on desktop, or a long press on a
+ * touch screen - opens [items] as a [Menu] at the pointer.
+ *
+ * The items are a pre-built value, not a lambda, because their labels are localized via stringResource -
+ * a @Composable call that can only run during composition, not on the pointer event that opens the menu.
+ * A caller that does not recompose on the state its entries read uses the itemsOnOpen overload instead.
+ *
+ * While [suppressed], a request is still taken - it reaches no enclosing area's menu - but opens nothing: a surface
+ * whose right press means something else while a gesture runs elsewhere says so here.
+ *
+ * @param List items The menu entries (built in composition, so labels can be localized).
+ * @param Modifier modifier The layout modifier for the wrapping box.
+ * @param Boolean suppressed Whether a request is swallowed without opening the menu.
+ * @param Function content The content the context menu is attached to.
+ */
+@Composable
+fun ContextMenuArea(
+	items: List<MenuItem>,
+	modifier: Modifier = Modifier,
+	suppressed: Boolean = false,
+	content: @Composable () -> Unit,
+) {
+	ContextMenuArea(itemsOnOpen = { items }, modifier = modifier, suppressed = suppressed, content = content)
+}
+
+/**
+ * [ContextMenuArea] whose entries are built each time the menu opens, for a caller that does not recompose on
+ * the state its entries read - a row that only recomposes when its own inputs change would otherwise show
+ * whatever enabled state it had last time it composed.  [itemsOnOpen] is plain code, so localized labels are
+ * resolved in composition beforehand and captured.
+ *
+ * @param Function itemsOnOpen Builds the menu entries; called as the menu opens, and by a nested text field's
+ *   menu as it opens (see [LocalContextMenuItems]).
+ * @param Modifier modifier The layout modifier for the wrapping box.
+ * @param Boolean suppressed Whether a request is swallowed without opening the menu.
+ * @param Function content The content the context menu is attached to.
+ */
+@Composable
+fun ContextMenuArea(
+	itemsOnOpen: () -> List<MenuItem>,
+	modifier: Modifier = Modifier,
+	suppressed: Boolean = false,
+	content: @Composable () -> Unit,
+) {
+	var open by remember { mutableStateOf(false) }
+	var anchorOffset by remember { mutableStateOf(IntOffset.Zero) }
+	// Read through updated state: the gesture detector keeps the handler it started with.
+	val swallowRequests by rememberUpdatedState(suppressed)
+	Box(
+		modifier =
+			modifier.contextMenuGesture { localOffset ->
+				if (!swallowRequests) {
+					anchorOffset = localOffset
+					open = true
+				}
+			},
+	) {
+		CompositionLocalProvider(LocalContextMenuItems provides itemsOnOpen) {
+			content()
+		}
+
+		if (open) {
+			// The branch leaves the composition when the menu closes, so each opening builds the entries afresh.
+			val items = remember { itemsOnOpen() }
+			Menu(
+				items = items,
+				onDismissRequest = { open = false },
+				positionProvider = AtPointPositionProvider(anchorOffset),
+				focusable = true,
+			)
+		}
+	}
+}
+
+/**
+ * The items of the innermost enclosing [ContextMenuArea], for content that has to build its OWN menu: a text
+ * field, which appends its own clipboard entries and needs its own gesture to beat the one the text-field
+ * primitive installs.  Read here rather than passed down, so a field picks up whatever menu it is nested in
+ * with no call site changed.
+ *
+ * A builder, called as the nested menu opens; empty outside any area, which reads as "no items to prepend".
+ */
+internal val LocalContextMenuItems = compositionLocalOf<() -> List<MenuItem>> { { emptyList() } }
+
+/**
+ * Reports a context-menu request with the pointer position in the modified element's local space.  The
+ * trigger is platform-specific - a secondary (right) click on desktop, a long press on a touch screen -
+ * because pointer-button state is a desktop-only (skiko) detail, so the detector is provided per platform.
+ *
+ * @param Function onContextMenu Called with the request point in local coordinates.
+ * @return Modifier The modifier with the platform's gesture detector attached.
+ */
+internal expect fun Modifier.contextMenuGesture(onContextMenu: (IntOffset) -> Unit): Modifier
+
+/**
+ * [contextMenuGesture]'s variant for a TEXT FIELD, which has to beat the field primitive's own handler.
+ *
+ * Compose installs its built-in Cut / Copy / Paste menu on the text-field node itself.  That node is inside
+ * ours, and the main pointer pass runs innermost-first, so an ordinary [contextMenuGesture] never sees the
+ * press - the built-in menu has already consumed it.  The trigger therefore has to be watched a pass earlier.
+ *
+ * @param Function onContextMenu Called with the request point in local coordinates.
+ * @return Modifier The modifier with the detector attached.
+ */
+internal expect fun Modifier.textEditContextMenuGesture(onContextMenu: (IntOffset) -> Unit): Modifier
+
+/**
+ * Rounds a pointer [Offset] to the integer pixel offset the popup position providers work in.
+ *
+ * @return IntOffset The rounded offset.
+ */
+internal fun Offset.toIntOffset(): IntOffset = IntOffset(x.roundToInt(), y.roundToInt())

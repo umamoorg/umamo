@@ -25,6 +25,7 @@ fun blendModeOptionsFor(target: RuntimeTarget, current: BlendMode): List<BlendMo
 	if (target.supports(RuntimeFeature.ExtendedBlendModes)) {
 		return blendModeDisplayOrder()
 	}
+
 	return blendModeDisplayOrder().filter { mode -> mode.isLegacy || mode == current }
 }
 
@@ -40,14 +41,14 @@ fun partGroupModeOptionsFor(target: RuntimeTarget, current: PartGroupModeKind): 
 	if (target.supports(RuntimeFeature.PartComposite)) {
 		return PartGroupModeKind.entries
 	}
+
 	return PartGroupModeKind.entries.filter { kind -> kind != PartGroupModeKind.Isolated || kind == current }
 }
 
 /**
- * Whether the alpha-composition row shows: the blend mode must not ignore alpha, AND either the
- * target supports the 5.3 blend-mode family the alpha modes belong to or [currentAlpha] already
- * holds an out-of-target value - a stored value never vanishes from its own control, so the rigger
- * can still see it and reset it to Over.
+ * Whether the alpha-composition row shows: never under a blend mode that ignores alpha, else where the
+ * target supports the 5.3 blend-mode family or [currentAlpha] already holds an out-of-target value the
+ * rigger must still be able to see and reset to Over.
  *
  * @param RuntimeTarget target The document's runtime target.
  * @param BlendMode blendMode The owning control's current blend mode.
@@ -71,5 +72,6 @@ fun alphaBlendModeOptionsFor(target: RuntimeTarget, current: AlphaBlendMode): Li
 	if (target.supports(RuntimeFeature.ExtendedBlendModes)) {
 		return AlphaBlendMode.entries
 	}
+
 	return AlphaBlendMode.entries.filter { mode -> mode == AlphaBlendMode.Over || mode == current }
 }

@@ -7,14 +7,36 @@
 * GPU glue: multi-pair seam vertices (deferred 2026-06-21)
 * Android GLES renderer backend (deferred 2026-06-21)
 
-## WORK STEPS - 2026-09-14
-1.) Leftovers - Art Sourcing Pipeline Verification
-2.) Operation Strip - Make sure all application operations are using it.
-3.) Phase C - Art Sourcing Pipeline - Cmo3AtlasUndedup Refit
-4.) Phase H - Art Sourcing Pipeline - CMO3 Interop Hardening
-5.) Phase D - Art Sourcing Pipeline - Automatic Mesh from Art - This should become it's own planning document.
-6.) (Everything required for glue, deformers, and so on.)
-7.) UMA Format (Phase G - Art Sourcing Pipeline)
+## WORK STEPS - 2026-11-07
+1.) (Everything required for glue, deformers, and so on.)
+2.) UMA Format - Mostly done, a few final pieces to go through.  I'm leaving it "unfinished" as pre-v1.0 for the format until Umamo 1.0 is ready to release.
+
+## 0.6.0 Goals - Late December, Early January
+0.) Merge in the existing language translations.(Some were merged.)
+1.) Finish 3D Depth Rotation and Merge (Almost done, needs review.)
+2.) Fix Platform Bugs - Linux and MacOS (Partially done.)
+3.) Proper Bone and Skeleton System
+4.) Rotation Deformer Gizmos and Editing
+5.) Github Issues and Pull Requests
+~~6.) Lint - Prefer multiline argument rule.~~
+
+## 0.7.0 Goals - January
+1.) Glue Gizmos and Editing - Part of all of this may end up happening with "Proper Bone and Skeleton System" in 0.6.0.
+2.) Modifiers - Generate -> Mirror - This will also seed being able to mirror things along with other potential modifiers.
+3.) Copy Paste System
+
+### 0.8.0 Goals - February
+1.) (Tentative) Brush/Tool Backend Machinery.  See: https://github.com/umamoorg/umamo/pull/376
+2.) Physics
+3.) Automatic File Backup
+4.) Pen Input Work
+
+### 0.9.0 Goals - March
+1.) Android Tablet Work - I expect that this will take up a good portion of time since it needs the build system, render layer, UI adjustments, and pen input work.
+
+### 1.0.0 Goals - June/July
+1.) Polish UMA.md format document and publish it.
+2.) Big release!~
 
 ## VERY IMPORTANT
 * Hire translators for localization.
@@ -22,6 +44,16 @@
 * Final pass on default settings.
 * Final pass on default workspace layouts.
 * Final pass on theme colors.
+* Hire artist to make the application icon.
+	* Horse is critical.
+* Hire artist to make the DMG background art.
+	* Chibi Tamamo carrying the icon to the application folder.
+
+## Colors
+* Change viewport.deformer.latticePending to not be so close to the selection orange.
+
+## Documentation
+* Add a note somewhere in the repository and the web site asking game developers to please credit Umamo in the game credits if they used it as part of the development.
 
 ## User Stories
 * glTF export for easy import into game engines.  (Requested; far future.)
@@ -30,130 +62,120 @@
 	* Umamo solution: Select a deformer and the drawable -> Duplicate -> Mirror X (On the duplicate) -> Do some minor UV clean up -> Done!
 	* https://www.reddit.com/r/Live2D/comments/1uy0871/is_there_a_way_to_duplicate_a_warp_deformer/
 
-## World Origin
-I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
+## Deformers
+* Generation
+	* Create a standardize skeleton naming system like Blender uses for L/R flipping and detection.  This could eventually be used to import artwork layers in grouped layers and automatically apply bones.
+
+## Bugs
+* Geometry rotation +/-180 degrees results in a weird zoom instead of rotating after key framing.
+* Keyframe Insert after selecting parameter axis still inserts on both with only the second actually receiving the key frame.
+	* Angle X/Y on Erica
 
 ## Artwork Import
-* We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
-
-## Read/Write Filing Handling
-* Clean up the boolean logic mess in AppMenu->fileMenu().
-	* module/ui/src/commonMain/kotlin/org/umamo/ui/menu/AppMenu.kt
-* Document State - One document per window instance.
-	* Opening the application should start as a fresh new document.
-* Drag and drop file opening.
-* Dirty state handling: Not all instances of dirty are handled.  For example, I can close the application without it asking to save a dirty document.
-
-## UI - Dialogs
-* The confirmation dialog needs to take options for the buttons.  See: confirm_discard_unsaved
-	* This can have better wording if the buttons are configurable.
-* Enter does not work for the default action.
-
-## Operation Strip
-* Should disappear when changing workspaces.  Right now it gets shoved below all the spaces.
-* No viewports: Still appears outside of the spaces and just should not appear at all.
-
-## Popup Picker
-* The popup picker should use the drawable name and fallback to the ID for display.
-* UvIslandPick should be renamed to UvIslandPickController to match ObjectPickController's naming convention.
+* Automatic visual matching of imported artwork layers to layers cut from a texture atlas after a MOC3 to CMO3 conversion.
 
 ## Puppet Model, CMO3, MOC3
-* Parameter Repeat
 * Glue
-* CMO3
-	* ACParameterControllableSource.isVisible was wired up so now the outliner needs this toggle as well.  Deformer editing is not implemented yet so this is minor.
-	* Refactor interop/cmo3/ in the same way that interop/moc3/ was done.
-* MOC3
-	* (Check the bullshit the AI did without my permission.)  CDI3 - Export mesh display names as a separate array.
-	* Reconcile isVisible/isEnabled from MOC3 for deformers.  Maybe for CMO3 too.
+
+## Deleted References (Unused Data)
+* Add a Blender like unused data to inspect and clean up dead references.
+
+## Object/Edit Mode Switch
+* When there is no drawable selected, a default is found to select.  However, this does not update the selection and leaves the Properties and Outliner panels in a bad state.  The Properties shows nothing and Outliner has nothing selected.
+
+## Keyform Sheet
+* Option to isolate a single track of the keyform sheet to allow scrubbing only that track.  This would allow debugging an individual keyform to determine if the problem is coming from the entire parameter or just that keyform.
+
+## Depth Inspector
+* A new area, "3D" Viewport that allows inspecting how a lattice and mesh are deforming.
+	* Drawable meshes are in 2D, but the optical illusion of them getting squished may not be obvious to some.
+	* Meshes would show as flat on their 2D plane.
+	* Lattices would show in 3D lifted from the depth information.
+	* Pan, zoom, and orbit around.
+	* Show the red/green/blue coordinate help in the top right corner.
+	* Overlay text to show current rotation.
+	* Lattice vertices should be colored by their current Y+/- position.
+	* Option to show drawable meshes in 3D shape with a header control to toggle it.
+
+## Outliner
+* Expand/Collapse Hierarchy (May apply to other list based areas as well.)
 
 ## Tools, Shortcuts, and Gizmos
 * Improvements
-	* Unconnected proportional editing should edit all meshes when multiple meshes are selected for edit mode.  I would like to merge the proportional button and falloff settings into one menu with the connected checkbox.
-* New Icons (For myself to get/make.)
+	* New Icons (For myself to get/make.)
 	* Replace magnet from the cursor/selection menu.
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.
+* Toolbar - Needs a pull tab.
 
-## Overlays Toggle
-* Overlay visibility toggles from viewport header.
-	* General Information - The spot in the AreaHeader showing the selected item will be moved here.  It's too much in the AreaHeader.
-	* Wireframe (Object Mode)
-	* Grid - Ability to change scale and divisions.
-	* 2D Cursor
+## Mesh and Lattice
+* Mint a default form on creation/generation.
+* Command to set the current form as the default.  For meshes, possibily an additional option to reset to the UV shape.
+* Command to reset to default.
+* I encountered an issue when working on the 3D barrel demonstration.  After I keyed off the default warp pose I had no way to reset it back to default and with it bent in a circle that would be a pain in the ass to fix manually.
+* CMO3/MOC3 import - Mint the default form from the default pose.  This won't be accurate since some poses will be off default, but the escape hatch is the command to set the default form.
+
+## Mesh Generation
+* Possibly rip out a lot of the dumb bullshit that I did or make better presets.  I want nice triangulated quads across simple surfaces.
+
+## Overlay Toggles
+* When entering pose or edit mode with both a mesh and deformer selected it shows only the type of the active selection.  Having the other types show as a wireframe by default would be useful for visual inspection.
+	* Investigate making the wireframe overlay scoped to selected in the overlay options.  This might not be the best way to implemented and/or over complicated.
+* Improvements
+	* Objects:
+		* Rotation Deformers, separate from Warp Deformers.  Might end up being called bones, skeleton, or something else. (Deferred until rotation deformers are built.)
 
 ## Object and Mesh Editing
 * Improvements
 	* Mirror along X/Z axis, mirror with 2D cursor as the axis.  Note: This is a small divergence to Blender's style.  In Blender there is an origin for each object that can be moved to different places.  Umamo still has the centroid origin calculated, but no way to move it or even if it was moved, a way to store it.
 	* Extrude(E) - Extrude an edge creates triangle cut quad automatically.
 
-## Sources Space
-* Improvements
-	* Hover to show thumbnail of layer, reuse thumbnailer.
-
 ## Texture Authoring/UV Editor
-* We should change this to also select when clicking on an UV itself.  I have found myself trying to click on alpha pixels, but on the UV and getting confused why it is not selecting.
 * Follow Selection Header Control - Split it into options and images.
 	* New custom image selection control.  This will also be an entry point for adding artwork.
 	* Support renaming images.
 * Improvements
-	* Switch from an atlas page to an layer image or a differeny layer image should automatically refit the camera.  Most layer images are in different spots and are not anchored in the center which can result in them being outside of the viewport.
-	* Add tooltip for properties_field_source_layer_display.
-	* Long running atlas packing should have a progress visible in the status bar.  We can also reuse this for other operations such as file open/import/export.
+	* Ability to have unplaced tiles.  For example, guide images don't need to be in the atlas, but any imported at the moment are forced into an atlas.
+* Bugs
+	* When relinking EricaTamamo.psd in EricaTamamo.cmo3 it results in some layers getting fringe artifacts like what was experienced in the past.
 
 ## UV Editor
 * Bugs/Improvements
 	* Rip and Vertex Slide could be implemented for UV.
 		* Do a study to determine if rip functionality is really needed.  It is definitely needed for 3D work, but for 2D work I think it is less useful.  Though I'm curious what people would create with the functionality being available.
-	* Mirror UVs are shown in the command palette when editing a mesh in the 2D viewport.
-		* This is actually kind of useful, but technically breaks the border of the command palette only showing what is available per area.
-	* UV areas don't remember their selection.  For example: Changing to source layer is lost when changing workspaces.
 	* Pixels outside of the canvas still need to render.
+	* B(Armed box select) is not working in object mode.
 * UV Snap Pie
 	* (Deferred) Selected to Adjacent Unselected - Moves selection to adjacent unselected element.
 		* Implementation difficulty: This moves the UV vertex that has been disconnected from its sibling, which is one vertex in the mesh, on top of each other.  We will have to either walk the UV/mesh to find the sibling or store it.  Selected to Adjacent Unselected is only needed if rip is supported in UVs.
 * Relax/Pinch tools - deferred; needs brush machinery (radius cursor, per-stroke commits) that nothing else has yet.
 
-# Mesh and UV Editor Gizmos
+## Mesh and UV Editor Gizmos
 * Improvements
 	* Hold CTRL to enable snapping for rotation and grid placement.
 
-## Context Issues
-* If I search in an area header filter and then for example, click in the keyform sheet to scrubb, the focus is never removed from the input.  This results in confusion as to why undo/redo and other commands suddenly don't work.
+## Keyform Sheet
+* Copy and paste keys.(Needs the entire copy and paste system to back it first.)
+
+## Pie Menu
+* Restore the cardinal(number pad) layout of the pie menu number and make it a user interface setting.  Sequential and Cardinal.
 
 ## Shortcuts
 https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this demonstrating the shortcuts for Umamo.
 
 ## Properties Panel
-* The document-level **runtime-compatibility target data model** behind Document › Runtime — the enabled export targets (Cubism, Ayagami, …) + each target's options, how it persists on the document, and how it drives CMO3/MOC3 export. Scaffolded as a placeholder section now; its data design is a separate pass (depends on cataloguing each target runtime's capabilities).
-* UMA serialization of the latent composite (the format work this unblocks).
 * Improvements
-	* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.
+	* Parts and deformers still have no editable transform: Needs the deformer → part → mesh cascade.
 	* Do another pass on the keyed parameter/property highlight colors.  Why does off key filled color appear as grey over green?
-	* Transform Position and Size should update the render while scrubbing.
-	* Aspect locked properties(Size) should update the other control while one is being scrubbed.
 * Single/multiple relation pickers.
 	* Improvements
-		* Persist list height.(Stored in UMA format, maybe?)
-		* Deformer pickAt().
-		* Context Menus
+		* Change icon on picker to an eyedropper.
 
 ## Parameters
-* Improvements
-	* Search in header.
 * Parameter templates:
 	* Need a way to apply these without having to do a fresh import.
 
-## Workspace
-* Menu: Add Previous/Next workspace to the Workspace main menu at the top.
-
-## Button UI
-* Needs a click action, either a background color change or movement.
-
 ## Tooltips
 * Consider swapping to BasicTooltipBox in the future to get rip of the desktop and Android split of TooltipArea.  BasicTooltipBox is more recent as of writing this, July 2026, is being actively iterated against.
-
-## DRY
-* ClickGestures - singleOrDoubleClick - We might be able to reuse this in other areas that experience the same issue.(WorkspaceTabs, OutlinerSpace)
 
 ## Keymap
 * Keymappings will need to become area contextual.  For example: P is pin in the UV editor area.  Once the Separate operation(Into multiple drawables) exist, if we want to match Blender's P shortcut for that then it has to become contextual per area.
@@ -164,24 +186,14 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 * Automatic Backup
 
 ### UMA (Native File Format)
+* Improvements
+	* Format icon helper - Display thumbnail as the icon with the Umamo logo overlaid.  Requires an installer.
+
 See the roadmap: docs/plan/art-sourcing-pipeline.md § Phase G — the source-agnostic container is designed there.
 See format planning document: docs/plan/uma-format.md
 
-Format Goals:
-* Forwards compatible - Newer editors should be able to open older version files and upgrade as necessary.
-* Best effort backwards compatible - Older editors should be able to open newer version files and not crash on unknown data.
-* Extensible - Eventually physics and animation will make it into the format.  Both of those not part of the base puppet model, but features that interacts with it driving parameters and properties.
-* Has to store atlas textures, individual layer textures.  They are all just textures.  Possibly having an "isAtlas" flag would only be data reference purposes and not treating the underlying image differently.
-* Data structures should be marked with file version and/or sub-versions.
-* Storage of editor state: Collapsed/expanded sections in different panels, tracking visibility, etc.
-
 ## Import
-Initial import and setup of art into a puppet.  Realistically, editor controls need to exist first.  There are test CMO3 files to work with to get editor controls going.
 * MOC3 sidecar discovery on Android.  MOC3 might be a desktop only feature.
-
-## Reimport
-* Detection of edited source art files when application reacquires focus.
-* (Might not be appropriate for the reimport module, but has to be reusable across every platform.) Detection of the user trying to change the source art file format(PSD -> KRA) should warn that it is destructive since layer matching heuristics are not perfect and could result in orphaned layer data.  Later on having a dialog to manually remap these layers would be nice.  A dailog for manually remapping will be needed eventually for when layer matching heuristics file even when reimporting the same source art file format.
 
 ## Render
 * GPU glue: multi-pair seam vertices — latent correctness gap; see Claude Notes § GPU glue: multi-pair seam vertices.
@@ -189,56 +201,68 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 ## Glue
 * Glue intensity is keyable but has no Properties home(glue is not selectable).  See Claude Notes § Glue intensity has no editable home.
 
-## Outliner
-* Deferred
-	* When the native UMA format exists we can track open/closed branches.  Cubism/CMO3 does not track this and it is all collapsed by default.
-
-## Keybindings
-* The clear shortcut button Needs more right margin on the overall row to clear the scrollbar.
-
 ## UI
-* The placeholder checkerboard(EmptyViewportBackdrop) could just be the renderer showing the viewport without a model loaded.  It's fine as a placeholder for now.
-* Viewport view styles - Top right, in the header area.
-* Viewport loading overlay and mouse busy pointer.
 * AreaHeader/Viewport2DHeaderControls
 	* Font size and icon sizes don't line up resulting in the font being 1px offset.(Lots of manual tweaking is required.)
+* Merge pie menu icons.
+* Zoom increment needs to scale up logarithmically as the zoom increases.  We can make it a setting have it turned on by default.
 
 * Menu - New Items
 	* Edit
 		* Cut/Copy/Paste
 
+## Pie/Context Menu
+* Rework pie and context menus to inherit base sets of actions.  For example, right now using the K pie menu on a combined axis results in it going from the pie menu to a context mennu.  If both the pie and context menus use the same lists of commands they can programmatically open the correct kind of menu.  So an invoked pie menu will cascade into another pie menu.
+
 ## Theme Colors
 * Ability to edit ALL the theme colors (the UmamoColors palette) for a custom look through preferences.  For example, in Blender I make my vertex colors as ff00ec(unselected), ff7a00(selected), and 7de400(active selection) since it is easier for me to see.
 	* The color-blind-assist first pass — vertex/edge/face gizmo colors plus the selection highlight — already exists in Settings > Colors.
 
+## DRY/Standardization
+* Fields like PropertyFieldRow need to take a key use use that to get the correct resource key automatically instead of passing it.
+	* For Example: properties_field_base_angle - "base_angle" -> Expanded out to `properties_field_base_angle` and `properties_field_base_angle_description`.
+	* There are plenty of places in the code base that are passing the values around like this at the moment.  Difficulty: .* import level maybe?  I need to read up on the Kotlin compiler optimization to determine if this will be an issue.
+	* operatorParameterDescriptionRes also is the start of something of what I am thinking, but hardcoded.
+
 ## Settings
-* Settings Window - Curated settings.  Not everything from the settings.json can be exposed.  So each tab/section will be manually built.
 * Keybinding - input.keybinding (Includes keyboard, mouse, and pen buttons.)
+	* Search field for bindings.
+	* Dim or use a different color for "Unbound".
+	* Multiple binds for the same shortcut.  The command palette has two bindings in the default preset, but no way to edit them.
+	* Z/X axis lock and other context dependent keys need to be exposed in the key map along with indicating their context.
 * Pen Binding (JPen, Wacom) - input.pen (Includes pen, pressure, and things related to the radial menu.)
-* New Startup Settings Screen
-	* Import from pervious version.
-	* Select from binding defaults.
-* The settings UI needs a design pass since it is basically just squares and whatever thrown together right now.
+* Quick Setup
+	* Versioned Settings
+	* Import from Previous
+	* Auto Key Enable/Disable - This is for migrators from Cubism since Cubism automatically keys.
+* New Settings
+	* Setting to make Left Click, instead of ALT+Left Click, the default to activate the popup overlap picker.
 
 ## Keybindings
 * Audit default keybinding maps for Blender and Cubism styles.
 
-## Storage
-
 ## Future Feature Wishes
 * Pose Reference - A poseable and adjustable 3D mannequin model for overlay reference.
-* Really good edge detection for auto-mesh.
 * Normal map, emission, metallic, and reflection shaders for texturing.
 * Key/mouse/pen input overlay for recording/streaming.
 * History playback for proof of work.  The history system is there, but that is a lot of track over a long session.  So capture a snapshot every time period or number of snapshots.
 * A proper bone skeleton system with bendy bones.
+* Parameter Frame by Frame animation: A quick setup to select multiple drawables and define them as a frame by frame animation.(Instant on/off opacity.)
+* MIDI Protocol Support
+* Multiple Monitor Support
+
+## Rights Management
+* One time, permanently dismissable message dialog informing users to not edit MOC3 files without permission from the author.
 
 ## Build and Distribute
 * Eventually get installers, signing, and automatic updates setup.
 
 ## MacOS
 * Zoom with the touchpad on my 2014 Macbook Pro is glitchy.  It will jump around and even go the wrong direction.
-* Need to add back a light native menu so it does not say "MainKt" all the time.
+
+## CDI3.json
+* Change Drawables to ArtMesh.
+	* https://github.com/Live2D/CubismSpecs/pull/9/changes
 
 ## Input
 
@@ -253,29 +277,37 @@ Sketch:
 
 ## Command Palette
 * Icons for commands - Long tail feature, would need to add a lot of icons.  We can reuse the existing icons for current commands such as editor/select modes.
-* Improvements
-	* Now that the hovered area is tracked everywhere we can filter by what commands are available per area.
 
 ## Status Bar
-* Needs massive improvements for the automatic shortcut suggestions to work better.  See Command Palette about filtering commands per hovered area.
+* The second iteration to improve the status bar brought in better status messages and hints.  Eventually:
+	* Better hint icons: Keys need more styling, (Ctrl) + (V), bubbles around them.
+	* The updated shortcut hints are better, but eventually the system will need to be fully overhauled as the program becomes more complex.
 
 ## Pose Palette/Library
 * Cubism 5.4 added a "Model state set" which is just a pose library.  The data is saved into the CMO3 file.  This should be easy to implement and store in the native UMA format.
+
+## Color Space and Management
+Right now the goal is to support sRGB from ingest to output with full correctness.  Eventually we want to be able to add linear color space, HDR, and so on.  While vtubers typically are 100% sRGB(art, edit, broadcast) some game developers may opt for different color spaces and require that flexibility.  I'm tentatively planning this work for Q1 2027.
+
+## Stable Pad
+* Build Firmware ^_~
 
 # Claude Notes
 
 ## GPU glue: multi-pair seam vertices (deferred 2026-06-21)
 
 **What.** The GPU glue weld (`PuppetRenderer` two-pass; `module/render/src/commonMain/.../puppet/`) stores **one
-partner per vertex** in its per-vertex glue attribute (partner global index, glue index, weld weight; built
-in `buildGlueAttributes`, consumed by `GLUE_VERTEX_SHADER`). If a single mesh vertex participates in **more
+partner per vertex** in its per-vertex glue attribute (partner global index, glue index, weld weight; planned
+by `planGlueLayout`, consumed by `glueVertexShader`). If a single mesh vertex participates in **more
 than one** glue pair — e.g. a corner vertex shared by two seams — only the last-written pair survives, so the
 GPU applies **one** weld where the CPU `applyGluesResolved` applies **both, sequentially**. That would diverge
 from the CPU/oracle at such shared verts.
 
 **Why it's fine right now.** Erica's four glues have **disjoint** seam vertices (no vertex is in two pairs),
-so the GPU render is pixel-perfect vs the CPU (maxDiff 3/255, 0 px >8). This is a **latent** gap that only a
-model with shared seam verts would expose.
+so the GPU render is pixel-perfect vs the CPU (maxDiff 3/255, 0 px >8). The corpus has one model with shared
+seam verts: modelF, whose SIDE_HAIR_BLUE_R3 (280 vertices) is glued to four color variants with up to four
+pairs per vertex; `GlueSeamGapProbeTest` (2026-10-04) puts the CPU/GPU difference there at most 0.26 px at
+a 1600x900 fit, so the gap is real but sub-pixel on the corpus.
 
 **Detection.** Add a glue-aware per-vertex check: run the two-pass GPU glue, transform-feedback-capture the
 **post-weld** positions, and diff against the CPU `applyCpuDeform` (which includes glue) on a model whose
@@ -287,24 +319,18 @@ glue pairs share vertices. (The existing `GpuDeformValidationTest` only validate
 2. Detect shared seam verts at import and fall those specific glue meshes back to CPU glue (the hybrid path),
 	keeping the rest on the GPU.
 
-## Deformer keeps no rest geometry once its last axis is collapsed (found 2026-09-04)
+## Glue strength past its keyed range (found 2026-10-06)
 
-**What.** `withAxisCollapsed` returns null when the last axis goes, and `withParameterDeleted` stores that
-null as a warp's or rotation's `geometryGrid` - so the deformer's lattice / pivot, which lived only in that
-grid, is gone from the model.  The CMO3 export then has nothing to write for it and removes the source's
-`keyformGridSource`; the official editor refuses a source without a default keyform (`setKeyformGridSource`
-rejects null, `getDefaultKeyForm` throws "no KeyForms" - the same refusal that crashed it on the first
-artwork-origin export, fixed for drawables/parts/glue by writing one default cell in
-`Cmo3KeyformLowering.buildBundle`).
+**What.** A glue intensity track sampled at a parameter outside its keys falls back to the glue's static
+intensity (1 for every MOC3 import): `ChannelGrids.scalarAt` returns the static when the pose is out of the
+track's range (`module/runtime/.../eval/ChannelSampling.kt`, read by `preparePose` in `DeformPrepare.kt`).
+That is the sampler's deliberate rule for every channel ("out of range never hides", so keying opacity on a
+narrow parameter cannot make art vanish).  `docs/format/MOC3-ThirdParty.md` (around L109) says an
+out-of-range parameter sets a glue's strength to 0 instead, and marks that claim untested itself.
 
-**Why it's fine right now.** Nothing in the editor deletes a parameter that keys a deformer's geometry
-except the parameter-delete flow, and the structure round-trip gate only reaches the case by choosing a
-victim parameter that keys deformer geometry.
-
-**Fix sketch.** Keep the rest cell: a last-axis collapse should yield an axis-less one-cell grid holding the
-form at the kept key (the deformer's rest lattice / pivot), not null - for drawables too, since the export
-then writes the same shape the corpus does.  Once that holds, `writeGridWeb`'s empty-bundle branch becomes
-unreachable and can go.
+**Why it is not fixed.** No corpus glue is out of range at rest (`GlueSeamGapProbeTest`), the behavior
+changes the art in both the CPU and GPU paths, and which value the official runtime uses is a question for
+the oracle against the official Core, not for a guess.
 
 ## Glue intensity has no editable home (deferred 2026-07-29)
 
@@ -335,108 +361,43 @@ broken: an unexposed channel simply cannot be edited, rather than being editable
 context menu and `I` write the static. The expensive half is selectability, and is worth deferring until
 there is a second reason to want it.
 
-## Art-first pipeline: path to a functional editor (mesh/UV decoupling)
-Full design roadmap: docs/plan/art-sourcing-pipeline.md (supersedes and expands this note; the 9 steps below map onto its Phases A–H).  This note stays as the terse status tracker.
+## A notice dialog for art the atlas could not place (requested 2026-10-13)
 
-**Governing design decision.** Art-mesh geometry and texture UVs are independent concepts (Blender-style),
-unlike Cubism which welds them at the default/neutral form. The mesh is the art's renderer — moving it moves
-where the art draws — but it always keeps sampling the correct texels. Two invariants must hold at every step
-below:
-- Editing mesh geometry (move/scale/rotate vertices) never changes UVs. It only moves where the art draws;
-  it does NOT re-derive which atlas texels are sampled the way Cubism does. Already true: `withMeshPositions`
-  shares the uvs array by reference; `MeshTransforms` / `ObjectTransforms` touch positions only.
-- UVs bind to source-art pixel space via a stable `LayerId`; the texture atlas is a repackable indirection
-  layer, never a source of truth. Regenerating/repacking the atlas moves where pixels physically sit in the
-  page — never the vertex→art-pixel mapping.
+**What.** When a pack leaves art unplaced, or refuses an operation, the rigger hears about it only through
+a status-bar notice and log lines.  Alexia wants a notice dialog that lists each failure with options to
+fix it - an allowed exception to her no-dialogs rule.  The places that report a pack failure today:
+1. Add Artwork, Reload, Match Automatically, and Replace Artwork (`packNewTilesAround`,
+	`module/ui/.../model/artwork/AddArtworkFlow.kt`): new art, or art the document has not placed yet, that
+	does not fit stays unplaced with a `SourceArtImportNotice.LayerLargerThanPage` / `LayerNotPacked` note
+	(since 2026-10-13 such art is retried by every artwork pack and placed once it fits); placed art the pack
+	would lose refuses the whole operation (`PackAroundOutcome.Refused`).
+2. Generate Mesh from Art (`packGrownTilesAround`, `module/ui/.../model/mesh/GenerateMeshPipeline.kt`): a
+	grown tile that cannot fit refuses the run (`GenerateMeshOutcome.PackRefused`, `notice.mesh.packRefused`).
+3. Repack Atlas (`repackRefusals`, `module/ui/.../model/repack/AtlasRepackFlow.kt`).
 
-**End goal.** Import layered art, auto-mesh it, rig it, and refresh non-destructively against art changes,
-with CMO3 read/write as the interop boundary and UMA as the native format that actually preserves the
-decoupling. The front half (steps 1–4) currently only works via a pre-baked CMO3; the native art-first path
-is still ahead.
+**The case that prompted it.** LimeBirb's `Layer1`, a 9000 x 8500 canvas-sized background, is larger than
+the 8192 px page cap (`MAX_IMPORT_PAGE_SIZE`), so every import leaves it unplaced, and nothing tells the
+rigger what they could do about it.
 
-1. Source-art ingest → neutral model. Built: PSD/CLIP/KRA readers produce `SourceArt` (LayerId / LayerBounds /
-	LayerBlend). BUILT (Phase E session 1, 2026-09-04): File > Import > Artwork… runs `SourceArtImport`
-	(:interop `org.umamo.interop.art`): a quad over each layer's trimmed bounds is the birth mesh, folders are
-	parts, the pack runs at open through the repack primitive (`packModelAtOpen`), the source-layer key
-	persists on the `AtlasTile` (`source: SourceLayerRef`) with the file and its layer inventory on
-	`PuppetModel.sources`, and the parameter template (`import.parameterTemplate`, Humanoid / None) seeds
-	the axes. Session 2 (same day): the Sources space (file → layer → tile → drawables, statuses, filters,
-	relink by drag or chip) and Add Artwork… into the open document (`runAddArtwork`, packed into the gaps
-	with every placed tile fixed, one undo step on the operation strip). E is complete on the import side;
-	see docs/plan/art-sourcing-pipeline.md Phase E.
-2. Auto-mesh from art ("mesh from art"). Pending: generate an initial mesh over each layer's opaque region.
-	At birth, positions and UVs are two views of the same art layout — they only diverge once geometry is
-	edited. Foundation built: the per-layer opaque region (alpha-trimmed bounds + occupancy + a marching-squares
-	contour) comes from `analyzeAlpha` in `:format` — Phase B, shared with step 3.
-3. Atlas generation / packing. Built (Phase C session C1, 2026-08-12): `packAtlas` in `:format` commonMain
-	(`org.umamo.format.atlas`) trims via `analyzeAlpha`, MaxRects-packs with a configurable gutter/extrusion,
-	composes and encodes the pages, and reports every layer it could not pack. Verified byte-exact by
-	`AtlasPackCorpusTest` and by the `atlas` CLI subcommand on every run. Pending: downscale-to-fit (a source
-	layer larger than the page cap is reported, not packed), rotation in the repack (the packer has it, the
-	placement derivation refuses it until switched on), and refitting `Cmo3AtlasUndedup`'s private shelf
-	packer onto the shared one (session C3).
-4. Atlas placement as model state. Built (Phase C session C2, 2026-08-13): `PuppetModel.atlas` carries the
-	pages and tiles with each tile's placement, `Drawable.atlasTileId` names its art, `AtlasPlacement` moved
-	to `:runtime`, CMO3 import fills it, the diff sees it, `EditorSession.setAtlasPlacement` makes it one
-	undoable step that re-derives the UVs over it, and the CMO3 export writes both halves of the entry's
-	transform pair. Container-format knowledge left `:render` entirely. The PRODUCER landed 2026-09-01:
-	`document.repackAtlas` packs through the shared packer and commits pages + placements + re-derived UVs
-	as one undo step, the pages are session state (`SessionAtlasPages` resolves them from the model, so
-	undo/redo swap pixels by restoring it), the engine swaps pages without a service rebuild, and a
-	same-membership repack exports with the CMO3's stored page images patched, and a cross-page one re-homes
-	the entries through the full atlas-web reconcile. Hardened 2026-09-02 (one remap core shared by
-	`withAtlasPlacement` / `withAtlasRepack`, mid-pack mesh edits supersede the repack, the desktop
-	second-document session fix, live end-to-end gates). Texture-authoring Phase 4's gizmo landed on
-	these seams 2026-09-02 (UV object-mode G / S / R over placements through `setAtlasPlacements`, with
-	:format's affine page composer so any placement derives); Phase 4b (2026-09-02) made the composer
-	content-preserving and the overlap test exact (triangle coverage against opaque pixels). 2026-09-03 closed
-	the generator UX: the pack options ride the operation settings panel (5a), pins keep a hand-placed tile
-	through a repack and against a hand move (5b: `AtlasTile.pinned`, P / Alt+P, pinned islands drawn in the
-	settings-backed pinned color, packer fixed items painted through the shared affine painter so pack pages
-	still equal derived pages), and the placement G / R / S adjust on the same
-	strip (5c) - see § Operation settings panel below. Only 5d (repack on re-import) waits, on Phase F.
-5. Mesh editing (rest geometry). Built: object + edit mode, UV-preserving, edits the neutral base that every
-	keyform is a delta off. Remaining: topology edits (subdivide / merge / rip) must resize the UV array AND
-	every keyform's delta array to the new vertex count — see § Render "remeshing" and § Shortcuts (M / V / J).
-6. Rigging. Parameters, deformers, keyforms on top of the rest mesh — the actual deformation authoring.
-7. Re-import (the headline feature). Scaffolded: Reconciler / SourceWatcher over the model's `SourceLayerRef`
-	bindings (persisted since 2026-09-04). Identity-keyed non-destructive reconcile: a matched layer updates its atlas tile/UVs while mesh/deformers/
-	keyforms are preserved; added/removed/renamed layers are flagged and reviewable, never silently deleted.
-	May trigger an atlas repack (the invariant above protects it). See § Reimport. Decided 2026-09-03: the
-	linking table is a Sources space (a tenth SpaceKind: file → layer → tile → drawables, relink by drag or
-	chip, replace a file by repointing it) and reconcile is an OPERATION - matched updates commit as one undo
-	step, needs-review items become row states in that space, the match threshold is an operation-settings
-	parameter; nothing in the flow steals focus. See docs/plan/art-sourcing-pipeline.md Phases E and F.
-	F1 BUILT (2026-09-08): Reload by key - the Sources header's Reload re-reads every present file and
-	lands the changed layers as one strip-adjustable step (a reloaded tile is a NEW tile, `<root>~<n>`,
-	so undo shows the old art by snapshot), and a relink pulls the layer's art at once when the file is
-	present.  F2 BUILT (2026-09-09): the watcher - `PollingSourceWatcher` (okio, commonMain),
-	`SourceWatchCoordinator` (settle, SHA-256 hash against `ArtSource.contentHash`, the idle gate),
-	`import.watchMode` auto / notify / off, stale-at-open notice, the header's alert glyph.  F3 BUILT
-	(2026-09-09): the inventory matcher (name / path / bounds / size / per-layer hash / pixels), lost rows
-	kept for review with suggestion chips, Match Automatically with the threshold on the strip, Replace
-	Artwork on the file row (chip + context menu).  PHASE F COMPLETE.  NEXT: D as the mesh command, then G
-	and H.  See docs/plan/art-sourcing-pipeline.md Phase F.
-9. Native UMA format. See § Format / UMA. The source-agnostic container storing decoupled geometry + UVs +
-	source art with stable layer identity — the format that preserves the decoupling CMO3 fights against.
+**Options the dialog could offer (a starting point, not a decision).** Scale the layer's art down on its
+tile; allow a larger page for this document (weighed against what the target runtimes load); leave it
+unplaced on purpose so the dialog stops asking; for a refused generation, lower the Outer Margin or unpin
+the tile.  Each is its own design question.
 
-## Operation settings panel (decided 2026-09-03; LANDED 2026-09-03 with Repack Atlas, then the UV placement G / R / S)
-Answers § Operation Settings Modal above; the design record is docs/plan/operation-settings.md (§ Landed lists
-what shipped: the :edit record + amend, the strip in every area, F9, the repack rows, rotation end to end,
-then the placement gesture's rows and the repack's Keep Pinned Tiles row).
-- The "runs twice" cost does not exist here. History is snapshot-based, so adjusting the last operation
-	means recomputing from the retained base snapshot and REPLACING the top history entry - one run of the
-	operation with the new values, no undo replay, no inverse op. The record holds the base snapshot directly,
-	so the history limit can never strand it.
-- Shape: a Compose-free operator record in `:edit` (the Change, the base snapshot, a declarative parameter
-	list, retained inputs, a rerun lambda) plus `amendLastCommit`; a collapsed strip bottom-left of the area
-	the operation ran in (a record with no area sits in the shell's bottom-left above the status bar), rows
-	rendered from the parameter kinds by one small renderer that the ToolDetails placeholder can reuse.
-- Lifetime is Blender's: the record dies on any other history push (selection clicks included), on undo /
-	redo, and on document swap.
-- Clients in order: Repack Atlas (texture-authoring 5a: page size, rotation, gutter, extrusion, alpha
-	threshold, square / power-of-two / shrink, and 5b's Keep Pinned Tiles; the decoded pack input is retained
-	so an adjustment is pack-only), UV placement G / R / S (5c, LANDED: Move X / Y in page px, Angle, Scale
-	X / Y from the drag's own readout, a synchronous re-evaluation of the retained gesture; NO axis-constraint
-	row - the per-component rows subsume the lock, and the placement step is labelled by its operator), then
-	mesh G with proportional radius and falloff, then the reconcile threshold (pipeline F).
+## Relink after a binding-only relink carries from the wrong frame (found 2026-10-16)
+
+**What.** A relink with no file to read (`RelinkArtworkRequest(art = null)`) changes a tile's binding alone: the tile keeps its old layer's pixels and size while its binding names the new layer.  A later relink that pulls art onto that tile carries its meshes from the BINDING's inventory row (`ArtworkReloadPlanner.replaceTile`, `oldInventory`), which describes where the new-bound layer sits, not where the tile's pixels came from - so the carried UVs shift by the distance between the two layers and the drawable samples the wrong pixels.
+
+**Why it showed now.** The exact outgrown test (auto-mesh Phase 5a) reads the texture mapping and flags the shifted mesh; the bounding-box test it replaced compared canvas positions and did not.  `ReloadArtworkFlowTest`'s last step walked exactly this sequence; it now relinks a tile whose binding matches its pixels.
+
+**Fix options.** Record the frame a tile's pixels were read at on the tile itself (it is the inventory row of whatever layer last filled it), or have a binding-only relink also retarget the tile's recorded frame; either way the carry would read the pixels' own origin.
+
+## Menus aimed at one item: two ways to name the argument (deferred 2026-11-22)
+
+**What.** A menu's rows get the thing they act on in one of two ways.  A row can name it as the menu is resolved (`CommandMenuRow.Members(group, argument = ...)`: workspace tabs in `WorkspaceTabs.kt`, relation fields and mask entries in `RelationMenus.kt`), or the builder can be handed it as the menu opens (`rememberCommandMenuFor(rows)`, which the Parameters panel uses so it resolves a row's menus once and not once per row).  Both stand, with one stated rule between them: a row's own argument holds, and the open-time one aims only the rows that name none.
+
+**Why it was left.** One way would be simpler, but the open-time argument aims every row, and a workspace tab's menu mixes rows aimed at the tab with rows run with nothing (`Members(WorkspaceTab, argument = id)` beside `Members(WorkspaceSwitch)`).  Moving every site to the open-time form needs a way for a row to say whether it takes the menu's argument, which is a change to `CommandMenuRow` and to three surfaces outside the Parameters panel.
+
+**The Parameters panel's half (your call, 2026-11-22: not sure yet).** `ParameterMenus.kt` builds command rows two ways.  The Control submenus come from the registry through `rememberCommandMenuFor`; Toggle Repeat comes from `ToggleRepeatEntry`, a hand-rolled row factory that holds the command, its title, the registry, and the keymap.  A slider row's Toggle Repeat could be one more row of the same arrangement (`CommandMenuRow.Single("parameter.toggleRepeat")` beside `Family(ParameterControl)`), which would leave `ToggleRepeatEntry` for the pad's per-axis labels alone.  It would revisit the REPEAT-3 choice of `commandMenuItem` rows for Toggle Repeat.  Separately, `rowMenus` travels down the row composables beside `createMenuItems`; both are the panel's share of every row's menu and could be one holder.
+
+**Fix options.** (1) Give `CommandMenuRow.Members` and `Family` a flag for "takes the menu's argument", drop the row-level `argument`, and move the three other surfaces to `rememberCommandMenuFor`, hoisting the workspace tabs' menu out of the per-tab loop.  (2) Leave the two forms as they are and only fold the slider's Toggle Repeat into the arrangement.

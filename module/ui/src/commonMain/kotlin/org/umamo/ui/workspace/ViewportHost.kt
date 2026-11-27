@@ -5,11 +5,12 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 
 /**
- * The seam through which an app injects the platform GL viewport into the common `:ui` shell. The 2D
- * viewport (desktop renders offscreen via GLFW into a Compose Image; Android will drive a GLSurfaceView)
- * lives in the app's platform source set - `:ui` can't reference it - so a Viewport2D area asks the host
- * to render itself. The [areaId] lets the host cache one GL surface per area (via movableContentOf), so
- * the surface moves rather than tears down when an unrelated area splits.
+ * The seam between a 2D viewport area and what draws it.  A Viewport2D area asks the host to render
+ * itself and knows nothing of how.  The host is common code: rememberPuppetViewportHost
+ * (org.umamo.ui.viewport.viewport2d) builds one per open document over the platform's render service,
+ * and the service is the part an app supplies (desktop renders offscreen through GLFW into a Compose
+ * Image; Android has none yet).  The host registers each area with that service under its [areaId],
+ * so every area has a surface of its own.
  */
 fun interface ViewportHost {
 	/**
@@ -23,7 +24,7 @@ fun interface ViewportHost {
 }
 
 /**
- * The active [ViewportHost], or null when no GL viewport is available (e.g. before a model is open, or
- * on a platform without the viewport wired). A Viewport2D area shows a placeholder when this is null.
+ * The active [ViewportHost], or null on a platform that supplies no render service.  A Viewport2D area
+ * with no host shows the plain viewport backdrop.
  */
 val LocalViewportHost = staticCompositionLocalOf<ViewportHost?> { null }

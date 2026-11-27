@@ -3,6 +3,7 @@ package org.umamo.render.gl
 import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
+import org.umamo.render.FrameOverlays
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.RenderTargetSpec
@@ -26,10 +27,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Proves the world-origin axis lines actually rasterize: with [PuppetRenderer.setWorldAxesVisible]
- * on, the frame gains a horizontal red X axis row and a vertical blue Z axis column crossing at the
- * model's world origin, and with the flag off (the default, which keeps render-diff tests line-free)
- * the frame contains neither.  Renders into an offscreen FBO at a fixed 1:1 camera so the origin's
+ * Proves the world-origin axis lines actually rasterize: with [FrameOverlays.axes] on for the frame,
+ * it gains a horizontal red X axis row and a vertical blue Z axis column crossing at the model's world
+ * origin, and with the flag off (the default, which keeps render-diff tests line-free) the frame
+ * contains neither.  Renders into an offscreen FBO at a fixed 1:1 camera so the origin's
  * pixel position is predictable.  Skips in a display-less environment, like [GeometryReuploadTest] - via a
  * JUnit assumption, so the run reports SKIPPED rather than a green pass that asserted nothing.
  */
@@ -47,9 +48,10 @@ class WorldAxisLinesTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(positions, FloatArray(positions.size), intArrayOf(0, 1, 2, 1, 3, 2)),
+				mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), intArrayOf(0, 1, 2, 1, 3, 2)),
 				geometryGrid = KeyformGrid(listOf(KeyformAxis(paramA, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size))))),
 			)
+
 		return PuppetModel(
 			parameters = listOf(Parameter(paramA, "A", -1f, 1f, 0f)),
 			parts = emptyList(),
@@ -61,7 +63,7 @@ class WorldAxisLinesTest {
 			canvasWidth = 0f,
 			canvasHeight = 0f,
 			worldOriginX = 0f,
-			worldOriginY = 0f,
+			worldOriginZ = 0f,
 		)
 	}
 
@@ -85,10 +87,9 @@ class WorldAxisLinesTest {
 		assertEquals(0, maxRedRunInCenterRows(framePlain), "no X axis pixels while the flag is off")
 		assertEquals(0, maxBlueRunInCenterColumns(framePlain), "no Z axis pixels while the flag is off")
 
-		// Enabled: a red row and a blue column cross at the center.
-		renderer.setWorldAxesVisible(true)
+		// Asked for by the frame: a red row and a blue column cross at the center.
 		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-		renderer.render(target, viewportSize, viewportSize)
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(axes = true))
 		val frameAxes = readPixels(viewportSize, viewportSize)
 		val redRun = maxRedRunInCenterRows(frameAxes)
 		val blueRun = maxBlueRunInCenterColumns(frameAxes)
@@ -100,30 +101,38 @@ class WorldAxisLinesTest {
 	/** Counts red-dominant pixels per row across the center band and returns the largest row count. */
 	private fun maxRedRunInCenterRows(frame: ByteBuffer): Int {
 		var best = 0
+
 		for (row in viewportSize / 2 - 3..viewportSize / 2 + 3) {
 			var count = 0
+
 			for (col in 0 until viewportSize) {
 				if (isRedDominant(frame, col, row)) {
 					count++
 				}
 			}
+
 			best = maxOf(best, count)
 		}
+
 		return best
 	}
 
 	/** Counts blue-dominant pixels per column across the center band and returns the largest column count. */
 	private fun maxBlueRunInCenterColumns(frame: ByteBuffer): Int {
 		var best = 0
+
 		for (col in viewportSize / 2 - 3..viewportSize / 2 + 3) {
 			var count = 0
+
 			for (row in 0 until viewportSize) {
 				if (isBlueDominant(frame, col, row)) {
 					count++
 				}
 			}
+
 			best = maxOf(best, count)
 		}
+
 		return best
 	}
 
@@ -133,6 +142,7 @@ class WorldAxisLinesTest {
 		val red = frame.get(pixel).toInt() and 0xFF
 		val green = frame.get(pixel + 1).toInt() and 0xFF
 		val blue = frame.get(pixel + 2).toInt() and 0xFF
+
 		return red > green + 40 && red > blue + 40
 	}
 
@@ -142,6 +152,7 @@ class WorldAxisLinesTest {
 		val red = frame.get(pixel).toInt() and 0xFF
 		val green = frame.get(pixel + 1).toInt() and 0xFF
 		val blue = frame.get(pixel + 2).toInt() and 0xFF
+
 		return blue > red + 40 && blue > green + 40
 	}
 
@@ -149,6 +160,7 @@ class WorldAxisLinesTest {
 	private fun readPixels(width: Int, height: Int): ByteBuffer {
 		val buffer = BufferUtils.createByteBuffer(width * height * 4)
 		GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer)
+
 		return buffer
 	}
 }

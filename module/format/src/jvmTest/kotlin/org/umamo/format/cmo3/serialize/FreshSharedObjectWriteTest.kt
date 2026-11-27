@@ -27,6 +27,7 @@ class FreshSharedObjectWriteTest {
 				sharedChild = sharedLeaf
 				sharedChildAgain = sharedLeaf // second use -> hoisted into <shared> with xs.id "#0"
 			}
+
 		return XmlCodec.write(engine.writeRoot(node))
 	}
 

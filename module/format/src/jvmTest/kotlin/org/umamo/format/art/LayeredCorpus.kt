@@ -17,18 +17,24 @@ import java.io.File
  */
 internal fun locateLayeredCorpusSamples(): List<Pair<File, ArtReader>> {
 	var directory: File? = File(System.getProperty("user.dir"))
+
 	while (directory != null) {
 		val corpus = File(directory, "test/corpus")
+
 		if (corpus.isDirectory) {
 			val samples = mutableListOf<Pair<File, ArtReader>>()
+
 			for ((subdirectory, reader) in listOf("psd" to PsdReader, "clip" to ClipReader, "krita" to KraReader)) {
 				File(corpus, subdirectory).listFiles { file -> file.isFile }
 					?.sortedBy { file -> file.name }
 					?.forEach { file -> samples.add(file to reader) }
 			}
+
 			return samples
 		}
+
 		directory = directory.parentFile
 	}
+
 	return emptyList()
 }

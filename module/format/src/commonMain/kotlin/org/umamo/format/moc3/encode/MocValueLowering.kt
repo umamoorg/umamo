@@ -5,10 +5,8 @@ import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.model.BlendShapeKeyform
 
 /**
- * Synthesizes the keyform value tables from [context], keyed by section-table index. These are
- * the layout-dependent geometry/scalar tables; the packing is deterministic (warp keyform blocks
- * then mesh blocks in `POS_VALUES`, each padded to 16 floats; bases are cumulative), so they
- * reconstruct byte-for-byte. The keyform-binding grid (param-binding dedup) is not synthesized
+ * Synthesizes the keyform value tables from [context], keyed by section-table index.  Their packing
+ * is deterministic, so they reconstruct byte-for-byte; the keyform-binding grid is not synthesized
  * here.
  *
  * @param MocLoweringContext context The shared lowering derivations.
@@ -22,13 +20,15 @@ internal fun valueTableSections(context: MocLoweringContext): Map<Int, ByteArray
 	val rotations = context.rotations
 
 	// POS_VALUES: warp control-point keyform blocks first, then art-mesh vertex keyform blocks,
-	// each padded to a 16-float (64-byte) boundary. Index tables record each block's float offset.
+	// each padded to a 16-float (64-byte) boundary.  Index tables record each block's float offset.
 	val positionValues = LittleEndianWriter(64 * 1024)
 	val warpPositionIndex = ArrayList<Int>()
 	val warpKeyformBase = IntArray(warps.size)
 	val warpOpacity = ArrayList<Float>()
+
 	for ((warpIndex, warp) in warps.withIndex()) {
 		warpKeyformBase[warpIndex] = warpPositionIndex.size
+
 		for (keyform in warp.keyforms) {
 			warpPositionIndex.add(positionValues.position / 4)
 			keyform.controlPoints.forEach(positionValues::writeFloat32)
@@ -36,12 +36,15 @@ internal fun valueTableSections(context: MocLoweringContext): Map<Int, ByteArray
 			warpOpacity.add(keyform.opacity)
 		}
 	}
+
 	val meshPositionIndex = ArrayList<Int>()
 	val meshKeyformBase = IntArray(doc.artMeshes.size)
 	val meshOpacity = ArrayList<Float>()
 	val meshDrawOrder = ArrayList<Float>()
+
 	for ((meshIndex, mesh) in doc.artMeshes.withIndex()) {
 		meshKeyformBase[meshIndex] = meshPositionIndex.size
+
 		for (keyform in mesh.keyforms) {
 			meshPositionIndex.add(positionValues.position / 4)
 			keyform.vertexPositions.forEach(positionValues::writeFloat32)
@@ -56,6 +59,7 @@ internal fun valueTableSections(context: MocLoweringContext): Map<Int, ByteArray
 	// blocks), the per-kind index/scalar tables gain one row per (record, key) in global record
 	// order, so the per-object bases above stay pure base-prefix indices.
 	val blendLayout = context.blendLayout.takeIf { context.hasBlendShapes }
+
 	if (blendLayout != null) {
 		for (record in blendLayout.warpRecords) {
 			for (keyform in record.keyforms) {
@@ -66,6 +70,7 @@ internal fun valueTableSections(context: MocLoweringContext): Map<Int, ByteArray
 				warpOpacity.add(warpDelta.opacity)
 			}
 		}
+
 		for (record in blendLayout.meshRecords) {
 			for (keyform in record.keyforms) {
 				val meshDelta = (keyform as? BlendShapeKeyform.Mesh)?.form ?: continue
@@ -91,8 +96,10 @@ internal fun valueTableSections(context: MocLoweringContext): Map<Int, ByteArray
 	val rotationReflectY = ArrayList<Int>()
 	val rotationOpacity = ArrayList<Float>()
 	var rotationKeyformCounter = 0
+
 	for ((rotationIndex, rotation) in rotations.withIndex()) {
 		rotationKeyformBase[rotationIndex] = rotationKeyformCounter
+
 		for (keyform in rotation.keyforms) {
 			rotationAngle.add(keyform.angle)
 			rotationOriginX.add(keyform.originX)
@@ -104,7 +111,9 @@ internal fun valueTableSections(context: MocLoweringContext): Map<Int, ByteArray
 			rotationKeyformCounter++
 		}
 	}
+
 	sink.putInts(Section.ROTATION_KEYFORM_BASE, rotationKeyformBase.toList())
+
 	if (blendLayout != null) {
 		// MOC3 §5.6: rotation delta rows sit directly in the affine tables 61-67 after the base rows.
 		for (record in blendLayout.rotationRecords) {
@@ -139,10 +148,12 @@ internal fun valueTableSections(context: MocLoweringContext): Map<Int, ByteArray
 	// MOC3 v5+ §5.6: part-owned blend-shape records append draw-order delta rows to section 58.
 	val partDrawOrder = ArrayList<Float>()
 	val partKeyformBase = IntArray(doc.parts.size)
+
 	for ((partIndex, part) in doc.parts.withIndex()) {
 		partKeyformBase[partIndex] = partDrawOrder.size
 		part.drawOrderKeyforms.forEach { partDrawOrder.add(it) }
 	}
+
 	if (blendLayout != null) {
 		for (record in blendLayout.partRecords) {
 			for (keyform in record.keyforms) {
@@ -151,8 +162,10 @@ internal fun valueTableSections(context: MocLoweringContext): Map<Int, ByteArray
 			}
 		}
 	}
+
 	sink.putInts(Section.PART_KEYFORM_BASE, partKeyformBase.toList())
 	sink.putFloats(Section.PART_DRAW_ORDER, partDrawOrder)
+
 	return sink.toMap()
 }
 

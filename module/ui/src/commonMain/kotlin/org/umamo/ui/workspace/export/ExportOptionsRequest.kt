@@ -1,0 +1,73 @@
+package org.umamo.ui.workspace.export
+
+import org.umamo.interop.moc3.Moc3ExportOptions
+import org.umamo.render.ContentBounds
+import org.umamo.ui.viewport.ImageExportOptions
+import org.umamo.ui.viewport.ImageFrame
+
+/*
+ * Export's dialogs and report wording: a pending options request per format (this file), the dialog
+ * that dispatches to the format's pane (ExportOptionsDialog.kt, Moc3ExportOptionsSection.kt,
+ * ImageExportOptionsSection.kt), and the sentences for an export report's notices
+ * (ExportNoticeLabels.kt).  The export itself runs in the app's controllers.
+ */
+
+/**
+ * A pending export-options dialog: the format's options to edit, the facts the dialog needs to
+ * render them, and the action to run with whatever the rigger confirms.
+ *
+ * One case per export format that HAS options - the dialog matches exhaustively, so giving a new
+ * format (GLTF, some day) an options pane starts by adding its case here and the compiler walks the
+ * rest of the way.  A format with no case (CMO3) never shows the dialog, by construction rather
+ * than by flag.
+ *
+ * The shell holds at most one of these (see [org.umamo.ui.workspace.ShellOverlayState.pendingExportOptions]) and renders
+ * the dialog for it; the app layer builds the request and continues the export in [onConfirm] -
+ * the same continuation shape as [org.umamo.ui.workspace.ConfirmRequest].
+ */
+internal sealed interface ExportOptionsRequest {
+	/**
+	 * The MOC3 export's options.
+	 *
+	 * @property Moc3ExportOptions initial The options to open the dialog with (the session's sticky
+	 *                                     values, scale already seeded).
+	 * @property Boolean physicsAvailable  Whether a retained physics3.json exists to include; the
+	 *                                     toggle is disabled when there is nothing to carry.
+	 * @property Boolean userDataAvailable Whether a retained userdata3.json exists to include.
+	 * @property Float   canvasWidth       The model's canvas width in pixels, for the units readout.
+	 * @property Float   canvasHeight      The model's canvas height in pixels, for the units readout.
+	 * @property Function onConfirm        Continues the export with the confirmed options.
+	 */
+	data class Moc3(
+		val initial: Moc3ExportOptions,
+		val physicsAvailable: Boolean,
+		val userDataAvailable: Boolean,
+		val canvasWidth: Float,
+		val canvasHeight: Float,
+		val onConfirm: (Moc3ExportOptions) -> Unit,
+	) : ExportOptionsRequest
+
+	/**
+	 * Export Image's options: the region, scale, and background of a capture of the posed puppet.
+	 *
+	 * The three rectangles are what the dialog frames its live size readout with, and what decides which
+	 * regions it offers: View only when a 2D viewport has been touched, Canvas only when the document has
+	 * one.
+	 *
+	 * @property ImageExportOptions initial       The options to open the dialog with (the session's sticky values).
+	 * @property ImageFrame?        viewFrame     The framed 2D viewport's own frame (the hovered one, else the last
+	 *   touched), or null when none has been touched.
+	 * @property ContentBounds?     canvasBounds  The canvas rectangle in world space, or null when there is none.
+	 * @property ContentBounds?     contentBounds The shown content's extent at the current pose, or null when none.
+	 * @property Function           onConfirm     Continues the export with the confirmed options, handed with what to
+	 *   remember of them: the same options, except that a region the dialog fell back from (and the rigger never
+	 *   replaced) is remembered rather than the fallback.
+	 */
+	data class Image(
+		val initial: ImageExportOptions,
+		val viewFrame: ImageFrame?,
+		val canvasBounds: ContentBounds?,
+		val contentBounds: ContentBounds?,
+		val onConfirm: (exported: ImageExportOptions, remembered: ImageExportOptions) -> Unit,
+	) : ExportOptionsRequest
+}

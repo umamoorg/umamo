@@ -1,22 +1,35 @@
 package org.umamo.ui.workspace.commands
 
+import org.umamo.edit.EditorMode
+import org.umamo.edit.EditorSession
+import org.umamo.edit.SelectionTarget
+import org.umamo.edit.structure.rename
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.ui.action.CommandRegistry
+import org.umamo.ui.help.ProjectInfo
 import org.umamo.ui.workspace.AreaCameraHub
-import org.umamo.ui.workspace.AreaDragController
+import org.umamo.ui.workspace.AreaOverlayHub
+import org.umamo.ui.workspace.AreaToolbarHub
 import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.KeyformSheetViews
-import org.umamo.ui.workspace.OperationStripState
+import org.umamo.ui.workspace.RelationPickController
 import org.umamo.ui.workspace.ShellOverlayState
 import org.umamo.ui.workspace.SpaceKind
-import org.umamo.ui.workspace.SplitterDragCancelController
-import org.umamo.ui.workspace.WorkspaceLayoutController
-import org.umamo.ui.workspace.defaultLayout
+import org.umamo.ui.workspace.ViewportChromeState
+import org.umamo.ui.workspace.area.AreaDragController
+import org.umamo.ui.workspace.area.SplitterDragCancelController
+import org.umamo.ui.workspace.layout.WorkspaceLayoutController
+import org.umamo.ui.workspace.layout.defaultLayout
+import org.umamo.ui.workspace.operationstrip.OperationStripState
 import org.umamo.ui.workspace.rowdrag.RowDragCancelController
+import org.umamo.ui.workspace.sidebar.AreaSidebarHub
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -40,7 +53,7 @@ class CommandTableOrderTest {
 
 	private fun routing(): CommandRouting = CommandRouting { null }
 
-	/** The shell-chrome table: overlay toggles, the drag cancels, workspace tab navigation. */
+	/** The shell-chrome table: overlay toggles, the project links, the drag cancels, workspace tab navigation. */
 	@Test
 	fun chromeTableIsComplete() {
 		val commands =
@@ -50,15 +63,19 @@ class CommandTableOrderTest {
 				SplitterDragCancelController(),
 				RowDragCancelController(),
 				workspaces(),
-			)
+			) {}
 		assertEquals(
 			listOf(
 				"palette.toggle",
 				"area.dragCancel",
 				"row.dragCancel",
 				"edit.preferences",
-				"help.about",
 				"help.credits",
+				"help.about",
+				"help.quickSetup",
+				"help.sourceCode",
+				"help.webSite",
+				"help.documentation",
 				"workspace.prev",
 				"workspace.next",
 			),
@@ -69,27 +86,32 @@ class CommandTableOrderTest {
 	/** The workspace-management and document-report tables, in the order the shell concatenates them. */
 	@Test
 	fun workspaceAndDocumentTablesAreComplete() {
-		val commands = workspaceCommands(workspaces(), overlays(), "Workspace") + documentCommands(overlays())
+		val commands = workspaceCommands(workspaces(), overlays()) { fixtureWorkspaceNames() } + documentCommands(overlays())
 		assertEquals(
 			listOf(
 				"workspace.new",
 				"workspace.reset",
+				"workspace.rename",
+				"workspace.duplicate",
+				"workspace.delete",
 				"workspace.applyLayout",
 				"workspace.appendWorkspace",
 				"document.openFailed",
 				"document.confirmReplace",
+				"document.confirmExit",
 				"document.exportReport",
 				"document.repackReport",
-				"document.exportOptionsMoc3",
+				"document.exportOptions",
 				"document.confirm",
+				"document.alert",
 			),
 			commands.map { command -> command.id },
 		)
 	}
 
 	/**
-	 * The viewport navigation table and the context-aware frame command.  Built with no render service,
-	 * which only flips the availability gate - the tables themselves are the same either way.
+	 * The viewport navigation table, the context-aware frame command, and the overlay toggles.  Built with no
+	 * render service, which only flips the availability gate - the tables themselves are the same either way.
 	 */
 	@Test
 	fun viewTablesAreComplete() {
@@ -108,20 +130,35 @@ class CommandTableOrderTest {
 			commands.map { command -> command.id },
 		)
 		assertEquals(listOf("frame.all"), frameCommands(CommandRegistry(), routing()).map { command -> command.id })
+		assertEquals(
+			listOf(
+				"view.overlay.all",
+				"view.overlay.grid",
+				"view.overlay.axes",
+				"view.overlay.cursor",
+				"view.overlay.info",
+				"view.overlay.selectionTint",
+				"view.overlay.deformers",
+				"view.overlay.wireframe",
+				"view.overlay.wireframeCulling",
+				"view.overlay.dimBackFacing",
+			),
+			overlayCommands(AreaOverlayHub(), routing(), viewportPresent = false).map { command -> command.id },
+		)
 	}
 
 	/** The selection-clear and editor-mode table. */
 	@Test
 	fun modeTableIsComplete() {
 		assertEquals(
-			listOf("select.clear", "mode.toggleEdit", "mode.object", "mode.edit"),
+			listOf("select.clear", "mode.toggleEdit", "mode.togglePose", "mode.object", "mode.edit", "mode.pose"),
 			modeCommands(null, null).map { command -> command.id },
 		)
 	}
 
 	/**
 	 * The document-scoped groups in the order the shell concatenates them - by far the largest set, and
-	 * the one a split most easily loses a command from.  The six proportional-falloff commands are
+	 * the one a split most easily loses a command from.  The eight proportional-falloff commands are
 	 * appended by a loop over the enum, so they trail their group's hand-written pair.
 	 */
 	@Test
@@ -134,9 +171,11 @@ class CommandTableOrderTest {
 				objectCommands(null, null, availability) +
 				transformCommands(null, routing, availability) +
 				selectCommands(null, routing, sheets, availability) +
-				snapCommands(null, routing, availability) +
+				snapCommands(null, routing, availability, AreaOverlayHub()) +
 				uvCommands(null, routing, availability) +
 				topologyCommands(null, routing, availability) +
+				meshGenerationCommands(availability, routing, null, null) +
+				latticeCommands(null, routing, availability) +
 				proportionalCommands(null, availability) +
 				displayCommands(null, availability) +
 				atlasCommands(availability, routing, null)
@@ -146,16 +185,28 @@ class CommandTableOrderTest {
 				"edit.redo",
 				"edit.adjustLastOperation",
 				"object.toggleVisibility",
+				"object.hideUnselected",
+				"object.unhideAll",
 				"outliner.selectHierarchy",
 				"mesh.grab",
-				"mesh.scale",
 				"mesh.rotate",
+				"mesh.scale",
 				"mesh.modalCancel",
+				"mesh.toShape.cylinder",
+				"mesh.toShape.sphere",
 				"mesh.selectMode.vertex",
 				"mesh.selectMode.edge",
 				"mesh.selectMode.face",
 				"select.all",
 				"select.invert",
+				"select.all.parts",
+				"select.all.drawables",
+				"select.all.warps",
+				"select.all.rotations",
+				"select.invert.parts",
+				"select.invert.drawables",
+				"select.invert.warps",
+				"select.invert.rotations",
 				"mesh.boxSelect",
 				"mesh.circleSelect",
 				"mesh.circleSelect.grow",
@@ -199,14 +250,20 @@ class CommandTableOrderTest {
 				"mesh.rip",
 				"mesh.connect",
 				"mesh.vertexSlide",
+				"mesh.generateFromArt",
+				"mesh.generateQuad",
+				"lattice.subdivide",
+				"deformer.createWarp",
 				"mesh.proportional.toggle",
 				"mesh.proportional.connectedToggle",
 				"mesh.proportional.falloff.smooth",
 				"mesh.proportional.falloff.sphere",
 				"mesh.proportional.falloff.root",
+				"mesh.proportional.falloff.inverseSquare",
 				"mesh.proportional.falloff.sharp",
 				"mesh.proportional.falloff.linear",
 				"mesh.proportional.falloff.constant",
+				"mesh.proportional.falloff.random",
 				"document.toggleSourceArtworkDisplay",
 				"document.repackAtlas",
 			),
@@ -215,22 +272,101 @@ class CommandTableOrderTest {
 	}
 
 	/**
-	 * The app-registered file and log tables, in the order EditorApp concatenates them.  Their actions are
-	 * plain lambdas, which is what lets a commonMain test build them at all - the document layer they
-	 * actually call into is jvmAndroidMain.
+	 * The workspace layout's file table and the log table, in the order the settings-backed shell
+	 * concatenates them.  Their actions are plain lambdas, so the tables build with no picker and no settings.
 	 */
 	@Test
-	fun fileAndLogTablesAreComplete() {
-		val commands = fileCommands({}, {}, {}) + logCommands {}
-		assertEquals(listOf("file.importArtwork", "file.importCmo3", "file.importMoc3", "logs.export"), commands.map { command -> command.id })
+	fun workspaceFileAndLogTablesAreComplete() {
+		val commands = workspaceFileCommands({}, {}, {}) + logCommands {}
+		assertEquals(listOf("workspace.import", "workspace.exportThis", "workspace.exportAll", "logs.export"), commands.map { command -> command.id })
+	}
+
+	/**
+	 * Open Log Folder is a table of its own, registered by the app only when its host can show a folder, and its handler
+	 * is the host's call and nothing else.
+	 */
+	@Test
+	fun theLogFolderTableRunsTheHostsOpener() {
+		var opened = 0
+		val commands = logFolderCommands { opened++ }
+
+		assertEquals(listOf("help.openLogFolder"), commands.map { command -> command.id })
+		commands.single().handler.run(null)
+
+		assertEquals(1, opened)
+	}
+
+	@Test
+	fun theUpdateTableRunsTheCheck() {
+		var checks = 0
+		val commands = updateCommands { checks++ }
+
+		assertEquals(listOf("help.checkForUpdates"), commands.map { command -> command.id })
+		commands.single().handler.run(null)
+
+		assertEquals(1, checks)
+	}
+
+	/** The sidebar tab commands, which step the hovered area's sidebar. */
+	@Test
+	fun sidebarTableIsComplete() {
+		assertEquals(
+			listOf("view.sidebar.nextTab", "view.sidebar.previousTab"),
+			sidebarCommands(AreaSidebarHub(), routing()).map { command -> command.id },
+		)
+	}
+
+	/** The viewport chrome toggles, which flip the hovered viewport's own toolbar and sidebar. */
+	@Test
+	fun viewportChromeTableIsComplete() {
+		assertEquals(
+			listOf("view.toggleToolbar", "view.toggleSidebar"),
+			viewportChromeCommands(AreaToolbarHub(), AreaSidebarHub(), routing()) { ViewportChromeState() }.map { command -> command.id },
+		)
+	}
+
+	/**
+	 * The app-registered file tables.  Their actions are plain lambdas, which is what lets a commonMain test
+	 * build them at all - the document layer they actually call into is jvmAndroidMain.
+	 */
+	@Test
+	fun fileTablesAreComplete() {
+		val commands = fileCommands({}, {}, {}, {}, { true }, {}, {}, {}, { emptyList() }, {})
+		assertEquals(
+			listOf("file.new", "file.open", "file.openPath", "file.save", "file.saveAs", "file.importCmo3", "file.importMoc3", "file.exit"),
+			commands.map { command -> command.id },
+		)
 		assertEquals(
 			listOf("file.exportCmo3", "file.exportMoc3"),
 			fileExportCommands({ true }, {}, {}).map { command -> command.id },
 		)
 		assertEquals(
-			listOf("file.addArtwork", "document.reloadArtwork", "sources.relink", "sources.matchAutomatically", "sources.replaceArtwork", "sources.deleteArt"),
+			listOf("file.importArtwork", "document.reloadArtwork", "sources.relink", "sources.matchAutomatically", "sources.replaceArtwork", "sources.deleteArt", "sources.ignoreLayer"),
 			fileArtworkCommands(routing()) { null }.map { command -> command.id },
 		)
+		assertEquals(listOf("file.exportImage"), fileImageExportCommands(routing()) { null }.map { command -> command.id })
+	}
+
+	/**
+	 * Export Image hides itself while nothing can be captured (the collaborator is null) and asks LIVE; fired, it
+	 * hands the export the 2D viewport the pointer last touched, and no area at all when that surface was
+	 * anything else - never a viewport the pointer has left.
+	 */
+	@Test
+	fun imageExportFollowsTheCollaboratorAndTheHoveredViewport() {
+		var exportImage: ((String?) -> Unit)? = null
+		var hovered = HoveredSurface("viewport-3", SpaceKind.Viewport2D)
+		val command = fileImageExportCommands(CommandRouting { hovered }) { exportImage }.single()
+		assertFalse(command.availability.isAvailable(), "nothing to capture with no renderer or document")
+
+		val framedAreas = ArrayList<String?>()
+		exportImage = { areaId -> framedAreas.add(areaId) }
+		assertTrue(command.availability.isAvailable(), "the collaborator is queried per call, not sampled at registration")
+		command.handler.run(null)
+		hovered = HoveredSurface("outliner-1", SpaceKind.Outliner)
+		command.handler.run(null)
+
+		assertEquals(listOf("viewport-3", null), framedAreas)
 	}
 
 	/**
@@ -247,36 +383,125 @@ class CommandTableOrderTest {
 	}
 
 	/**
+	 * Opening a file by its path is argument-only: a recent file's row supplies the path, so the command
+	 * has no title for the palette, passes a path through untouched, and ignores anything that is not one
+	 * rather than opening a file nobody named.
+	 */
+	@Test
+	fun openingByPathTakesThePathAsItsArgument() {
+		val openedPaths = ArrayList<String>()
+		val openPath = fileCommands({}, {}, {}, {}, { true }, {}, {}, { path -> openedPaths.add(path) }, { emptyList() }, {}).first { command -> command.id == "file.openPath" }
+
+		assertNull(openPath.title, "nothing for the palette to offer without a path")
+		openPath.handler.run("/rigs/hero.uma")
+		openPath.handler.run(null)
+		openPath.handler.run(42)
+
+		assertEquals(listOf("/rigs/hero.uma"), openedPaths)
+	}
+
+	/**
+	 * Open Recent's rows are the recent files, each under its file name and carrying its whole path, read each time
+	 * they are asked for: the list changes with every open and save, and the table is registered once.
+	 */
+	@Test
+	fun openRecentOffersTheRecentFilesByNameReadLive() {
+		val recentFiles = ArrayList<String>()
+		val openPath = fileCommands({}, {}, {}, {}, { true }, {}, {}, {}, { recentFiles }, {}).first { command -> command.id == "file.openPath" }
+		val choices = checkNotNull(openPath.choices) { "file.openPath offers no choices" }
+
+		assertEquals(emptyList(), choices.list())
+
+		recentFiles.add("/rigs/hero.uma")
+		recentFiles.add("C:\\rigs\\villain.cmo3")
+
+		assertEquals(listOf("hero.uma" to "/rigs/hero.uma", "villain.cmo3" to "C:\\rigs\\villain.cmo3"), choices.list().map { choice -> choice.label to choice.argument })
+	}
+
+	/**
+	 * Undo and Redo apply only while the stack has a step for them, read live - which is what grays their menu rows
+	 * and keeps them out of the palette with nothing to undo.
+	 */
+	@Test
+	fun undoAndRedoApplyOnlyWhileTheStackHasAStep() {
+		// A session of its own over the fixture's model: the fixture's own session already holds the steps that set it up.
+		val session = EditorSession(commandFixtureSession(EditorMode.Object).model.value)
+		val history = historyCommands(session, SessionAvailability(session), OperationStripState()).associateBy { command -> command.id }
+		val undo = history.getValue("edit.undo")
+		val redo = history.getValue("edit.redo")
+
+		assertFalse(undo.availability.isAvailable(), "a fresh document has nothing to take back")
+		assertFalse(redo.availability.isAvailable())
+
+		session.rename(SelectionTarget.Drawable(DrawableId("a")), "renamed")
+
+		assertTrue(undo.availability.isAvailable())
+		assertFalse(redo.availability.isAvailable())
+
+		undo.handler.run(null)
+
+		assertFalse(undo.availability.isAvailable())
+		assertTrue(redo.availability.isAvailable())
+
+		val closed = historyCommands(null, SessionAvailability(null), OperationStripState())
+		assertTrue(closed.filter { command -> command.id != "edit.adjustLastOperation" }.none { command -> command.availability.isAvailable() }, "and neither applies with no document")
+	}
+
+	/** Each Help link command opens its own project URL, and nothing else, through the shell's opener. */
+	@Test
+	fun theHelpLinksOpenTheProjectUrls() {
+		val openedUrls = ArrayList<String>()
+		val commands =
+			chromeCommands(overlays(), AreaDragController(), SplitterDragCancelController(), RowDragCancelController(), workspaces()) { url -> openedUrls.add(url) }
+
+		for (commandId in listOf("help.sourceCode", "help.webSite", "help.documentation")) {
+			commands.first { command -> command.id == commandId }.handler.run(null)
+		}
+
+		assertEquals(listOf(ProjectInfo.SOURCE_CODE_URL, ProjectInfo.WEB_SITE_URL, ProjectInfo.DOCUMENTATION_URL), openedUrls)
+	}
+
+	/**
 	 * The artwork commands hide themselves while no document can take artwork (the collaborator is
 	 * null), ask LIVE, and hand the handler the area its operation strip shows in - fired over the
 	 * Sources panel, that is the last work surface the pointer touched, never the panel.  Reload also
-	 * asks the collaborator whether any file can be read; relink carries its request through.
+	 * asks the collaborator whether any file can be read; relink, delete, and ignore carry their requests
+	 * through, and ignore is argument-only, so it has no title for the palette.
+	 *
+	 * The import carries an optional one: with no payload it means "ask for a file", and with one it means
+	 * "add these" - the way a drop reaches the same id.
 	 */
 	@Test
 	fun artworkCommandsFollowTheCollaboratorAndTheStripArea() {
 		var operations: ArtworkOperations? = null
 		val routing = CommandRouting({ HoveredSurface("sources-1", SpaceKind.Sources) }, { HoveredSurface("area-7", SpaceKind.UvEditor) })
 		val commands = fileArtworkCommands(routing) { operations }
-		val add = commands.first { command -> command.id == "file.addArtwork" }
+		val add = commands.first { command -> command.id == "file.importArtwork" }
 		val reload = commands.first { command -> command.id == "document.reloadArtwork" }
 		val relink = commands.first { command -> command.id == "sources.relink" }
 		val match = commands.first { command -> command.id == "sources.matchAutomatically" }
 		val replace = commands.first { command -> command.id == "sources.replaceArtwork" }
-		assertFalse(add.availability.isAvailable(), "nothing to add with no document open")
+		assertFalse(add.availability.isAvailable(), "no document to import artwork into")
 		assertFalse(reload.availability.isAvailable())
 		assertFalse(relink.availability.isAvailable())
 		assertFalse(match.availability.isAvailable())
 		assertFalse(replace.availability.isAvailable())
 		var landedArea: String? = "untouched"
+		var landedImport: ImportArtworkRequest? = null
 		var landedRequest: RelinkRequest? = null
 		var landedScope: ReloadScope? = null
 		var landedReplace: ReplaceRequest? = null
 		var deleted: DeleteArtRequest? = null
+		var ignored: IgnoreLayerRequest? = null
 		var matched = 0
 		var canReload = false
+		var canAddArtwork = true
 		operations =
 			ArtworkOperations(
-				addArtwork = { areaId -> landedArea = areaId },
+				importArtwork = { request, areaId ->
+					landedImport = request
+					landedArea = areaId
+				},
 				reloadArtwork = { areaId, reloadScope ->
 					landedArea = areaId
 					landedScope = reloadScope
@@ -294,14 +519,27 @@ class CommandTableOrderTest {
 					landedArea = areaId
 				},
 				deleteArt = { request -> deleted = request },
+				ignoreLayer = { request -> ignored = request },
 				canReload = { canReload },
+				canAddArtwork = { canAddArtwork },
 			)
 		assertTrue(add.availability.isAvailable(), "the collaborator is queried per call")
+		canAddArtwork = false
+		assertFalse(add.availability.isAvailable(), "a document that cannot take artwork turns the add away, which grays its menu row")
+		assertTrue(relink.availability.isAvailable(), "and the add alone: the art it already has can still be rebound")
+		canAddArtwork = true
 		assertFalse(reload.availability.isAvailable(), "a reload needs a file it can read")
 		canReload = true
 		assertTrue(reload.availability.isAvailable())
 		add.handler.run(null)
 		assertEquals("area-7", landedArea, "the strip area reaches the orchestration")
+		assertEquals(null, landedImport, "no payload means ask for a file")
+		val dropped = ImportArtworkRequest(listOf("/art/face.psd", "/art/hair.psd"))
+		add.handler.run(dropped)
+		assertSame(dropped, landedImport, "the dropped files reach the orchestration")
+		assertEquals("area-7", landedArea)
+		add.handler.run("not a request")
+		assertEquals(null, landedImport, "a payload of the wrong shape asks for a file rather than adding nothing")
 		landedArea = "untouched"
 		reload.handler.run(null)
 		assertEquals("area-7", landedArea)
@@ -325,6 +563,11 @@ class CommandTableOrderTest {
 		val deleteRequest = DeleteArtRequest(AtlasTileId("t9"))
 		commands.first { command -> command.id == "sources.deleteArt" }.handler.run(deleteRequest)
 		assertSame(deleteRequest, deleted, "the delete carries its tile")
+		val ignore = commands.first { command -> command.id == "sources.ignoreLayer" }
+		val ignoreRequest = IgnoreLayerRequest(SourceLayerRef(ArtSourceId("art-0"), "lyid:1", stableKey = true), ignored = true)
+		ignore.handler.run(ignoreRequest)
+		assertSame(ignoreRequest, ignored, "the ignore carries its layer")
+		assertNull(ignore.title, "argument-only, so not a palette entry")
 	}
 
 	/** The keyform-authoring table. */
@@ -335,10 +578,32 @@ class CommandTableOrderTest {
 			listOf(
 				"keyform.insert",
 				"keyform.delete",
+				"keyform.insertPie",
+				"keyform.insert.lattice",
+				"keyform.insert.opacity",
+				"keyform.insert.colors",
+				"keyform.insert.all",
+				"keyform.clearPoseEdits",
 				"keyform.deleteSelectedKeys",
 				"keyform.nudgeKeyLeft",
 				"keyform.nudgeKeyRight",
 				"keyform.frameAll",
+			),
+			commands.map { command -> command.id },
+		)
+	}
+
+	/** The relation-menu table. */
+	@Test
+	fun relationTableIsComplete() {
+		val commands = relationCommands(null, RelationPickController(), routing(), SessionAvailability(null))
+		assertEquals(
+			listOf(
+				"relation.select",
+				"relation.clear",
+				"relation.pick",
+				"relation.remove",
+				"relation.copyToSelected",
 			),
 			commands.map { command -> command.id },
 		)

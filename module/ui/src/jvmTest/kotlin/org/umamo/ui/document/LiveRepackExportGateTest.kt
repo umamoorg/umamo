@@ -8,14 +8,15 @@ import org.umamo.edit.EditorSession
 import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.cmo3AtlasPages
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.cmo3.import.cmo3AtlasPages
 import org.umamo.render.encodeAtlasPng
-import org.umamo.ui.model.AtlasRepackHost
-import org.umamo.ui.model.AtlasRepackReport
+import org.umamo.testkit.skipTest
 import org.umamo.ui.model.SessionAtlasPages
-import org.umamo.ui.model.repackPageSizeOf
-import org.umamo.ui.model.runAtlasRepack
+import org.umamo.ui.model.repack.AtlasRepackHost
+import org.umamo.ui.model.repack.AtlasRepackReport
+import org.umamo.ui.model.repack.repackPageSizeOf
+import org.umamo.ui.model.repack.runAtlasRepack
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -39,10 +40,11 @@ class LiveRepackExportGateTest {
 	fun aLiveRepackExportsTheRepackedArrangement() =
 		runBlocking {
 			val file = sample
+
 			if (file == null) {
-				println("cmo3.sample not present; skipping the live repack export gate")
-				return@runBlocking
+				skipTest("cmo3.sample not present; skipping the live repack export gate")
 			}
+
 			val load = loadDocument(file.readBytes(), file.name, file.path)
 			val document = assertIs<Cmo3Document>(assertIs<DocumentLoad.Loaded>(load).document)
 			val session = EditorSession(document.puppet, document.liveParams.values)
@@ -85,29 +87,37 @@ class LiveRepackExportGateTest {
 			val reimported = Cmo3Import.fromModelSource(reread.root as CModelSource)
 			assertEquals(repacked.atlas.pages, reimported.atlas.pages, "page inventory")
 			var mismatches = 0
+
 			for (tile in repacked.atlas.tiles) {
 				val reread = reimported.atlas.tileById[tile.id]?.placement
+
 				if (reread != tile.placement) {
 					mismatches++
+
 					if (mismatches <= 5) {
 						println("placement mismatch '${tile.name}': session=${tile.placement} file=$reread")
 					}
 				}
 			}
+
 			assertEquals(0, mismatches, "tiles whose exported placement differs from the session's")
 			val editedUvs = repacked.drawables.associate { it.id to it.mesh?.uvs }
 			var uvMismatches = 0
+
 			for (drawable in reimported.drawables) {
 				val expected = editedUvs[drawable.id] ?: continue
+
 				if (!expected.contentEquals(drawable.mesh?.uvs)) {
 					uvMismatches++
 				}
 			}
+
 			assertEquals(0, uvMismatches, "drawables whose exported uvs differ from the session's")
 			// The page BYTES the file carries must be the resolver's pages, not the imported originals.
 			val exportedPages = cmo3AtlasPages(reread.root as CModelSource) { resource -> reread.extractLayerPng(resource) }.pageBytes
 			val expectedPages = effective.atlases.map { page -> encodeAtlasPng(page) }
 			assertEquals(expectedPages.size, exportedPages.size, "exported page count")
+
 			for ((pageIndex, bytes) in exportedPages.withIndex()) {
 				assertTrue(expectedPages.any { expected -> expected.contentEquals(bytes) }, "exported page $pageIndex is not one of the repack's pages")
 			}

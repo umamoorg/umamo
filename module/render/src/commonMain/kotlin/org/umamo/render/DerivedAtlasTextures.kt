@@ -48,7 +48,7 @@ public fun derivedTileTrim(raster: DecodedImage, alphaThreshold: Int): LayerBoun
 
 /**
  * The composition policy a pack under [options] leaves on the model, so the derivation trims and
- * extrudes exactly as the pack did.
+ * bleeds exactly as the pack did.
  *
  * @param AtlasPackOptions options The options the pack ran with.
  * @return AtlasComposition The two derivation-relevant options, as model state.
@@ -62,7 +62,7 @@ fun atlasCompositionOf(options: AtlasPackOptions): AtlasComposition = AtlasCompo
  * Upright, the tile's origin sits trimLeft / trimTop above and left of the packed rect.  Turned, the
  * packer sends trim-local (u, v) to (pageX + v, pageY + trimWidth - u), so over the untrimmed tile
  * frame the origin lands at (pageX - trimTop, pageY + trimWidth + trimLeft) under a -90 degree
- * rotation - the affine the composer's own exact quarter-turn path recognises, so a turned pack
+ * rotation - the affine the composer's own exact quarter-turn path recognizes, so a turned pack
  * derives through the packer's blit.  Any other turn count is a packer contract violation.
  *
  * @param AtlasPackPlacement packPlacement Where the packer put one tile.
@@ -72,6 +72,7 @@ fun atlasPlacementFromPack(packPlacement: AtlasPackPlacement): AtlasPlacement {
 	require(packPlacement.quarterTurns in 0..1) {
 		"tile '${packPlacement.key}' has an unsupported rotation: ${packPlacement.quarterTurns} quarter turns"
 	}
+
 	return if (packPlacement.quarterTurns == 0) {
 		AtlasPlacement(
 			pageIndex = packPlacement.pageIndex,
@@ -110,13 +111,8 @@ class AtlasDerivationPlan(
 /**
  * Resolves what [model]'s atlas denotes without composing a pixel.
  *
- * Null when the atlas cannot be derived at all: a placement naming a page the atlas lacks, art that
- * will not decode, or art whose size disagrees with its tile - faults in the document, not in the
- * placement.  A placed tile with nothing opaque is skipped rather than refused (there is nothing to
- * draw), and scale, rotation, fractional positions, and footprints past the page edge all derive:
- * the composer resamples and clips them.
- *
- * Thread-safe: reads pixels through [SourceArtRasters.decodeRaster] and shares nothing, so callers
+ * Refuses only a fault in the document, never a placement: scale, rotation, fractional positions,
+ * and footprints past the page edge are the composer's to resample and clip.  Thread-safe, so callers
  * run it off the UI thread.
  *
  * @param PuppetModel      model      The model whose atlas to resolve.
@@ -128,15 +124,20 @@ fun planAtlasDerivation(model: PuppetModel, artRasters: SourceArtRasters): Atlas
 	val items = ArrayList<AtlasPackItem>()
 	val placements = ArrayList<AtlasTilePlacement>()
 	val trimByTile = HashMap<AtlasTileId, LayerBounds>()
+
 	for (tile in atlas.tiles) {
 		val placement = tile.placement ?: continue
+
 		if (placement.pageIndex !in atlas.pages.indices) {
 			return null
 		}
+
 		val raster = artRasters.decodeRaster(tile.id) ?: return null
+
 		if (raster.width != tile.width || raster.height != tile.height) {
 			return null
 		}
+
 		// The packer trimmed each tile to its opaque bounds before placing it; the placement holds only
 		// the untrimmed origin, so the same analysis on the same pixels, under the threshold the atlas
 		// records, reconstructs the trim exactly.
@@ -145,6 +146,7 @@ fun planAtlasDerivation(model: PuppetModel, artRasters: SourceArtRasters): Atlas
 		items.add(AtlasPackItem(tile.id.raw, raster.width, raster.height, raster.rgba))
 		placements.add(AtlasTilePlacement(tile.id.raw, placement.pageIndex, trim, placementAffine(placement)))
 	}
+
 	return AtlasDerivationPlan(items, placements, trimByTile)
 }
 
@@ -156,14 +158,7 @@ fun planAtlasDerivation(model: PuppetModel, artRasters: SourceArtRasters): Atlas
  * [PuppetTextures.atlases] is index-parallel to `PuppetAtlas.pages`, and the drawable map carries
  * each placement's own page index.  That guarantee holds for GENERATED sets only - an imported
  * document's two numberings stay independent (see [AtlasPlacement]), because its renderer pages were
- * collected by a different walk than its document pages.
- *
- * A placement the packer authored (an integer translation with room for its extrusion) composes
- * through the packer's own blit, byte-identical to the pages the repack produced; every other
- * placement resamples through the affine composer.  Null exactly when [planAtlasDerivation] is null;
- * the caller treats that as "keep showing the pages you have".
- *
- * Thread-safe, like the plan.
+ * collected by a different walk than its document pages.  Thread-safe, like the plan.
  *
  * @param PuppetModel      model              The model whose atlas to compose.
  * @param SourceArtRasters artRasters         The source-art pixel store.
@@ -185,6 +180,7 @@ fun deriveAtlasTextures(
 			placements = plan.placements,
 			extrude = atlas.composition.extrude,
 		)
+
 	return generatedPuppetTextures(pages, model, premultipliedAlpha)
 }
 
@@ -192,9 +188,8 @@ fun deriveAtlasTextures(
  * The [PuppetTextures] a GENERATED page set is: [pages] wrapped as decoded images, index-parallel to
  * `PuppetAtlas.pages`, under the drawable map of [generatedAtlasIndexByDrawableId].
  *
- * One function used by the repack (from the pack it just ran), the derivation above (for an undone
- * generation), and the export gate, so no caller assembles the wrapper on its own and the page cache's
- * identity-keyed sets are always built the same way.
+ * Every generated page set is wrapped here, so the page cache's identity-keyed sets are always built
+ * the same way.
  *
  * @param List        pages              The composed pages, in the model's page order.
  * @param PuppetModel model              The model whose bindings key the drawable map.
@@ -222,6 +217,7 @@ fun generatedPuppetTextures(
 fun generatedAtlasIndexByDrawableId(model: PuppetModel): Map<String, Int> {
 	val placementByTileId = model.atlas.tiles.associateBy({ tile -> tile.id }, { tile -> tile.placement })
 	val atlasIndexByDrawableId = HashMap<String, Int>()
+
 	for (drawable in model.drawables) {
 		val tileId = drawable.atlasTileId ?: continue
 		val placement = placementByTileId[tileId] ?: continue
@@ -229,5 +225,6 @@ fun generatedAtlasIndexByDrawableId(model: PuppetModel): Map<String, Int> {
 		// drawable it was duplicated from (Drawable.textureSourceId), and shared sources share a tile.
 		atlasIndexByDrawableId[(drawable.textureSourceId ?: drawable.id).raw] = placement.pageIndex
 	}
+
 	return atlasIndexByDrawableId
 }

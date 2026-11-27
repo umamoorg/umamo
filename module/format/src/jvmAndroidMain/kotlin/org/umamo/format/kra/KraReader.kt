@@ -12,10 +12,10 @@ import org.umamo.format.art.LayerRaster
 import org.umamo.format.art.SourceArt
 import org.umamo.format.art.SourceGroup
 import org.umamo.format.art.SourceLayer
+import org.umamo.format.binary.ZipArchive
 import org.xml.sax.InputSource
 import java.io.ByteArrayInputStream
 import java.io.StringReader
-import java.util.zip.ZipInputStream
 import kotlin.math.max
 import kotlin.math.min
 
@@ -30,8 +30,7 @@ import kotlin.math.min
  * Scope: read-only; paint layers only (groups are traversed for hierarchy, all other node types
  * skipped); RGBA and GRAYA color in 8/16/32-bit (see resolveKraPixelFormat).
  *
- * Krita .kra 読み込み（デスクトップ JVM と Android）。ZIP と maindoc.xml とタイル化レイヤーを中立モデルへ。
- * java.util.zip と JDOM のみで Android でも動作する。ペイントレイヤーのみ対応。
+ * JDOM alone keeps this reader in jvmAndroidMain: the archive goes through the commonMain ZipArchive.
  */
 object KraReader : ArtReader {
 	override val kind: FileKind = FileKind.Kra
@@ -58,7 +57,7 @@ object KraReader : ArtReader {
 				?: error("not a .kra: no maindoc.xml in the archive")
 
 		// JDOM finds elements by namespace-qualified name; KRA files carry a default namespace that
-		// also differs between schema versions (calligra.org vs koffice.org). So we match by local
+		// also differs between schema versions (calligra.org vs koffice.org).  So we match by local
 		// name throughout (see childrenNamed) and read attributes, which carry no namespace, directly.
 		val documentRoot = parseMainDocument(mainXml)
 		val imageElement =
@@ -78,6 +77,7 @@ object KraReader : ArtReader {
 		val topLayers =
 			imageElement.childrenNamed("layers").firstOrNull() // newer schema: lowercase layers
 				?: imageElement.childrenNamed("LAYERS").firstOrNull() // legacy schema: uppercase LAYERS
+
 		if (topLayers != null) {
 			collectPaintLayers(topLayers, parentPath = "", paintLayersTopToBottom, groupPaths, groups)
 		}
@@ -107,7 +107,7 @@ object KraReader : ArtReader {
 
 /**
  * True if bytes is a Krita archive: a ZIP whose first, stored entry is the mimetype file holding
- * application/x-krita. Krita writes that entry first and uncompressed (like ODF/EPUB), so the marker
+ * application/x-krita.  Krita writes that entry first and uncompressed (like ODF/EPUB), so the marker
  * sits in the first few dozen bytes and a short prefix scan identifies the format without unzipping.
  * A .kra re-saved by a tool that drops the mimetype entry will not match here, in which case the
  * format registry's extension fallback covers it.
@@ -119,29 +119,31 @@ private fun isKra(bytes: ByteArray): Boolean {
 	// KRA: ZIP local-file-header magic @ +0x00, then the mimetype entry content (KoQuaZipStore.cpp:165
 	// writes it first/uncompressed).  A .kra carries TWO similar-looking Krita mime strings and they
 	// are not interchangeable: the mimetype entry holds "application/x-krita", while "application/x-kra"
-	// is the <IMAGE mime> attribute inside maindoc.xml (see docs/format/KRA.md §1).  Matching the
-	// latter here finds nothing — it is not even a prefix of the former, the two diverge at "kr|a" vs
-	// "kr|ita" — so scan for the real entry content.  Both are accepted anyway: neither string can
-	// occur this early in a non-Krita ZIP, so allowing both only buys tolerance of writer variation.
+	// is the <IMAGE mime> attribute inside maindoc.xml (see docs/format/KRA.md §1); neither is a prefix
+	// of the other, as they diverge at "kr|a" vs "kr|ita".
 	val zipMagic = byteArrayOf(0x50, 0x4B, 0x03, 0x04) // "PK\x03\x04"
+
 	if (bytes.size < zipMagic.size) {
 		return false
 	}
+
 	for (magicIndex in zipMagic.indices) {
 		if (bytes[magicIndex] != zipMagic[magicIndex]) {
 			return false
 		}
 	}
+
 	val scanLimit = min(bytes.size, 128)
+
 	return KRA_MIMETYPE_MARKERS.any { marker -> indexOfBytes(bytes, marker.encodeToByteArray(), scanLimit) >= 0 }
 }
 
 /**
  * The mimetype-entry contents that identify a Krita archive.
  *
- * "application/x-krita" is what Krita actually writes; "application/x-kra" is accepted defensively
- * (it is the maindoc.xml `<IMAGE mime>` value, and is what an earlier version of this check looked
- * for by mistake).
+ * "application/x-krita" is what Krita actually writes; "application/x-kra" (the maindoc.xml
+ * `<IMAGE mime>` value) is accepted defensively, since neither string can occur this early in a
+ * non-Krita ZIP and allowing both only buys tolerance of writer variation.
  */
 private val KRA_MIMETYPE_MARKERS = listOf("application/x-krita", "application/x-kra")
 
@@ -157,18 +159,24 @@ private fun indexOfBytes(haystack: ByteArray, needle: ByteArray, scanLimit: Int)
 	if (needle.isEmpty()) {
 		return -1
 	}
+
 	val lastStart = min(scanLimit, haystack.size - needle.size + 1)
 	var startIndex = 0
+
 	while (startIndex < lastStart) {
 		var matchIndex = 0
+
 		while (matchIndex < needle.size && haystack[startIndex + matchIndex] == needle[matchIndex]) {
 			matchIndex++
 		}
+
 		if (matchIndex == needle.size) {
 			return startIndex
 		}
+
 		startIndex++
 	}
+
 	return -1
 }
 
@@ -198,6 +206,7 @@ private fun collectPaintLayers(
 				?: ""
 		val nodeType = rawNodeType.lowercase()
 		val name = layerElement.getAttributeValue("name") ?: ""
+
 		when (nodeType) {
 			"grouplayer" -> {
 				val childPath = if (parentPath.isEmpty()) name else "$parentPath/$name"
@@ -205,6 +214,7 @@ private fun collectPaintLayers(
 				val nested =
 					layerElement.childrenNamed("layers").firstOrNull()
 						?: layerElement.childrenNamed("LAYERS").firstOrNull()
+
 				if (nested != null) {
 					collectPaintLayers(nested, childPath, paintLayers, groupPaths, groups)
 				}
@@ -214,8 +224,9 @@ private fun collectPaintLayers(
 				paintLayers.add(layerElement)
 				groupPaths.add(parentPath)
 			}
+
 			// adjustment/generator/clone/shape/file layers and masks carry no plain raster - skip.
-			else -> Unit
+			else -> {}
 		}
 	}
 }
@@ -224,10 +235,7 @@ private fun collectPaintLayers(
  * Builds a neutral SourceGroup from a Krita group-layer element.
  *
  * KRA group layers carry the same visibility/opacity/composite attributes as paint layers, plus a
- * passthrough flag (a non-isolating folder). Krita has no per-folder "clip to below" concept that
- * maps cleanly onto the neutral clipped flag (its inherit-alpha lives in channelflags and needs the
- * resolved color space), so clipped is left false here; the source-art compositor only consumes
- * group visibility today.
+ * passthrough flag (a non-isolating folder).
  *
  * @param Element groupElement The grouplayer element.
  * @param String path          The slash-joined folder path including this folder's name.
@@ -241,6 +249,8 @@ private fun buildGroup(groupElement: Element, path: String, name: String): Sourc
 		// KRA: a group layer's @visible "0" hides the whole subtree (kis_kra_loader sets node visible).
 		visible = groupElement.getAttributeValue("visible") != "0",
 		opacity = (groupElement.getAttributeValue("opacity")?.toIntOrNull() ?: 255) / 255f,
+		// Krita's per-folder inherit-alpha lives in channelflags and needs the resolved color space, so it
+		// does not map cleanly onto the neutral clipped flag.
 		clipped = false,
 		blend = parseCompositeOp(groupElement.getAttributeValue("compositeop")),
 		// KRA: @passthrough "1" is a non-isolating folder; its blend then does not apply.
@@ -288,7 +298,7 @@ private fun buildLayer(
 	val defaultPixelBytes = entries["$layerDataPath.defaultpixel"]
 
 	// Per-channel enable mask (channelflags); its width is the channel count, so the format must be
-	// resolved first. A disabled alpha channel is Krita's "Inherit Alpha" - the clipping signal.
+	// resolved first.  A disabled alpha channel is Krita's "Inherit Alpha" - the clipping signal.
 	val channelMask = channelMaskFrom(layerElement.getAttributeValue("channelflags"), format)
 
 	val assembled = assembleRaster(tiles, format, defaultPixelBytes, layerX, layerY)
@@ -337,22 +347,26 @@ private fun assembleRaster(
 	var minTop = Int.MAX_VALUE
 	var maxRight = Int.MIN_VALUE
 	var maxBottom = Int.MIN_VALUE
+
 	for (tile in tiles.tiles) {
 		minLeft = min(minLeft, tile.left)
 		minTop = min(minTop, tile.top)
 		maxRight = max(maxRight, tile.left + tiles.tileWidth)
 		maxBottom = max(maxBottom, tile.top + tiles.tileHeight)
 	}
+
 	val width = maxRight - minLeft
 	val height = maxBottom - minTop
 	val rgba = ByteArray(width * height * 4)
 
-	// Pre-fill with the converted default pixel (the color Krita uses for untiled gaps). A
-	// transparent default leaves the zero-initialised buffer untouched.
+	// Pre-fill with the converted default pixel (the color Krita uses for untiled gaps).  A
+	// transparent default leaves the zero-initialized buffer untouched.
 	val fillPixel = ByteArray(4)
+
 	if (defaultPixelBytes != null && defaultPixelBytes.size >= format.pixelSize) {
 		format.convertPixel(defaultPixelBytes, 0, fillPixel, 0)
 	}
+
 	if (fillPixel[0].toInt() != 0 || fillPixel[1].toInt() != 0 || fillPixel[2].toInt() != 0 || fillPixel[3].toInt() != 0) {
 		for (pixelIndex in 0 until width * height) {
 			fillPixel.copyInto(rgba, pixelIndex * 4, 0, 4)
@@ -364,6 +378,7 @@ private fun assembleRaster(
 			val destinationY = tile.top - minTop + rowIndex
 			val rowBase = (destinationY * width + (tile.left - minLeft)) * 4
 			val sourceRowBase = rowIndex * tiles.tileWidth * tiles.pixelSize
+
 			for (columnIndex in 0 until tiles.tileWidth) {
 				format.convertPixel(
 					tile.pixels,
@@ -376,6 +391,7 @@ private fun assembleRaster(
 	}
 
 	val bounds = LayerBounds(left = minLeft + layerX, top = minTop + layerY, width = width, height = height)
+
 	return AssembledRaster(bounds, LayerRaster(width = width, height = height, rgba = rgba))
 }
 
@@ -409,9 +425,8 @@ private fun Element.childrenNamed(localName: String): List<Element> =
  * Parses maindoc.xml into its root element with external-DTD loading disabled.
  *
  * KRA's maindoc.xml declares a DOCTYPE pointing at an external DTD (calligra.org or koffice.org)
- * that we never need - we only read element/attribute structure. Left enabled, the parser tries to
- * fetch that URL and fails (offline, or the URL no longer serves a valid DTD). So we turn off
- * external-DTD loading and install a no-op entity resolver as a portable backstop.
+ * the reader never needs; left enabled, the parser would try to fetch it and fail offline or once the
+ * URL stops serving it.  The no-op entity resolver is a portable backstop.
  *
  * @param ByteArray xmlBytes The raw maindoc.xml bytes.
  * @return Element the document root (DOC).
@@ -422,31 +437,26 @@ private fun parseMainDocument(xmlBytes: ByteArray): Element {
 		builder.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
 	}
 	builder.setEntityResolver { _, _ -> InputSource(StringReader("")) }
+
 	return builder.build(ByteArrayInputStream(xmlBytes)).rootElement
 }
 
 /**
  * Decompresses every non-directory ZIP entry into memory, keyed by entry name.
  *
- * ZipInputStream is sequential-only, so we read each entry fully up front; a .kra's working set
- * fits comfortably in memory (the PSD reader likewise takes the whole file as bytes).
+ * Every entry is read up front; a .kra's working set fits comfortably in memory (the PSD reader likewise
+ * takes the whole file as bytes).  The shared ZIP reader verifies each entry's size and CRC-32, so a
+ * damaged archive fails here rather than decoding garbage layers.
  *
  * @param ByteArray bytes The complete ZIP archive.
  * @return Map every entry's bytes by name.
  */
 private fun unzipEntries(bytes: ByteArray): Map<String, ByteArray> {
-	val entries = HashMap<String, ByteArray>()
-	ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
-		var entry = zip.nextEntry
-		while (entry != null) {
-			if (!entry.isDirectory) {
-				entries[entry.name] = zip.readBytes()
-			}
-			zip.closeEntry()
-			entry = zip.nextEntry
-		}
-	}
-	return entries
+	val archive = ZipArchive.read(bytes)
+
+	return archive.entries
+		.filterNot { entry -> entry.isDirectory }
+		.associate { entry -> entry.name to archive.contents(entry) }
 }
 
 /** Concrete SourceLayer backing a parsed KRA paint layer. */

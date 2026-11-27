@@ -2,14 +2,14 @@ package org.umamo.format.moc3.json
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * `*.model3.json` - the model manifest referencing the `.moc3`, textures, and other sidecars.
  *
- * EN: Field order and names match the `model3.json` the editor exports (the SDK's documented
- *     manifest schema). Optional references are nullable and omitted when absent, so re-emission
- *     drops nothing.
- * JA: モデルマニフェスト。
+ * Field order and names match the `model3.json` the editor exports (the SDK's documented
+ * manifest schema).  Optional references are nullable and omitted when absent, so re-emission
+ * drops nothing.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §model3.json</a>
  */
@@ -54,8 +54,8 @@ public data class Model3HitArea(
 public data class Model3Expression(
 	@SerialName("Name") val name: String,
 	@SerialName("File") val file: String,
-	@SerialName("FadeInTime") val fadeInTime: kotlinx.serialization.json.JsonPrimitive? = null,
-	@SerialName("FadeOutTime") val fadeOutTime: kotlinx.serialization.json.JsonPrimitive? = null,
+	@SerialName("FadeInTime") val fadeInTime: JsonPrimitive? = null,
+	@SerialName("FadeOutTime") val fadeOutTime: JsonPrimitive? = null,
 )
 
 /** A motion reference (`*.motion3.json`) within a named group, with optional sound and fade times. */
@@ -63,6 +63,6 @@ public data class Model3Expression(
 public data class Model3Motion(
 	@SerialName("File") val file: String,
 	@SerialName("Sound") val sound: String? = null,
-	@SerialName("FadeInTime") val fadeInTime: kotlinx.serialization.json.JsonPrimitive? = null,
-	@SerialName("FadeOutTime") val fadeOutTime: kotlinx.serialization.json.JsonPrimitive? = null,
+	@SerialName("FadeInTime") val fadeInTime: JsonPrimitive? = null,
+	@SerialName("FadeOutTime") val fadeOutTime: JsonPrimitive? = null,
 )

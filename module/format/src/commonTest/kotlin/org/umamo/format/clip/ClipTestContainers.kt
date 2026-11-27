@@ -26,6 +26,7 @@ internal fun syntheticClipContainer(chunks: List<Pair<String, ByteArray>>, headO
 	writeUInt64BigEndian(container, 8, container.size.toLong())
 	writeUInt64BigEndian(container, 16, headOffset)
 	var offset = 24
+
 	for ((chunkId, payload) in chunks) {
 		require(chunkId.length == 8) { "chunk id must be 8 ASCII characters: '$chunkId'" }
 		chunkId.encodeToByteArray().copyInto(container, offset)
@@ -33,6 +34,7 @@ internal fun syntheticClipContainer(chunks: List<Pair<String, ByteArray>>, headO
 		payload.copyInto(container, offset + 16)
 		offset += 16 + payload.size
 	}
+
 	return container
 }
 

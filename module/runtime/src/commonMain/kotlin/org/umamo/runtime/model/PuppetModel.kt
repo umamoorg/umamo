@@ -12,8 +12,8 @@ data class PuppetModel(
 	val drawables: List<Drawable>,
 	/**
 	 * The organizational tree's top level: sub-parts and drawables interleaved in parts-panel order, the
-	 * same ordered child list as [Part.children]. Single source of truth for top-level structure and
-	 * order; [parts] / [drawables] are flat lookup lists. Draw order derives from this (deriveRenderRoot).
+	 * same ordered child list as [Part.children].  Single source of truth for top-level structure and
+	 * order; [parts] / [drawables] are flat lookup lists.  Draw order derives from this (deriveRenderRoot).
 	 */
 	val rootChildren: List<OrgChild>,
 	/** The organizational tree root (the Parts panel's top), or null if the model is flat. */
@@ -21,20 +21,20 @@ data class PuppetModel(
 	/** Glue affecters - seam-weld pairs of drawables' shared vertices after deformation. */
 	val glues: List<Glue> = emptyList(),
 	/**
-	 * The draw-order group tree (Cubism's "Group by Draw Order" hierarchy) used to compute render order. A
+	 * The draw-order group tree (Cubism's "Group by Draw Order" hierarchy) used to compute render order.  A
 	 * group-less model is one flat [RenderGroup]; empty (the default) means "fall back to the flat base order".
 	 */
 	val renderRoot: RenderGroup = RenderGroup(null, DEFAULT_DRAW_ORDER, emptyList()),
 	/**
-	 * LINKED ("combined") parameter pairs - each renders as one 2D pad instead of two sliders. Empty
-	 * (the default) means every parameter is an independent 1D axis. Both members of a link also remain
+	 * LINKED ("combined") parameter pairs - each renders as one 2D pad instead of two sliders.  Empty
+	 * (the default) means every parameter is an independent 1D axis.  Both members of a link also remain
 	 * in [parameters]; this list only records the X/Y pairing.
 	 */
 	val parameterLinks: List<ParameterLink> = emptyList(),
 	/**
 	 * The parameter-panel group tree (Cubism's CParameterGroup organisation): the root group's children
-	 * in panel order, each a [ParameterNode.Param] or a (possibly nested) [ParameterNode.Group]. Empty
-	 * (the default) means the model has no groups, so the panel renders the flat [parameters] list. This
+	 * in panel order, each a [ParameterNode.Param] or a (possibly nested) [ParameterNode.Group].  Empty
+	 * (the default) means the model has no groups, so the panel renders the flat [parameters] list.  This
 	 * is layout only - every leaf id also appears in [parameters], which stays the authoritative axis list.
 	 */
 	val parameterTree: List<ParameterNode> = emptyList(),
@@ -47,15 +47,25 @@ data class PuppetModel(
 	/** The document canvas height in world units; see [canvasWidth]. */
 	val canvasHeight: Float = 0f,
 	/**
-	 * The world origin in WORLD space (the deform eval's output space, canvas x / negated canvas y) -
-	 * where the viewport's axis lines cross and the anchor for origin-relative operations (the 2D
-	 * cursor's snap home, frame grids).  Imported documents carry the authored origin (CMO3
-	 * CModelInfo.originInPixels, the origin MOC3 CanvasInfo exports), falling back to the canvas
-	 * center; (0, 0) when the source carried no canvas.
+	 * The world origin in WORLD space (the deform eval's output space, canvas x / negated canvas y, whose
+	 * zero is the canvas's top-left corner) - where the viewport's axis lines cross, the anchor for
+	 * origin-relative operations (the 2D cursor's snap home, frame grids), and the zero point of every
+	 * coordinate the rigger reads or types.  Never shown raw: the helpers in OriginRelativeCoordinates.kt
+	 * convert at the display boundary.
+	 *
+	 * Imported documents put it at the canvas center.  A CMO3 import derives the center rather than reading
+	 * CModelInfo.originInPixels, which is (0, 0) in every corpus model; a MOC3 import reads CanvasInfo's
+	 * origin.  (0, 0) when the source carried no canvas.
+	 *
+	 * Axis names follow Blender's axes, which the viewport shows as Blender's Front view: X right, Y into the
+	 * screen (depth), and Z up.  Wherever a name says it is world space, its vertical axis is Z (worldOriginZ,
+	 * Cursor2d.worldZ, screenToWorldZ, setWorldOrigin(x, z)).  Space-agnostic math keeps x / y - interleaved
+	 * [x, y] arrays, MeshBounds, deltas, the camera's center, GLSL vec2 - as do canvas, screen, UV, and NDC names,
+	 * and the deform eval's pre-negation space, whose y still grows downward.
 	 */
 	val worldOriginX: Float = 0f,
-	/** The world origin's y in world space (negated canvas y); see [worldOriginX]. */
-	val worldOriginY: Float = 0f,
+	/** The world origin's z (up) in world space (negated canvas y); see [worldOriginX]. */
+	val worldOriginZ: Float = 0f,
 	/**
 	 * Pixels per unit is used only for runtime export.  It is stored inside of UMA and CMO3, but it is
 	 * not used for anything internal to Umamo.
@@ -66,9 +76,8 @@ data class PuppetModel(
 	 * MOC3 stores geometry in model units around its canvas origin and this factor converts it, so a
 	 * MOC3-origin document carries the value its file recorded.  A CMO3 authors directly in canvas
 	 * pixels and its `CModelInfo.pixelsPerUnit` is 1 on every corpus model, which describes the project
-	 * rather than any bake - so a CMO3-origin document carries null and the export picks a default.
-	 * Nothing in the editor or the evaluator reads it - both work purely in world space - but an EXPORT
-	 * cannot invert the import without it: the root-space affine and the scale of every root-path
+	 * rather than any bake - so a CMO3-origin document carries null and the export picks a default.  An
+	 * EXPORT cannot invert the import without it: the root-space affine and the scale of every root-path
 	 * rotation deformer both fold it in.
 	 *
 	 * NULLABLE rather than a sentinel because 1 is a legitimate bake scale.  Inferring the origin from
@@ -94,14 +103,9 @@ data class PuppetModel(
 	 */
 	val rendersFromSourceLayers: Boolean = false,
 	/**
-	 * The document's source art and where it packs onto the atlas pages.
-	 *
-	 * Document content, and authored: a repack moves placements, so they have to undo, diff, and export
-	 * like anything else the rigger changes.  Empty for a document with no separable source art - a
-	 * MOC3-origin rig, whose pages arrived already packed.
-	 *
-	 * Pixels are deliberately absent.  A page's bytes and a tile's raster belong to the document, which
-	 * loads them once; putting them here would put them in every undo snapshot.
+	 * The document's source art and where it packs onto the atlas pages, without pixels (those would land
+	 * in every undo snapshot).  Empty for a document with no separable source art - a MOC3-origin rig,
+	 * whose pages arrived already packed.
 	 */
 	val atlas: PuppetAtlas = PuppetAtlas.Empty,
 	/**
@@ -109,8 +113,7 @@ data class PuppetModel(
 	 * read - the baseline a re-import diffs against - or empty for a document with no linked source art.
 	 *
 	 * Document content, like the atlas: a re-import rebinds tiles through it, so it undoes and persists
-	 * with the rest of the model.  No container format encodes it (the native format will), and the
-	 * diff and every export ignore it.
+	 * with the rest of the model.  The UMA sources entry encodes it; the diff and every export ignore it.
 	 */
 	val sources: List<ArtSource> = emptyList(),
 ) {
@@ -123,6 +126,9 @@ data class PuppetModel(
 	 * `equals`, `hashCode`, and `copy`.
 	 */
 	val partById: Map<PartId, Part> by lazy { parts.associateBy { part -> part.id } }
+
+	/** Every deformer by id, built once per model instance, for the same reasons as [partById]. */
+	val deformerById: Map<DeformerId, Deformer> by lazy { deformers.associateBy { deformer -> deformer.id } }
 }
 
 /**
@@ -136,9 +142,9 @@ data class PuppetModel(
 const val DEFAULT_DRAW_ORDER = 500
 
 /**
- * One ordered child of the organizational tree: a sub-part or a drawable. Cubism's parts panel keeps
+ * One ordered child of the organizational tree: a sub-part or a drawable.  Cubism's parts panel keeps
  * sub-parts and drawables in one interleaved sibling order per level (a loose mesh can sit between two
- * folders), and that order is also the draw-order tiebreak. This sealed type is how [Part.children] and
+ * folders), and that order is also the draw-order tiebreak.  This sealed type is how [Part.children] and
  * [PuppetModel.rootChildren] express that single order, instead of splitting parts and drawables apart.
  */
 sealed interface OrgChild {
@@ -163,7 +169,7 @@ data class Part(
 	val name: String,
 	/**
 	 * This part's ordered children - sub-parts and drawables interleaved, in parts-panel (top = front)
-	 * order. The single source of truth for the hierarchy AND the panel order at this level; draw order
+	 * order.  The single source of truth for the hierarchy AND the panel order at this level; draw order
 	 * derives from it (see [PuppetModel.deriveRenderRoot]).
 	 */
 	val children: List<OrgChild>,
@@ -185,7 +191,7 @@ data class Part(
 	val groupMode: PartGroupMode = PartGroupMode.PassThrough,
 	/**
 	 * The part's own draw order (0-1000, default 500) - the sort key for its slot when it is
-	 * grouped or isolated. (CMO3 CPartForm.drawOrder / defaultOrder_forEditor.)
+	 * grouped or isolated.  (CMO3 CPartForm.drawOrder / defaultOrder_forEditor.)
 	 */
 	val drawOrder: Int = DEFAULT_DRAW_ORDER,
 	/**
@@ -226,7 +232,7 @@ data class Part(
 }
 
 /**
- * A textured triangle mesh - the thing actually drawn. Two bindings place it: [partId] (organizational
+ * A textured triangle mesh - the thing actually drawn.  Two bindings place it: [partId] (organizational
  * tree) and [parentDeformerId] (the deformer chain that deforms it) - these are independent
  * hierarchies in Cubism.
  */
@@ -265,12 +271,12 @@ data class Drawable(
 	val invertMask: Boolean = false,
 	/**
 	 * How the drawable's alpha combines with the destination (Cubism 5.3); pre-5.3 sources have no
-	 * alpha mode and stay [AlphaBlendMode.Over]. (CMO3 alphaComposition; MOC3 s153 alphaMode.)
+	 * alpha mode and stay [AlphaBlendMode.Over].  (CMO3 alphaComposition; MOC3 s153 alphaMode.)
 	 */
 	val alphaBlendMode: AlphaBlendMode = AlphaBlendMode.Over,
 	/**
 	 * When true, back faces are culled - a mesh flipped inside-out by deformation disappears
-	 * instead of showing mirrored. Default false = double-sided, Cubism's default. (CMO3 culling;
+	 * instead of showing mirrored.  Default false = double-sided, Cubism's default.  (CMO3 culling;
 	 * MOC3 = the INVERSE of drawable constant-flags bit 2, IS_DOUBLE_SIDED.)
 	 */
 	val culling: Boolean = false,
@@ -286,8 +292,9 @@ data class Drawable(
 	 * The drawable whose texture-atlas binding this one shares, or null when it binds by its own [id].
 	 * The atlas page mapping is keyed by the SOURCE format's drawable ids (see PuppetTextures), so a
 	 * session-created copy (Object-mode duplicate) carries its source's id here and the renderer
-	 * resolves the atlas through it; a copy of a copy inherits the original.  Editor-only - no source
-	 * format persists it.
+	 * resolves the atlas through it; a copy of a copy inherits the original.  It is a key into that
+	 * mapping, not a reference to a live drawable: deleting the source keeps the copy's key, and the copy
+	 * keeps its art.  UMA persists it (docs/format/UMA.md §4.6); no Cubism format does.
 	 */
 	val textureSourceId: DrawableId? = null,
 	/**
@@ -310,51 +317,138 @@ data class Drawable(
 	val atlasTileId: AtlasTileId? = null,
 	/**
 	 * Additive blend-shape bindings on this drawable's mesh, applied on top of the [geometryGrid]
-	 * result; empty when the drawable has none. (CMO3 keyformMorphTargetSet.)
+	 * result; empty when the drawable has none.  (CMO3 keyformMorphTargetSet.)
 	 */
 	val blendShapes: List<BlendShapeBinding<MeshForm>> = emptyList(),
 )
 
 /**
  * The drawables that are actually shown, after cascading the Parts-panel visibility toggles: a drawable is
- * shown only when its own [Drawable.isVisible] is set and every ancestor part up the tree is visible.
- * This is Cubism's editor-preview rule - hiding a folder hides everything inside it (e.g. a hidden
- * `[Guide Image]` sketch part hides its art) - and it is static (the eyeball is an authoring toggle, not
- * parameter-animated), so callers compute it once. It gates only what is drawn: a hidden drawable that is
- * still a mask source or a glue partner must keep being deformed, so apply those gates elsewhere.
+ * shown only when its own [Drawable.isVisible] is set and every ancestor part up the tree is visible (the
+ * official editor's preview rule).  Static, so callers compute it once, and it gates only what is drawn: a
+ * hidden drawable that is still a mask source or a glue partner must keep being deformed.
  *
  * @return Set<DrawableId> The ids of the drawables to draw.
  */
 fun PuppetModel.visibleDrawableIds(): Set<DrawableId> {
-	val partById = parts.associateBy { it.id }
-	val drawableById = drawables.associateBy { it.id }
+	val drawableById = drawables.associateBy { drawable -> drawable.id }
 	val shown = HashSet<DrawableId>()
 
-	fun walk(children: List<OrgChild>, ancestorsVisible: Boolean) {
-		for (child in children) {
-			when (child) {
-				is OrgChild.Drawable -> {
-					val drawable = drawableById[child.id] ?: continue
-					if (ancestorsVisible && drawable.isVisible) {
-						shown.add(child.id)
-					}
-				}
-
-				is OrgChild.Part -> {
-					val part = partById[child.id] ?: continue
-					walk(part.children, ancestorsVisible && part.isVisible)
-				}
-			}
+	walkOrgTree { child, ancestorsVisible ->
+		if (child is OrgChild.Drawable && ancestorsVisible && drawableById[child.id]?.isVisible == true) {
+			shown.add(child.id)
 		}
 	}
-	walk(rootChildren, ancestorsVisible = true)
+
 	return shown
 }
 
 /**
+ * Walks the org tree from the root, handing [visit] each child with whether every part above it is visible: the one
+ * cascade both visibility queries read.  A part is visited and entered once, however many parents list it, and a part
+ * the model does not hold is visited but not entered.
+ *
+ * @param Function visit Called with each child and whether its ancestor parts are all visible.
+ */
+private fun PuppetModel.walkOrgTree(visit: (OrgChild, Boolean) -> Unit) {
+	val entered = HashSet<PartId>()
+
+	/**
+	 * Visits [children] and everything below them.
+	 *
+	 * @param List<OrgChild> children The children to walk.
+	 * @param Boolean ancestorsVisible Whether every part above them is visible.
+	 */
+	fun walk(children: List<OrgChild>, ancestorsVisible: Boolean) {
+		for (child in children) {
+			if (child is OrgChild.Part && !entered.add(child.id)) {
+				continue
+			}
+
+			visit(child, ancestorsVisible)
+
+			if (child is OrgChild.Part) {
+				val part = partById[child.id] ?: continue
+				walk(part.children, ancestorsVisible && part.isVisible)
+			}
+		}
+	}
+	walk(rootChildren, ancestorsVisible = true)
+}
+
+/**
+ * The deformers that are shown: a deformer is shown when its own [Deformer.isVisible] is set and the part it belongs
+ * to is shown with every ancestor part up the tree (the official editor's rule).  The deformers above it in the
+ * transform hierarchy do not matter, so hiding one leaves the deformers nested in it shown.  What the viewport draws
+ * over a deformer (a warp's lattice) follows it; the deformation itself does not, so the art under a hidden deformer
+ * still draws and moves with it.
+ *
+ * @return Set<DeformerId> The ids of the shown deformers.
+ */
+fun PuppetModel.visibleDeformerIds(): Set<DeformerId> {
+	val reached = HashSet<PartId>()
+	val shownParts = HashSet<PartId>()
+
+	walkOrgTree { child, ancestorsVisible ->
+		if (child is OrgChild.Part) {
+			reached.add(child.id)
+
+			if (ancestorsVisible && partById[child.id]?.isVisible == true) {
+				shownParts.add(child.id)
+			}
+		}
+	}
+
+	/**
+	 * Whether the part a deformer belongs to is shown: a part off the org tree answers its own eye alone.
+	 *
+	 * @param PartId? partId The deformer's part, or null for none.
+	 * @return Boolean True when shown.
+	 */
+	fun partShown(partId: PartId?): Boolean =
+		when {
+			partId == null -> true
+			partId in reached -> partId in shownParts
+			else -> partById[partId]?.isVisible ?: true
+		}
+
+	return deformers.filter { deformer -> deformer.isVisible && partShown(deformer.partId) }.mapTo(LinkedHashSet()) { deformer -> deformer.id }
+}
+
+/**
+ * Deformer [deformerId] and every ancestor the model holds, nearest first: the one walk up the transform hierarchy.
+ * It stops at a parent the model does not hold, which every consumer treats as the root, and at a parent cycle, which
+ * the deformation bake never builds - so a chain whose last deformer names a parent the model holds ended at a cycle.
+ *
+ * @param DeformerId deformerId The deformer the chain starts at.
+ * @return List<Deformer> The chain, the deformer itself first; empty when the model does not hold it.
+ */
+fun PuppetModel.deformerChain(deformerId: DeformerId): List<Deformer> {
+	val chain = ArrayList<Deformer>()
+	val visited = HashSet<DeformerId>()
+	var current = deformerById[deformerId]
+
+	while (current != null && visited.add(current.id)) {
+		chain.add(current)
+		current = current.parent?.let { parentId -> deformerById[parentId] }
+	}
+
+	return chain
+}
+
+/**
+ * Whether [chain] ([deformerChain]) ended at a parent cycle rather than at the root: its last deformer names a parent
+ * the model holds.
+ *
+ * @param List<Deformer> chain The chain.
+ * @return Boolean True when the walk was cut short by a cycle.
+ */
+fun PuppetModel.endsInCycle(chain: List<Deformer>): Boolean = chain.lastOrNull()?.parent?.let { parentId -> parentId in deformerById } ?: false
+
+/**
  * The owning part of each drawable, derived from the org tree (the drawable's parent in [rootChildren] /
- * [Part.children]), or null for a root-level drawable. Since membership lives only in the tree, this is how
- * the few sites that need "which part owns this mesh" (the Inspector) read it - computed once per model.
+ * [Part.children]), or null for a root-level drawable.  Membership lives only in the tree, so this is how
+ * a caller that needs a mesh's owning part reads it, computed once per model.
  *
  * @return Map<DrawableId, PartId?> Drawable id to its owning part id, or null at the root.
  */
@@ -362,6 +456,12 @@ fun PuppetModel.partByDrawable(): Map<DrawableId, PartId?> {
 	val partById = parts.associateBy { it.id }
 	val owner = HashMap<DrawableId, PartId?>()
 
+	/**
+	 * Records the owning part of every drawable in a child list and under its parts.
+	 *
+	 * @param List<OrgChild> children The child list to walk.
+	 * @param PartId? parent The part that owns the list, or null at the root.
+	 */
 	fun walk(children: List<OrgChild>, parent: PartId?) {
 		for (child in children) {
 			when (child) {
@@ -371,18 +471,14 @@ fun PuppetModel.partByDrawable(): Map<DrawableId, PartId?> {
 		}
 	}
 	walk(rootChildren, parent = null)
+
 	return owner
 }
 
 /**
  * The first drawable in Parts-panel order (top = front) that can actually be edited: it carries a mesh
- * and is shown (its own [Drawable.isVisible] is set and every ancestor part is visible).  Edit mode seeds
- * onto this when nothing is selected or remembered, so a fresh document lands on the topmost editable mesh
- * instead of an inert Edit session.  A drawable without a mesh, or a hidden one, leaves the gizmo overlay
- * with nothing to draw, so both are skipped.  The scan is the same forward pre-order walk of the org tree
- * as [visibleDrawableIds], short-circuiting at the first match.  Only when the org tree carries no drawable
- * at all (a degenerate model with an empty [rootChildren]) does it fall back to a flat scan of [drawables];
- * a populated tree that yields no shown, meshed drawable returns null (nothing editable to seed onto).
+ * and is shown.  Edit mode seeds onto this when nothing is selected or remembered, so a fresh document lands
+ * on the topmost editable mesh instead of an inert Edit session.
  *
  * @return DrawableId? The topmost editable drawable, or null when the model has none.
  */
@@ -390,11 +486,19 @@ fun PuppetModel.firstEditableDrawableInPanelOrder(): DrawableId? {
 	val partById = parts.associateBy { it.id }
 	val drawableById = drawables.associateBy { it.id }
 
+	/**
+	 * Finds the first visible drawable with a mesh in a child list, in panel order, descending into parts.
+	 *
+	 * @param List<OrgChild> children The child list to search.
+	 * @param Boolean ancestorsVisible Whether every part above the list is visible.
+	 * @return DrawableId? The drawable, or null when the list holds none.
+	 */
 	fun walk(children: List<OrgChild>, ancestorsVisible: Boolean): DrawableId? {
 		for (child in children) {
 			when (child) {
 				is OrgChild.Drawable -> {
 					val drawable = drawableById[child.id] ?: continue
+
 					if (ancestorsVisible && drawable.isVisible && drawable.mesh != null) {
 						return child.id
 					}
@@ -403,23 +507,28 @@ fun PuppetModel.firstEditableDrawableInPanelOrder(): DrawableId? {
 				is OrgChild.Part -> {
 					val part = partById[child.id] ?: continue
 					val found = walk(part.children, ancestorsVisible && part.isVisible)
+
 					if (found != null) {
 						return found
 					}
 				}
 			}
 		}
+
 		return null
 	}
 
 	val fromTree = walk(rootChildren, ancestorsVisible = true)
+
 	if (fromTree != null) {
 		return fromTree
 	}
+
 	// Degenerate model with no org tree: the visibility cascade has nothing to say, so fall back to the
 	// flat list (a drawable's own eyeball still gates it).
 	if (rootChildren.isEmpty()) {
 		return drawables.firstOrNull { candidate -> candidate.mesh != null && candidate.isVisible }?.id
 	}
+
 	return null
 }

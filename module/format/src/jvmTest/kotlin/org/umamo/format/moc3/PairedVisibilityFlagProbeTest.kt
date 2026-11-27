@@ -13,6 +13,7 @@ import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.MocModel
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -42,11 +43,10 @@ import kotlin.test.assertEquals
  * proven shape, not a join result.  Parts: no twin keeps a hidden part, so s7 and s8 are both
  * all-1 and nothing distinguishes which is `visible_artmeshes` and which is `visible_deformers`.
  *
- * NOTE for the export: the drop-on-bake behavior above is the official editor's default, NOT the
- * one Umamo adopts.  We have no "omit hidden objects" option, and deleting something the user can
- * still see in the outliner would be a silent destructive edit, so an Umamo export writes a hidden
- * art mesh, part, or deformer out with its first flag set to 0 rather than omitting it.  TODO: when
- * an export-options surface exists, add an "omit hidden objects" toggle there, defaulting to OFF.
+ * NOTE for the export: the drop-on-bake behavior above is the official editor's default, and an
+ * Umamo export makes it a choice (Moc3ExportOptions' exportHiddenParts / exportHiddenDrawables in
+ * :interop).  A hidden art mesh or part the export keeps, and every hidden deformer, is written out
+ * with its first flag set to 0 rather than omitted.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */
@@ -100,19 +100,20 @@ class PairedVisibilityFlagProbeTest {
 	@Test
 	fun firstFlagOfEachPairCarriesVisibility() {
 		if (cmo3Probes.isEmpty() || moc3SamplesDir == null) {
-			println("cmo3.probe / moc3.samples not both present; skipping paired visibility flag probe")
-			return
+			skipTest("cmo3.probe / moc3.samples not both present; skipping paired visibility flag probe")
 		}
+
 		val mocByName =
 			moc3SamplesDir.walkTopDown().filter { it.isFile && it.extension == "moc3" }
 				.associateBy { it.nameWithoutExtension }
 		val twins = cmo3Probes.mapNotNull { cmo3 -> mocByName[cmo3.nameWithoutExtension]?.let { cmo3 to it } }
+
 		if (twins.isEmpty()) {
-			println("no CMO3/MOC3 twins in the corpus; skipping paired visibility flag probe")
-			return
+			skipTest("no CMO3/MOC3 twins in the corpus; skipping paired visibility flag probe")
 		}
 
 		var joinedDeviations = 0
+
 		for ((cmo3File, moc3File) in twins.sortedBy { it.first.name }) {
 			val root = Cmo3.read(cmo3File).root as? CModelSource ?: continue
 			val model = MocCodec.read(moc3File.readBytes())
@@ -143,9 +144,11 @@ class PairedVisibilityFlagProbeTest {
 
 			for (pair in flagPairs) {
 				val count = counts.getOrElse(pair.countInfoField) { 0 }
+
 				if (count == 0) {
 					continue
 				}
+
 				val ids = model.sections.idArray(pair.idSection).takeIf { it.size == count } ?: continue
 				val firstFlag = flagColumn(model, pair.firstFlagSection, count) ?: continue
 				val secondFlag = flagColumn(model, pair.secondFlagSection, count) ?: continue
@@ -172,6 +175,7 @@ class PairedVisibilityFlagProbeTest {
 					"${moc3File.name}: ${pair.label} ${pair.firstFlagSection} flags an object the CMO3 shows",
 				)
 				joinedDeviations += flaggedHidden.size
+
 				if (flaggedHidden.isNotEmpty() || cmo3Hidden.isNotEmpty()) {
 					println(
 						"[flag-probe] ${moc3File.name} ${pair.label}: mocCount=$count " +
@@ -206,10 +210,11 @@ class PairedVisibilityFlagProbeTest {
 	@Test
 	fun onlySecondFlagsAreConstantAcrossTheWholeCorpus() {
 		val samplesDir = moc3SamplesDir
+
 		if (samplesDir == null) {
-			println("moc3.samples not present; skipping paired flag census")
-			return
+			skipTest("moc3.samples not present; skipping paired flag census")
 		}
+
 		// work/ holds our own bake outputs, excluded like every other corpus walk does.  This census
 		// pins what the EDITOR writes; including our bakes would let the export's own output vouch for
 		// the invariant it is supposed to be measured against.
@@ -219,19 +224,24 @@ class PairedVisibilityFlagProbeTest {
 				.filter { it.isFile && it.extension == "moc3" && it.parentFile?.name != "work" }
 				.sortedBy { it.name }
 				.toList()
+
 		if (files.isEmpty()) {
-			println("no corpus moc3 files; skipping paired flag census")
-			return
+			skipTest("no corpus moc3 files; skipping paired flag census")
 		}
+
 		val firstColumnDeviations = HashMap<String, Int>()
+
 		for (file in files) {
 			val model = MocCodec.read(file.readBytes())
 			val counts = model.countInfo
+
 			for (pair in flagPairs) {
 				val count = counts.getOrElse(pair.countInfoField) { 0 }
+
 				if (count == 0) {
 					continue
 				}
+
 				val firstFlag = flagColumn(model, pair.firstFlagSection, count) ?: continue
 				val secondFlag = flagColumn(model, pair.secondFlagSection, count) ?: continue
 				assertEquals(
@@ -240,12 +250,14 @@ class PairedVisibilityFlagProbeTest {
 					"${file.name}: ${pair.label} ${pair.secondFlagSection} is not constant 1",
 				)
 				val zeros = firstFlag.count { it == 0 }
+
 				if (zeros > 0) {
 					firstColumnDeviations["${file.name} ${pair.label} ${pair.firstFlagSection}"] = zeros
 					println("[flag-census] ${file.name} ${pair.label}: ${pair.firstFlagSection} zero on $zeros/$count")
 				}
 			}
 		}
+
 		// Pinned: the two samples that carry a deviation at all, and how many.  Azxiana's is the only
 		// evidence that the deformer pair splits the same way the art-mesh pair provably does.
 		assertEquals(

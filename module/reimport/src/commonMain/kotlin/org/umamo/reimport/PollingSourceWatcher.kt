@@ -64,6 +64,7 @@ class PollingSourceWatcher(
 		override fun close() {
 			registrations.remove(this)
 			armed.complete(Unit)
+
 			if (registrations.isEmpty()) {
 				loop?.cancel()
 				loop = null
@@ -93,13 +94,16 @@ class PollingSourceWatcher(
 		if (path.contains("://")) {
 			return NoOpSubscription
 		}
+
 		val filePath = runCatching { path.toPath() }.getOrNull() ?: return NoOpSubscription
 		val registration = Registration(path, filePath, listener)
 		registrations.add(registration)
 		scope.launch { baseline(registration) }
+
 		if (loop == null) {
 			loop = scope.launch { pollLoop() }
 		}
+
 		return registration
 	}
 
@@ -108,6 +112,7 @@ class PollingSourceWatcher(
 		for (registration in registrations.toList()) {
 			registration.armed.complete(Unit)
 		}
+
 		registrations.clear()
 		loop?.cancel()
 		loop = null
@@ -122,9 +127,11 @@ class PollingSourceWatcher(
 	 */
 	private suspend fun baseline(registration: Registration) {
 		val stamp = withContext(statContext) { stampOf(registration.filePath) }
+
 		if (registration.last == null) {
 			registration.last = stamp
 		}
+
 		registration.armed.complete(Unit)
 	}
 
@@ -136,13 +143,16 @@ class PollingSourceWatcher(
 		while (true) {
 			val snapshot = registrations.toList()
 			val stamps = withContext(statContext) { snapshot.map { registration -> stampOf(registration.filePath) } }
+
 			for ((registration, stamp) in snapshot.zip(stamps)) {
 				val previous = registration.last
 				registration.last = stamp
+
 				if (previous != null && previous != stamp && registration in registrations) {
 					registration.listener.onChanged(registration.path)
 				}
 			}
+
 			delay(pollMillis)
 		}
 	}
@@ -155,6 +165,7 @@ class PollingSourceWatcher(
 	 */
 	private fun stampOf(filePath: Path): Stamp {
 		val metadata = runCatching { fileSystem.metadataOrNull(filePath) }.getOrNull()
+
 		return Stamp(metadata?.size, metadata?.lastModifiedAtMillis)
 	}
 

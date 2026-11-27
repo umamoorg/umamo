@@ -34,7 +34,7 @@ class CommandRoutingTest {
 	/**
 	 * The strip placement rule: a hovered work surface wins, a hovered panel yields to the last work
 	 * surface touched, an untouched shell yields to the workspace's first work surface, and with none of
-	 * those the strip has no area (the shell shows it).
+	 * those the strip has no area (it shows nowhere).
 	 */
 	@Test
 	fun theOperationStripGoesToAWorkSurfaceOrNowhere() {
@@ -52,12 +52,30 @@ class CommandRoutingTest {
 		assertEquals(viewportArea, untouched.operationStripArea(), "an untouched shell yields to the workspace's first work surface")
 		assertEquals(uvArea, CommandRouting({ null }, { lastWorkSurface }, { viewportArea }).operationStripArea(), "the last touched still outranks the workspace default")
 		assertEquals(uvArea, CommandRouting({ HoveredSurface(uvArea, SpaceKind.UvEditor) }, { null }, { viewportArea }).operationStripArea(), "and so does the hovered one")
-		assertNull(CommandRouting({ null }, { null }, { null }).operationStripArea(), "a workspace of panels alone leaves the shell's strip")
+		assertNull(CommandRouting({ null }, { null }, { null }).operationStripArea(), "a workspace of panels alone shows the strip nowhere")
 		var workspaceDefault: String? = null
 		val live = CommandRouting({ null }, { null }, { workspaceDefault })
 		assertNull(live.operationStripArea())
 		workspaceDefault = viewportArea
 		assertEquals(viewportArea, live.operationStripArea(), "the workspace default is read per call, so a workspace switch is seen")
+	}
+
+	/**
+	 * The viewport a capture frames: the hovered one wins, a panel crossed on the way to the File menu yields
+	 * to the last viewport touched, and with none touched there is none.  The acting lookup keeps refusing the
+	 * fallback, since a command that acts must act where the pointer is.
+	 */
+	@Test
+	fun aCaptureFramesTheHoveredViewportElseTheLastOneTouched() {
+		val lastViewport = HoveredSurface("viewport-2", SpaceKind.Viewport2D)
+		val overViewport = CommandRouting({ HoveredSurface(viewportArea, SpaceKind.Viewport2D) }, { null }, { null }, { lastViewport })
+		assertEquals(viewportArea, overViewport.framedViewportArea(), "the hovered viewport wins")
+
+		val overPanel = CommandRouting({ HoveredSurface(sheetArea, SpaceKind.KeyformSheet) }, { null }, { null }, { lastViewport })
+		assertEquals("viewport-2", overPanel.framedViewportArea(), "a panel yields to the last viewport")
+		assertNull(overPanel.viewportArea(), "while an acting command still finds no viewport")
+
+		assertNull(CommandRouting({ HoveredSurface(uvArea, SpaceKind.UvEditor) }, { null }, { null }, { null }).framedViewportArea(), "no viewport touched yet")
 	}
 
 	private fun meshDrawable(): Drawable =
@@ -67,7 +85,7 @@ class CommandRoutingTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2)),
+			mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2)),
 			geometryGrid = null,
 		)
 
@@ -92,6 +110,7 @@ class CommandRoutingTest {
 		val drawable = SelectionTarget.Drawable(DrawableId("a"))
 		session.setSelection(Selection(setOf(drawable), drawable))
 		session.setMode(mode)
+
 		return session
 	}
 
@@ -133,6 +152,7 @@ class CommandRoutingTest {
 
 			assertEquals(areaId, routing.areaOf(kind), "${kind.name} names its own area")
 			assertEquals(areaId, routing.hoveredAreaIdAnyKind(), "${kind.name} is reported kind-agnostically")
+
 			for (other in SpaceKind.entries.filter { candidate -> candidate != kind }) {
 				assertNull(routing.areaOf(other), "a hovered ${kind.name} must not answer as ${other.name}")
 			}

@@ -25,6 +25,9 @@ enum class DocumentOpenError {
 
 	/** An artwork file with no raster layer that has any pixel over the alpha threshold - nothing to rig. */
 	NoArtLayers,
+
+	/** A `.uma` whose container is newer than this version reads - made by a newer Umamo. */
+	NewerFormat,
 }
 
 /**

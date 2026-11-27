@@ -16,6 +16,7 @@ class ParameterTemplateTest {
 		assertEquals(ParameterTemplate.None, ParameterTemplate.fromKey("none"))
 		assertEquals(ParameterTemplate.Default, ParameterTemplate.fromKey("not-a-template"), "a stale setting falls back to the default")
 		assertEquals(ParameterTemplate.Default, ParameterTemplate.fromKey(null), "an absent setting falls back to the default")
+
 		for (template in ParameterTemplate.entries) {
 			assertEquals(template, ParameterTemplate.fromKey(template.key), "every entry's key round-trips")
 		}
@@ -31,6 +32,7 @@ class ParameterTemplateTest {
 			HumanoidParameters.list.map { parameter -> parameter.id }.toSet().size,
 			"no id repeats",
 		)
+
 		for (parameter in HumanoidParameters.list) {
 			assertTrue(parameter.min < parameter.max, "${parameter.id.raw} is animatable")
 			assertTrue(parameter.default in parameter.min..parameter.max, "${parameter.id.raw} rests inside its range")

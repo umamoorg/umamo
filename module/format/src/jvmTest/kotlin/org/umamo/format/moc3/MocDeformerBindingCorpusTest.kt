@@ -2,6 +2,7 @@ package org.umamo.format.moc3
 
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.Section
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -33,15 +34,17 @@ class MocDeformerBindingCorpusTest {
 	@Test
 	fun decodedKeyformBindingMatchesTheUnifiedSection() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping decoded deformer binding test")
-			return
+			skipTest("moc3.samples not present; skipping decoded deformer binding test")
 		}
+
 		for (file in files) {
 			val model = MocCodec.read(file.readBytes())
 			val document = Moc3.decode(model)
 			val unified = model.sections.intArray(Section.DEFORMER_KEYFORM_BINDING)
 			assertEquals(document.deformers.size, unified.size, "${file.name}: s12 covers every deformer")
+
 			for ((deformerIndex, deformer) in document.deformers.withIndex()) {
 				assertEquals(
 					unified[deformerIndex],
@@ -64,16 +67,19 @@ class MocDeformerBindingCorpusTest {
 	@Test
 	fun bakedKeyformBindingColumnsAgree() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping baked deformer binding test")
-			return
+			skipTest("moc3.samples not present; skipping baked deformer binding test")
 		}
+
 		for (file in files) {
 			val original = MocCodec.read(file.readBytes())
 			val document = Moc3.decode(original)
+
 			if (document.deformers.isEmpty()) {
 				continue
 			}
+
 			val reordered =
 				MocDocument(
 					version = document.version,
@@ -95,6 +101,7 @@ class MocDeformerBindingCorpusTest {
 			val rotationBindings = baked.sections.intArray(Section.ROTATION_KEYFORM_BINDING)
 			val types = baked.sections.intArray(Section.DEFORMER_TYPE)
 			val localIndices = baked.sections.intArray(Section.DEFORMER_LOCAL_INDEX)
+
 			for (deformerIndex in reordered.deformers.indices) {
 				// Type 0 is a warp, anything else a rotation; the per-type column is addressed by s18.
 				val perType =

@@ -8,9 +8,8 @@ import kotlin.math.abs
 /**
  * The PSD file header plus the bits of the file structure the channel decoder needs.
  *
- * EN: Read from the 26-byte File Header.  Canvas size and the per-layer pixel geometry both derive
- *     from depth and color mode, so they are surfaced here rather than guessed downstream.
- * JA: PSD ファイルヘッダ（26 バイト）。キャンバスサイズと深度・カラーモードを公開する。
+ * Read from the 26-byte File Header.  Canvas size and the per-layer pixel geometry both derive from
+ * depth and color mode, so they are surfaced here rather than guessed downstream.
  *
  * @see <a href="https://docs.umamo.org/format/PSD.md">PSD.md §1 File Header</a>
  */
@@ -64,13 +63,9 @@ internal data class PsdLayerMask(
 /**
  * Per-layer metadata read from a PSD's "Layer and Mask Information" section.
  *
- * We parse this ourselves rather than leaning on a library that keeps its layer structures private:
- * the record headers that carry bounds/name/opacity/clipping/blend and the channel-info table are
- * trivially and reliably walked here.  [channelDataOffset] is the absolute file offset of this
- * layer's channel image data, computed once all records are parsed (the channel data of every layer
- * is stored sequentially after the records), so [PsdRaster] can seek straight to a layer's pixels.
- *
- * PSD のレイヤーレコードから取り出すメタデータ。チャンネルデータの絶対オフセットも保持する。
+ * [channelDataOffset] is the absolute file offset of this layer's channel image data, computed once
+ * all records are parsed (the channel data of every layer is stored sequentially after the records),
+ * so [PsdRaster] can seek straight to a layer's pixels.
  *
  * @see <a href="https://docs.umamo.org/format/PSD.md">PSD.md §3 Layer records</a>
  */
@@ -253,27 +248,37 @@ internal object PsdLayerRecords {
 	private fun readLayerMaskData(buffer: ByteReader): Pair<PsdLayerMask?, PsdLayerMask?> {
 		val size = buffer.readU32AsInt()
 		val end = buffer.position + size
+
 		if (size < 20) {
 			buffer.position = end
+
 			return null to null
 		}
+
 		val userMask = readMaskGeometry(buffer)
+
 		if ((userMask.flagsBits and 0x10) != 0) {
 			val parameterFlags = buffer.readU8()
+
 			if ((parameterFlags and 0x01) != 0) {
 				buffer.position += 1
 			}
+
 			if ((parameterFlags and 0x02) != 0) {
 				buffer.position += 8
 			}
+
 			if ((parameterFlags and 0x04) != 0) {
 				buffer.position += 1
 			}
+
 			if ((parameterFlags and 0x08) != 0) {
 				buffer.position += 8
 			}
 		}
+
 		var realUserMask: PsdLayerMask? = null
+
 		if (end - buffer.position >= 18) {
 			// PSD: real flags, real user mask background, real rectangle - the pixel mask's own geometry.
 			val realFlags = buffer.readU8()
@@ -290,7 +295,9 @@ internal object PsdLayerRecords {
 					disabled = (realFlags and 0x02) != 0,
 				)
 		}
+
 		buffer.position = end
+
 		return userMask.mask to realUserMask
 	}
 
@@ -311,6 +318,7 @@ internal object PsdLayerRecords {
 		val right = buffer.readU32().toInt()
 		val defaultColor = buffer.readU8()
 		val flags = buffer.readU8()
+
 		return MaskGeometry(
 			PsdLayerMask(
 				bounds = LayerBounds(left = left, top = top, width = right - left, height = bottom - top),
@@ -331,7 +339,7 @@ internal object PsdLayerRecords {
 	 * The additional layer info is a run of blocks, each a 4-char signature ('8BIM' or '8B64'), a
 	 * 4-char key, a u32 length, then that many data bytes - but the data padding varies by writer, so
 	 * rather than walk block lengths we scan for the key behind a valid signature (the 8-byte
-	 * signature+key prefix makes a false match in mask/range/name bytes effectively impossible). All
+	 * signature+key prefix makes a false match in mask/range/name bytes effectively impossible).  All
 	 * reads here are absolute so the caller's cursor is left untouched.
 	 *
 	 * @param ByteReader buffer      The whole-file reader.
@@ -342,14 +350,18 @@ internal object PsdLayerRecords {
 	 */
 	private fun findAdditionalInfoInt(buffer: ByteReader, regionStart: Int, regionEnd: Int, key: String): Int? {
 		var scanPosition = regionStart
+
 		// Need 16 bytes available: signature(4) + key(4) + length(4) + value(4).
 		while (scanPosition + 16 <= regionEnd) {
 			val signature = buffer.asciiAt(scanPosition, 4)
+
 			if ((signature == "8BIM" || signature == "8B64") && buffer.asciiAt(scanPosition + 4, 4) == key) {
 				return buffer.u32AsInt(scanPosition + 12) // the u32 right after the block's length field
 			}
+
 			scanPosition++
 		}
+
 		return null
 	}
 
@@ -377,31 +389,60 @@ internal object PsdLayerRecords {
 		// PSD: blend mode keys (Adobe Photoshop File Format, "Blend mode key"); see PSD.java BLEND_*.
 		when (key) {
 			"norm" -> LayerBlend.Normal
+
 			"dark" -> LayerBlend.Darken
+
 			"mul " -> LayerBlend.Multiply
-			"idiv" -> LayerBlend.ColorBurn // PSD "idiv" = Color Burn
+
+			// PSD "idiv" = Color Burn
+			"idiv" -> LayerBlend.ColorBurn
+
 			"lbrn" -> LayerBlend.LinearBurn
+
 			"dkCl" -> LayerBlend.DarkerColor
+
 			"lite" -> LayerBlend.Lighten
+
 			"scrn" -> LayerBlend.Screen
+
 			"div " -> LayerBlend.ColorDodge
-			"lddg" -> LayerBlend.Add // linear dodge (add)
+
+			// linear dodge (add)
+			"lddg" -> LayerBlend.Add
+
 			"lgCl" -> LayerBlend.LighterColor
+
 			"over" -> LayerBlend.Overlay
+
 			"sLit" -> LayerBlend.SoftLight
+
 			"hLit" -> LayerBlend.HardLight
+
 			"vLit" -> LayerBlend.VividLight
+
 			"lLit" -> LayerBlend.LinearLight
+
 			"pLit" -> LayerBlend.PinLight
+
 			"hMix" -> LayerBlend.HardMix
+
 			"diff" -> LayerBlend.Difference
-			"smud" -> LayerBlend.Exclusion // PSD "smud" = Exclusion
+
+			// PSD "smud" = Exclusion
+			"smud" -> LayerBlend.Exclusion
+
 			"fsub" -> LayerBlend.Subtract
+
 			"fdiv" -> LayerBlend.Divide
+
 			"hue " -> LayerBlend.Hue
+
 			"sat " -> LayerBlend.Saturation
+
 			"colr" -> LayerBlend.Color
+
 			"lum " -> LayerBlend.Luminosity
+
 			else -> LayerBlend.Normal
 		}
 }

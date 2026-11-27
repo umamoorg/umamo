@@ -36,6 +36,7 @@ internal fun blendShapeSections(context: MocLoweringContext): Map<Int, ByteArray
 		sink.putInts(Section.BLENDSHAPE_PARAMETER_BEGIN, layout.parameterBegin.toList())
 		sink.putInts(Section.BLENDSHAPE_PARAMETER_COUNT, layout.parameterBindingCount.toList())
 	}
+
 	if (!context.hasBlendShapes) {
 		return sink.toMap()
 	}
@@ -45,10 +46,12 @@ internal fun blendShapeSections(context: MocLoweringContext): Map<Int, ByteArray
 	val mainGridKeyTotal = context.mainGridKeyTotal
 	val bindingKeyOffsets = ArrayList<Int>()
 	var bindingKeyCursor = mainGridKeyTotal
+
 	for (bindingKeys in layout.bindingKeys) {
 		bindingKeyOffsets.add(bindingKeyCursor)
 		bindingKeyCursor += bindingKeys.size
 	}
+
 	sink.putInts(Section.BLENDSHAPE_BINDING_KEY_OFFSET, bindingKeyOffsets)
 	sink.putInts(Section.BLENDSHAPE_BINDING_KEY_COUNT, layout.bindingKeys.map { it.size })
 	sink.putInts(Section.BLENDSHAPE_BINDING_NEUTRAL, layout.bindingNeutral.toList())
@@ -66,11 +69,13 @@ internal fun blendShapeSections(context: MocLoweringContext): Map<Int, ByteArray
 			BlendShapeTarget.PART to doc.parts.sumOf { it.drawOrderKeyforms.size },
 		)
 	val recordBases = ArrayList<Int>()
+
 	for (record in layout.recordsInFileOrder) {
 		val cursor = kindCursors.getValue(record.target)
 		recordBases.add(cursor)
 		kindCursors[record.target] = cursor + record.keyPositions.size
 	}
+
 	sink.putInts(Section.BLENDSHAPE_RECORD_BASE, recordBases)
 	sink.putInts(Section.BLENDSHAPE_RECORD_KEY_COUNT, layout.recordsInFileOrder.map { it.keyPositions.size })
 
@@ -80,27 +85,33 @@ internal fun blendShapeSections(context: MocLoweringContext): Map<Int, ByteArray
 	val cornerCounts = ArrayList<Int>()
 	val subIndices = ArrayList<Int>()
 	var cornerCursor = 0
+
 	for (record in layout.recordsInFileOrder) {
 		substarts.add(cornerCursor)
 		cornerCounts.add(record.limits.size)
 		cornerCursor += record.limits.size
+
 		for (limit in record.limits) {
 			subIndices.add(layout.poolIndexOf(limit))
 		}
 	}
+
 	sink.putInts(Section.BLENDSHAPE_RECORD_SUBSTART, substarts)
 	sink.putInts(Section.BLENDSHAPE_RECORD_CORNER_COUNT, cornerCounts)
+
 	if (layout.pool.isNotEmpty()) {
 		val subKeyOffsets = ArrayList<Int>()
 		val subKeyCounts = ArrayList<Int>()
 		val subKeys = ArrayList<Float>()
 		val subWeights = ArrayList<Float>()
+
 		for (poolEntry in layout.pool) {
 			subKeyOffsets.add(subKeys.size)
 			subKeyCounts.add(poolEntry.keyPositions.size)
 			poolEntry.keyPositions.forEach { subKeys.add(it) }
 			poolEntry.weights.forEach { subWeights.add(it) }
 		}
+
 		sink.putInts(Section.BLENDSHAPE_SUB_INDEX, subIndices)
 		sink.putInts(Section.BLENDSHAPE_SUB_PARAMETER, layout.pool.map { it.parameterIndex })
 		sink.putInts(Section.BLENDSHAPE_SUB_KEY_OFFSET, subKeyOffsets)
@@ -109,8 +120,17 @@ internal fun blendShapeSections(context: MocLoweringContext): Map<Int, ByteArray
 		sink.putFloats(Section.BLENDSHAPE_SUB_WEIGHT_VALUES, subWeights)
 	}
 
-	// Per-kind object trios: objects owning records (kind-local indices ascending), with each
-	// object's record range as GLOBAL record indices.
+	/**
+	 * Writes one kind's object trio: the objects that own records, in ascending kind-local index, and each object's
+	 * record range as global record indices.
+	 *
+	 * @param List<BlendShape> records The kind's blend-shape records, in file order.
+	 * @param Int recordOffset The global index of the kind's first record.
+	 * @param Function localIndexOf Maps a record's target index to its kind-local object index.
+	 * @param Section objectSection The section that takes the object indices.
+	 * @param Section startSection The section that takes each object's first record index.
+	 * @param Section countSection The section that takes each object's record count.
+	 */
 	fun putTrio(
 		records: List<BlendShape>,
 		recordOffset: Int,
@@ -122,11 +142,14 @@ internal fun blendShapeSections(context: MocLoweringContext): Map<Int, ByteArray
 		if (records.isEmpty()) {
 			return
 		}
+
 		val objectIndices = ArrayList<Int>()
 		val recordStarts = ArrayList<Int>()
 		val recordCounts = ArrayList<Int>()
+
 		for ((recordOrdinal, record) in records.withIndex()) {
 			val localObjectIndex = localIndexOf(record.targetIndex)
+
 			if (objectIndices.isEmpty() || objectIndices.last() != localObjectIndex) {
 				objectIndices.add(localObjectIndex)
 				recordStarts.add(recordOffset + recordOrdinal)
@@ -135,6 +158,7 @@ internal fun blendShapeSections(context: MocLoweringContext): Map<Int, ByteArray
 				recordCounts[recordCounts.size - 1] = recordCounts.last() + 1
 			}
 		}
+
 		sink.putInts(objectSection, objectIndices)
 		sink.putInts(startSection, recordStarts)
 		sink.putInts(countSection, recordCounts)
@@ -175,5 +199,6 @@ internal fun blendShapeSections(context: MocLoweringContext): Map<Int, ByteArray
 		Section.BLENDSHAPE_ROTATION_RECORD_START,
 		Section.BLENDSHAPE_ROTATION_RECORD_COUNT,
 	)
+
 	return sink.toMap()
 }

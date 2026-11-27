@@ -1,18 +1,33 @@
 package org.umamo.editor.desktop.viewport
 
 import androidx.compose.ui.graphics.ImageBitmap
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
-import org.umamo.edit.GridConfig
+import kotlinx.coroutines.withContext
+import org.umamo.format.raster.RasterImage
+import org.umamo.render.ContentBounds
+import org.umamo.render.FrameBackdrop
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.capturedOver
 import org.umamo.render.pick.PickCandidate
+import org.umamo.render.puppet.DirectMeshOverlay
+import org.umamo.render.puppet.LatticeOverlay
+import org.umamo.render.puppet.MeshOverlay
+import org.umamo.render.puppet.MeshOverlayPalette
+import org.umamo.render.puppet.ModelUpdateKind
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.model.DrawableThumbnailProvider
+import org.umamo.ui.viewport.AreaCameraKey
+import org.umamo.ui.viewport.AreaOverlays
 import org.umamo.ui.viewport.AtlasPageBinding
+import org.umamo.ui.viewport.ImageFrame
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.RenderedFrame
@@ -22,21 +37,22 @@ import org.umamo.ui.viewport.UvSceneContent
  * Renders the puppet OFF-SCREEN and publishes it as a Compose ImageBitmap per viewport area.
  * Because the viewport is then lightweight Compose content, the UI layers over it correctly on every platform.
  *
- * This is the desktop implementation of [PuppetViewportService]. It is a thin facade that composes the
+ * This is the desktop implementation of [PuppetViewportService].  It is a thin facade that composes the
  * pieces and forwards each call to the collaborator that owns it:
  *
  *   - [ViewportAreaRegistry] - the registered areas + their cameras (register / resize / navigation), on the
  *     UI thread.
+ *   - [EngineRenderInputs] - the render inputs the UI thread publishes, each a volatile swap the engine's
+ *     freshness tracks.
  *   - [OffscreenRenderEngine] - the render thread that owns the GL context, renderer, framebuffers, and
- *     async read-back, plus the render-input state (selection / shown / model / atlas pages / source
- *     artwork / grid / highlight colors).
+ *     async read-back, and reads those inputs each frame.
  *   - [ViewportPicker] - CPU hit-testing and art thumbnails, on the UI thread (no GL).
  *
  * The GL context is chosen per OS behind [OffscreenGlContext], which is a hidden GLFW window on every
  * desktop OS today (macOS only differs by loading the async GLFW library).
  *
  * Threading: every method here is called on the UI thread; the engine publishes frames from its render
- * thread via the areas' StateFlows. Picking is CPU-side and synchronous.
+ * thread via the areas' StateFlows.  Picking is CPU-side and synchronous.
  *
  * @property PuppetModel puppet The rig to render.
  * @property PuppetTextures textures The atlas page(s).
@@ -45,10 +61,11 @@ import org.umamo.ui.viewport.UvSceneContent
 class OffscreenPuppetService(
 	puppet: PuppetModel,
 	textures: PuppetTextures,
-	liveParams: LiveParams,
+	private val liveParams: LiveParams,
 ) : PuppetViewportService {
 	private val registry = ViewportAreaRegistry()
-	private val engine = OffscreenRenderEngine(puppet, textures, liveParams, registry)
+	private val inputs = EngineRenderInputs(puppet, textures)
+	private val engine = OffscreenRenderEngine(puppet, textures, liveParams, registry, inputs)
 
 	// The picker shares the engine's renderer for its pure-CPU pickGeometry()/drawnOrder() snapshots (the
 	// same instance the render thread draws with - those reads are CPU-only and UI-thread-safe).
@@ -72,39 +89,42 @@ class OffscreenPuppetService(
 		}
 
 	override var supersampleEnabled: Boolean
-		get() = engine.supersampleEnabled
+		get() = inputs.supersampleEnabled
 		set(value) {
-			engine.supersampleEnabled = value
+			inputs.supersampleEnabled = value
 		}
 
 	override var supersampleWhileResizing: Boolean
-		get() = engine.supersampleWhileResizing
+		get() = inputs.supersampleWhileResizing
 		set(value) {
-			engine.supersampleWhileResizing = value
+			inputs.supersampleWhileResizing = value
 		}
 
 	override var gridColors: GridColors
-		get() = engine.gridColors
+		get() = inputs.gridColors
 		set(value) {
-			engine.gridColors = value
-		}
-
-	override var gridConfig: GridConfig
-		get() = engine.gridConfig
-		set(value) {
-			engine.gridConfig = value
+			inputs.gridColors = value
 		}
 
 	override fun register(areaId: String): StateFlow<RenderedFrame?> = registry.register(areaId)
 
-	override fun registerUvScene(areaId: String, content: UvSceneContent): StateFlow<RenderedFrame?> =
-		registry.registerUvScene(areaId, content)
+	override fun registerUvScene(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?): StateFlow<RenderedFrame?> =
+		registry.registerUvScene(areaId, content, islandExtent)
 
-	override fun setUvSceneContent(areaId: String, content: UvSceneContent) = registry.setUvSceneContent(areaId, content)
+	override fun setUvSceneContent(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?) =
+		registry.setUvSceneContent(areaId, content, islandExtent)
+
+	override fun setAreaOverlays(areaId: String, overlays: AreaOverlays) = registry.setAreaOverlays(areaId, overlays)
+
+	override fun areaOverlays(areaId: String): AreaOverlays? = registry.areaOverlays(areaId)
 
 	override fun unregister(areaId: String) = registry.unregister(areaId)
 
 	override fun cameraFlow(areaId: String): StateFlow<ViewportCamera?> = registry.cameraFlow(areaId)
+
+	override fun cameras(): Map<AreaCameraKey, ViewportCamera> = registry.cameras()
+
+	override fun seedCameras(cameras: Map<AreaCameraKey, ViewportCamera>) = registry.seedCameras(cameras)
 
 	override fun resize(areaId: String, width: Int, height: Int) = registry.resize(areaId, width, height)
 
@@ -123,61 +143,116 @@ class OffscreenPuppetService(
 
 	override fun fit(areaId: String) = registry.fit(areaId)
 
-	override fun fitWorldRect(areaId: String, minX: Float, minY: Float, maxX: Float, maxY: Float) =
-		registry.fitWorldRect(areaId, minX, minY, maxX, maxY)
+	override fun fitWorldRect(areaId: String, minX: Float, minZ: Float, maxX: Float, maxZ: Float) =
+		registry.fitWorldRect(areaId, minX, minZ, maxX, maxZ)
 
-	override fun setSelection(ids: Set<DrawableId>) = engine.setSelection(ids)
+	override fun setSelection(ids: Set<DrawableId>) = inputs.setSelection(ids)
 
-	override fun setActiveSelection(id: DrawableId?) = engine.setActiveSelection(id)
+	override fun setActiveSelection(id: DrawableId?) = inputs.setActiveSelection(id)
 
-	override fun setShownDrawables(ids: Set<DrawableId>) = engine.setShownDrawables(ids)
+	override fun setShownDrawables(ids: Set<DrawableId>) = inputs.setShownDrawables(ids)
 
-	override fun setSourceLayerPlan(plan: LayerDrawPlan) = engine.setSourceLayerPlan(plan)
+	override fun setSourceLayerPlan(plan: LayerDrawPlan) = inputs.setSourceLayerPlan(plan)
 
 	override fun setAtlasPages(binding: AtlasPageBinding) {
-		engine.setAtlasPages(binding)
+		inputs.setAtlasPages(binding)
 		// The picker samples page alpha CPU-side, so its pixels must move with the GPU's - a stale set
 		// would reject clicks on visible art at the re-derived coordinates.
 		picker.setTextures(binding.textures)
 	}
 
-	override fun deliverSourceLayerRasters(batch: LayerRasterBatch) = engine.deliverSourceLayerRasters(batch)
+	override fun deliverSourceLayerRasters(batch: LayerRasterBatch) = inputs.deliverSourceLayerRasters(batch)
 
 	/**
-	 * Pushes the latest model to the render engine and, when it actually changed, rebuilds the picker's
-	 * model-derived lookup maps so session-created drawables stay pickable / sampleable / labeled.
+	 * Pushes the latest model to the render engine and, when it actually changed, refreshes the picker -
+	 * only its position-keyed caches when the push moved mesh positions alone, as a Grab's preview pushes do.
 	 *
 	 * @param PuppetModel model The current model.
 	 */
 	override fun setModel(model: PuppetModel) {
-		if (engine.setModel(model)) {
-			picker.updateModel(model)
-		}
+		val kind = inputs.setModel(model) ?: return
+		picker.updateModel(model, positionsOnly = kind == ModelUpdateKind.PositionsOnly)
 	}
 
 	override fun setSelectionHighlightColor(red: Float, green: Float, blue: Float) =
-		engine.setSelectionHighlightColor(red, green, blue)
+		inputs.setSelectionHighlightColor(red, green, blue)
 
 	override fun setActiveSelectionHighlightColor(red: Float, green: Float, blue: Float) =
-		engine.setActiveSelectionHighlightColor(red, green, blue)
+		inputs.setActiveSelectionHighlightColor(red, green, blue)
+
+	override fun setMeshOverlay(overlay: MeshOverlay?) = inputs.setMeshOverlay(overlay)
+
+	override fun setMeshOverlayPalette(palette: MeshOverlayPalette) = inputs.setMeshOverlayPalette(palette)
+
+	override fun setLatticeOverlay(overlay: LatticeOverlay?) = inputs.setLatticeOverlay(overlay)
+
+	override fun setLatticeHover(areaId: String, deformerId: DeformerId?) = registry.setLatticeHover(areaId, deformerId)
+
+	override fun setLatticePreview(overrides: Map<DeformerId, WarpLatticeForm>) {
+		liveParams.latticePreview = overrides
+	}
+
+	override fun setLatticeOverrides(overrides: Map<DeformerId, WarpLatticeForm>) {
+		liveParams.latticeOverrides = overrides
+	}
+
+	override fun setEditDirectOverlay(overlay: DirectMeshOverlay?) = inputs.setEditDirectOverlay(overlay)
+
+	override fun latticePicksAt(areaId: String, cursorXpx: Float, cursorYpx: Float, pointRadiusPx: Float, lineRadiusPx: Float): List<DeformerId> {
+		val view = registry.viewFor(areaId) ?: return emptyList()
+		val overlays = registry.areaOverlays(areaId) ?: return emptyList()
+
+		return picker.latticePicksAt(inputs.latticeOverlay, overlays.frame, view.camera, view.width, view.height, cursorXpx, cursorYpx, pointRadiusPx, lineRadiusPx)
+	}
+
+	override fun latticeWorldCenters(areaId: String): Map<DeformerId, FloatArray> {
+		val overlays = registry.areaOverlays(areaId) ?: return emptyMap()
+
+		return picker.latticeWorldCenters(inputs.latticeOverlay, overlays.frame)
+	}
+
+	override fun latticeWorldExtent(ids: Set<DeformerId>): ContentBounds? = picker.latticeWorldExtent(ids)
 
 	override fun pickAt(areaId: String, cursorXpx: Float, cursorYpx: Float): DrawableId? {
 		val view = registry.viewFor(areaId) ?: return null
+
 		return picker.pickAt(view.camera, view.width, view.height, cursorXpx, cursorYpx)
 	}
 
 	override fun pickAllAt(areaId: String, cursorXpx: Float, cursorYpx: Float): List<PickCandidate> {
 		val view = registry.viewFor(areaId) ?: return emptyList()
+
 		return picker.pickAllAt(view.camera, view.width, view.height, cursorXpx, cursorYpx)
 	}
 
 	override fun drawableWorldCentroids(): Map<DrawableId, FloatArray> = picker.drawableWorldCentroids()
+
+	/**
+	 * Queues the capture on the render thread and, once its pixels arrive, converts them off the UI thread
+	 * from the framebuffer's premultiplied color to the straight alpha an image file stores.
+	 *
+	 * @param ImageFrame    frame    The camera and pixel size to render.
+	 * @param FrameBackdrop backdrop What the puppet is drawn over.
+	 * @param AreaOverlays  overlays The grid geometry, and the grid lines and axes a grid backdrop draws.
+	 * @return RasterImage? The image, straight alpha, or null when the render thread could not serve it.
+	 */
+	override suspend fun renderImage(frame: ImageFrame, backdrop: FrameBackdrop, overlays: AreaOverlays): RasterImage? {
+		val premultiplied = engine.requestSnapshot(frame.camera, frame.width, frame.height, backdrop, overlays).await() ?: return null
+
+		return withContext(Dispatchers.Default) { premultiplied.capturedOver(backdrop) }
+	}
+
+	override fun areaView(areaId: String): ImageFrame? = registry.viewFor(areaId)?.let { view -> ImageFrame(view.camera, view.width, view.height) }
+
+	override fun visibleContentBounds(): ContentBounds? = engine.puppetRenderer.posedContentBounds(inputs.shownDrawables)
 
 	override fun thumbnailFor(id: DrawableId): ImageBitmap? = picker.thumbnailFor(id)
 
 	override fun thumbnails(): DrawableThumbnailProvider = picker.thumbnails()
 
 	override fun partNameFor(id: DrawableId): String? = picker.partNameFor(id)
+
+	override fun drawableNameFor(id: DrawableId): String? = picker.drawableNameFor(id)
 
 	override fun dispose() = engine.dispose()
 }

@@ -1,39 +1,70 @@
 package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.cmo3.Cmo3Author
+import org.umamo.format.cmo3.caff.CaffArchive
+import org.umamo.format.cmo3.caff.CaffCodec
+import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.gen.CArtMeshSource
+import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
+import org.umamo.format.cmo3.model.gen.CTextureAtlas
+import org.umamo.format.cmo3.model.gen.CTextureManager
+import org.umamo.format.cmo3.model.gen.GTexture2D
+import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.format.cmo3.xml.XmlCodec
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.png.PngCodec
 import org.umamo.interop.DocumentField
 import org.umamo.interop.EntityDiff
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
-import org.umamo.interop.cmo3.Cmo3Conversion.AtlasPage
+import org.umamo.interop.PuppetDiff
+import org.umamo.interop.cmo3.export.Cmo3Conversion
+import org.umamo.interop.cmo3.export.Cmo3PageImage
+import org.umamo.interop.cmo3.export.fitAtlasPageToCanvasTransform
+import org.umamo.interop.cmo3.import.Cmo3Import
+import org.umamo.interop.diffPuppetModels
+import org.umamo.interop.fidelity.DivergenceAspect
+import org.umamo.interop.fidelity.FidelityGate
+import org.umamo.interop.fidelity.FidelityLedger
+import org.umamo.interop.fidelity.MocAttribute
+import org.umamo.interop.fidelity.MocDivergence
+import org.umamo.interop.fidelity.MocObjectKind
+import org.umamo.interop.fidelity.compareMocDocuments
+import org.umamo.interop.moc3.Moc3Sidecars
+import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
+import org.umamo.render.restMeshesToCanvasSpace
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
+import java.util.Collections
+import java.util.IdentityHashMap
 import kotlin.math.abs
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
  * The MOC3 -> CMO3 self round trip: every corpus .moc3 with a model3 sidecar converts to a
- * fresh CMO3, and re-importing the written file reproduces the source PuppetModel with only the
- * documented residues - WORLD_ORIGIN (the moc stores a real origin; CMO3 import derives the
- * canvas center), MESH_POSITIONS (the exported base is the rest-pose canvas frame while a
- * MOC3-origin puppet's base is parent-deformer-local), and bounded-ULP drift on keyform deltas
- * (fresh absolutes are base + delta and the re-import subtracts, which is not an IEEE identity).
+ * fresh CMO3, and re-importing the written file reproduces the source PuppetModel, its cdi3's
+ * display names, parameter groups, and linked pairs included, with only the documented residues -
+ * WORLD_ORIGIN (the moc stores a real origin; CMO3 import derives the canvas center) and
+ * bounded-ULP drift on keyform deltas (fresh absolutes are base + delta and the re-import
+ * subtracts, which is not an IEEE identity).  The canvas editable mesh is written to
+ * CArtMeshSource.positions and read back from it as it is, so a MESH_POSITIONS residue fails.
+ *
+ * The re-import then makes the trip back to MOC3, and the file it writes is compared with the source
+ * moc through the fidelity comparator the export gates share.  A divergence on that loop fails unless
+ * it is a known loss of the path.
  */
 class Cmo3ConversionRoundTripTest {
-	private val geometryUlpTolerance = 1e-3f
+	private val geometryDriftTolerance = 1e-3f
 
 	@Test
 	fun corpusMocModelsConvertAndRoundTrip() {
-		val samplesDirectory =
-			System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }
-				?: run {
-					println("moc3.samples not present; skipping MOC3 conversion round trip")
-					return
-				}
+		val samplesDirectory = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory } ?: skipTest("moc3.samples not present; skipping MOC3 conversion round trip")
 		val mocFiles =
 			samplesDirectory
 				.walkTopDown()
@@ -43,40 +74,65 @@ class Cmo3ConversionRoundTripTest {
 				.toList()
 		assertTrue(mocFiles.isNotEmpty(), "no corpus moc3 with a model3 sidecar under $samplesDirectory")
 		val failures = ArrayList<String>()
+		val ledger = FidelityLedger(FidelityGate.MOC3_CMO3_MOC3_LOOP)
+		var convertedModelCount = 0
+
 		for (mocFile in mocFiles) {
-			runCatching { roundTripOne(mocFile, failures) }
+			runCatching { roundTripOne(mocFile, ledger, failures) }
+				.onSuccess { converted -> convertedModelCount += if (converted) 1 else 0 }
 				.onFailure { failure -> failures.add("${mocFile.name}: threw $failure") }
 		}
-		assertTrue(failures.isEmpty(), "MOC3 conversion round trip failed:\n" + failures.joinToString("\n"))
+
+		ledger.tallyLines().forEach(::println)
+		failures.addAll(ledger.problems())
+		assertEquals(emptyList(), failures.take(25), "MOC3 conversion round trip failed")
+
+		if (convertedModelCount == 0) {
+			skipTest("no corpus moc3 has its atlas pages on disk; nothing was converted")
+		}
 	}
 
 	/**
 	 * Converts one corpus moc and validates the self round trip.
 	 *
 	 * @param File mocFile The .moc3 file (sidecars beside it).
+	 * @param FidelityLedger ledger The loop's divergences, sorted against the known losses.
 	 * @param ArrayList failures The shared violation collector.
+	 * @return Boolean Whether the model was converted, which it is not when its atlas pages are absent.
 	 */
-	private fun roundTripOne(mocFile: File, failures: ArrayList<String>) {
+	private fun roundTripOne(mocFile: File, ledger: FidelityLedger, failures: ArrayList<String>): Boolean {
 		val label = mocFile.name
 		val mocDocument = Moc3.read(mocFile.readBytes())
 		val manifest = Moc3.readModel3(File(mocFile.parentFile, "${mocFile.nameWithoutExtension}.model3.json").readText())
 		val textureFiles = manifest.fileReferences.textures.map { textureReference -> File(mocFile.parentFile, textureReference) }
+
 		if (textureFiles.any { textureFile -> !textureFile.isFile }) {
 			println("$label: atlas pages not in the corpus; skipping")
-			return
+
+			return false
 		}
+
 		val pages =
 			textureFiles.map { textureFile ->
 				val pngBytes = textureFile.readBytes()
 				val decoded = PngCodec.read(pngBytes)
-				AtlasPage(pngBytes, decoded.width, decoded.height)
+				Cmo3PageImage(pngBytes, decoded.width, decoded.height)
 			}
-		// displayInfo deliberately null: the same puppet is both the conversion source and the
-		// comparison target, so cosmetic names/groups cancel out either way.  The rest meshes are
-		// normalized to canvas space exactly like the app's MOC3 document loader - the export's
-		// source-level positions and the whole texture-placement web are canvas geometry, so
-		// converting a raw parent-local puppet would write deformer-local coordinates there.
-		val puppet = org.umamo.render.restMeshesToCanvasSpace(Moc3Import.fromMocDocument(mocDocument, displayInfo = null))
+		// The family's cdi3 rides in through the loaders' own lookup, so the display names, the parameter
+		// groups, and the linked pairs all cross the conversion and the residue checks below catch any the
+		// written file does not carry back.  The canvas meshes are derived exactly like the app's MOC3
+		// document loader - the export's source-level positions and the whole texture-placement web are
+		// canvas geometry, so converting a raw Moc3Import puppet, whose canvas mesh may still be its
+		// parent-space base, would write deformer-local coordinates there.
+		val displayInfo =
+			Moc3Sidecars.readDisplayInfo(
+				manifest.fileReferences.displayInfo,
+				Moc3Sidecars.basenameFor(mocFile.name),
+				{ reference -> File(mocFile.parentFile, reference).takeIf { file -> file.isFile }?.readBytes() },
+			) { reference, failure ->
+				failures.add("$label: unparseable $reference: ${failure.message}")
+			}
+		val puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(mocDocument, displayInfo))
 		val pageIndexByDrawableId = mocDocument.artMeshes.associate { artMesh -> artMesh.id to artMesh.textureIndex }
 
 		val result =
@@ -88,12 +144,14 @@ class Cmo3ConversionRoundTripTest {
 				nowMillis = 1_700_000_000_000L,
 				obfuscateKey = 0x5EEDBEEF,
 			)
+
 		// Every MOC3-origin conversion MUST warn that it has no source artwork - that is the one
 		// notice describing the whole file rather than an entity in it, so its absence is as much a
 		// defect as a spurious notice would be.
 		if (result.report.notices.none { notice -> notice is ExportNotice.MissingSourceArt }) {
 			failures.add("$label: missing the MissingSourceArt notice")
 		}
+
 		// Documented residues may notice: the world origin (moc stores one; CMO3 derives the canvas
 		// center) and part statics shadowed by their keyform tracks (import re-derives from the
 		// first form, so a disagreeing static cannot be stored independently).
@@ -119,26 +177,63 @@ class Cmo3ConversionRoundTripTest {
 		// must be a no-op - a missing or stale import/version PI here is exactly the malformed-file
 		// class the official editor rejects (it resolves element tags through the import list).
 		val writtenMainXml =
-			org.umamo.format.cmo3.caff.CaffCodec.read(written)
-				.firstByTag(org.umamo.format.cmo3.caff.CaffArchive.TAG_MAIN_XML)!!
+			CaffCodec.read(written)
+				.firstByTag(CaffArchive.TAG_MAIN_XML)!!
 				.content
-		val reparsed = org.umamo.format.cmo3.xml.XmlCodec.parse(writtenMainXml)
-		org.umamo.format.cmo3.Cmo3Author.completePrologue(reparsed)
-		if (!org.umamo.format.cmo3.xml.XmlCodec.write(reparsed).contentEquals(writtenMainXml)) {
+		val reparsed = XmlCodec.parse(writtenMainXml)
+		Cmo3Author.completePrologue(reparsed)
+
+		if (!XmlCodec.write(reparsed).contentEquals(writtenMainXml)) {
 			failures.add("$label: written prologue is incomplete (completePrologue on the output is not a no-op)")
 		}
+
 		val reimportedSource =
 			Cmo3.read(written).root as? CModelSource
 				?: run {
 					failures.add("$label: re-read root is not a CModelSource")
-					return
+
+					return true
 				}
 		checkDrawablesSampleTheAtlasPages(label, reimportedSource, failures)
-		// Diff against the puppet the conversion ENCODED: the atlas un-dedup prepass remaps a
-		// baked twin's uvs onto its own synthesized slot, so the caller's puppet is not the
+		checkTwinsShareTheirSlot(label, reimportedSource, pages.map { page -> page.width to page.height }, result.puppet, pageIndexByDrawableId, failures)
+		// Diff against the puppet the conversion ENCODED: the twin co-location prepass gives a
+		// baked twin its slot representative's canvas mesh, so the caller's puppet is not the
 		// round-trip target wherever twins existed.
 		val reimported = Cmo3Import.fromModelSource(reimportedSource)
-		val residual = org.umamo.interop.diffPuppetModels(reimported, result.puppet)
+		checkResidue(label, diffPuppetModels(reimported, result.puppet), result.puppet, reimported, failures)
+
+		// The trip back to MOC3, compared with the source file.  A root-level coordinate is stored in units
+		// of the canvas scale, so a scale the re-import lost would read as drift on every root object; it
+		// is recorded once, as the canvas field it is, and restored for the export so the value comparison
+		// stays strict at the root.
+		val sourceScale = Moc3Export.mocPixelsPerUnitFor(result.puppet)
+		val reimportedScale = Moc3Export.mocPixelsPerUnitFor(reimported)
+		val scaleDivergences =
+			if (sourceScale == reimportedScale) {
+				emptyList()
+			} else {
+				listOf(
+					MocDivergence(MocObjectKind.CANVAS, "canvas", DivergenceAspect.Attribute(MocAttribute.PIXELS_PER_UNIT, sourceScale, reimportedScale)),
+				)
+			}
+		val looped = Moc3Export.toMocDocument(reimported.copy(pixelsPerUnit = result.puppet.pixelsPerUnit), mocDocument.version).document
+		// A CMO3-origin drawable carries no atlas page index, so the page is not compared here.
+		val divergences = compareMocDocuments(mocDocument, Moc3.read(Moc3.write(looped)), ignoredAttributes = setOf(MocAttribute.TEXTURE))
+		ledger.record(label, scaleDivergences + divergences)
+
+		return true
+	}
+
+	/**
+	 * Fails every difference between the encoded puppet and its re-import that is not a documented residue.
+	 *
+	 * @param String      label      The corpus model name, for failure text.
+	 * @param PuppetDiff  residual   The re-import diffed against the encoded puppet.
+	 * @param PuppetModel encoded    The puppet the conversion encoded.
+	 * @param PuppetModel reimported The written file's re-import.
+	 * @param ArrayList   failures   The shared violation collector.
+	 */
+	private fun checkResidue(label: String, residual: PuppetDiff, encoded: PuppetModel, reimported: PuppetModel, failures: ArrayList<String>) {
 		if (residual.isEmpty) {
 			return
 		}
@@ -149,6 +244,7 @@ class Cmo3ConversionRoundTripTest {
 		}
 		residual.parameters.forEach { failures.add("$label: parameter residue $it") }
 		residual.parameterGroups.forEach { failures.add("$label: group residue $it") }
+
 		for (entityDiff in residual.parts) {
 			// The statics-shadowed residue class: a static disagreeing with its track's head cell
 			// (noticed above) re-imports as the head value.
@@ -156,26 +252,100 @@ class Cmo3ConversionRoundTripTest {
 				failures.add("$label: part residue $entityDiff")
 			}
 		}
+
 		residual.glues.forEach { failures.add("$label: glue residue $it") }
+
 		for (entityDiff in residual.deformers) {
 			if (entityDiff !is EntityDiff.Changed || entityDiff.fields.any { field -> field.name !in setOf("GEOMETRY", "BLEND_SHAPES") }) {
 				failures.add("$label: deformer residue $entityDiff")
 			}
 		}
+
 		for (entityDiff in residual.drawables) {
-			// MESH_POSITIONS: the exported base is the rest-pose CANVAS frame while a MOC3-origin
-			// puppet's base is parent-deformer-local; the absolute-geometry drift check below is
-			// what guards the semantics (base + delta is the render-visible invariant).
-			if (entityDiff !is EntityDiff.Changed || entityDiff.fields.any { field -> field.name !in setOf("GEOMETRY", "BLEND_SHAPES", "MESH_POSITIONS") }) {
+			// GEOMETRY / BLEND_SHAPES: each import takes its base from its own reference cell, so the
+			// re-imported deltas shift by the base difference; the absolute-geometry drift check below
+			// is what guards the semantics (base + delta is the render-visible invariant).
+			if (entityDiff !is EntityDiff.Changed || entityDiff.fields.any { field -> field.name !in setOf("GEOMETRY", "BLEND_SHAPES") }) {
 				failures.add("$label: drawable residue $entityDiff")
+
 				continue
 			}
-			val drift = maxGeometryDrift(result.puppet, reimported, entityDiff.id.raw)
-			if (drift > geometryUlpTolerance) {
+
+			val drift = maxGeometryDrift(encoded, reimported, entityDiff.id.raw)
+
+			if (drift > geometryDriftTolerance) {
 				failures.add("$label: drawable ${entityDiff.id.raw} geometry drifted by $drift")
 			}
 		}
 	}
+
+	/**
+	 * Asserts a conversion kept every baked twin on its own slot: the written atlases are the source pages,
+	 * none synthesized, and every shared slot in the encoded puppet is sampled from ONE canvas placement - the
+	 * shape every official file has (docs/format/CMO3.md section 6, Fresh-Graph Synthesis).
+	 *
+	 * @param String       label                 The corpus model name, for failure text.
+	 * @param CModelSource source                The re-read model root.
+	 * @param List         pageSizes             The source atlas pages' pixel sizes, width then height.
+	 * @param PuppetModel  encoded               The puppet the conversion encoded.
+	 * @param Map          pageIndexByDrawableId Each drawable id's atlas page index.
+	 * @param ArrayList    failures              The shared violation collector.
+	 */
+	private fun checkTwinsShareTheirSlot(
+		label: String,
+		source: CModelSource,
+		pageSizes: List<Pair<Int, Int>>,
+		encoded: PuppetModel,
+		pageIndexByDrawableId: Map<String, Int>,
+		failures: ArrayList<String>,
+	) {
+		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases.
+		val textureManager = source.textureManager as? CTextureManager
+		val atlasCount =
+			elementsOf(textureManager?._textureAtlases)
+				.filterIsInstance<CTextureAtlas>()
+				.size
+
+		if (atlasCount != pageSizes.size) {
+			failures.add("$label: wrote $atlasCount atlases for ${pageSizes.size} source pages; a twin must share its slot, not get a page of its own")
+		}
+
+		val fitsBySlot = HashMap<List<Any>, MutableList<Pair<String, CAffine>>>()
+
+		for (drawable in encoded.drawables) {
+			val mesh = drawable.mesh ?: continue
+			val pageIndex = pageIndexByDrawableId[drawable.id.raw] ?: continue
+			val page = pageSizes.getOrNull(pageIndex) ?: continue
+			val fit = fitAtlasPageToCanvasTransform(mesh.uvs, mesh.positions, page.first, page.second)
+			fitsBySlot.getOrPut(listOf(pageIndex, mesh.uvs.toList(), mesh.indices.toList())) { ArrayList() }.add(drawable.id.raw to fit)
+		}
+
+		for (fits in fitsBySlot.values) {
+			val (firstId, firstFit) = fits.first()
+
+			for ((drawableId, fit) in fits.drop(1)) {
+				if (!samePlacement(firstFit, fit)) {
+					failures.add("$label: $drawableId samples $firstId's atlas slot from another canvas placement")
+				}
+			}
+		}
+	}
+
+	/**
+	 * Whether two fitted atlas-to-canvas placements are one placement: the linear parts within 1/1024 and the
+	 * translations within a canvas pixel.
+	 *
+	 * @param CAffine first  One placement.
+	 * @param CAffine second The other.
+	 * @return Boolean True when they place the slot alike.
+	 */
+	private fun samePlacement(first: CAffine, second: CAffine): Boolean =
+		abs(first.m00 - second.m00) <= 1f / 1024f &&
+			abs(first.m01 - second.m01) <= 1f / 1024f &&
+			abs(first.m10 - second.m10) <= 1f / 1024f &&
+			abs(first.m11 - second.m11) <= 1f / 1024f &&
+			abs(first.m02 - second.m02) <= 1f &&
+			abs(first.m12 - second.m12) <= 1f
 
 	/**
 	 * Asserts every re-read drawable samples one of the document's own atlas page resources, by
@@ -196,30 +366,31 @@ class Cmo3ConversionRoundTripTest {
 	 */
 	private fun checkDrawablesSampleTheAtlasPages(label: String, source: CModelSource, failures: ArrayList<String>) {
 		// CMO3: CTextureManager field _textureAtlases -> CTextureAtlas field cachedAtlasImage.
-		val textureManager = source.textureManager as? org.umamo.format.cmo3.model.gen.CTextureManager ?: return
+		val textureManager = source.textureManager as? CTextureManager ?: return
 		val pageResources =
-			Cmo3Import
-				.elementsOf(textureManager._textureAtlases)
-				.filterIsInstance<org.umamo.format.cmo3.model.gen.CTextureAtlas>()
-				.mapNotNull { atlas -> atlas.cachedAtlasImage as? org.umamo.format.cmo3.model.custom.CImageResource }
+			elementsOf(textureManager._textureAtlases)
+				.filterIsInstance<CTextureAtlas>()
+				.mapNotNull { atlas -> atlas.cachedAtlasImage as? CImageResource }
+
 		if (pageResources.isEmpty()) {
 			return
 		}
-		val pageIdentities = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+
+		val pageIdentities = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
 		pageIdentities.addAll(pageResources)
 		// CMO3: CDrawableSourceSet field _sources -> CArtMeshSource field texture -> GTexture2D field
 		// srcImageResource.
 		val meshes =
-			Cmo3Import
-				.elementsOf((source.drawableSourceSet as? org.umamo.format.cmo3.model.gen.CDrawableSourceSet)?._sources)
-				.filterIsInstance<org.umamo.format.cmo3.model.gen.CArtMeshSource>()
+			elementsOf((source.drawableSourceSet as? CDrawableSourceSet)?._sources)
+				.filterIsInstance<CArtMeshSource>()
 		val strays =
 			meshes.filter { mesh ->
 				val sampled =
-					(mesh.texture as? org.umamo.format.cmo3.model.gen.GTexture2D)
-						?.srcImageResource as? org.umamo.format.cmo3.model.custom.CImageResource
+					(mesh.texture as? GTexture2D)
+						?.srcImageResource as? CImageResource
 				sampled != null && sampled !in pageIdentities
 			}
+
 		if (strays.isNotEmpty()) {
 			failures.add(
 				"$label: ${strays.size} of ${meshes.size} drawables sample a resource that is not one of the " +
@@ -232,10 +403,9 @@ class Cmo3ConversionRoundTripTest {
 	 * The largest per-component ABSOLUTE keyform-position difference between the two models'
 	 * drawable grids (base + delta per cell).
 	 *
-	 * Absolutes, not raw deltas: the exported source-level base is the rest-pose CANVAS frame
-	 * while a MOC3-origin puppet's base is parent-deformer-local, so the re-imported deltas shift
-	 * by exactly the base difference.  The blended geometry - base plus delta - is the semantic
-	 * invariant (grids sum to one, so the base cancels out of every rendered pose).
+	 * Absolutes, not raw deltas: each import takes its base from its own reference cell, so the
+	 * re-imported deltas shift by exactly the base difference.  The blended geometry - base plus delta
+	 * - is the semantic invariant (grids sum to one, so the base cancels out of every rendered pose).
 	 *
 	 * @param PuppetModel source     The conversion source.
 	 * @param PuppetModel reimported The re-imported model.
@@ -243,26 +413,29 @@ class Cmo3ConversionRoundTripTest {
 	 * @return Float The maximum absolute component difference (0 when either grid is absent).
 	 */
 	private fun maxGeometryDrift(
-		source: org.umamo.runtime.model.PuppetModel,
-		reimported: org.umamo.runtime.model.PuppetModel,
+		source: PuppetModel,
+		reimported: PuppetModel,
 		drawableIdRaw: String,
 	): Float {
 		val sourceDrawable = source.drawables.firstOrNull { it.id.raw == drawableIdRaw }
 		val reimportedDrawable = reimported.drawables.firstOrNull { it.id.raw == drawableIdRaw }
 		val sourceGrid = sourceDrawable?.geometryGrid ?: return 0f
 		val reimportedGrid = reimportedDrawable?.geometryGrid ?: return 0f
-		val sourceBase = sourceDrawable.mesh?.positions ?: return 0f
-		val reimportedBase = reimportedDrawable.mesh?.positions ?: return 0f
+		val sourceBase = sourceDrawable.mesh?.localPositions ?: return 0f
+		val reimportedBase = reimportedDrawable.mesh?.localPositions ?: return 0f
 		val reimportedByCoordinate = reimportedGrid.cells.associate { cell -> cell.coordinate.toList() to cell.form.positionDeltas }
 		var maxDifference = 0f
+
 		for (cell in sourceGrid.cells) {
 			val reimportedDeltas = reimportedByCoordinate[cell.coordinate.toList()] ?: return Float.MAX_VALUE
+
 			for (component in cell.form.positionDeltas.indices) {
 				val sourceAbsolute = sourceBase.getOrElse(component) { 0f } + cell.form.positionDeltas[component]
 				val reimportedAbsolute = reimportedBase.getOrElse(component) { 0f } + reimportedDeltas.getOrElse(component) { 0f }
 				maxDifference = maxOf(maxDifference, abs(sourceAbsolute - reimportedAbsolute))
 			}
 		}
+
 		return maxDifference
 	}
 }

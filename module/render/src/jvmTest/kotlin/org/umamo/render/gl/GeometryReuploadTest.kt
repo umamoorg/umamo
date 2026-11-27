@@ -32,11 +32,11 @@ import kotlin.test.assertTrue
 /**
  * Proves the GPU renderer re-uploads an edited base mesh so the textured art actually moves: an
  * Object/Edit-mode G/S/R commits new positions, and those positions must reach the VBO on the next
- * render or the art visibly lags behind the mesh. Renders a flat-color quad into an offscreen FBO, shifts
+ * render or the art visibly lags behind the mesh.  Renders a flat-color quad into an offscreen FBO, shifts
  * its base positions via [PuppetRenderer.updateModel], re-renders, and asserts the drawn art's pixel
  * centroid moved by the expected screen delta - once for a direct (undeformed) drawable and once for a
  * rotation-deformer-parented one, so a parented drawable's art fully tracks the edit rather than lagging
- * partway. Also asserts [PuppetRenderer.pickGeometry] follows the edit, so picking stays in sync with
+ * partway.  Also asserts [PuppetRenderer.pickGeometry] follows the edit, so picking stays in sync with
  * what's drawn.
  *
  * Self-skips in a display-less environment (no GL context), like [GpuDeformValidationTest].
@@ -62,9 +62,9 @@ class GeometryReuploadTest {
 			parentDeformerId = parentDeformerId,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(quadPositions.copyOf(), quadUvs, quadIndices),
-			// A single zero-delta keyform so the drawable is "keyed" (an unkeyed drawable is skipped by the
-			// renderer); the base mesh alone drives its shape.
+			mesh = DrawableMesh.withLocalEqualToCanvas(quadPositions.copyOf(), quadUvs, quadIndices),
+			// A single zero-delta keyform, so the probe is keyed like a rigged drawable while the base mesh
+			// alone drives its shape.
 			geometryGrid = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(quadPositions.size))))),
 		)
 
@@ -85,7 +85,8 @@ class GeometryReuploadTest {
 			FloatArray(quadPositions.size) { coordIndex ->
 				drawable.mesh!!.positions[coordIndex] + if (coordIndex % 2 == 0) shiftWorld else 0f
 			}
-		return source.copy(drawables = listOf(drawable.copy(mesh = DrawableMesh(shifted, quadUvs, quadIndices))))
+
+		return source.copy(drawables = listOf(drawable.copy(mesh = DrawableMesh.withLocalEqualToCanvas(shifted, quadUvs, quadIndices))))
 	}
 
 	@Test
@@ -113,7 +114,7 @@ class GeometryReuploadTest {
 
 	/**
 	 * Renders [source] and its base-shifted variant into an offscreen FBO and asserts the drawn art moved by
-	 * the expected screen delta and that pick geometry followed. Self-skips (returns) with no GL context.
+	 * the expected screen delta and that pick geometry followed.  Self-skips (returns) with no GL context.
 	 */
 	private fun runMotionCase(source: PuppetModel, label: String) {
 		requireHeadlessGl("[geometry-reupload]")
@@ -124,7 +125,7 @@ class GeometryReuploadTest {
 		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
 		val framebuffer = (target as GlRenderTarget).framebuffer
 		// A fixed 1:1 camera centered on the origin, so one world unit == one screen pixel and the frame
-		// never moves - only the art does. Held across both renders.
+		// never moves - only the art does.  Held across both renders.
 		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 
 		// Background only (the drawable hidden), so the art can be isolated by differencing against it.
@@ -159,7 +160,7 @@ class GeometryReuploadTest {
 		assertTrue(massA > 1000, "$label: frame A drew too little art (mass $massA) - the probe did not render")
 		assertTrue(massB > 1000, "$label: frame B drew too little art (mass $massB)")
 		// The whole quad translated rigidly, so its pixel centroid shifts by exactly the world delta at
-		// zoom 1. A generous tolerance covers anti-aliased edge pixels near the flat-color threshold.
+		// zoom 1.  A generous tolerance covers anti-aliased edge pixels near the flat-color threshold.
 		assertEquals(shiftWorld, centroidBx - centroidAx, 4f, "$label: art did not move by the edited base delta")
 		assertTrue(abs(centroidBy - centroidAy) < 4f, "$label: art drifted in y (${centroidBy - centroidAy})")
 		// Pick geometry must follow the edit too (world x unchanged by the global Y-flip).
@@ -172,11 +173,13 @@ class GeometryReuploadTest {
 		var sum = 0f
 		var vertexCount = 0
 		var coordIndex = 0
+
 		while (coordIndex + 1 < positions.size) {
 			sum += positions[coordIndex]
 			vertexCount++
 			coordIndex += 2
 		}
+
 		return sum / vertexCount
 	}
 
@@ -189,12 +192,14 @@ class GeometryReuploadTest {
 		var sumX = 0.0
 		var sumY = 0.0
 		var count = 0
+
 		for (row in 0 until height) {
 			for (col in 0 until width) {
 				val pixel = (row * width + col) * 4
 				val deltaRed = abs((frame.get(pixel).toInt() and 0xFF) - (background.get(pixel).toInt() and 0xFF))
 				val deltaGreen = abs((frame.get(pixel + 1).toInt() and 0xFF) - (background.get(pixel + 1).toInt() and 0xFF))
 				val deltaBlue = abs((frame.get(pixel + 2).toInt() and 0xFF) - (background.get(pixel + 2).toInt() and 0xFF))
+
 				if (maxOf(deltaRed, deltaGreen, deltaBlue) > threshold) {
 					sumX += col
 					sumY += row
@@ -202,9 +207,11 @@ class GeometryReuploadTest {
 				}
 			}
 		}
+
 		if (count == 0) {
 			return Triple(0f, 0f, 0)
 		}
+
 		return Triple((sumX / count).toFloat(), (sumY / count).toFloat(), count)
 	}
 
@@ -212,19 +219,7 @@ class GeometryReuploadTest {
 	private fun readPixels(width: Int, height: Int): ByteBuffer {
 		val buffer = BufferUtils.createByteBuffer(width * height * 4)
 		GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer)
-		return buffer
-	}
 
-	/** Creates and binds an RGBA8 offscreen framebuffer to render the puppet into for read-back. */
-	private fun createColorFbo(width: Int, height: Int): Int {
-		val framebuffer = GL30.glGenFramebuffers()
-		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-		val colorTexture = GL11.glGenTextures()
-		GL11.glBindTexture(GL11.GL_TEXTURE_2D, colorTexture)
-		GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, width, height, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, null as ByteBuffer?)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR)
-		GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, colorTexture, 0)
-		return framebuffer
+		return buffer
 	}
 }

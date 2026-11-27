@@ -50,7 +50,6 @@ import org.umamo.ui.resources.runtime_feature_extended_blend_shapes
 import org.umamo.ui.resources.runtime_feature_mesh_warp_blend_shapes
 import org.umamo.ui.resources.runtime_feature_motion_sync
 import org.umamo.ui.resources.runtime_feature_multiply_color
-import org.umamo.ui.resources.runtime_feature_parameter_repeat
 import org.umamo.ui.resources.runtime_feature_part_composite
 import org.umamo.ui.resources.runtime_feature_reversed_mask
 import org.umamo.ui.resources.runtime_feature_screen_color
@@ -170,10 +169,9 @@ fun blendModeLabels(): Map<BlendMode, String> = BlendMode.entries.associateWith 
 
 /**
  * The blend modes in dropdown display order: the 5.3 modes first, in their canonical MOC3 colorMode
- * order, then the "(Legacy)" pre-5.3 premultiplied modes (AdditivePremultiplied and
- * MultiplyPremultiplied - exactly the two that ignore the alpha blend setting) sunk to the bottom so
- * they stay out of the way for new work.  [BlendMode.entries] - the enum/format order backing the
- * packed-int mapping - is NOT reordered; only the picker's presentation changes.
+ * order, then the "(Legacy)" pre-5.3 premultiplied modes sunk to the bottom so they stay out of the way
+ * for new work.  Only the picker's presentation changes; [BlendMode.entries] keeps the format order the
+ * packed-int mapping relies on.
  *
  * @return List The blend modes in the order the picker should present them.
  */
@@ -217,7 +215,6 @@ fun runtimeFeatureLabelRes(feature: RuntimeFeature): StringResource =
 		RuntimeFeature.MotionSync -> Res.string.runtime_feature_motion_sync
 		RuntimeFeature.ExtendedBlendModes -> Res.string.runtime_feature_extended_blend_modes
 		RuntimeFeature.PartComposite -> Res.string.runtime_feature_part_composite
-		RuntimeFeature.ParameterRepeat -> Res.string.runtime_feature_parameter_repeat
 		RuntimeFeature.ArtPath -> Res.string.runtime_feature_art_path
 	}
 
@@ -242,9 +239,9 @@ fun formChannelLabelRes(channel: FormChannel): StringResource =
 	}
 
 /**
- * The display label for a runtime target: NoTarget and Ayagami resolve through the string catalog
- * (their parentheticals are chrome), while the Cubism entries are product identity shown verbatim
- * from [RuntimeTarget.displayName], never localized.
+ * The display label for a runtime target: NoTarget and the Ayagami builds resolve through the
+ * string catalog (their parentheticals are chrome), while the Cubism entries are product identity
+ * shown verbatim from [RuntimeTarget.displayName], never localized.
  *
  * @param RuntimeTarget target The target to label.
  * @return String The dropdown label.
@@ -253,7 +250,11 @@ fun formChannelLabelRes(channel: FormChannel): StringResource =
 fun runtimeTargetLabel(target: RuntimeTarget): String =
 	when (target) {
 		RuntimeTarget.NoTarget -> stringResource(Res.string.runtime_target_no_target)
-		RuntimeTarget.Ayagami -> stringResource(Res.string.runtime_target_ayagami, target.cubismLevelText().orEmpty())
+
+		RuntimeTarget.Ayagami50,
+		RuntimeTarget.Ayagami53,
+		-> stringResource(Res.string.runtime_target_ayagami, target.cubismLevelText().orEmpty())
+
 		RuntimeTarget.Cubism30,
 		RuntimeTarget.Cubism33,
 		RuntimeTarget.Cubism40,

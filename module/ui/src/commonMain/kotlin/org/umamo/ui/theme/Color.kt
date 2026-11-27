@@ -5,22 +5,22 @@ import androidx.compose.ui.graphics.Color
 
 /*
  * The flat, explicit color palette for the custom design system - every role is a value we set, not a tone
- * derived from a seed. A dense, Blender-ish dark scheme (flat greys + the brand purple accent) with a
- * deliberately designed light scheme; re-tinting is local to this file. Kit widgets and migrated panels
+ * derived from a seed.  A dense, Blender-ish dark scheme (flat greys + the brand purple accent) with a
+ * deliberately designed light scheme; re-tinting is local to this file.  Kit widgets and migrated panels
  * read these via [LocalUmamoColors].
  *
  * The light scheme is a system, not an inversion of the dark values:
  *  - The surface ladder keeps the dark scheme's elevation sign (raised surfaces are lighter in both
  *    themes): window backdrop < tab < row stripe < panel < header < control fill.
  *  - One deliberate flip: transient hover washes go darker in light mode, because a lighter-than-near-white
- *    hover is imperceptible. Dark keeps its brighten-on-hover values.
+ *    hover is imperceptible.  Dark keeps its brighten-on-hover values.
  *  - The accent deepens in light mode so white on-accent text and accent-as-text stay legible.
  *  - Selection decouples from the accent in light mode: a soft lavender row tint with deep plum marks, so
  *    selected rows read as selection rather than as primary buttons.
  */
 
 /**
- * The role palette. Lean and explicit - no seed/tonal derivation. Roles map onto the editor's surfaces,
+ * The role palette.  Lean and explicit - no seed/tonal derivation.  Roles map onto the editor's surfaces,
  * line-work, text, the brand accent, selection, controls, transient state washes, and the viewport overlay.
  *
  * @property Color windowBackground   The outermost editor background and the native caption tint.
@@ -39,16 +39,21 @@ import androidx.compose.ui.graphics.Color
  * @property Color panelBorder        Hairline border around panels, dialogs, and popups.
  * @property Color panelBorderHover   Border pop on hover (area chrome, select fields).
  * @property Color controlBorder      Inset border around controls; the Pad2D frame.
- * @property Color guideLine          Mid-strength drawn line-work: the Pad2D grid, slider ticks, in-menu
- *   dividers, and the area drag-indicator strip.
+ * @property Color guideLine          Mid-strength drawn line-work: the Pad2D key lines and pips, slider and dial ticks,
+ *   in-menu dividers, and the area drag-indicator strip.
  * @property Color treeGuideLine      Outliner ancestry guide lines.
  * @property Color text               Primary text and text cursors.
  * @property Color textMuted          Secondary / dimmed text, placeholders, and muted glyphs.
  * @property Color textDisabled       Disabled text and glyphs.
  * @property Color accent             The brand accent fill: primary buttons, checkboxes, the slider fill,
- *   armed/recording states, and accent borders/marks.
+ *   armed/recording states, and accent borders/marks.  A control whose value wraps draws in [repeatAccent]
+ *   instead.
  * @property Color accentHover        Accent hover state.
+ * @property Color accentPressed      Accent fill while a control is held down.
  * @property Color accentText         Text/icon on top of accent fills.
+ * @property Color repeatAccent       The accent of a control whose value wraps past its ends, in place of [accent]: a
+ *   repeating parameter's slider fill, its dial's arc and hand, and the ring of a pad handle either of whose axes
+ *   repeats.  The brand's secondary yellow, so a repeating control reads apart from one that clamps.
  * @property Color selection          Selected-item row background.
  * @property Color selectionText      Text and marks on selection rows.
  * @property Color controlBackground  Neutral control fill (text fields, secondary buttons, segments, key
@@ -57,7 +62,7 @@ import androidx.compose.ui.graphics.Color
  *   hover state).
  * @property Color controlGlyph       Icon glyphs on neutral control and chip fills.
  * @property Color keyedOnKey         Text/glyph tint for a field whose channel is keyed and the pose sits
- *   exactly on one of its keys (Blender-style keyframe tinting; see [org.umamo.ui.model.KeyedFieldState]).
+ *   exactly on one of its keys (Blender-style keyframe tinting; see [org.umamo.ui.kit.field.KeyedFieldState]).
  * @property Color keyedBetween       Text/glyph tint for a field whose channel is keyed but the pose is not
  *   sitting on one of its keys - an edit here needs an explicit key to survive.
  * @property Color keyedModified      Text/glyph tint for a field with an edit made and not yet keyed; it is
@@ -73,6 +78,8 @@ import androidx.compose.ui.graphics.Color
  *   red of a traffic light.
  * @property Color buttonHover        Hover fill for unselected ButtonGroup segments (stronger than
  *   rowHover in dark).
+ * @property Color buttonPressed      Neutral fill while a button or segment is held down.  Hover brightens
+ *   a step from rest and a press darkens one, so the two states can never be mistaken for each other.
  * @property Color sliderTrack        Recessed slider track / pad groove (unfilled).
  * @property Color sliderThumb        Slider and 2D-pad handle.
  * @property Color dropZoneFill       Faint wash over a candidate area drop zone while dragging.
@@ -127,7 +134,9 @@ data class UmamoColors(
 	val textDisabled: Color,
 	val accent: Color,
 	val accentHover: Color,
+	val accentPressed: Color,
 	val accentText: Color,
+	val repeatAccent: Color,
 	val selection: Color,
 	val selectionText: Color,
 	val controlBackground: Color,
@@ -143,6 +152,7 @@ data class UmamoColors(
 	val signalCaution: Color,
 	val signalBad: Color,
 	val buttonHover: Color,
+	val buttonPressed: Color,
 	val sliderTrack: Color,
 	val sliderThumb: Color,
 	val dropZoneFill: Color,
@@ -177,6 +187,7 @@ data class UmamoColors(
 // like 0.7f have no exact 8-bit representation, and the derivation keeps the rendered floats bit-identical
 // to what the call sites historically computed inline.
 private val brandPurple = Color(0xFFBF86D7)
+private val brandYellow = Color(0xFFFCDD83)
 
 // Blender's keyframe colors, identical in both schemes on purpose - they are learned signals, and a
 // per-scheme variant would make the light theme's "orange" mean something a user has to relearn.  Shared as
@@ -194,15 +205,19 @@ private val signalGreen = Color(0xFF58B65C)
 private val signalAmber = Color(0xFFD9A62B)
 private val signalRed = Color(0xFFE05252)
 private val brandPurpleBright = Color(0xFFD394ED)
+private val brandPurpleDim = Color(0xFFA96FC1)
 
 // The light scheme deepens the accent so white on-accent text reads at ~5.6:1 (the dark purple family
 // value is too pale against light surfaces).
 private val brandPurpleDeep = Color(0xFF8A4FA8)
 private val brandPurpleDeepBright = Color(0xFF9B63B9)
+
+// The secondary yellow deepened the same way, so a fill in it still reads against the light track.
+private val brandYellowDeep = Color(0xFFA07A10)
 private val mutedGreyDark = Color(0xFF9A9A9A)
 private val mutedGreyLight = Color(0xFF6B6B6B)
 
-// Blender's armature object / data signature colours, per outliner node family.
+// Blender's armature object / data signature colors, per outliner node family.
 private val outlinerTanDark = Color(0xFFE19658)
 private val outlinerTanLight = Color(0xFFE19658)
 private val outlinerTealDark = Color(0xFF00D4A3)
@@ -237,7 +252,9 @@ val umamoDarkColors =
 		textDisabled = mutedGreyDark.copy(alpha = 0.3f),
 		accent = brandPurple,
 		accentHover = brandPurpleBright,
+		accentPressed = brandPurpleDim,
 		accentText = Color(0xFFFFFFFF),
+		repeatAccent = brandYellow,
 		selection = brandPurple,
 		selectionText = Color(0xFFFFFFFF),
 		controlBackground = Color(0xFF545454),
@@ -253,6 +270,7 @@ val umamoDarkColors =
 		signalCaution = signalAmber,
 		signalBad = signalRed,
 		buttonHover = Color(0xFF656565),
+		buttonPressed = brandPurpleDim,
 		sliderTrack = Color(0xFF252525),
 		sliderThumb = Color(0xFFD2D2D2),
 		dropZoneFill = brandPurple.copy(alpha = 0.16f),
@@ -307,7 +325,9 @@ val umamoLightColors =
 		textDisabled = mutedGreyLight.copy(alpha = 0.3f),
 		accent = brandPurpleDeep,
 		accentHover = brandPurpleDeepBright,
+		accentPressed = brandPurpleDim,
 		accentText = Color(0xFFFFFFFF),
+		repeatAccent = brandYellowDeep,
 		selection = Color(0xFFDCC3EA),
 		selectionText = Color(0xFF3B2144),
 		controlBackground = Color(0xFFDFDFDF),
@@ -323,6 +343,7 @@ val umamoLightColors =
 		signalCaution = signalAmber,
 		signalBad = signalRed,
 		buttonHover = Color(0xFFEDEDED),
+		buttonPressed = brandPurpleDim,
 		sliderTrack = Color(0xFFDCDCDC),
 		sliderThumb = Color(0xFF505050),
 		dropZoneFill = brandPurpleDeep.copy(alpha = 0.16f),

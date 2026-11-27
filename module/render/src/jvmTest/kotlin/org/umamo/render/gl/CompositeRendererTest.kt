@@ -80,7 +80,7 @@ class CompositeRendererTest {
 			alphaBlendMode = alphaBlendMode,
 			culling = culling,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions, FloatArray(positions.size), indices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), indices),
 			geometryGrid = restGrid(positions),
 			opacity = opacity,
 			isVisible = isVisible,
@@ -97,7 +97,7 @@ class CompositeRendererTest {
 			canvasWidth = 0f,
 			canvasHeight = 0f,
 			worldOriginX = 0f,
-			worldOriginY = 0f,
+			worldOriginZ = 0f,
 		).withDerivedRenderRoot()
 
 	/** Renders [source] and returns the RGBA of the pixel at ([x], [y]) in top-first image space. */
@@ -112,6 +112,7 @@ class CompositeRendererTest {
 		renderer.render(target, viewportSize, viewportSize)
 		val image = device.readPixels(target)
 		val pixelOffset = (y * viewportSize + x) * 4
+
 		return IntArray(4) { channelIndex -> image.rgba[pixelOffset + channelIndex].toInt() and 0xFF }
 	}
 
@@ -164,6 +165,7 @@ class CompositeRendererTest {
 	@Test
 	fun premultipliedModesIgnoreTheAlphaBlendSetting() {
 		requireHeadlessGl("[composite-renderer]")
+
 		// The "(Before 5.3)" Add/Multiply composite in premultiplied format and ignore the Alpha
 		// blend setting, so an isolated composite using one renders identically whether its alpha
 		// mode is Over or Disjoint.  A modern mode would diverge (it honors the alpha mode).
@@ -232,6 +234,7 @@ class CompositeRendererTest {
 		fun clipped(invert: Boolean): PuppetModel {
 			val maskSource = drawable("clip", positions = leftHalfQuad, isVisible = false)
 			val composite = PartComposite(maskedBy = listOf(DrawableId("clip")), invertMask = invert)
+
 			return model(
 				drawables = listOf(maskSource, drawable("top")),
 				parts = listOf(isolatedPart("fx", "top", composite)),
@@ -321,7 +324,7 @@ class CompositeRendererTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(positions, FloatArray(positions.size), frontIndices),
+				mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), frontIndices),
 				geometryGrid = restGrid(positions),
 				// The tint is a channel with a static; no track needed to prove the renderer applies it.
 				multiplyColor = ColorRgb(1f, 0f, 0f),

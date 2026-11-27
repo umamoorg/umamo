@@ -1,38 +1,33 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 
 /** The default cap on retained undo steps; the oldest is dropped past this (a memory backstop). */
 const val DEFAULT_HISTORY_LIMIT: Int = 200
 
 /**
- * A pose: the live value of every parameter (the current scrub position the renderer deforms to). Held
+ * A pose: the live value of every parameter (the current scrub position the renderer deforms to).  Held
  * as ephemeral editor state outside [PuppetModel] - it is not document content (keyforms are), but it is
- * snapshotted so a scrub is undoable. A small immutable map, so capturing one in a snapshot is cheap.
- *
- * ポーズ：各パラメータの現在値。ドキュメント内容ではない一時的な編集状態だが、スクラブを取り消せるよう保持。
+ * snapshotted so a scrub is undoable.  A small immutable map, so capturing one in a snapshot is cheap.
  */
 typealias Pose = Map<ParameterId, Float>
 
 /**
- * One undoable state: the document model plus the ephemeral editor state that rides with it. The
- * interaction mode, the object-mode selection, the live pose, and the Edit-mode vertex selection are
- * snapshotted here (not inside [PuppetModel]) so undo restores the mode (entering / leaving Edit is a
- * real history step, not a guess), the prior selection after a misclick, the prior pose after a scrub,
- * and the vertex selection after a mesh edit; a document edit also restores all of these as they were at
- * that edit. Every field is an immutable value, so a snapshot is just a few references — cheap to keep
- * and to restore.
- *
- * 取り消し可能な1状態：ドキュメントモデルと、それに付随するモード・選択・ポーズ・頂点選択。PuppetModel の外に持つ。
+ * One undoable state: the document model plus the ephemeral editor state that rides with it - the mode,
+ * the selections, the pose, and the pending edits - held outside [PuppetModel] so undo restores the editor
+ * as it was at each step, not just the document.  Every field is an immutable value, so a snapshot is just
+ * a few references - cheap to keep and to restore.
  *
  * @property PuppetModel model The document model at this step.
  * @property Selection selection The object-mode selection at this step.
  * @property Pose pose The live parameter values (scrub position) at this step.
- * @property MeshSelection meshSelection The Edit-mode vertex selection at this step.
- * @property EditorMode mode The interaction mode (Object / Edit) at this step.
+ * @property MeshSelection meshSelection The Edit-mode element selection at this step.
+ * @property EditorMode mode The interaction mode (Object / Edit / Pose) at this step.
  */
 data class EditorSnapshot(
 	val model: PuppetModel,
@@ -63,13 +58,19 @@ data class EditorSnapshot(
 	 * that no longer exists there - the sheet prunes at use, which is what makes that harmless.
 	 */
 	val keySelection: Set<TrackKeyRef> = emptySet(),
+	/**
+	 * The warp lattices shaped in Pose mode but not yet keyed at this step, each standing in for its warp's grid
+	 * blend at [pose].
+	 *
+	 * Snapshotted for the reason [pendingChannelEdits] is: a pending lattice is a deliberate edit the viewport shows,
+	 * and it was shaped FOR the pose this snapshot carries, so undo returns to the two together.
+	 */
+	val pendingLatticeEdits: Map<DeformerId, WarpLatticeForm> = emptyMap(),
 )
 
 /**
- * One history entry: a [snapshot] and the [change] that produced it (null for the initial state). The
+ * One history entry: a [snapshot] and the [change] that produced it (null for the initial state).  The
  * change is metadata — the snapshot does the undoing — used for the history-panel label and coalescing.
- *
- * 履歴の1項目：スナップショットと、それを生んだ変更（初期状態は null）。
  *
  * @property EditorSnapshot snapshot The state after [change] was applied.
  * @property Change change The change that produced [snapshot], or null for the seed entry.
@@ -81,11 +82,9 @@ data class HistoryEntry(
 
 /**
  * A flattened, immutable projection of the undo stack for the history panel: each step's display
- * [labelKey] and the [cursor] index of the live step. Rebuilt on every history change so a Compose
- * panel renders it as plain state (clicking a row jumps the session there). Compose-free, so the label
+ * [labelKey] and the [cursor] index of the live step.  Rebuilt on every history change so a Compose
+ * panel renders it as plain state (clicking a row jumps the session there).  Compose-free, so the label
  * stays a key the UI resolves to a localized string.
- *
- * 履歴パネル用の取り消しスタックの平坦化ビュー。各段のラベルキーと現在位置を持つ。
  *
  * @property List<HistoryStep> steps The stack oldest-first.
  * @property Int cursor The index of the live step within [steps].
@@ -108,20 +107,18 @@ data class HistoryStep(
 )
 
 /**
- * A linear undo/redo stack of immutable snapshots. The entry at [cursor] is the live state; [push]
- * records a new step (discarding any redo branch, the chosen v1 behaviour), and [undo] / [redo] move the
- * cursor and return the state to restore. Snapshots structurally share their unchanged sub-trees, so the
+ * A linear undo/redo stack of immutable snapshots.  The entry at [cursor] is the live state; [push]
+ * records a new step (discarding any redo branch, the chosen v1 behavior), and [undo] / [redo] move the
+ * cursor and return the state to restore.  Snapshots structurally share their unchanged sub-trees, so the
  * stack's cost is bounded by what each step actually changed plus the [limit] cap on retained steps.
  *
  * Undo is a cursor move, never an inverse op — correctness is structural, since each entry holds the
- * whole prior value. A future branching "undo tree" can replace the linear backing without touching the
+ * whole prior value.  A future branching "undo tree" can replace the linear backing without touching the
  * session API; v1 is deliberately linear.
- *
- * 不変スナップショットの線形な取り消し/やり直しスタック。やり直し枝は新規記録で破棄する（v1 の方針）。
  *
  * @param EditorSnapshot initial The seed entry — the state the document opened on.
  * @param Int initialLimit The starting cap; [limit] carries it and may be reassigned later.
- * @property Int limit The maximum retained entries; the oldest is dropped past this. Settable at
+ * @property Int limit The maximum retained entries; the oldest is dropped past this.  Settable at
  *   runtime, since the cap is a user preference.
  */
 class History(
@@ -132,9 +129,9 @@ class History(
 	private var cursor: Int = 0
 
 	/**
-	 * The maximum retained entries, settable at runtime because the cap is a user preference. Assigning a
+	 * The maximum retained entries, settable at runtime because the cap is a user preference.  Assigning a
 	 * lower value trims the stack at once (see [trimToLimit]), so lowering it frees memory without waiting
-	 * for the next edit. Clamped to at least 1 so a degenerate cap never empties the stack.
+	 * for the next edit.  Clamped to at least 1 so a degenerate cap never empties the stack.
 	 */
 	var limit: Int = initialLimit.coerceAtLeast(1)
 		set(value) {
@@ -161,9 +158,9 @@ class History(
 	val canRedo: Boolean get() = cursor < entries.lastIndex
 
 	/**
-	 * Records [snapshot] as a new step produced by [change]. Any redo branch ahead of the cursor is
+	 * Records [snapshot] as a new step produced by [change].  Any redo branch ahead of the cursor is
 	 * discarded (linear history); once the stack exceeds [limit] the oldest entry is dropped so the
-	 * cursor stays valid. The seed entry is never dropped below a single retained step.
+	 * cursor stays valid.  The seed entry is never dropped below a single retained step.
 	 *
 	 * @param EditorSnapshot snapshot The new live state.
 	 * @param Change change The change that produced it.
@@ -173,6 +170,7 @@ class History(
 		while (entries.lastIndex > cursor) {
 			entries.removeAt(entries.lastIndex)
 		}
+
 		entries.add(HistoryEntry(snapshot, change))
 		cursor = entries.lastIndex
 		trimToLimit()
@@ -180,12 +178,11 @@ class History(
 
 	/**
 	 * Replaces the live entry with [snapshot] and [change], keeping the cursor where it is - the
-	 * mechanism behind adjusting the last operation: its result is recomputed from the state before
-	 * it and lands over its own step, so the stack never grows and the base is never replayed.
+	 * mechanism behind adjusting the last operation, whose recomputed result lands over its own step.
 	 *
-	 * Refuses when a redo branch exists: an adjustment applies only to the newest step, and the caller
-	 * clears its record on any undo anyway.  Works at cursor 0 too, since a cap of one drops the base
-	 * entry on push and the adjusting record holds that base itself.
+	 * Refuses when a redo branch exists, since an adjustment applies only to the newest step.  Works at
+	 * cursor 0 too, since a cap of one drops the base entry on push and the adjusting record holds that
+	 * base itself.
 	 *
 	 * @param EditorSnapshot snapshot The recomputed live state.
 	 * @param Change change The change that produced it (normally the entry's own).
@@ -195,16 +192,16 @@ class History(
 		if (canRedo) {
 			return false
 		}
+
 		entries[cursor] = HistoryEntry(snapshot, change)
+
 		return true
 	}
 
 	/**
 	 * Drops the oldest entries until the stack fits [limit], stopping at the live step so the current state
-	 * and its redo branch are never discarded. That stop is what makes a lowered cap safe to apply to a
-	 * stack whose cursor sits mid-history: it frees what it can at once and sheds the rest on subsequent
-	 * pushes, and the cursor stays valid throughout. On the push path the cursor is the last entry, so the
-	 * stop never engages and the stack lands exactly at the cap.
+	 * and its redo branch are never discarded - which makes a lowered cap safe on a stack whose cursor sits
+	 * mid-history: it frees what it can at once and sheds the rest on later pushes.
 	 */
 	private fun trimToLimit() {
 		while (entries.size > limit && cursor > 0) {
@@ -222,7 +219,9 @@ class History(
 		if (!canUndo) {
 			return null
 		}
+
 		cursor--
+
 		return current
 	}
 
@@ -235,13 +234,15 @@ class History(
 		if (!canRedo) {
 			return null
 		}
+
 		cursor++
+
 		return current
 	}
 
 	/**
 	 * Moves the cursor directly to [index] (clamped to the valid range) and returns the state to restore,
-	 * or null when [index] is already the cursor (a no-op jump). This lets the history panel jump across
+	 * or null when [index] is already the cursor (a no-op jump).  This lets the history panel jump across
 	 * several steps at once — multi-undo or multi-redo — rather than walking one level at a time.
 	 *
 	 * @param Int index The target step index within the stack.
@@ -249,10 +250,13 @@ class History(
 	 */
 	fun jumpTo(index: Int): EditorSnapshot? {
 		val target = index.coerceIn(0, entries.lastIndex)
+
 		if (target == cursor) {
 			return null
 		}
+
 		cursor = target
+
 		return current
 	}
 }

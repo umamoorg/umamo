@@ -1,28 +1,46 @@
 package org.umamo.ui.workspace.commands
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.umamo.edit.ActiveSelectTool
+import org.umamo.edit.Cursor2d
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.PieMenuKind
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SnapKind
 import org.umamo.edit.SnapRequest
+import org.umamo.edit.UvMirrorRequest
+import org.umamo.edit.selectAllMeshElements
+import org.umamo.edit.structure.toggleVisibility
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.action.Command
+import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.viewport.CameraController
+import org.umamo.ui.viewport.GridConfig
+import org.umamo.ui.viewport.OverlaySurface
+import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.workspace.AreaCameraHub
+import org.umamo.ui.workspace.AreaOverlayHub
+import org.umamo.ui.workspace.AreaToolbarHub
+import org.umamo.ui.workspace.ChromeVisibility
 import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.KeyformSheetSurface
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.ViewportChromeState
+import org.umamo.ui.workspace.sidebar.AreaSidebarHub
+import org.umamo.ui.workspace.sidebar.SidebarState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -51,7 +69,7 @@ class CommandDispatchTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2)),
+			mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2)),
 			geometryGrid = null,
 		)
 
@@ -67,7 +85,8 @@ class CommandDispatchTest {
 				PuppetModel(
 					parameters = emptyList(),
 					parts = emptyList(),
-					deformers = emptyList(),
+					// One deformer, so the session can enter Pose mode (refused with nothing to pose).
+					deformers = listOf(Deformer.Warp(DeformerId("w"), "w", parent = null, partId = null, rows = 1, columns = 1, isQuadTransform = true, geometryGrid = null)),
 					drawables = listOf(meshDrawable("a")),
 					rootChildren = emptyList(),
 					rootPartId = null,
@@ -76,6 +95,7 @@ class CommandDispatchTest {
 		val drawable = SelectionTarget.Drawable(DrawableId("a"))
 		session.setSelection(Selection(setOf(drawable), drawable))
 		session.setMode(mode)
+
 		return session
 	}
 
@@ -102,6 +122,86 @@ class CommandDispatchTest {
 				disarmBoxSelect = { armed = false },
 				nudgeSelection = {},
 			)
+	}
+
+	/**
+	 * Edit mode changes no key, so every keyform command that inserts, removes, or moves one is off there and on in
+	 * Object and Pose mode: I / Alt+I over any surface and the sheet's Delete and nudges fall through rather than
+	 * reaching a key.  The key-type pie and its choices key the posed warps, so they are on in Pose mode alone, and
+	 * Clear Pose Edits is off with nothing held.  Framing the sheet changes nothing, so it stays on in every mode.
+	 */
+	@Test
+	fun noKeyformCommandChangesAKeyInEditMode() {
+		val keyChanging = listOf("keyform.insert", "keyform.delete", "keyform.deleteSelectedKeys", "keyform.nudgeKeyLeft", "keyform.nudgeKeyRight")
+		val poseKeying = listOf("keyform.insertPie", "keyform.insert.lattice", "keyform.insert.opacity", "keyform.insert.colors", "keyform.insert.all")
+
+		for (mode in EditorMode.entries) {
+			val session = session(mode)
+			assertEquals(mode, session.mode.value, "the session must really be in $mode mode")
+			val commands = keyformCommands(session, { null }, routing(HoveredSurface(sheetArea, SpaceKind.KeyformSheet)), KeyformSheetViews(), SessionAvailability(session))
+			val availableById = commands.associate { command -> command.id to command.availability.isAvailable() }
+
+			for (id in keyChanging) {
+				assertEquals(mode != EditorMode.Edit, availableById.getValue(id), "$id in $mode mode")
+			}
+
+			for (id in poseKeying) {
+				assertEquals(mode == EditorMode.Pose, availableById.getValue(id), "$id in $mode mode")
+			}
+
+			assertFalse(availableById.getValue("keyform.clearPoseEdits"), "keyform.clearPoseEdits with nothing held in $mode mode")
+			assertTrue(availableById.getValue("keyform.frameAll"), "keyform.frameAll in $mode mode")
+		}
+	}
+
+	/**
+	 * Hide Unselected and Unhide All are Object mode's alone, so Shift+H and Alt+H fall through in Edit and Pose
+	 * mode; in Object mode Unhide All reaches the session and turns a hidden drawable's eye back on.
+	 */
+	@Test
+	fun theHideCommandsRunInObjectModeAlone() {
+		for (mode in EditorMode.entries) {
+			val session = session(mode)
+			assertEquals(mode, session.mode.value, "the session must really be in $mode mode")
+			val availableById = objectCommands(session, null, SessionAvailability(session)).associate { command -> command.id to command.availability.isAvailable() }
+
+			for (id in listOf("object.hideUnselected", "object.unhideAll")) {
+				assertEquals(mode == EditorMode.Object, availableById.getValue(id), "$id in $mode mode")
+			}
+		}
+
+		val session = session(EditorMode.Object)
+		val drawable = SelectionTarget.Drawable(session.model.value.drawables.first().id)
+		session.toggleVisibility(drawable)
+		assertFalse(session.model.value.drawables.first().isVisible)
+
+		objectCommands(session, null, SessionAvailability(session)).run("object.unhideAll")
+
+		assertTrue(session.model.value.drawables.first().isVisible)
+	}
+
+	/**
+	 * H with a deformer active flips the whole selection's eyes, the deformer's and a drawable's, as one step that
+	 * the history names for the deformer.
+	 */
+	@Test
+	fun toggleVisibilityWithADeformerActiveFlipsTheWholeSelection() {
+		val session = session(EditorMode.Object)
+		val deformer = SelectionTarget.Deformer(DeformerId("w"))
+		val drawable = SelectionTarget.Drawable(DrawableId("a"))
+		session.setSelection(Selection(setOf(deformer, drawable), deformer))
+		val handle =
+			object : SelectionHandle {
+				override val selection: Selection get() = session.selection.value
+
+				override fun set(selection: Selection) = session.setSelection(selection)
+			}
+
+		objectCommands(session, handle, SessionAvailability(session)).run("object.toggleVisibility")
+
+		assertFalse(session.model.value.deformers.single().isVisible)
+		assertFalse(session.model.value.drawables.single().isVisible)
+		assertEquals("change.visibility.deformer", session.historyView.value.let { view -> view.steps[view.cursor].labelKey })
 	}
 
 	/**
@@ -233,9 +333,9 @@ class CommandDispatchTest {
 	/**
 	 * G with the pointer on a PANEL latches nothing at all.
 	 *
-	 * This is the whole point of retiring the second resolver: there used to be a "last viewport touched"
-	 * to fall back on, so a transform started in a viewport the user had walked away from.  The fixture
-	 * has a live mesh selection, so the refusal is the routing talking and not an ineligible session.
+	 * The routing has one resolver, the hovered surface, and no "last viewport touched" fallback: with
+	 * one, a transform would start in a viewport the user had walked away from.  The fixture has a live
+	 * mesh selection, so the refusal is the routing talking and not an ineligible session.
 	 */
 	@Test
 	fun grabOverAPanelLatchesNothing() {
@@ -293,14 +393,14 @@ class CommandDispatchTest {
 		runTest {
 			val session = session(EditorMode.Edit)
 			val commands =
-				snapCommands(session, routing(HoveredSurface("logs-1", SpaceKind.Logs)), SessionAvailability(session))
+				snapCommands(session, routing(HoveredSurface("logs-1", SpaceKind.Logs)), SessionAvailability(session), AreaOverlayHub())
 			val received = mutableListOf<SnapRequest>()
 			val collector = launch { session.snapRequests.collect { request -> received += request } }
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 
 			commands.run("snap.selectionToCursor")
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			collector.cancel()
 
@@ -309,24 +409,134 @@ class CommandDispatchTest {
 			assertEquals(SnapKind.SelectionToCursor, received.single().kind)
 		}
 
+	/**
+	 * Generate Mesh from Art and Generate Quad Mesh each run their own launcher, handed the area their
+	 * strip shows in - two lambdas of one shape, so a crossed pair would type-check and run the wrong
+	 * operation.
+	 */
+	@Test
+	fun eachMeshGenerationCommandRunsItsOwnLauncherOverTheStripArea() {
+		val session = session(EditorMode.Object)
+		val launched = mutableListOf<Pair<String, String?>>()
+		val commands =
+			meshGenerationCommands(
+				SessionAvailability(session),
+				routing(HoveredSurface(uvArea, SpaceKind.UvEditor)),
+				generate = { areaId -> launched += "fromArt" to areaId },
+				generateQuad = { areaId -> launched += "quad" to areaId },
+			)
+
+		commands.run("mesh.generateQuad")
+		commands.run("mesh.generateFromArt")
+
+		assertEquals(listOf<Pair<String, String?>>("quad" to uvArea, "fromArt" to uvArea), launched)
+	}
+
 	/** Over a viewport the same snap carries that viewport, electing exactly one overlay. */
 	@Test
 	fun aWorldSnapOverAViewportCarriesIt() =
 		runTest {
 			val session = session(EditorMode.Edit)
 			val commands =
-				snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session))
+				snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session), AreaOverlayHub())
 			val received = mutableListOf<SnapRequest>()
 			val collector = launch { session.snapRequests.collect { request -> received += request } }
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 
 			commands.run("snap.selectionToCursor")
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			collector.cancel()
 
 			assertEquals(viewportArea, received.single().areaId)
+		}
+
+	/**
+	 * Cursor to Grid rounds to the grid of the 2D viewport under the pointer - the lines that area draws - and
+	 * does nothing over anything else: a panel, or a UV editor, whose grid is not a world grid.
+	 */
+	@Test
+	fun cursorToGridRoundsToTheHoveredViewportsGridAndNothingElsewhere() {
+		val session = session(EditorMode.Object)
+		val hub = AreaOverlayHub()
+		hub.register(viewportArea, ViewportOverlayState(OverlaySurface.Viewport2D).apply { gridGeometry = GridConfig(50f, 4) })
+		hub.register(uvArea, ViewportOverlayState(OverlaySurface.UvEditor))
+		session.setCursor2d(32f, 32f)
+
+		snapCommands(session, routing(HoveredSurface("logs-1", SpaceKind.Logs)), SessionAvailability(session), hub).run("snap.cursorToGrid")
+		assertEquals(Cursor2d(32f, 32f), session.cursor2d.value, "over a panel the cursor stays")
+		snapCommands(session, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), SessionAvailability(session), hub).run("snap.cursorToGrid")
+		assertEquals(Cursor2d(32f, 32f), session.cursor2d.value, "and over a UV editor")
+
+		snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session), hub).run("snap.cursorToGrid")
+
+		assertEquals(Cursor2d(37.5f, 37.5f), session.cursor2d.value, "over the viewport the cursor rounds to its own 12.5 step")
+	}
+
+	/**
+	 * Shift+S over a UV editor opens the UV snap pie in Object and Edit mode - its snaps move texture coordinates
+	 * in Edit mode and placed art tiles in Object mode - and no pie in Pose mode, where the UV editor is view-only.
+	 * Over a 2D viewport it opens the world snap pie in every mode.
+	 */
+	@Test
+	fun theSnapPieOverAUvEditorIsTheUvPieOutsidePoseMode() {
+		for (mode in EditorMode.entries) {
+			val session = session(mode)
+			assertEquals(mode, session.mode.value, "the case must really be in $mode")
+
+			snapCommands(session, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), SessionAvailability(session), AreaOverlayHub()).run("snap.pie")
+			val expectedOverUv = if (mode == EditorMode.Pose) null else PieMenuKind.UvSnap
+			assertEquals(expectedOverUv, session.activePieMenu.value, "over a UV editor in $mode")
+			session.closePieMenu()
+			snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session), AreaOverlayHub()).run("snap.pie")
+			assertEquals(PieMenuKind.Snap, session.activePieMenu.value, "over a viewport in $mode")
+		}
+	}
+
+	/**
+	 * Mirror UVs fired over a 2D viewport still runs its handler - a command's spaces hide it from the
+	 * palette there, they do not gate the dispatch - and the request it emits names no area, so no UV
+	 * editor's collector matches.  That no-op is what makes hiding it safe: nothing that worked is lost.
+	 */
+	@Test
+	fun aUvMirrorOverAViewportStillDispatchesAndCarriesNoArea() =
+		runTest {
+			val session = session(EditorMode.Edit)
+			val commands =
+				uvCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session))
+			val received = mutableListOf<UvMirrorRequest>()
+			val collector = launch { session.uvMirrorRequests.collect { request -> received += request } }
+			@OptIn(ExperimentalCoroutinesApi::class)
+			runCurrent()
+
+			commands.run("uv.mirrorU")
+			@OptIn(ExperimentalCoroutinesApi::class)
+			runCurrent()
+			collector.cancel()
+
+			assertEquals(1, received.size, "the handler ran: spaces are not a dispatch guard")
+			assertNull(received.single().areaId, "but it names no area, so no UV editor acts on it")
+		}
+
+	/** Over a UV editor the same mirror carries that editor, electing exactly one overlay. */
+	@Test
+	fun aUvMirrorOverAUvEditorCarriesIt() =
+		runTest {
+			val session = session(EditorMode.Edit)
+			val commands =
+				uvCommands(session, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), SessionAvailability(session))
+			val received = mutableListOf<UvMirrorRequest>()
+			val collector = launch { session.uvMirrorRequests.collect { request -> received += request } }
+			@OptIn(ExperimentalCoroutinesApi::class)
+			runCurrent()
+
+			commands.run("uv.mirrorU")
+			@OptIn(ExperimentalCoroutinesApi::class)
+			runCurrent()
+			collector.cancel()
+
+			assertEquals(uvArea, received.single().areaId)
 		}
 
 	/**
@@ -360,5 +570,143 @@ class CommandDispatchTest {
 		commands.run("view.fit")
 
 		assertEquals(1, fitCount, "the hovered area's controller resolved on its area id alone")
+	}
+
+	/**
+	 * The overlay lookup is kind-agnostic too: a command flips whatever state the hovered area registered,
+	 * and only that one - a UV editor's toggles never reach a 2D viewport's, and no hovered area flips nothing.
+	 */
+	@Test
+	fun overlayCommandsFlipTheHoveredAreasStateAndNoOther() {
+		val hub = AreaOverlayHub()
+		val viewportOverlays = ViewportOverlayState(OverlaySurface.Viewport2D)
+		val uvOverlays = ViewportOverlayState(OverlaySurface.UvEditor)
+		hub.register(viewportArea, viewportOverlays)
+		hub.register(uvArea, uvOverlays)
+		val overUv = overlayCommands(hub, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), viewportPresent = true)
+
+		overUv.run("view.overlay.all")
+		overUv.run("view.overlay.grid")
+		overUv.run("view.overlay.cursor")
+		overUv.run("view.overlay.info")
+
+		assertFalse(uvOverlays.showOverlays, "the master flipped on the hovered UV editor")
+		assertFalse(uvOverlays.showGrid)
+		assertFalse(uvOverlays.showCursor)
+		assertFalse(uvOverlays.showInfo)
+		assertTrue(viewportOverlays.showOverlays && viewportOverlays.showGrid && viewportOverlays.showCursor && viewportOverlays.showInfo, "the other area is untouched")
+
+		// The axes, selection tint, and wireframe commands are scoped to the 2D viewport, and their handlers route
+		// the same way: over a UV editor, whose surface has none of the three, each leaves that area's flag as it
+		// was (a flipped flag would make a save write the UV block as edited) and the 2D area alone; over the 2D
+		// viewport each flips it.
+		overUv.run("view.overlay.axes")
+		assertTrue(uvOverlays.showAxes, "a UV editor has no axes, so nothing flips")
+		assertTrue(viewportOverlays.showAxes, "the 2D area's axes stay")
+		overUv.run("view.overlay.wireframe")
+		assertFalse(uvOverlays.showWireframe, "nor a wireframe")
+		assertFalse(viewportOverlays.showWireframe, "the 2D area's wireframe stays off")
+		overUv.run("view.overlay.selectionTint")
+		assertTrue(uvOverlays.showSelectionTint, "nor a selection tint")
+		assertTrue(viewportOverlays.showSelectionTint, "the 2D area's tint stays on")
+		overUv.run("view.overlay.wireframeCulling")
+		assertTrue(uvOverlays.cullHiddenWireframe, "nor the wireframe's culling")
+		assertTrue(viewportOverlays.cullHiddenWireframe, "the 2D area's culling stays on")
+		overUv.run("view.overlay.dimBackFacing")
+		assertTrue(uvOverlays.dimBackFacing, "nor a lattice cage to dim")
+		assertTrue(viewportOverlays.dimBackFacing, "the 2D area's dimming stays on")
+		val overViewport = overlayCommands(hub, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), viewportPresent = true)
+		overViewport.run("view.overlay.axes")
+		overViewport.run("view.overlay.wireframe")
+		overViewport.run("view.overlay.selectionTint")
+		overViewport.run("view.overlay.wireframeCulling")
+		overViewport.run("view.overlay.dimBackFacing")
+		assertFalse(viewportOverlays.showAxes, "over the 2D viewport the axes flip")
+		assertTrue(viewportOverlays.showWireframe, "and so does the wireframe")
+		assertFalse(viewportOverlays.showSelectionTint, "and the selection tint")
+		assertFalse(viewportOverlays.cullHiddenWireframe, "and the wireframe's culling")
+		assertFalse(viewportOverlays.dimBackFacing, "and the lattice cage's back-facing dimming")
+
+		overlayCommands(hub, routing(null), viewportPresent = true).run("view.overlay.all")
+
+		assertFalse(uvOverlays.showOverlays, "with no hovered area nothing flips")
+		assertTrue(viewportOverlays.showOverlays)
+	}
+
+	/**
+	 * The sidebar tab commands step the hovered area's sidebar along its rail, wrapping past either end, and
+	 * leave every other area's sidebar alone; with no hovered area, or the hovered sidebar closed, they do
+	 * nothing.
+	 */
+	@Test
+	fun sidebarCommandsStepTheHoveredAreasTabsAndNoOther() {
+		val hub = AreaSidebarHub()
+		val hoveredSidebar = SidebarState()
+		val otherSidebar = SidebarState()
+		val shown = listOf("umamo.item", "umamo.tool", "umamo.view")
+		hoveredSidebar.shownTabIds = shown
+		otherSidebar.shownTabIds = shown
+		hub.register("area-hovered", hoveredSidebar)
+		hub.register("area-other", otherSidebar)
+		val overHovered = sidebarCommands(hub, routing(HoveredSurface("area-hovered", SpaceKind.Viewport2D)))
+
+		overHovered.run("view.sidebar.nextTab")
+
+		assertEquals("umamo.tool", hoveredSidebar.activeTabId, "the first tab steps to the second")
+		assertNull(otherSidebar.activeTabId, "the other area's sidebar is untouched")
+
+		overHovered.run("view.sidebar.previousTab")
+		overHovered.run("view.sidebar.previousTab")
+
+		assertEquals("umamo.view", hoveredSidebar.activeTabId, "stepping back past the first tab wraps to the last")
+
+		sidebarCommands(hub, routing(null)).run("view.sidebar.nextTab")
+
+		assertEquals("umamo.view", hoveredSidebar.activeTabId, "with no hovered area nothing steps")
+
+		hoveredSidebar.shownTabIds = emptyList()
+		overHovered.run("view.sidebar.nextTab")
+
+		assertEquals("umamo.view", hoveredSidebar.activeTabId, "a closed sidebar has no tab to step to")
+	}
+
+	/**
+	 * The chrome toggles flip the hovered viewport's own toolbar and sidebar and no other area's: the first
+	 * toggle flips the application's default into the area's own choice, and that choice stays the area's when
+	 * the default later changes.  With no hovered area nothing toggles.
+	 */
+	@Test
+	fun chromeTogglesFlipOnlyTheHoveredViewport() {
+		val toolbars = AreaToolbarHub()
+		val sidebars = AreaSidebarHub()
+		val hoveredToolbar = ChromeVisibility()
+		val otherToolbar = ChromeVisibility()
+		val hoveredSidebar = SidebarState()
+		val otherSidebar = SidebarState()
+		toolbars.register("area-hovered", hoveredToolbar)
+		toolbars.register("area-other", otherToolbar)
+		sidebars.register("area-hovered", hoveredSidebar)
+		sidebars.register("area-other", otherSidebar)
+		var defaults = ViewportChromeState(showToolbar = true, showSidebar = false)
+		val overHovered = viewportChromeCommands(toolbars, sidebars, routing(HoveredSurface("area-hovered", SpaceKind.Viewport2D))) { defaults }
+
+		overHovered.run("view.toggleToolbar")
+		overHovered.run("view.toggleSidebar")
+
+		assertEquals(false, hoveredToolbar.choice, "the shown-by-default toolbar is hidden in the hovered area")
+		assertEquals(true, hoveredSidebar.visibility.choice, "the closed-by-default sidebar opens in the hovered area")
+		assertNull(otherToolbar.choice, "the other area's toolbar still follows the default")
+		assertNull(otherSidebar.visibility.choice, "and so does its sidebar")
+
+		defaults = ViewportChromeState(showToolbar = false, showSidebar = true)
+
+		assertFalse(hoveredToolbar.isShown(defaults.showToolbar), "the hovered area keeps its own choice")
+		assertTrue(hoveredSidebar.visibility.isShown(defaults.showSidebar))
+		assertTrue(otherSidebar.visibility.isShown(defaults.showSidebar), "the other area follows the new default")
+
+		viewportChromeCommands(toolbars, sidebars, routing(null)) { defaults }.run("view.toggleSidebar")
+
+		assertEquals(true, hoveredSidebar.visibility.choice, "with no hovered area nothing toggles")
+		assertNull(otherSidebar.visibility.choice)
 	}
 }

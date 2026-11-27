@@ -1,0 +1,736 @@
+package org.umamo.ui.kit.field
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import org.umamo.ui.kit.StackAxis
+import org.umamo.ui.kit.StackPosition
+import org.umamo.ui.kit.Text
+import org.umamo.ui.kit.menu.TextEditContextMenuArea
+import org.umamo.ui.kit.stackedShape
+import org.umamo.ui.kit.textentry.LocalInlineEditController
+import org.umamo.ui.kit.textentry.textEntrySurface
+import org.umamo.ui.theme.LocalRestingPointerIcon
+import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoCursors
+import org.umamo.ui.theme.LocalUmamoIcons
+import org.umamo.ui.theme.LocalUmamoShapes
+import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.theme.UmamoIcon
+import org.umamo.ui.theme.drawIcon
+import org.umamo.ui.theme.umamoPointerIcon
+import kotlin.math.roundToInt
+
+/** The alpha applied to the accent tint when a bounded field draws its left-to-right magnitude fill. */
+private const val NUMBER_FIELD_FILL_ALPHA = 0.30f
+
+/** The drag of one scrub notch, which moves a field without a scrub travel by one step. */
+internal val NUMBER_FIELD_SCRUB_NOTCH: Dp = 6.dp
+
+/**
+ * The field's fixed height, shared with the other inline form controls via [FIELD_CONTROL_HEIGHT] so a
+ * NumberField and a SelectField line up.  Pinned (rather than content-driven) so the display and type-in
+ * faces do not jump when swapping, and so the edge chevrons' fillMaxHeight has a bounded constraint to fill
+ * - a scroll container hands children an unbounded max height, under which fillMaxHeight collapses to the
+ * glyph.
+ */
+private val NUMBER_FIELD_HEIGHT = FIELD_CONTROL_HEIGHT
+
+/**
+ * A compact numeric field for a scalar [value], clamped to [range], in Blender's style: click to type, drag
+ * to scrub, hover for step chevrons, and a magnitude fill over a finite range.  Each commit fires
+ * [onValueChange] once, and a whole scrub is one commit, so a caller can treat it as one undo step.
+ *
+ * @param Float value The current value, shown when not being edited.
+ * @param Function onValueChange Called with the committed value (rounded to [decimals] and clamped to [range]).
+ * @param ClosedFloatingPointRange range The min..max the committed value is clamped to (an infinite endpoint = unbounded, no fill).
+ * @param Modifier modifier Layout modifier (the caller supplies the width).
+ * @param Int decimals The fractional places shown; the stored value is rounded to the same (Float-capped).
+ * @param Float step The increment for a chevron press, and for each scrub notch when there is no [scrubTravel].
+ * @param String? unitSuffix An optional trailing unit shown in the idle field (e.g. "px", "%"); never in the edit text.
+ * @param Boolean showFill Whether to draw the magnitude fill when the range is bounded (off for wide sanity clamps).
+ * @param Boolean plain When true, renders a bare type-in box only (no scrub, chevrons, or fill) - the simple field.
+ * @param Boolean enabled When false the value still shows but dimmed, and every edit path is inert.
+ * @param StackPosition stackPosition This field's position in a vertical stack (corner rounding + seam).
+ * @param KeyedFieldState keyState The keyform state to tint the field's background fill with.
+ * @param Function? onPreview Called with each in-flight value while the field is being drag-scrubbed.
+ * @param Function? onScrubCancel Called when a drag-scrub is cancelled (Escape, or the gesture dropped), so
+ *   whatever [onPreview] drove can be put back; the field itself returns to [value].
+ * @param Function? bringIntoRange How a typed, scrubbed, or stepped value outside [range] comes back into it, or null
+ *   to clamp it to the nearer end.  A value whose ends meet wraps instead.
+ * @param Dp? scrubTravel The drag that scrubs the field from one end of [range] to the other, or null to scrub one
+ *   [step] per notch.  A range that is not a finite span scrubs by the notch either way.
+ */
+@Composable
+fun NumberField(
+	value: Float,
+	onValueChange: (Float) -> Unit,
+	range: ClosedFloatingPointRange<Float>,
+	modifier: Modifier = Modifier,
+	decimals: Int = 2,
+	step: Float = 1f,
+	unitSuffix: String? = null,
+	showFill: Boolean = true,
+	plain: Boolean = false,
+	enabled: Boolean = true,
+	stackPosition: StackPosition = StackPosition.Single,
+	keyState: KeyedFieldState = KeyedFieldState.None,
+	onPreview: ((Float) -> Unit)? = null,
+	onScrubCancel: (() -> Unit)? = null,
+	bringIntoRange: ((Float) -> Float)? = null,
+	scrubTravel: Dp? = null,
+) {
+	val bounded = showFill && range.start.isFinite() && range.endInclusive.isFinite() && range.endInclusive > range.start
+	NumberFieldCore(
+		keyState = keyState,
+		value = value,
+		range = range,
+		bringIntoRange = bringIntoRange ?: { raw -> raw.coerceIn(range.start, range.endInclusive) },
+		step = step,
+		scrubTravel = scrubTravel,
+		bounded = bounded,
+		format = { toFormat -> formatDecimals(toFormat, decimals) },
+		parse = ::parseTypedFloat,
+		onCommit = { raw -> onValueChange(roundToDecimals(raw, decimals).coerceIn(range.start, range.endInclusive)) },
+		onPreview =
+			onPreview?.let { preview ->
+				{ raw: Float -> preview(roundToDecimals(raw, decimals).coerceIn(range.start, range.endInclusive)) }
+			},
+		onScrubCancel = onScrubCancel,
+		modifier = modifier,
+		unitSuffix = unitSuffix,
+		plain = plain,
+		enabled = enabled,
+		stackPosition = stackPosition,
+	)
+}
+
+/**
+ * Integer variant of [NumberField]: shows and commits a whole number, rejecting a typed decimal or
+ * non-number.
+ *
+ * @param Int value The current value, shown when not being edited.
+ * @param Function onValueChange Called with the committed value (clamped to [range]).
+ * @param IntRange range The min..max the committed value is clamped to.
+ * @param Modifier modifier Layout modifier (the caller supplies the width).
+ * @param Int step The increment for a chevron press and the scrub sensitivity.
+ * @param String? unitSuffix An optional trailing unit shown in the idle field; never in the edit text.
+ * @param Boolean showFill Whether to draw the magnitude fill when the range is bounded.
+ * @param Boolean plain When true, renders a bare type-in box only (the simple field).
+ * @param Boolean enabled When false the value still shows but dimmed, and every edit path is inert.
+ * @param StackPosition stackPosition This field's position in a vertical stack (corner rounding + seam).
+ * @param KeyedFieldState keyState The keyform state to tint the field's background fill with.
+ * @param Function? onPreview Called with each in-flight value while the field is being drag-scrubbed.
+ * @param Function? onScrubCancel Called when a drag-scrub is cancelled (Escape, or the gesture dropped), so
+ *   whatever [onPreview] drove can be put back; the field itself returns to [value].
+ */
+@Composable
+fun NumberField(
+	value: Int,
+	onValueChange: (Int) -> Unit,
+	range: IntRange,
+	modifier: Modifier = Modifier,
+	step: Int = 1,
+	unitSuffix: String? = null,
+	showFill: Boolean = true,
+	plain: Boolean = false,
+	enabled: Boolean = true,
+	stackPosition: StackPosition = StackPosition.Single,
+	keyState: KeyedFieldState = KeyedFieldState.None,
+	onPreview: ((Int) -> Unit)? = null,
+	onScrubCancel: (() -> Unit)? = null,
+) {
+	val floatRange = range.first.toFloat()..range.last.toFloat()
+	// A whole-domain endpoint means "unbounded", so a plain int clamp such as 0..Int.MAX_VALUE draws no fill.
+	val bounded = showFill && range.first > Int.MIN_VALUE && range.last < Int.MAX_VALUE
+	NumberFieldCore(
+		keyState = keyState,
+		onPreview =
+			onPreview?.let { preview ->
+				{ raw: Float -> preview(raw.roundToInt().coerceIn(range.first, range.last)) }
+			},
+		onScrubCancel = onScrubCancel,
+		value = value.toFloat(),
+		range = floatRange,
+		bringIntoRange = { raw -> raw.coerceIn(floatRange.start, floatRange.endInclusive) },
+		step = step.toFloat(),
+		scrubTravel = null,
+		bounded = bounded,
+		format = { toFormat -> toFormat.roundToInt().toString() },
+		parse = { typed -> typed.trim().toIntOrNull()?.toFloat() },
+		onCommit = { raw -> onValueChange(raw.roundToInt().coerceIn(range.first, range.last)) },
+		modifier = modifier,
+		unitSuffix = unitSuffix,
+		plain = plain,
+		enabled = enabled,
+		stackPosition = stackPosition,
+	)
+}
+
+/**
+ * The shared engine behind both [NumberField] overloads, working in Float and delegating type-specific
+ * formatting / parsing / rounding to the overload via [format], [parse], and [onCommit].  Swaps between the
+ * display face and the type-in editor; [plain] skips straight to a bare type-in box.
+ *
+ * @param Float value The current value (the source of truth while idle).
+ * @param ClosedFloatingPointRange range The clamp range.
+ * @param Function bringIntoRange Brings a typed, scrubbed, or stepped value from outside [range] back into it.
+ * @param Float step The chevron increment, and the scrub notch's when there is no [scrubTravel].
+ * @param Dp? scrubTravel The drag that scrubs the whole range, or null to scrub by the notch.
+ * @param Boolean bounded Whether to draw the magnitude fill (a usable finite range).
+ * @param Function format Formats a value for display and for seeding the editor.
+ * @param Function parse Parses typed text to a raw value, or null when unparseable.
+ * @param Function onCommit Rounds / clamps a raw value and fires the caller's callback (one committed edit).
+ * @param Modifier modifier Layout modifier (the width).
+ * @param String? unitSuffix The idle trailing unit, or null.
+ * @param Boolean plain Whether to render the bare type-in box only.
+ * @param Boolean enabled Whether the field accepts edits at all.
+ * @param StackPosition stackPosition The field's position in a vertical stack.
+ * @param KeyedFieldState keyState The keyform state to tint the field's background fill with.
+ * @param Function? onPreview Called with each in-flight value while the field is being drag-scrubbed.
+ * @param Function? onScrubCancel Called once when an in-flight scrub is cancelled, after the field dropped its draft.
+ */
+@Composable
+private fun NumberFieldCore(
+	value: Float,
+	range: ClosedFloatingPointRange<Float>,
+	bringIntoRange: (Float) -> Float,
+	step: Float,
+	scrubTravel: Dp?,
+	bounded: Boolean,
+	format: (Float) -> String,
+	parse: (String) -> Float?,
+	onCommit: (Float) -> Unit,
+	modifier: Modifier,
+	unitSuffix: String?,
+	plain: Boolean,
+	enabled: Boolean,
+	stackPosition: StackPosition,
+	keyState: KeyedFieldState = KeyedFieldState.None,
+	onPreview: ((Float) -> Unit)? = null,
+	onScrubCancel: (() -> Unit)? = null,
+) {
+	val shapes = LocalUmamoShapes.current
+	val shape = stackedShape(shapes.small, stackPosition, StackAxis.Vertical)
+	val density = LocalDensity.current
+	// Parses typed text, brings it into the range, and commits; an unparseable entry does nothing.
+	val commitTyped: (String) -> Unit = { typed ->
+		parse(typed)?.let { parsed -> onCommit(bringIntoRange(parsed)) }
+	}
+
+	if (plain) {
+		// The simple field: a bare type-in box (no scrub / chevrons / fill).
+		// Disabled, it degrades to the same inert display face the rich field uses, so both faces read alike.
+		if (enabled) {
+			NumberEntryField(
+				display = format(value),
+				shape = shape,
+				modifier = modifier,
+				keyState = keyState,
+				commit = commitTyped,
+			)
+		} else {
+			NumberFieldDisplay(
+				text = format(value),
+				unitSuffix = unitSuffix,
+				fillFraction = null,
+				shape = shape,
+				modifier = modifier,
+				enabled = false,
+				keyState = keyState,
+			)
+		}
+
+		return
+	}
+
+	var editing by remember { mutableStateOf(false) }
+	// The live scrub value while a drag is in flight (null when idle); previews without committing per frame.
+	var dragValue by remember { mutableStateOf<Float?>(null) }
+	// The value the drag STARTED from.  scrubValue maps a TOTAL pointer delta onto a fixed base, so the base
+	// has to stay fixed: reading the live `value` instead would compound the movement, because onPreview feeds
+	// each frame's value straight back in through the pending buffer, accelerating the scrub and forcing a
+	// reversed drag to spend its first stretch merely unwinding the drift.
+	var scrubStartValue by remember { mutableStateOf(0f) }
+	// The scrub's cancel, parked on the shell's seam for the length of the drag so Escape reaches it - the
+	// field never takes focus, so nothing else would.  ONE instance per field: the core recomposes every drag
+	// frame, and the seam releases by identity, so a per-frame lambda would never match its own parking.  Its
+	// collaborators are read through state so the instance built on the first frame drives the current field.
+	val currentOnScrubCancel by rememberUpdatedState(onScrubCancel)
+	val currentSeam by rememberUpdatedState(LocalScrubCancel.current)
+	val scrubGesture =
+		remember {
+			ScrubGesture().also { gesture ->
+				gesture.cancel = {
+					// Latched whether or not a draft is live: a drag that outlives its cancel keeps delivering
+					// moves, and each must be ignored until the release resets it.
+					gesture.cancelled = true
+
+					if (dragValue != null) {
+						dragValue = null
+						currentSeam.release(gesture.cancel)
+						currentOnScrubCancel?.invoke()
+					}
+				}
+			}
+		}
+	// The backstop for a field disposed with its cancel still parked and no gesture event delivered (a
+	// density flip delivers none): the seam must never hold a cancel for a field that no longer exists.
+	DisposableEffect(scrubGesture) {
+		onDispose {
+			currentSeam.release(scrubGesture.cancel)
+		}
+	}
+
+	// Being disabled ENDS an in-flight edit rather than parking it: leaving `editing` set would re-open the
+	// type-in box - autoFocus and all - the moment the field became editable again, stealing focus for an
+	// edit the user abandoned long ago.  A scrub preview is dropped for the same reason.
+	if (!enabled && (editing || dragValue != null)) {
+		editing = false
+		dragValue = null
+	}
+
+	if (editing && enabled) {
+		NumberEntryField(
+			display = format(value),
+			shape = shape,
+			modifier = modifier,
+			autoFocus = true,
+			onFocusLost = { editing = false },
+			keyState = keyState,
+			commit = commitTyped,
+		)
+	} else {
+		val shown = dragValue ?: value
+		NumberFieldDisplay(
+			text = format(shown),
+			unitSuffix = unitSuffix,
+			fillFraction = if (bounded) numberFieldFillFraction(shown, range.start, range.endInclusive) else null,
+			shape = shape,
+			modifier = modifier,
+			enabled = enabled,
+			onTapToEdit = { editing = true },
+			onScrubStart = {
+				// Reset here, not on release: the detector delivers the first move right after the start.
+				scrubGesture.cancelled = false
+				scrubStartValue = value
+				dragValue = value
+				currentSeam.cancel = scrubGesture.cancel
+			},
+			onScrub = { totalDeltaPx ->
+				// A cancelled drag's remaining moves are dead: the field stays on its value and previews nothing.
+				if (!scrubGesture.cancelled) {
+					// The drag arrives in pixels and the notch and travel are in dp, so a scrub covers the same
+					// distance on any screen.
+					val valuePerPixel =
+						with(density) {
+							scrubValuePerPixel(range, step, NUMBER_FIELD_SCRUB_NOTCH.toPx(), scrubTravel?.toPx())
+						}
+					val scrubbed = scrubValue(scrubStartValue, totalDeltaPx, valuePerPixel, range, bringIntoRange)
+					dragValue = scrubbed
+					// Reported live so the caller can drive whatever the value affects while the drag is still
+					// happening.  Without it a scrub moves the number and nothing else until release, which
+					// reads as the edit not working - the field is the only thing that responds.
+					onPreview?.invoke(scrubbed)
+				}
+			},
+			onScrubEnd = {
+				if (scrubGesture.cancelled) {
+					scrubGesture.cancelled = false
+				} else {
+					dragValue?.let { finalValue -> onCommit(finalValue) }
+				}
+
+				dragValue = null
+				currentSeam.release(scrubGesture.cancel)
+			},
+			onScrubCancel = scrubGesture.cancel,
+			onStep = { direction -> onCommit(bringIntoRange(value + direction * step)) },
+			// Forwarded on the RESTING face, the one every real field shows: this is the background tint that
+			// warns a typed value is unkeyed and dies on the next scrub, so every enabled field must carry it,
+			// not only the disabled-plain display path.
+			keyState = keyState,
+		)
+	}
+}
+
+/**
+ * One field's scrub bookkeeping that must keep its identity across the recomposition every drag frame
+ * causes: [cancel] is what the field parks on the shell's seam, released by reference.  Neither field is
+ * snapshot state - both are read only from pointer and key callbacks, never during composition.
+ *
+ * @property Boolean cancelled Whether the drag in flight was cancelled, so its remaining moves are ignored.
+ * @property Function cancel Drops the field's draft and reports the cancel; built once by the core.
+ */
+private class ScrubGesture {
+	var cancelled = false
+	var cancel: () -> Unit = {}
+}
+
+/**
+ * The idle display face of a [NumberField]: [text] over a left-to-right accent magnitude fill, with step
+ * chevrons that appear on hover.  Callbacks are read through [rememberUpdatedState] so a reused row slot
+ * always drives the current field.
+ *
+ * @param String text The formatted value to show.
+ * @param String? unitSuffix An optional trailing unit, or null.
+ * @param Float? fillFraction The magnitude fill in 0..1, or null for no fill.
+ * @param Shape shape The field's (stack-aware) corner shape.
+ * @param Modifier modifier Layout modifier (the width).
+ * @param Boolean enabled When false the text dims and NO edit affordance is attached - no scrub cursor, no
+ *   pointer handlers, no hover chevrons - so a disabled field cannot be interacted with by any route.
+ * @param Function onTapToEdit Enters type-in mode (a click that did not become a drag).
+ * @param Function onScrubStart Begins a scrub gesture.
+ * @param Function onScrub Reports the total horizontal drag delta from the gesture start, in pixels.
+ * @param Function onScrubEnd Ends the scrub (commit the previewed value).
+ * @param Function onScrubCancel Drops the scrub without committing: the gesture was cancelled under the
+ *   field (an unmount delivers a consumed release), not released.
+ * @param Function onStep Steps the value by a chevron press (-1 or +1).
+ * @param KeyedFieldState keyState The keyform state to tint the field's background fill with.
+ */
+@Composable
+private fun NumberFieldDisplay(
+	text: String,
+	unitSuffix: String?,
+	fillFraction: Float?,
+	shape: Shape,
+	modifier: Modifier,
+	enabled: Boolean = true,
+	onTapToEdit: () -> Unit = {},
+	onScrubStart: () -> Unit = {},
+	onScrub: (Float) -> Unit = {},
+	onScrubEnd: () -> Unit = {},
+	onScrubCancel: () -> Unit = {},
+	onStep: (Int) -> Unit = {},
+	keyState: KeyedFieldState = KeyedFieldState.None,
+) {
+	val colors = LocalUmamoColors.current
+	val typography = LocalUmamoTypography.current
+	val interaction = remember { MutableInteractionSource() }
+	val hovered by interaction.collectIsHoveredAsState()
+	val currentTap by rememberUpdatedState(onTapToEdit)
+	val currentScrubStart by rememberUpdatedState(onScrubStart)
+	val currentScrub by rememberUpdatedState(onScrub)
+	val currentScrubEnd by rememberUpdatedState(onScrubEnd)
+	val currentScrubCancel by rememberUpdatedState(onScrubCancel)
+	val fillColor = colors.accent.copy(alpha = NUMBER_FIELD_FILL_ALPHA)
+	Box(
+		modifier =
+			modifier
+				.height(NUMBER_FIELD_HEIGHT)
+				.clip(shape)
+				.background(if (hovered && enabled) colors.controlBackgroundHover else colors.controlBackground)
+				// The keyed tint layers OVER the fill rather than replacing it, which is what keeps hover
+				// working on a keyed field: the base below changes, the translucent tint above does not.  An
+				// unkeyed field paints nothing extra.
+				.background(keyState.backgroundTint(colors) ?: Color.Transparent, shape)
+				.then(
+					if (!enabled) {
+						// A disabled field attaches no gesture or cursor affordance at all, so it cannot be
+						// scrubbed, typed into, or stepped, and it does not advertise that it could be.
+						Modifier
+					} else {
+						Modifier
+							.hoverable(interaction)
+							// The east-west arrows advertise the scrub before the user tries it - the drag is
+							// otherwise invisible.  Not overrideDescendants: the chevrons take back the default
+							// pointer so they still read as buttons.
+							.pointerHoverIcon(umamoPointerIcon(LocalUmamoCursors.ewScroll))
+							.pointerInput(Unit) {
+								detectTapGestures { currentTap() }
+							}
+							// Horizontal-only: the scrub claims left/right drags but leaves vertical drags to the
+							// enclosing scroll (a scroll gesture begun on a field must still scroll the panel).
+							.pointerInput(Unit) {
+								var total = 0f
+								detectHorizontalDragGestures(
+									onDragStart = {
+										total = 0f
+										currentScrubStart()
+									},
+									onDragEnd = { currentScrubEnd() },
+									// A cancel is a cancel: the gesture was taken from under the field (a
+									// consumed release, which is how an unmount mid-drag arrives), so nothing lands.
+									onDragCancel = { currentScrubCancel() },
+								) { change, dragAmount ->
+									// Consumed even after a cancel, so the dead gesture stays claimed until the
+									// release and the enclosing scroll cannot pick it up from a wiggle.
+									change.consume()
+									total += dragAmount
+									currentScrub(total)
+								}
+							}
+					},
+				),
+		contentAlignment = Alignment.Center,
+	) {
+		if (fillFraction != null) {
+			// The magnitude fill sits behind the value (drawn first) and spans the fraction of the width.
+			Canvas(modifier = Modifier.matchParentSize()) {
+				drawRect(color = fillColor, size = Size(size.width * fillFraction, size.height))
+			}
+		}
+
+		Row(
+			// No vertical padding: the fixed-height box centers the single text line, so it is never clipped
+			// by an inner content height that would exceed the box (the cause of a padded row overflowing).
+			modifier = Modifier.padding(horizontal = 4.dp),
+			verticalAlignment = Alignment.CenterVertically,
+		) {
+			val textColor = if (enabled) colors.text else colors.textDisabled
+			Text(text = text, style = typography.bodySmall, color = textColor)
+
+			if (unitSuffix != null) {
+				Spacer(modifier = Modifier.width(1.dp))
+				Text(text = unitSuffix, style = typography.bodySmall, color = textColor)
+			}
+		}
+
+		if (hovered && enabled) {
+			StepChevron(
+				icon = LocalUmamoIcons.chevronLeft,
+				onClick = { onStep(-1) },
+				modifier = Modifier.align(Alignment.CenterStart),
+				keyState = keyState,
+			)
+			StepChevron(
+				icon = LocalUmamoIcons.chevronRight,
+				onClick = { onStep(1) },
+				modifier = Modifier.align(Alignment.CenterEnd),
+				keyState = keyState,
+			)
+		}
+	}
+}
+
+/**
+ * A decrement / increment chevron on the idle field's edge while hovered, with its own control fill so the
+ * glyph stays legible over the value and the magnitude fill.  A pointer convenience over the field's
+ * type-in, so it carries no accessibility label of its own.
+ *
+ * @param UmamoIcon icon The chevron glyph (left = decrement, right = increment).
+ * @param Function onClick Steps the value one increment.
+ * @param Modifier modifier Layout modifier (the caller aligns it to an edge).
+ * @param KeyedFieldState keyState The field's keyed state, tinted over this button's own opaque fill so a
+ *   keyed field does not lose the signal at both ends exactly when the chevrons appear.
+ */
+@Composable
+private fun StepChevron(icon: UmamoIcon, onClick: () -> Unit, modifier: Modifier, keyState: KeyedFieldState) {
+	val colors = LocalUmamoColors.current
+	val interaction = remember { MutableInteractionSource() }
+	val hovered by interaction.collectIsHoveredAsState()
+	Box(
+		modifier =
+			modifier
+				.fillMaxHeight()
+				.width(16.dp)
+				// Takes back the resting pointer from the field's scrub cursor: this edge is a click target,
+				// not a drag zone, and the innermost hover icon wins.
+				.pointerHoverIcon(LocalRestingPointerIcon.current)
+				.background(if (hovered) colors.buttonHover else colors.controlBackground)
+				// Opaque fills over the field's own, and the chevrons show exactly WHEN the field is hovered -
+				// so without the tint here a keyed field loses 32dp of its signal at both ends on hover.
+				.background(keyState.backgroundTint(colors) ?: Color.Transparent)
+				// Never focusable: the chevrons exist only while the field is hovered, and a clickable takes
+				// focus on press, so a focused chevron leaving with the hover would strand the keyboard.
+				.focusProperties { canFocus = false }
+				.clickable(interactionSource = interaction, indication = null, onClick = onClick),
+		contentAlignment = Alignment.Center,
+	) {
+		Canvas(modifier = Modifier.size(12.dp)) {
+			drawIcon(icon, colors.text)
+		}
+	}
+}
+
+/**
+ * The single-line type-in editor, committing the raw text to [commit] on Enter or focus loss and
+ * discarding it on Escape.  It lends its cancel hook to [LocalInlineEditController] while focused so the
+ * shell routes Escape here and yields shortcut keys (Space, digits, minus) to the field.
+ *
+ * @param String display The formatted external value, shown while idle.
+ * @param Shape shape The field's (stack-aware) corner shape.
+ * @param Modifier modifier Layout modifier (the width).
+ * @param Boolean autoFocus When true, requests focus on first composition (rich edit mode).
+ * @param Function onFocusLost Called after focus leaves (rich edit mode swaps back to the display face).
+ * @param KeyedFieldState keyState The field's keyed state, tinted behind the text so clicking a keyed field
+ *   to type does not flash the box back to the plain fill for the length of the edit.
+ * @param Function commit Parses / clamps / fires the caller callback with the raw typed text.
+ */
+@Composable
+private fun NumberEntryField(
+	display: String,
+	shape: Shape,
+	modifier: Modifier,
+	autoFocus: Boolean = false,
+	onFocusLost: () -> Unit = {},
+	keyState: KeyedFieldState = KeyedFieldState.None,
+	commit: (String) -> Unit,
+) {
+	val colors = LocalUmamoColors.current
+	val controller = LocalInlineEditController.current
+	val focusManager = LocalFocusManager.current
+	val focusRequester = remember { FocusRequester() }
+	var focused by remember { mutableStateOf(false) }
+	// A TextFieldValue rather than a String so the context menu can act on a selection; the caret sits at the
+	// end whenever the value is (re)seeded from outside, which is where a click-to-type gesture wants it.
+	var text by remember { mutableStateOf(TextFieldValue(display, TextRange(display.length))) }
+	// True between an Escape (which clears focus to discard) and the resulting focus-loss, so that path
+	// discards instead of committing.  Plain commit paths (Enter, click-away) leave it false.
+	var discarding by remember { mutableStateOf(false) }
+
+	if (autoFocus) {
+		LaunchedEffect(Unit) {
+			focusRequester.requestFocus()
+		}
+	}
+
+	// A field disposed while it holds focus (its host left the composition - the operation settings strip
+	// on the next edit) gets no focus-loss callback, so the cancel hook it parked would keep the shell
+	// yielding the keyboard to a field that no longer exists.  Release it here; the host's reclaim effect
+	// then takes the keyboard back.
+	DisposableEffect(Unit) {
+		onDispose {
+			if (focused) {
+				controller.cancel = null
+			}
+		}
+	}
+	// While not editing, mirror the external value (a slider / pad drag or a reset updates the number).
+	LaunchedEffect(display, focused) {
+		if (!focused) {
+			text = TextFieldValue(display, TextRange(display.length))
+		}
+	}
+
+	// The visual box carries the fixed height, fill, and border so it matches the display face exactly (no
+	// jump on click); the inner text field wraps its own line height and the box centers it, with horizontal
+	// padding only - the same "let the fixed box own the height" approach the display face uses.  That
+	// promise includes the KEYED tint: without it, clicking a keyed field to type would flash the whole box
+	// back to the plain fill for the length of the edit.
+	TextEditContextMenuArea(value = text, onValueChange = { edited -> text = edited }) { gesture ->
+		Box(
+			modifier =
+				gesture
+					.then(modifier)
+					.textEntrySurface(controller)
+					.height(NUMBER_FIELD_HEIGHT)
+					.clip(shape)
+					.background(colors.controlBackground)
+					.background(keyState.backgroundTint(colors) ?: Color.Transparent, shape)
+					.border(1.dp, colors.controlBorder, shape),
+			contentAlignment = Alignment.Center,
+		) {
+			BasicTextField(
+				value = text,
+				onValueChange = { edited -> text = edited },
+				textStyle = LocalUmamoTypography.current.bodySmall.copy(color = colors.text, textAlign = TextAlign.End),
+				singleLine = true,
+				cursorBrush = SolidColor(colors.text),
+				keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+				// Soft-keyboard Done: clear focus so the single commit happens on the focus-loss path below.
+				keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+				modifier =
+					Modifier
+						.fillMaxWidth()
+						.padding(horizontal = 4.dp)
+						.focusRequester(focusRequester)
+						.onFocusChanged { focusState ->
+							// hasFocus (not isFocused): BasicTextField focuses an internal child, so this node only ever
+							// sees its subtree's focus.
+							if (focusState.hasFocus) {
+								if (!focused) {
+									focused = true
+									controller.cancel = {
+										discarding = true
+										focusManager.clearFocus()
+									}
+								}
+							} else if (focused) {
+								focused = false
+								controller.cancel = null
+
+								if (discarding) {
+									discarding = false
+								} else {
+									commit(text.text)
+								}
+
+								onFocusLost()
+							}
+						}
+						.onKeyEvent { event ->
+							// Hardware Enter confirms by clearing focus, so the commit runs once on the focus-loss path.
+							if (event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.NumPadEnter)) {
+								focusManager.clearFocus()
+								true
+							} else if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+								// In the main window the shell's key ladder previews Escape and routes it to the cancel
+								// hook parked above, so this never runs there.  A field inside a popup is on the popup's
+								// own key path, where nothing previews it: without this the popup's dismiss would take
+								// the key, and the focus loss of the closing popup would COMMIT the typed text.  Discard
+								// here and consume, so the popup stays open; a second Escape closes it.
+								discarding = true
+								focusManager.clearFocus()
+								true
+							} else {
+								false
+							}
+						},
+			)
+		}
+	}
+}

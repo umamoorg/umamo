@@ -13,10 +13,13 @@ import org.umamo.format.cmo3.serialize.ModelGraph
 import org.umamo.format.cmo3.serialize.cubismEngine
 import org.umamo.format.cmo3.xml.XmlCodec
 import java.io.File
+import java.lang.reflect.Modifier
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /**
  * A loaded CMO3: the CAFF container (all entries, incl. layer/atlas/icon PNGs) and the typed model
- * graph (the CModelSource root plus the shared pool). Mutate the graph or layer images, then write.
+ * graph (the CModelSource root plus the shared pool).  Mutate the graph or layer images, then write.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md</a>
  */
@@ -35,10 +38,10 @@ public class Cmo3Model internal constructor(
 
 	/**
 	 * Sets the model's authored SDK target version so it survives a re-emit even when the source
-	 * document carried no targetVersionNo element.  The writer replays the child slots recorded at
-	 * read time, so a bare field assignment on such a document would be dropped silently; this also
-	 * records the missing slot, positioned where the editor writes the field (immediately before
-	 * latestVersionOfLastModelerNo).
+	 * document carried no targetVersionNo element.
+	 *
+	 * The writer replays the child slots recorded at read time, so a bare field assignment on such a
+	 * document would be dropped silently; this also records the missing slot where the editor writes it.
 	 *
 	 * @param Int versionNo The raw targetVersionNo value to persist.
 	 */
@@ -54,36 +57,67 @@ public class Cmo3Model internal constructor(
 		)
 	}
 
-	/** All [CImageResource]s reachable in the model (shared pool + inline), each linking an embedded PNG. */
+	/**
+	 * All [CImageResource]s reachable in the model (shared pool + inline), each linking an embedded PNG.
+	 *
+	 * @return List<CImageResource> Every reachable image resource, each listed once.
+	 */
 	public fun imageResources(): List<CImageResource> {
-		val seen = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+		val seen = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
 		val out = ArrayList<CImageResource>()
 		val stack = ArrayDeque<Any?>()
 		graph.root?.let(stack::addLast)
 		graph.sharedOrder.forEach(stack::addLast)
+
 		while (stack.isNotEmpty()) {
 			val obj = stack.removeLast() ?: continue
-			if (obj is CharSequence || obj is Number || obj is Boolean || obj is Char || obj is Enum<*>) continue
-			if (!seen.add(obj)) continue
-			if (obj is CImageResource) out.add(obj)
+
+			if (obj is CharSequence || obj is Number || obj is Boolean || obj is Char || obj is Enum<*>) {
+				continue
+			}
+
+			if (!seen.add(obj)) {
+				continue
+			}
+
+			if (obj is CImageResource) {
+				out.add(obj)
+			}
+
 			when (obj) {
-				is Iterable<*> -> obj.forEach(stack::addLast)
-				is Map<*, *> -> obj.values.forEach(stack::addLast)
-				is Array<*> -> obj.forEach(stack::addLast)
-				else ->
+				is Iterable<*> -> {
+					obj.forEach(stack::addLast)
+				}
+
+				is Map<*, *> -> {
+					obj.values.forEach(stack::addLast)
+				}
+
+				is Array<*> -> {
+					obj.forEach(stack::addLast)
+				}
+
+				else -> {
 					if (obj::class.java.name.startsWith(MODEL_PACKAGE)) {
 						var cls: Class<*>? = obj::class.java
+
 						while (cls != null && cls != Any::class.java) {
 							for (field in cls.declaredFields) {
-								if (java.lang.reflect.Modifier.isStatic(field.modifiers)) continue
+								if (Modifier.isStatic(field.modifiers)) {
+									continue
+								}
+
 								field.isAccessible = true
 								stack.addLast(field.get(obj))
 							}
+
 							cls = cls.superclass
 						}
 					}
+				}
 			}
 		}
+
 		return out
 	}
 
@@ -99,6 +133,7 @@ public class Cmo3Model internal constructor(
 	 */
 	public fun extractLayerPng(resource: CImageResource): ByteArray? {
 		val path = resource.imageFileBuf?.archivePath ?: return null
+
 		return archive.byPath(path)?.content
 	}
 
@@ -110,35 +145,62 @@ public class Cmo3Model internal constructor(
 	 */
 	public fun replaceLayerPng(resource: CImageResource, png: ByteArray) {
 		val path = resource.imageFileBuf?.archivePath ?: error("resource has no embedded imageFileBuf")
+		replacePng(path, png)
+		resource.imageFileBuf_size = png.size // keep main.xml's size attribute consistent
+	}
+
+	/**
+	 * Replaces the embedded PNG at [path] with [png], keeping the entry's place, tag, and options.
+	 *
+	 * The graph node that references the path is the caller's to keep consistent; an icon's
+	 * CWritableImage carries no size field, a layer's CImageResource does ([replaceLayerPng]).
+	 *
+	 * @param String    path The archive path of an existing entry.
+	 * @param ByteArray png  The new PNG bytes.
+	 */
+	public fun replacePng(path: String, png: ByteArray) {
+		require(archive.byPath(path) != null) { "archive holds no entry at '$path'" }
 		archive =
 			archive.withEntries(
 				archive.entries.map { entry ->
 					if (entry.path == path) CaffEntry(entry.path, entry.tag, png, entry.compression, entry.obfuscated) else entry
 				},
 			)
-		resource.imageFileBuf_size = png.size // keep main.xml's size attribute consistent
 	}
 
 	/**
 	 * Embeds a NEW PNG for [resource], whose `imageFileBuf` must already name an archive path no
 	 * existing entry uses (mint one with [nextImageFileBufPath]).
 	 *
-	 * The entry takes the corpus conventions for pixel data - an empty tag, stored raw (a PNG is
-	 * already compressed), and obfuscated like every corpus entry - and is inserted BEFORE the
-	 * `main_xml` entry, which every corpus file keeps last in the table.
-	 *
 	 * @param CImageResource resource The image resource naming the new entry's path.
 	 * @param ByteArray      png      The PNG bytes to embed.
 	 */
 	public fun addLayerPng(resource: CImageResource, png: ByteArray) {
 		val path = resource.imageFileBuf?.archivePath ?: error("resource has no imageFileBuf path to add under")
+		addPng(path, png)
+		resource.imageFileBuf_size = png.size // keep main.xml's size attribute consistent
+	}
+
+	/**
+	 * Embeds a NEW PNG at [path], which no existing entry may use (mint one with
+	 * [nextImageFileBufPath] for a layer or page buffer, [nextImagePath] for an icon).
+	 *
+	 * The entry takes the corpus conventions for pixel data - an empty tag, stored raw (a PNG is
+	 * already compressed), and obfuscated like every corpus entry - and is inserted BEFORE the
+	 * `main_xml` entry, which every corpus file keeps last in the table.  The graph node that
+	 * references the path is the caller's to wire; an icon's CWritableImage carries no size field, so
+	 * there is nothing here to keep consistent.
+	 *
+	 * @param String    path The archive path the entry is stored under.
+	 * @param ByteArray png  The PNG bytes to embed.
+	 */
+	public fun addPng(path: String, png: ByteArray) {
 		require(archive.byPath(path) == null) { "archive already holds an entry at '$path'" }
 		val mainXmlIndex = archive.entries.indexOfFirst { entry -> entry.tag == CaffArchive.TAG_MAIN_XML }
 		val insertAt = if (mainXmlIndex >= 0) mainXmlIndex else archive.entries.size
 		val entries = archive.entries.toMutableList()
 		entries.add(insertAt, CaffEntry(path, "", png, CompressOption.RAW, obfuscated = true))
 		archive = archive.withEntries(entries)
-		resource.imageFileBuf_size = png.size // keep main.xml's size attribute consistent
 	}
 
 	/**
@@ -155,44 +217,63 @@ public class Cmo3Model internal constructor(
 	}
 
 	/**
-	 * Mints the next unused `imageFileBuf` archive path, continuing past the retained archive's
-	 * highest suffix.
-	 *
-	 * The editor's convention is `imageFileBuf.png`, then `imageFileBuf_0.png` onward; resolution is
-	 * by exact name, so continuing past the maximum is what keeps a minted page from colliding with
-	 * any retained blob.
+	 * Mints the next unused `imageFileBuf` archive path (`imageFileBuf.png`, then `imageFileBuf_0.png`
+	 * onward), continuing past the retained archive's highest suffix.
 	 *
 	 * @return String The unused archive path.
 	 */
-	public fun nextImageFileBufPath(): String {
+	public fun nextImageFileBufPath(): String = nextPathInSequence("imageFileBuf")
+
+	/**
+	 * Mints the next unused `image` archive path - the editor's icon-thumbnail sequence (`image.png`,
+	 * then `image_0.png` onward), continuing past the retained archive's highest suffix, by the same
+	 * rule as [nextImageFileBufPath].
+	 *
+	 * @return String The unused archive path.
+	 */
+	public fun nextImagePath(): String = nextPathInSequence("image")
+
+	/**
+	 * The next unused path in one of the editor's de-dupe sequences: `<stem>.png`, then
+	 * `<stem>_0.png` onward.  Resolution is by exact name, so continuing past the maximum is what
+	 * keeps a minted entry from colliding with any retained blob.
+	 *
+	 * @param String stem The sequence's stem.
+	 * @return String The unused archive path.
+	 */
+	private fun nextPathInSequence(stem: String): String {
 		var highestUsed = -2
+
 		for (entry in archive.entries) {
-			if (entry.path == "imageFileBuf.png") {
+			if (entry.path == "$stem.png") {
 				highestUsed = maxOf(highestUsed, -1)
 			} else {
 				val suffix =
 					entry.path
-						.removePrefix("imageFileBuf_")
+						.removePrefix("${stem}_")
 						.removeSuffix(".png")
-						.takeIf { middle -> "imageFileBuf_$middle.png" == entry.path }
+						.takeIf { middle -> "${stem}_$middle.png" == entry.path }
 						?.toIntOrNull()
+
 				if (suffix != null) {
 					highestUsed = maxOf(highestUsed, suffix)
 				}
 			}
 		}
+
 		val next = highestUsed + 1
-		return if (next == -1) "imageFileBuf.png" else "imageFileBuf_$next.png"
+
+		return if (next == -1) "$stem.png" else "${stem}_$next.png"
 	}
 }
 
 /**
  * Reads and writes Live2D Cubism `.cmo3` files (the CAFF container + the typed model graph).
  *
- * EN: `read` parses the container and deserializes main.xml into the typed model; `write` re-emits
- *     the model into main.xml and repacks the container. Round-trip is byte-identical for unedited
- *     files. Implements [FormatCodec] for `.cmo3`; the `File`-taking overloads are JVM-only
- *     conveniences on top of the byte-array contract. JVM/Android only (uses reflection + JDOM).
+ * An unedited file's decompressed main.xml round-trips byte for byte; the whole file does not, since
+ * each compressed entry carries the write's own timestamp (CMO3.md §1).  The `File`-taking overloads
+ * are JVM-only conveniences on top of the byte-array [FormatCodec] contract.  JVM/Android only (uses
+ * reflection + JDOM).
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md</a>
  */
@@ -201,9 +282,9 @@ public object Cmo3 : FormatCodec<Cmo3Model> {
 	override val kind: FileKind get() = FileKind.Cmo3
 
 	/**
-	 * True if [candidateBytes] starts with the CAFF magic. Note that every CAFF container sniffs the
+	 * True if [candidateBytes] starts with the CAFF magic.  Note that every CAFF container sniffs the
 	 * same way; a `.cmo3` is distinguished from other CAFF files only on full [read] (the `main_xml`
-	 * entry). Good enough for dispatch among the formats Umamo registers.
+	 * entry).  Good enough for dispatch among the formats Umamo registers.
 	 *
 	 * @param ByteArray candidateBytes Candidate file contents.
 	 * @return Boolean Whether this looks like a CAFF container.
@@ -221,11 +302,13 @@ public object Cmo3 : FormatCodec<Cmo3Model> {
 		if (!CaffCodec.isCaff(bytes)) {
 			return null
 		}
+
 		// A probe never throws: a truncated or corrupt container reports null instead.
 		val mainXml =
 			runCatching { CaffCodec.readFirstEntryByTag(bytes, CaffArchive.TAG_MAIN_XML)?.content }.getOrNull()
 				?: return null
 		val rawVersion = extractFileFormatVersion(mainXml) ?: return null
+
 		return Cmo3Version.fromFileFormatVersion(rawVersion)
 	}
 
@@ -242,23 +325,30 @@ public object Cmo3 : FormatCodec<Cmo3Model> {
 		val quoteByte = '"'.code.toByte()
 		val lastNeedleStart = mainXml.size - needle.size
 		var scanIndex = 0
+
 		scan@ while (scanIndex <= lastNeedleStart) {
 			for (needleIndex in needle.indices) {
 				if (mainXml[scanIndex + needleIndex] != needle[needleIndex]) {
 					scanIndex++
+
 					continue@scan
 				}
 			}
+
 			val valueStart = scanIndex + needle.size
 			var valueEnd = valueStart
+
 			while (valueEnd < mainXml.size && mainXml[valueEnd] != quoteByte) {
 				valueEnd++
 			}
+
 			if (valueEnd >= mainXml.size) {
 				return null
 			}
+
 			return mainXml.decodeToString(valueStart, valueEnd)
 		}
+
 		return null
 	}
 
@@ -268,16 +358,39 @@ public object Cmo3 : FormatCodec<Cmo3Model> {
 	 * @param ByteArray bytes The file contents.
 	 * @return Cmo3Model The loaded model.
 	 */
-	override fun read(bytes: ByteArray): Cmo3Model {
-		val archive = CaffCodec.read(bytes)
+	override fun read(bytes: ByteArray): Cmo3Model = read(CaffCodec.read(bytes))
+
+	/**
+	 * Parses a `.cmo3` whose container is already decoded: the archive's `main_xml` entry deserialized
+	 * into the typed model graph.
+	 *
+	 * The model holds [archive] itself, not a copy: a [CaffArchive] is never changed once built (every
+	 * pixel edit swaps in a new archive through [CaffArchive.withEntries], and [write] re-emits the graph
+	 * into a copy), so reading a model's archive again returns a private graph as that model was read,
+	 * which an edit can mutate while the first model stays untouched.
+	 *
+	 * @param CaffArchive archive The decoded container.
+	 * @return Cmo3Model The loaded model.
+	 * @warning A model whose graph was edited after its read rereads as its pre-edit state, since an
+	 *   edit reaches `main_xml` only through a write - every Cmo3Conversion.freshCmo3 result, for
+	 *   instance, which is reconciled onto after its read.
+	 */
+	public fun read(archive: CaffArchive): Cmo3Model {
+		// CMO3.md §1 FILE TABLE: the serialized model document is the entry tagged main_xml.
 		val mainXml =
 			archive.firstByTag(CaffArchive.TAG_MAIN_XML)?.content
 				?: error("not a CMO3: no main_xml entry")
 		val graph = cubismEngine().readModel(XmlCodec.parse(mainXml))
+
 		return Cmo3Model(archive, graph)
 	}
 
-	/** Parses a `.cmo3` from a file. */
+	/**
+	 * Parses a `.cmo3` from a file.
+	 *
+	 * @param File file The file to read.
+	 * @return Cmo3Model The parsed model.
+	 */
 	public fun read(file: File): Cmo3Model = read(file.readBytes())
 
 	/**
@@ -300,9 +413,15 @@ public object Cmo3 : FormatCodec<Cmo3Model> {
 					entry
 				}
 			}
+
 		return CaffCodec.write(model.archive.withEntries(entries))
 	}
 
-	/** Writes a model to a `.cmo3` file. */
+	/**
+	 * Writes a model to a `.cmo3` file.
+	 *
+	 * @param Cmo3Model model The model to write.
+	 * @param File file The file to write it to.
+	 */
 	public fun write(model: Cmo3Model, file: File): Unit = file.writeBytes(write(model))
 }

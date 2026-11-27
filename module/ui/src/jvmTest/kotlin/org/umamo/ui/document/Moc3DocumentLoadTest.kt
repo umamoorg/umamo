@@ -1,5 +1,6 @@
 package org.umamo.ui.document
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -63,6 +64,7 @@ class Moc3DocumentLoadTest {
 			if (reference.endsWith(".model3.json")) {
 				requestedManifest = reference
 			}
+
 			null
 		}
 		assertEquals("PUPPET.model3.json", requestedManifest)
@@ -82,10 +84,11 @@ class Moc3DocumentLoadTest {
 	@Test
 	fun missingTextureFailsAsMissingTexture() {
 		val mocFile = sample
+
 		if (mocFile == null) {
-			println("moc3.sample not present; skipping missing-texture test")
-			return
+			skipTest("moc3.sample not present; skipping missing-texture test")
 		}
+
 		// A real decodable moc whose manifest lists a texture the reader cannot resolve.
 		val load =
 			buildMoc3Document(mocFile.path, mocFile.name, mocFile.readBytes()) { reference ->
@@ -98,10 +101,11 @@ class Moc3DocumentLoadTest {
 	@Test
 	fun undecodableTextureFailsAsMissingTexture() {
 		val mocFile = sample
+
 		if (mocFile == null) {
-			println("moc3.sample not present; skipping undecodable-texture test")
-			return
+			skipTest("moc3.sample not present; skipping undecodable-texture test")
 		}
+
 		val load =
 			buildMoc3Document(mocFile.path, mocFile.name, mocFile.readBytes()) { reference ->
 				when {
@@ -117,10 +121,11 @@ class Moc3DocumentLoadTest {
 	@Test
 	fun loadsCorpusFamilyAndDegradesWithoutCdi3() {
 		val mocFile = sample
+
 		if (mocFile == null) {
-			println("moc3.sample not present; skipping corpus load test")
-			return
+			skipTest("moc3.sample not present; skipping corpus load test")
 		}
+
 		val directory = mocFile.parentFile
 
 		fun readRelative(reference: String): ByteArray? = directory.resolve(reference).takeIf { it.isFile }?.readBytes()

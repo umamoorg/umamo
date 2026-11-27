@@ -33,7 +33,7 @@ import kotlin.test.assertTrue
 /**
  * Pins [resolvePose]: the posed-vs-drawn distinction, the drawn filter, and the glue both-posed gate.
  *
- * The gate had no coverage anywhere before this - not CPU, not GPU. It is the rule that stops a weld
+ * The gate had no coverage anywhere before this - not CPU, not GPU.  It is the rule that stops a weld
  * reading a partner's uninitialised region of the shared position store, which on a live GPU shows up as
  * random geometry spikes while a parameter moves, so it is worth pinning precisely.
  */
@@ -42,13 +42,14 @@ class PoseResolveTest {
 
 	private fun drawable(id: String, indices: IntArray = intArrayOf(0, 1, 2)): Drawable {
 		val positions = floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f)
+
 		return Drawable(
 			id = DrawableId(id),
 			name = id,
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions, FloatArray(positions.size), indices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), indices),
 			geometryGrid =
 				KeyformGrid(
 					listOf(KeyformAxis(paramA, floatArrayOf(0f))),
@@ -69,7 +70,7 @@ class PoseResolveTest {
 			canvasWidth = 0f,
 			canvasHeight = 0f,
 			worldOriginX = 0f,
-			worldOriginY = 0f,
+			worldOriginZ = 0f,
 		)
 
 	private fun resolve(
@@ -101,8 +102,8 @@ class PoseResolveTest {
 
 	@Test
 	fun resolvePosePosesAnIndexLessAnchorButDoesNotDrawIt() {
-		// The posed-vs-drawn distinction. An index-less glue anchor must deform (pass 1 writes its positions
-		// for a partner to weld against) while drawing nothing. Conflating the two breaks glue silently.
+		// The posed-vs-drawn distinction.  An index-less glue anchor must deform (pass 1 writes its positions
+		// for a partner to weld against) while drawing nothing.  Conflating the two breaks glue silently.
 		val source = model(listOf(drawable("anchor", indices = IntArray(0)), drawable("b")))
 		val resolved = resolve(source, renderable = mapOf(DrawableId("anchor") to false, DrawableId("b") to true))
 		assertTrue(
@@ -134,7 +135,7 @@ class PoseResolveTest {
 	@Test
 	fun resolvePoseZeroesGlueIntensityWhenAPartnerIsUnposed() {
 		// The gate. "b" is not resident, so pass 1 never writes its region of the shared store; welding
-		// toward it would read uninitialised memory. Zeroing makes the shader skip the partner read entirely.
+		// toward it would read uninitialised memory.  Zeroing makes the shader skip the partner read entirely.
 		val source =
 			model(
 				listOf(drawable("a"), drawable("b")),
@@ -226,7 +227,7 @@ class PoseResolveTest {
 	@Test
 	fun resolvePoseGlueIntensitiesBeyondTheShaderArrayAreDropped() {
 		// MAX_GLUES is a shader contract (uniform float glueIntensity[MAX_GLUES]), not a tuning knob: glue
-		// #65+ renders UNWELDED rather than overrunning the array. Pinned so the ceiling is not "fixed" by
+		// #65+ renders UNWELDED rather than overrunning the array.  Pinned so the ceiling is not "fixed" by
 		// growing the Kotlin side alone, which would silently disagree with the GLSL.
 		val drawables = listOf(drawable("a"), drawable("b"))
 		val glues = List(70) { Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f))) }

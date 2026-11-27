@@ -6,8 +6,18 @@ package org.umamo.runtime.model
  * when it lands): the pickable geometry sets picking iterates, and the display lookups the overlap
  * picker labels rows with.  The atlas queries resolve a drawable's or tile's source-art binding, the
  * same resolution the renderer and UV editor build on.  All derive from the model alone, so callers
- * recompute them on each model swap.
+ * recompute them on each model swap - except when the swap moved mesh positions alone, which
+ * differsOnlyInMeshPositions tells them, so the position-free lookups can be kept.
  */
+
+/**
+ * The mesh of drawable [id], or null when the model has no such drawable or it carries no mesh - the one
+ * lookup every per-drawable mesh edit starts from.
+ *
+ * @param DrawableId id The drawable.
+ * @return DrawableMesh? Its mesh, or null.
+ */
+fun PuppetModel.meshOf(id: DrawableId): DrawableMesh? = drawables.firstOrNull { drawable -> drawable.id == id }?.mesh
 
 /**
  * The per-drawable triangle indices picking iterates: the shown, meshed drawables only, so
@@ -57,6 +67,15 @@ fun PuppetModel.partNameByDrawable(): Map<DrawableId, String> =
 	}
 
 /**
+ * Drawable id to its own display name, for the overlap-picker row labels.  Names are returned as the
+ * model holds them - a blank one is a display decision the caller makes, not a lookup failure.
+ *
+ * @return Map<DrawableId, String> Drawable id to its name.
+ */
+fun PuppetModel.drawableNameByDrawable(): Map<DrawableId, String> =
+	drawables.associate { drawable -> drawable.id to drawable.name }
+
+/**
  * Drawable id to the source-format id its atlas region is keyed by: itself, or its texture source for
  * a session-created duplicate (a copy of a copy resolves to the original).
  *
@@ -66,17 +85,9 @@ fun PuppetModel.atlasKeyByDrawable(): Map<DrawableId, String> =
 	drawables.associate { drawable -> drawable.id to (drawable.textureSourceId ?: drawable.id).raw }
 
 /**
- * How one drawable's stored texture coordinates map back into its source art's own pixel frame.
- *
- * The single resolution every source-art consumer starts from - the renderer sampling per-layer
- * textures, the UV editor drawing a mapping over the artwork - so the tile lookup, the page lookup, and
- * the packed-versus-direct decision are made once here rather than reassembled at each call site.
- *
- * A placement applies only when the document's stored coordinates address the packed pages and this
- * tile was actually packed; otherwise the coordinates already address the art and the mapping is the
- * identity.  The DISPLAY mode is deliberately not consulted - it decides which texture is sampled, not
- * what the coordinates mean, and reinterpreting them on a toggle would draw every mesh at its atlas
- * position.
+ * How one drawable's stored texture coordinates map back into its source art's own pixel frame: the
+ * single resolution every source-art consumer starts from (the renderer sampling per-layer textures, the
+ * UV editor drawing a mapping over the artwork).
  *
  * @param Drawable drawable The drawable to resolve.
  * @return DrawableLayerBinding? The binding, or null when the document retains no art for it.
@@ -94,10 +105,12 @@ fun PuppetModel.atlasBindingFor(drawable: Drawable): DrawableLayerBinding? =
  */
 fun PuppetModel.drawableIdsByAtlasTile(): Map<AtlasTileId, List<DrawableId>> {
 	val byTile = LinkedHashMap<AtlasTileId, MutableList<DrawableId>>()
+
 	for (drawable in drawables) {
 		val tileId = drawable.atlasTileId ?: continue
 		byTile.getOrPut(tileId) { ArrayList() }.add(drawable.id)
 	}
+
 	return byTile
 }
 
@@ -129,11 +142,13 @@ fun PuppetAtlas.bindingForTile(tileId: AtlasTileId): DrawableLayerBinding? {
 	val tile = tileById[tileId] ?: return null
 	val placement = tile.placement?.takeIf { storedUvsAddressPages }
 	val page = placement?.let { packed -> pages.getOrNull(packed.pageIndex) }
+
 	if (placement != null && page == null) {
 		// A placement naming a page the document does not have is broken wiring, not a tile that is
 		// sampled directly - resolving it to the identity would silently draw the wrong frame.
 		return null
 	}
+
 	return DrawableLayerBinding(tile.id.raw, placement, page?.width ?: 0, page?.height ?: 0)
 }
 
@@ -149,6 +164,7 @@ fun PuppetAtlas.bindingForTile(tileId: AtlasTileId): DrawableLayerBinding? {
 fun PuppetAtlas.storedToArtAffineForTile(tileId: AtlasTileId): FloatArray? {
 	val tile = tileById[tileId] ?: return null
 	val binding = bindingForTile(tileId) ?: return null
+
 	return layerUvAffineOf(binding, tile.width, tile.height)
 }
 
@@ -164,34 +180,47 @@ fun PuppetModel.drawablesByPartSubtree(): Map<PartId, List<DrawableId>> {
 	val partById = parts.associateBy { part -> part.id }
 	val collected = HashMap<PartId, List<DrawableId>>(parts.size)
 
+	/**
+	 * Gathers the drawables in a part's subtree, caching each part's result.
+	 *
+	 * @param PartId partId The part at the top of the subtree.
+	 * @param MutableSet<PartId> guard The parts already entered, which stop a cyclic tree from recursing forever.
+	 * @return List<DrawableId> The subtree's drawables, in panel order.
+	 */
 	fun collect(partId: PartId, guard: MutableSet<PartId>): List<DrawableId> {
 		collected[partId]?.let { return it }
+
 		// A malformed tree could cycle; the guard makes this terminate rather than blow the stack.
 		if (!guard.add(partId)) {
 			return emptyList()
 		}
+
 		val part = partById[partId]
 		val gathered =
 			if (part == null) {
 				emptyList()
 			} else {
 				val into = ArrayList<DrawableId>()
+
 				for (child in part.children) {
 					when (child) {
 						is OrgChild.Drawable -> into.add(child.id)
 						is OrgChild.Part -> into.addAll(collect(child.id, guard))
 					}
 				}
+
 				into
 			}
 		guard.remove(partId)
 		collected[partId] = gathered
+
 		return gathered
 	}
 
 	for (part in parts) {
 		collect(part.id, mutableSetOf())
 	}
+
 	return collected
 }
 
@@ -205,6 +234,7 @@ fun PuppetModel.drawablesByPartSubtree(): Map<PartId, List<DrawableId>> {
  */
 fun PuppetModel.parentPartByPart(): Map<PartId, PartId> {
 	val parentOf = HashMap<PartId, PartId>(parts.size)
+
 	for (part in parts) {
 		for (child in part.children) {
 			if (child is OrgChild.Part) {
@@ -212,17 +242,14 @@ fun PuppetModel.parentPartByPart(): Map<PartId, PartId> {
 			}
 		}
 	}
+
 	return parentOf
 }
 
 /**
- * Every part in [id]'s org-tree subtree, including [id] itself.  The set a part may NOT be re-homed under -
- * doing so would orphan a cycle - so the org-move guard and the Properties picker's candidate filter derive
- * from this one definition instead of each walking the tree its own way (they walked it in OPPOSITE
- * directions before this existed, which is exactly how two implementations of one invariant drift).
- *
- * The org tree is the only hierarchy source for parts: a part's children live in [Part.children], and there
- * is no parent back-pointer, so this walks DOWN like [deformerSelfAndDescendants] does.
+ * Every part in [id]'s org-tree subtree, including [id] itself: the set a part may NOT be re-homed under,
+ * since that would orphan a cycle.  The org-move guard and the Properties picker's candidate filter both
+ * derive from this one definition.
  *
  * @param PartId id The part whose subtree to collect.
  * @return Set<PartId> The part and every part beneath it.
@@ -231,11 +258,17 @@ fun PuppetModel.partSelfAndDescendants(id: PartId): Set<PartId> {
 	val partById = parts.associateBy { part -> part.id }
 	val collected = LinkedHashSet<PartId>()
 
+	/**
+	 * Collects a part and every part under it, each once.
+	 *
+	 * @param PartId current The part to visit.
+	 */
 	fun walk(current: PartId) {
 		// add() guards a malformed (already cyclic) tree from recursing forever.
 		if (!collected.add(current)) {
 			return
 		}
+
 		partById[current]?.children?.forEach { child ->
 			if (child is OrgChild.Part) {
 				walk(child.id)
@@ -243,6 +276,7 @@ fun PuppetModel.partSelfAndDescendants(id: PartId): Set<PartId> {
 		}
 	}
 	walk(id)
+
 	return collected
 }
 
@@ -258,14 +292,21 @@ fun PuppetModel.deformerSelfAndDescendants(id: DeformerId): Set<DeformerId> {
 	val childrenByParent = deformers.groupBy { deformer -> deformer.parent }
 	val collected = LinkedHashSet<DeformerId>()
 
+	/**
+	 * Collects a deformer and every deformer under it, each once.
+	 *
+	 * @param DeformerId current The deformer to visit.
+	 */
 	fun walk(current: DeformerId) {
 		// add() guards a malformed (already cyclic) hierarchy from recursing forever.
 		if (!collected.add(current)) {
 			return
 		}
+
 		childrenByParent[current]?.forEach { child -> walk(child.id) }
 	}
 	walk(id)
+
 	return collected
 }
 
@@ -278,10 +319,8 @@ fun PuppetModel.deformerSelfAndDescendants(id: DeformerId): Set<DeformerId> {
  * through it, and an exporter to a format that cannot express part masks MUST use it too, so the two can
  * never disagree about the clipping the user sees.
  *
- * Takes the part-subtree index rather than building it: both callers resolve MANY composites in one pass,
- * and [drawablesByPartSubtree] walks the whole part tree, so building it per composite would make a model
- * with K part-masked composites over N parts cost O(K*N) on every render-root derive.  Pass
- * `drawablesByPartSubtree()` computed once for the batch.
+ * Takes the part-subtree index rather than building it, since both callers resolve many composites in one
+ * pass and [drawablesByPartSubtree] walks the whole part tree; compute it once for the batch.
  *
  * @param PartComposite composite The authored composite.
  * @param Map subtrees Each part's descendant drawables, from [drawablesByPartSubtree], built once per batch.
@@ -291,20 +330,17 @@ fun flattenedMasks(composite: PartComposite, subtrees: Map<PartId, List<Drawable
 	if (composite.maskedByParts.isEmpty()) {
 		return composite.maskedBy
 	}
+
 	val expanded = composite.maskedByParts.flatMap { maskPartId -> subtrees[maskPartId].orEmpty() }
+
 	return (composite.maskedBy + expanded).distinct()
 }
 
 /**
  * A copy of this model with every part composite's part-masks expanded into plain drawable masks and
  * [PartComposite.maskedByParts] emptied - the conversion an export to a drawable-only mask format (CMO3,
- * MOC3) MUST apply.
- *
- * Call it and the clipping SURVIVES the export exactly as the viewport shows it; what is lost is only the
- * authoring grouping ("masked by this part", which follows the part as its children change), because those
- * formats have nowhere to record it.  Skipping this call would instead drop the part masks outright and
- * silently change how the model renders - so exporters flatten, never ignore.  UMA keeps the grouping and
- * needs no flattening.
+ * MOC3) MUST apply, so the clipping survives exactly as the viewport shows it and only the authoring
+ * grouping is lost.  UMA keeps the grouping and needs no flattening.
  *
  * @return PuppetModel The model with part-masks flattened, or [this] when none are used.
  */
@@ -312,11 +348,13 @@ fun PuppetModel.withPartMasksFlattened(): PuppetModel {
 	if (parts.none { part -> part.composite.maskedByParts.isNotEmpty() }) {
 		return this
 	}
+
 	// One index for the whole batch (see flattenedMasks).
 	val subtrees = drawablesByPartSubtree()
 	val flattened =
 		parts.map { part ->
 			val composite = part.composite
+
 			if (composite.maskedByParts.isEmpty()) {
 				part
 			} else {
@@ -325,14 +363,14 @@ fun PuppetModel.withPartMasksFlattened(): PuppetModel {
 				)
 			}
 		}
+
 	return copy(parts = flattened).withDerivedRenderRoot()
 }
 
 /**
  * The drawable's 5.3 per-art-mesh multiply color for display in the Properties panel.
  *
- * A plain static read now that the tint is its own channel: it used to have to reach into the first
- * keyform cell, which was only representative because the editor wrote the color across every cell.
+ * A plain static read: the tint is its own channel track, so no keyform cell is consulted for it.
  *
  * @return ColorRgb The drawable's static multiply color.
  */
@@ -342,6 +380,55 @@ fun Drawable.displayMultiplyColor(): ColorRgb = multiplyColor
  * The drawable's 5.3 per-art-mesh screen color for display in the Properties panel; see
  * [displayMultiplyColor].
  *
- * @return ColorRgb The drawable's screen color, or [ColorRgb.ScreenIdentity] when unkeyed.
+ * @return ColorRgb The drawable's static screen color.
  */
 fun Drawable.displayScreenColor(): ColorRgb = screenColor
+
+/**
+ * Whether this model differs from [previous] in nothing but some drawables' mesh positions - the canvas mesh
+ * and the keyform-space base - the shape every preview push of a Grab has.  Conservative: any other change,
+ * a UV, topology, or vertex-count edit included, counts as structural.
+ *
+ * The renderer reads it to keep its pose across a push (the pose's inputs hold no positions), and the
+ * desktop viewport service to keep the picker lookups that read no positions.
+ *
+ * @param PuppetModel previous The model the consumer currently holds.
+ * @return Boolean True when only mesh positions differ, or nothing does.
+ */
+fun PuppetModel.differsOnlyInMeshPositions(previous: PuppetModel): Boolean {
+	if (this === previous) {
+		return true
+	}
+
+	// A data-class equals short-circuits on shared references, so a positions-only push (new meshes, every
+	// other field shared) costs one walk over the drawables.
+	if (drawables.size != previous.drawables.size || copy(drawables = previous.drawables) != previous) {
+		return false
+	}
+
+	for (drawableIndex in drawables.indices) {
+		val nextDrawable = drawables[drawableIndex]
+		val previousDrawable = previous.drawables[drawableIndex]
+
+		if (nextDrawable === previousDrawable) {
+			continue
+		}
+
+		val nextMesh = nextDrawable.mesh ?: return false
+		val previousMesh = previousDrawable.mesh ?: return false
+
+		if (nextMesh.uvs !== previousMesh.uvs ||
+			nextMesh.indices !== previousMesh.indices ||
+			nextMesh.positions.size != previousMesh.positions.size ||
+			nextMesh.localPositions.size != previousMesh.localPositions.size
+		) {
+			return false
+		}
+
+		if (nextDrawable.copy(mesh = previousMesh) != previousDrawable) {
+			return false
+		}
+	}
+
+	return true
+}

@@ -23,6 +23,7 @@ internal fun applyHorizontalPredictor(row: ByteArray, rowOffset: Int, columns: I
 		1 -> {
 			var accumulator = 0
 			val byteCount = (columns + 7) / 8
+
 			for (byteRelative in 0 until byteCount) {
 				val byteIndex = rowOffset + byteRelative
 				val original = row[byteIndex].toInt()
@@ -48,6 +49,7 @@ internal fun applyHorizontalPredictor(row: ByteArray, rowOffset: Int, columns: I
 		2 -> {
 			var accumulator = 0
 			val byteCount = (columns + 3) / 4
+
 			for (byteRelative in 0 until byteCount) {
 				val byteIndex = rowOffset + byteRelative
 				val original = row[byteIndex].toInt()
@@ -65,6 +67,7 @@ internal fun applyHorizontalPredictor(row: ByteArray, rowOffset: Int, columns: I
 		4 -> {
 			var accumulator = 0
 			val byteCount = (columns + 1) / 2
+
 			for (byteRelative in 0 until byteCount) {
 				val byteIndex = rowOffset + byteRelative
 				val original = row[byteIndex].toInt()
@@ -95,7 +98,9 @@ internal fun applyHorizontalPredictor(row: ByteArray, rowOffset: Int, columns: I
 			}
 		}
 
-		else -> throw IllegalArgumentException("Unsupported TIFF predictor bits per sample $bitsPerSample")
+		else -> {
+			throw IllegalArgumentException("Unsupported TIFF predictor bits per sample $bitsPerSample")
+		}
 	}
 }
 
@@ -110,6 +115,7 @@ internal fun applyHorizontalPredictor(row: ByteArray, rowOffset: Int, columns: I
 private fun read16(row: ByteArray, at: Int, littleEndian: Boolean): Int {
 	val low = row[at].toInt() and 0xFF
 	val high = row[at + 1].toInt() and 0xFF
+
 	return if (littleEndian) {
 		low or (high shl 8)
 	} else {

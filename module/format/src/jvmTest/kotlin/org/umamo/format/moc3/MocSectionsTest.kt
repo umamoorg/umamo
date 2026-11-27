@@ -4,6 +4,7 @@ import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -26,17 +27,20 @@ class MocSectionsTest {
 	@Test
 	fun everyPresentSectionDecodesLosslessly() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping section decode test")
-			return
+			skipTest("moc3.samples not present; skipping section decode test")
 		}
+
 		for (file in files) {
 			val model = MocCodec.read(file.readBytes())
 			var checked = 0
+
 			for (section in Section.entries) {
 				if (!model.sections.isPresent(section)) {
 					continue
 				}
+
 				assertContentEquals(
 					model.sections.rawElementRegion(section),
 					model.sections.reencodeElementRegion(section),
@@ -44,6 +48,7 @@ class MocSectionsTest {
 				)
 				checked++
 			}
+
 			println("${file.name}: v${model.versionByte} decoded $checked/${Section.entries.size} sections losslessly")
 		}
 	}
@@ -51,10 +56,11 @@ class MocSectionsTest {
 	@Test
 	fun structuralInvariants() {
 		val files = samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping structural test")
-			return
+			skipTest("moc3.samples not present; skipping structural test")
 		}
+
 		for (file in files) {
 			val model = MocCodec.read(file.readBytes())
 			val sections = model.sections
@@ -102,11 +108,13 @@ class MocSectionsTest {
 			assertEquals(deformers, deformerIds.size, "${file.name}: deformer id count")
 			assertEquals(deformerIds.size, deformerIds.toSet().size, "${file.name}: deformer ids unique")
 			assertTrue(deformerIds.none { it.isEmpty() }, "${file.name}: deformer ids non-empty")
+
 			for (flagSection in listOf(Section.DEFORMER_IS_VISIBLE, Section.DEFORMER_IS_ENABLED)) {
 				val flags = sections.intArray(flagSection)
 				assertEquals(deformers, flags.size, "${file.name}: $flagSection count")
 				assertTrue(flags.all { it == 0 || it == 1 }, "${file.name}: $flagSection is boolean")
 			}
+
 			val deformerParts = sections.intArray(Section.DEFORMER_PARENT_PART)
 			assertTrue(
 				deformerParts.all { it == -1 || it in 0 until model.partCount },
@@ -120,6 +128,7 @@ class MocSectionsTest {
 			val rotationBinding = sections.intArray(Section.ROTATION_KEYFORM_BINDING)
 			val localIndex = sections.intArray(Section.DEFORMER_LOCAL_INDEX)
 			assertEquals(deformers, unifiedBinding.size, "${file.name}: deformer keyform binding count")
+
 			for (deformerIndex in 0 until deformers) {
 				val perType =
 					if (types[deformerIndex] == 0) {

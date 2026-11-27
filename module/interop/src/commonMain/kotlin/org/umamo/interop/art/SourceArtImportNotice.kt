@@ -40,4 +40,7 @@ sealed interface SourceArtImportNotice {
 
 	/** Art the packer could not place for any other reason; left unpacked, with the packer's reason. */
 	data class LayerNotPacked(val layerName: String, val reason: String) : SourceArtImportNotice
+
+	/** A layer the Automatic birth mode could not mesh; its drawable keeps the quad, with the mesher's reason. */
+	data class BirthMeshFellBackToQuad(val layerName: String, val reason: BirthRefusal) : SourceArtImportNotice
 }

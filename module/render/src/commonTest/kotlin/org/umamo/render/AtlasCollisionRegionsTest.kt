@@ -20,6 +20,7 @@ import kotlin.test.assertTrue
 class AtlasCollisionRegionsTest {
 	private fun raster(width: Int, height: Int, opaque: (Int, Int) -> Boolean): DecodedImage {
 		val rgba = ByteArray(width * height * 4)
+
 		for (y in 0 until height) {
 			for (x in 0 until width) {
 				if (opaque(x, y)) {
@@ -29,6 +30,7 @@ class AtlasCollisionRegionsTest {
 				}
 			}
 		}
+
 		return DecodedImage(rgba, width, height)
 	}
 

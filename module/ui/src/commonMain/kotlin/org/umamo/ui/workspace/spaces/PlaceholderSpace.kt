@@ -12,12 +12,11 @@ import org.umamo.ui.kit.Text
 import org.umamo.ui.theme.LocalUmamoTypography
 
 /**
- * A generic centered-label space body, used for spaces not yet built out (and as the viewport's
- * unavailable state). Deliberately tiny so any space can fall back to it during the staged build.
+ * A centered-label space body for a space with nothing of its own to show: Tool Details, which is not
+ * built yet, the UV editor with no render service to draw with, and Properties when its search matches
+ * no row.  Deliberately tiny, so any space can fall back to it.
  *
- * 未実装の空間や、ビューポート不可状態に使う中央ラベルのプレースホルダ。
- *
- * @param String label The text to show centered.
+ * @param String label The text to show centered; empty for a bare panel.
  * @param Modifier modifier The layout modifier.
  */
 @Composable

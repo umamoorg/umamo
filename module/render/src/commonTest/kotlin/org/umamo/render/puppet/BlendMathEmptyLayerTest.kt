@@ -27,10 +27,12 @@ class BlendMathEmptyLayerTest {
 	@Test
 	fun anEmptyLayerPreservesTheDestinationForEveryAlphaMode() {
 		val emptySource = floatArrayOf(0f, 0f, 0f, 0f)
+
 		for (alphaMode in AlphaBlendMode.entries) {
 			for (colorMode in listOf(BlendMode.Normal, BlendMode.Multiply, BlendMode.Overlay, BlendMode.Color)) {
 				for (destination in destinations) {
 					val result = compositeReference(emptySource, destination, colorMode, alphaMode)
+
 					for (channel in 0 until 4) {
 						assertTrue(
 							kotlin.math.abs(result[channel] - destination[channel]) < 1e-6f,

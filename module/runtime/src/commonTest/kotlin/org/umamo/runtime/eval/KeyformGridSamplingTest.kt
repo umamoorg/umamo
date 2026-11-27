@@ -33,6 +33,7 @@ class KeyformGridSamplingTest {
 	/** A pose lambda over explicit per-parameter values, defaulting unmentioned parameters to zero. */
 	private fun pose(vararg values: Pair<ParameterId, Float>): (ParameterId) -> Float {
 		val byId = values.toMap()
+
 		return { parameterId -> byId[parameterId] ?: 0f }
 	}
 
@@ -164,6 +165,7 @@ class KeyformGridSamplingTest {
 			)
 		val byIndex = cellsByLinearIndex(grid)
 		assertSame(grid.cellsByLinearIndex, byIndex)
+
 		for (cell in cells) {
 			assertSame(cell, byIndex[grid.linearIndexOf(cell.coordinate)])
 		}

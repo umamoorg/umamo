@@ -16,6 +16,7 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.model.Rgb
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 
@@ -58,7 +59,7 @@ class DeformerChannelProbeTest {
 			?: emptyList()
 
 	/**
-	 * Flattens a CMO3 collection field to a plain list (mirrors Cmo3Import.elementsOf).
+	 * Flattens a CMO3 collection field to a plain list (mirrors `:interop`'s elementsOf).
 	 *
 	 * @param Any? collection The raw collection field, held as Any?.
 	 * @return List<Any?> The contained elements.
@@ -81,16 +82,22 @@ class DeformerChannelProbeTest {
 	 */
 	private fun rgbOf(value: Any?): Rgb? =
 		when (value) {
-			is CFloatColor -> Rgb(value.red, value.green, value.blue)
+			is CFloatColor -> {
+				Rgb(value.red, value.green, value.blue)
+			}
+
 			// The older argb integer form; unobserved on 5.3 forms but decoded for completeness.
-			is CColor ->
+			is CColor -> {
 				Rgb(
 					((value.argb shr 16) and 0xFF) / 255f,
 					((value.argb shr 8) and 0xFF) / 255f,
 					(value.argb and 0xFF) / 255f,
 				)
+			}
 
-			else -> null
+			else -> {
+				null
+			}
 		}
 
 	/** Running tally of how many keyforms deviate from identity on each channel. */
@@ -119,13 +126,16 @@ class DeformerChannelProbeTest {
 	 */
 	private fun record(tally: ChannelTally, opacity: Float, multiplyColor: Rgb?, screenColor: Rgb?) {
 		tally.keyformCount++
+
 		if (opacity != opaque) {
 			tally.nonOpaque++
 			tally.minimumOpacity = minOf(tally.minimumOpacity, opacity)
 		}
+
 		if (multiplyColor != null && multiplyColor != multiplyIdentity) {
 			tally.nonIdentityMultiply++
 		}
+
 		if (screenColor != null && screenColor != screenIdentity) {
 			tally.nonIdentityScreen++
 		}
@@ -134,14 +144,16 @@ class DeformerChannelProbeTest {
 	@Test
 	fun probeCmo3DeformerChannels() {
 		val files = cmo3Samples()
+
 		if (files.isEmpty()) {
-			println("cmo3.probe not present; skipping CMO3 deformer-channel probe")
-			return
+			skipTest("cmo3.probe not present; skipping CMO3 deformer-channel probe")
 		}
+
 		println("=== CMO3 deformer channels (opacity / multiplyColor / screenColor on ACDeformerForm) ===")
 		val corpusWarp = ChannelTally()
 		val corpusRotation = ChannelTally()
 		val corpusDrawable = ChannelTally()
+
 		for (file in files) {
 			val root = Cmo3.read(file).root as? CModelSource ?: continue
 			val deformerSources = elementsOf((root.deformerSourceSet as? CDeformerSourceSet)?._sources)
@@ -153,9 +165,11 @@ class DeformerChannelProbeTest {
 
 			for (source in deformerSources) {
 				val isWarp = source is CWarpDeformerSource
+
 				if (!isWarp && source !is CRotationDeformerSource) {
 					continue
 				}
+
 				val tally = if (isWarp) warp else rotation
 				val before = tally.nonOpaque + tally.nonIdentityMultiply + tally.nonIdentityScreen
 				val forms =
@@ -164,11 +178,14 @@ class DeformerChannelProbeTest {
 						is CRotationDeformerSource -> elementsOf(source.keyforms)
 						else -> emptyList()
 					}
+
 				for (form in forms.filterIsInstance<ACDeformerForm>()) {
 					record(tally, form.opacity, rgbOf(form.multiplyColor), rgbOf(form.screenColor))
 					record(if (isWarp) corpusWarp else corpusRotation, form.opacity, rgbOf(form.multiplyColor), rgbOf(form.screenColor))
 				}
+
 				val after = tally.nonOpaque + tally.nonIdentityMultiply + tally.nonIdentityScreen
+
 				if (after > before) {
 					val name =
 						when (source) {
@@ -194,10 +211,12 @@ class DeformerChannelProbeTest {
 			println("    warp     : $warp")
 			println("    rotation : $rotation")
 			println("    drawable : $drawable   (control group - already ingested)")
+
 			if (offenders.isNotEmpty()) {
 				println("    deformers with non-identity channels: ${offenders.take(12)}${if (offenders.size > 12) " …+${offenders.size - 12}" else ""}")
 			}
 		}
+
 		println("=== CMO3 corpus totals ===")
 		println("    warp     : $corpusWarp")
 		println("    rotation : $corpusRotation")
@@ -207,14 +226,16 @@ class DeformerChannelProbeTest {
 	@Test
 	fun probeMoc3DeformerChannels() {
 		val files = moc3Samples()
+
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping MOC3 deformer-channel probe")
-			return
+			skipTest("moc3.samples not present; skipping MOC3 deformer-channel probe")
 		}
+
 		println("=== MOC3 deformer channels (WarpKeyform / RotationKeyform opacity + colors) ===")
 		val corpusWarp = ChannelTally()
 		val corpusRotation = ChannelTally()
 		val corpusArtMesh = ChannelTally()
+
 		for (file in files) {
 			val decoded =
 				runCatching { Moc3.read(file.readBytes()) }.getOrElse { failure ->
@@ -225,33 +246,39 @@ class DeformerChannelProbeTest {
 			val warp = ChannelTally()
 			val rotation = ChannelTally()
 			val artMesh = ChannelTally()
+
 			for (deformer in document.deformers) {
 				when (deformer) {
-					is WarpDeformer ->
+					is WarpDeformer -> {
 						for (keyform in deformer.keyforms) {
 							record(warp, keyform.opacity, keyform.multiplyColor, keyform.screenColor)
 							record(corpusWarp, keyform.opacity, keyform.multiplyColor, keyform.screenColor)
 						}
+					}
 
-					is RotationDeformer ->
+					is RotationDeformer -> {
 						for (keyform in deformer.keyforms) {
 							record(rotation, keyform.opacity, keyform.multiplyColor, keyform.screenColor)
 							record(corpusRotation, keyform.opacity, keyform.multiplyColor, keyform.screenColor)
 						}
+					}
 				}
 			}
+
 			for (mesh in document.artMeshes) {
 				for (keyform in mesh.keyforms) {
 					record(artMesh, keyform.opacity, keyform.multiplyColor, keyform.screenColor)
 					record(corpusArtMesh, keyform.opacity, keyform.multiplyColor, keyform.screenColor)
 				}
 			}
+
 			val flag = if (warp.hasAnything || rotation.hasAnything) "  <<< DEFORMER CHANNELS IN USE" else ""
 			println("--- ${file.name} (v${document.version})$flag")
 			println("    warp     : $warp")
 			println("    rotation : $rotation")
 			println("    artMesh  : $artMesh   (control group - already ingested)")
 		}
+
 		println("=== MOC3 corpus totals ===")
 		println("    warp     : $corpusWarp")
 		println("    rotation : $corpusRotation")

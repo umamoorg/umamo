@@ -160,10 +160,12 @@ class CursorTest {
 		var minY = dimension
 		var maxX = -1
 		var maxY = -1
+
 		for (y in 0 until dimension) {
 			for (x in 0 until dimension) {
 				val pixel = pixels[x, y]
 				val delta = abs(pixel.red - sentinel.red) + abs(pixel.green - sentinel.green) + abs(pixel.blue - sentinel.blue)
+
 				if (delta > 0.2f) {
 					minX = min(minX, x)
 					minY = min(minY, y)
@@ -172,9 +174,11 @@ class CursorTest {
 				}
 			}
 		}
+
 		if (maxX < 0) {
 			return null
 		}
+
 		return PaintedBox(minX, minY, maxX, maxY)
 	}
 }

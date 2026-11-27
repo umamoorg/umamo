@@ -50,12 +50,14 @@ class AtlasPageSwapRenderTest {
 
 	private fun solidImage(red: Int, green: Int, blue: Int, size: Int = 8): DecodedImage {
 		val rgba = ByteArray(size * size * 4)
+
 		for (pixel in rgba.indices step 4) {
 			rgba[pixel] = red.toByte()
 			rgba[pixel + 1] = green.toByte()
 			rgba[pixel + 2] = blue.toByte()
 			rgba[pixel + 3] = 0xFF.toByte()
 		}
+
 		return DecodedImage(rgba, size, size)
 	}
 
@@ -67,7 +69,7 @@ class AtlasPageSwapRenderTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(quadPositions.copyOf(), quadUvs.copyOf(), quadIndices),
+				mesh = DrawableMesh.withLocalEqualToCanvas(quadPositions.copyOf(), quadUvs.copyOf(), quadIndices),
 				// One zero-delta keyform so the drawable is keyed; the base mesh alone drives its shape.
 				geometryGrid =
 					KeyformGrid(
@@ -75,6 +77,7 @@ class AtlasPageSwapRenderTest {
 						listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(quadPositions.size)))),
 					),
 			)
+
 		return PuppetModel(
 			parameters = listOf(Parameter(paramA, "A", -1f, 1f, 0f)),
 			parts = emptyList(),
@@ -106,6 +109,7 @@ class AtlasPageSwapRenderTest {
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
 			renderer.render(target, viewportSize, viewportSize)
+
 			return readPixels(viewportSize, viewportSize)
 		}
 
@@ -148,6 +152,7 @@ class AtlasPageSwapRenderTest {
 	private fun readPixels(width: Int, height: Int): ByteBuffer {
 		val buffer = BufferUtils.createByteBuffer(width * height * 4)
 		GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer)
+
 		return buffer
 	}
 }

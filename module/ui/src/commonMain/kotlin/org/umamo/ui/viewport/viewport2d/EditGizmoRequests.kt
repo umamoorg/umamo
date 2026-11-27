@@ -1,0 +1,158 @@
+package org.umamo.ui.viewport.viewport2d
+
+import androidx.compose.runtime.State
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.IntSize
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import org.umamo.edit.AdjustableOperation
+import org.umamo.edit.EditorSession
+import org.umamo.edit.TargetShape
+import org.umamo.edit.mesh.refusesLatticeTopology
+import org.umamo.render.ViewportCamera
+import org.umamo.ui.transform.ElementEditStage
+import org.umamo.ui.transform.runToShape
+import org.umamo.ui.viewport.GridConfig
+import org.umamo.ui.viewport.ObjectPickCandidate
+import org.umamo.ui.viewport.PuppetViewportService
+import org.umamo.ui.viewport.ViewportOverlayState
+import org.umamo.ui.viewport.gizmo.activeElementMedian
+import org.umamo.ui.viewport.gizmo.editableGeometryOrNotice
+import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
+
+/**
+ * Collects the keymap commands the Edit overlay executes for its area: Select Linked, Alt+Q switch
+ * object, Rip, the Shift+S snaps, and To Shape.  Only the area each request names runs it, checked BEFORE the
+ * empty-geometry notice so a request over nothing to edit answers once, from the asking area.
+ *
+ * Runs until its caller's effect is cancelled.  Everything that changes while it runs is read through
+ * a State holder at request time, never captured by value.
+ *
+ * @param String areaId The overlay's area.
+ * @param EditorSession session The session whose request flows to collect.
+ * @param PuppetViewportService service The render service (the Alt+Q pick).
+ * @param State<List<EditOwnerGeometry>> geometries The session owners' live geometry.
+ * @param State<ElementEditStage> stage The stage [geometries] were captured at.
+ * @param State<ViewportCamera> camera The area camera.
+ * @param State<IntSize> size The area size in pixels.
+ * @param State<Offset> areaPointer Where the pointer last was in the area, tracked by the host.
+ * @param Function onOverlapRequest Opens the overlap-picker popup for an Alt+Q over 2+ stacked candidates.
+ * @param ViewportOverlayState? overlays The area's overlay state, whose grid a grid snap rounds to and whose back-facing
+ *   dimming Select Linked picks under; null (no area state, a standalone shell) rounds to the built-in grid.
+ */
+internal suspend fun collectEditGizmoRequests(
+	areaId: String,
+	session: EditorSession,
+	service: PuppetViewportService,
+	geometries: State<List<EditOwnerGeometry>>,
+	stage: State<ElementEditStage>,
+	camera: State<ViewportCamera>,
+	size: State<IntSize>,
+	areaPointer: State<Offset>,
+	onOverlapRequest: (Offset, List<ObjectPickCandidate>) -> Unit,
+	overlays: ViewportOverlayState?,
+) {
+	coroutineScope {
+		// Select Linked (Blender's L / Ctrl+L).
+		launch {
+			session.selectLinkedRequests.collect { request ->
+				if (request.areaId != areaId) {
+					return@collect
+				}
+
+				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
+				// The flood starts where a click at the pointer would land, so it takes what faces away as the area does.
+				val pick = overlays.backFacingPick()
+				handleSelectLinkedRequest(
+					session,
+					editable.map { geometry -> geometry.gizmoFor(pick) },
+					request.fromSelection,
+					areaPointer.value,
+					camera.value,
+					size.value,
+				)
+			}
+		}
+		// Alt+Q: switch the session to the drawable under the pointer (or the overlap picker for a stack), or in
+		// Pose mode to the warp to pose there.  Needs no geometry and no camera, only the pointer, so it still works
+		// in the very state the others have to decline.
+		launch {
+			session.switchObjectRequests.collect { requestedAreaId ->
+				if (requestedAreaId != areaId) {
+					return@collect
+				}
+
+				handleSwitchEditOwnerRequest(session, service, areaId, areaPointer.value, onOverlapRequest)
+			}
+		}
+		// Rip (Blender's V): duplicate the covered vertices, re-point the pointer-side triangles, auto-grab.
+		launch {
+			session.ripRequests.collect { requestedAreaId ->
+				if (requestedAreaId != areaId) {
+					return@collect
+				}
+
+				// A lattice's points are fixed in number: rip refuses before it looks for anything to rip.
+				if (session.refusesLatticeTopology(session.meshSelection.value)) {
+					return@collect
+				}
+
+				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
+				handleRipRequest(session, editable.filterIsInstance<EditMeshGeometry>(), areaId, areaPointer.value, camera.value, size.value)
+			}
+		}
+		// The geometry-dependent Shift+S snaps for Edit and Pose mode.  Only the pointer's own area executes: every
+		// open 2D viewport composes this collector, and an ungated request would commit once per viewport.
+		// The handler ignores the area - a snap acts on the model - so the payload's id is purely the election.
+		launch {
+			session.snapRequests.collect { request ->
+				if (request.areaId != areaId) {
+					return@collect
+				}
+
+				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
+				handleEditSnapRequest(session, editable, stage.value, request.kind, (overlays?.grid ?: GridConfig()).snapStep)
+			}
+		}
+		// To Shape over the selected points, gated like the snaps so exactly one viewport commits it; this area's
+		// operation strip then carries the rows that switch the shape after the fact.
+		launch {
+			session.toShapeRequests.collect { request ->
+				if (request.areaId != areaId) {
+					return@collect
+				}
+
+				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
+				handleToShapeRequest(session, editable, stage.value, request.shape, areaId)
+			}
+		}
+	}
+}
+
+/**
+ * Runs a To Shape over [geometries] ([runToShape]), handing it the overlay's owners as plain world geometry, their
+ * topologies, and the active element's own median.
+ *
+ * @param EditorSession session The session owning the selection and the commits.
+ * @param List<EditOwnerGeometry> geometries The session owners' live geometry.
+ * @param ElementEditStage stage Where [geometries] were captured.
+ * @param TargetShape shape The surface the command named.
+ * @param String areaId The viewport that executes, where the strip shows.
+ * @return AdjustableOperation? The registered record, or null when nothing was recorded.
+ */
+internal fun handleToShapeRequest(
+	session: EditorSession,
+	geometries: List<EditOwnerGeometry>,
+	stage: ElementEditStage,
+	shape: TargetShape,
+	areaId: String,
+): AdjustableOperation? =
+	runToShape(
+		session,
+		geometries.map { geometry -> geometry.worldGeometry },
+		geometries.associate { geometry -> geometry.owner to geometry.topology },
+		activeElementMedian(session.meshSelection.value, geometries.map { geometry -> geometry.gizmo }),
+		stage,
+		shape,
+		areaId,
+	)

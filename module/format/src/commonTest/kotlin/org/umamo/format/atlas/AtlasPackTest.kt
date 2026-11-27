@@ -1,6 +1,7 @@
 package org.umamo.format.atlas
 
 import org.umamo.format.art.analyzeAlpha
+import kotlin.math.PI
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -39,6 +40,7 @@ class AtlasPackTest {
 		val xs = FloatArray(4)
 		val ys = FloatArray(4)
 		var cornerIndex = 0
+
 		for (cornerX in listOf(0f, width.toFloat())) {
 			for (cornerY in listOf(0f, height.toFloat())) {
 				xs[cornerIndex] = affine[0] * cornerX + affine[1] * cornerY + affine[2]
@@ -46,6 +48,7 @@ class AtlasPackTest {
 				cornerIndex++
 			}
 		}
+
 		return floatArrayOf(xs.min(), ys.min(), xs.max(), ys.max())
 	}
 
@@ -86,11 +89,13 @@ class AtlasPackTest {
 			(result.placements.map { placement -> placement.key } + result.fixed.map { kept -> kept.key } + result.skipped.map { skip -> skip.key }).sorted(),
 			"placements, fixed, and skipped partition the input",
 		)
+
 		for (tileY in 0 until 6) {
 			for (tileX in 0 until 6) {
 				assertEquals(itemPixel(kept, tileX, tileY), pagePixel(result.pages[0], 10 + tileX, 10 + tileY), "kept pixel ($tileX, $tileY) sits at its affine spot verbatim")
 			}
 		}
+
 		assertTilesRoundTripByteExact(items, result)
 		assertFreeTilesClearOf(result, 0, floatArrayOf(10f, 10f, 16f, 16f), gutter = 2)
 		assertTrue(result.pageOccupancy(0) > 0f)
@@ -100,7 +105,7 @@ class AtlasPackTest {
 	fun aFixedRotatedTileKeepsTheFreeTilesClearOfItsBox() {
 		// A 30 degree turn at 0.75 scale about the tile origin, moved to (20, 6): the box the packer must
 		// keep clear is the box of the turned corners, not the upright rect.
-		val radians = 30.0 * kotlin.math.PI / 180.0
+		val radians = 30.0 * PI / 180.0
 		val cosine = (kotlin.math.cos(radians) * 0.75).toFloat()
 		val sine = (kotlin.math.sin(radians) * 0.75).toFloat()
 		val affine = floatArrayOf(cosine, -sine, 20f, sine, cosine, 6f)
@@ -162,13 +167,33 @@ class AtlasPackTest {
 	}
 
 	@Test
-	fun aFixedTileWithNothingOpaqueIsSkippedLikeAnyOther() {
-		val empty = AtlasPackItem("empty", 3, 3, ByteArray(3 * 3 * 4), fixed = AtlasPackFixed(0, floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f)))
+	fun aFixedTileWithNothingOpaqueIsKeptAndHoldsItsSpot() {
+		// A transparent tile held at (10, 10): kept where it is, painting nothing, its whole raster (no
+		// reserve given) still keeping the free tiles off the spot its drawables sample.
+		val empty = AtlasPackItem("empty", 8, 8, ByteArray(8 * 8 * 4), fixed = AtlasPackFixed(0, floatArrayOf(1f, 0f, 10f, 0f, 1f, 10f)))
+		val items = listOf(empty) + (0 until 5).map { tileIndex -> opaquePackItem("free$tileIndex", 6, 6) }
 
-		val result = packAtlas(listOf(empty, opaquePackItem("free", 4, 4)), AtlasPackOptions(maxPageSize = 32))
+		val result = packAtlas(items, AtlasPackOptions(maxPageSize = 32, gutter = 2, extrude = 1))
 
-		assertEquals(listOf(AtlasPackSkip("empty", AtlasPackSkipReason.NoOpaquePixels)), result.skipped)
-		assertTrue(result.fixed.isEmpty())
+		assertTrue(result.skipped.isEmpty(), "nothing is left out: ${result.skipped}")
+		val kept = result.fixed.single()
+		assertEquals("empty", kept.key)
+		assertEquals(listOf(0, 0, 0, 0), listOf(kept.trimLeft, kept.trimTop, kept.trimWidth, kept.trimHeight), "it painted nothing")
+		assertEquals(5, result.placements.size)
+		assertFreeTilesClearOf(result, 0, floatArrayOf(10f, 10f, 18f, 18f), gutter = 2)
+	}
+
+	@Test
+	fun aFixedTileWithNothingOpaqueHoldsItsReserve() {
+		// A transparent 4 px tile whose meshes reach 6 px past it on the right: the reach, not the raster,
+		// is the spot to hold.
+		val empty = AtlasPackItem("empty", 4, 4, ByteArray(4 * 4 * 4), reserve = AtlasPackReserve(0, 0, 10, 4), fixed = AtlasPackFixed(0, floatArrayOf(1f, 0f, 4f, 0f, 1f, 4f)))
+		val items = listOf(empty) + (0 until 4).map { tileIndex -> opaquePackItem("free$tileIndex", 5, 5) }
+
+		val result = packAtlas(items, AtlasPackOptions(maxPageSize = 32, gutter = 1, extrude = 1))
+
+		assertEquals("empty", result.fixed.single().key)
+		assertFreeTilesClearOf(result, 0, floatArrayOf(4f, 4f, 14f, 8f), gutter = 1)
 	}
 
 	@Test
@@ -243,6 +268,7 @@ class AtlasPackTest {
 			)
 
 		assertEquals(result.pages.size, composed.size)
+
 		for (pageIndex in result.pages.indices) {
 			assertContentEquals(result.pages[pageIndex].rgba, composed[pageIndex].rgba, "page $pageIndex pixels")
 		}
@@ -362,21 +388,26 @@ class AtlasPackTest {
 	}
 
 	@Test
-	fun extrusionReplicatesTheTileEdgeAndNothingElse() {
+	fun extrusionBleedsTheEdgeColorAtZeroAlphaAndAddsNoCoverage() {
 		val item = opaquePackItem("a", 3, 2)
 
 		val result = packAtlas(listOf(item), AtlasPackOptions(maxPageSize = 64, gutter = 2, extrude = 2))
 
 		val placement = result.placements.single()
 		val page = result.pages.single()
+
 		for (rowOffset in -2 until placement.trimHeight + 2) {
 			for (columnOffset in -2 until placement.trimWidth + 2) {
 				val clampedColumn = columnOffset.coerceIn(0, placement.trimWidth - 1)
 				val clampedRow = rowOffset.coerceIn(0, placement.trimHeight - 1)
+				val edge = itemPixel(item, placement.trimLeft + clampedColumn, placement.trimTop + clampedRow)
+				val inside = columnOffset == clampedColumn && rowOffset == clampedRow
+				// The tile's own pixels verbatim; the band carries the nearest edge's color with no alpha, so the
+				// page past the art stays as transparent as the layer is there.
 				assertEquals(
-					itemPixel(item, placement.trimLeft + clampedColumn, placement.trimTop + clampedRow),
+					if (inside) edge else edge and 0xFF.inv(),
 					pagePixel(page, placement.pageX + columnOffset, placement.pageY + rowOffset),
-					"extruded pixel ($columnOffset, $rowOffset)",
+					if (inside) "tile pixel ($columnOffset, $rowOffset)" else "bled pixel ($columnOffset, $rowOffset)",
 				)
 			}
 		}
@@ -390,6 +421,7 @@ class AtlasPackTest {
 
 		for ((pageIndex, page) in result.pages.withIndex()) {
 			val covered = HashSet<Int>()
+
 			for (placement in result.placements.filter { placement -> placement.pageIndex == pageIndex }) {
 				for (tileY in 0 until placement.pageHeight) {
 					for (tileX in 0 until placement.pageWidth) {
@@ -397,10 +429,12 @@ class AtlasPackTest {
 					}
 				}
 			}
+
 			for (pixelIndex in 0 until page.width * page.height) {
 				if (pixelIndex in covered) {
 					continue
 				}
+
 				assertEquals(0, pagePixel(page, pixelIndex % page.width, pixelIndex / page.width), "pixel $pixelIndex")
 			}
 		}
@@ -528,6 +562,7 @@ class AtlasPackTest {
 			reversed.placements.sortedBy { placement -> placement.key },
 		)
 		assertEquals(forward.pages.size, reversed.pages.size)
+
 		for (pageIndex in forward.pages.indices) {
 			assertContentEquals(forward.pages[pageIndex].rgba, reversed.pages[pageIndex].rgba, "page $pageIndex pixels")
 		}
