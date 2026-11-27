@@ -56,6 +56,28 @@ class TransformAdjustTest {
 		}
 	}
 
+	/** A Grab of points that carry depth adds its Move Depth row after the two components, and the row reads back. */
+	@Test
+	fun aGrabInDepthAddsItsMoveDepthRowAndRoundTrips() {
+		val gesture = TransformGestureParameters(12f, 5f, 1f, 1f, 0f, deltaDepth = -30f)
+
+		val plain = transformParameters(MeshOperatorKind.Grab, gesture, TransformRowSpace.World, proportional = null)
+		assertEquals(listOf(TransformParameterKeys.MOVE_X, TransformParameterKeys.MOVE_Z), plain.map { row -> row.key }, "a mesh's Grab has no depth row")
+		assertEquals(0f, transformGestureParametersOf(MeshOperatorKind.Grab, TransformRowSpace.World, plain).deltaDepth, "a missing row reads as no move in depth")
+
+		val rows = transformParameters(MeshOperatorKind.Grab, gesture, TransformRowSpace.World, proportional = null, movesInDepth = true)
+		assertEquals(listOf(TransformParameterKeys.MOVE_X, TransformParameterKeys.MOVE_Z, TransformParameterKeys.MOVE_DEPTH), rows.map { row -> row.key })
+		assertEquals(-30f, rows.float(TransformParameterKeys.MOVE_DEPTH))
+
+		val back = transformGestureParametersOf(MeshOperatorKind.Grab, TransformRowSpace.World, rows)
+		assertEquals(12f, back.deltaX)
+		assertEquals(5f, back.deltaY)
+		assertEquals(-30f, back.deltaDepth, "the depth round-trips")
+
+		val rotateRows = transformParameters(MeshOperatorKind.Rotate, gesture, TransformRowSpace.World, proportional = null, movesInDepth = true)
+		assertEquals(listOf(TransformParameterKeys.ANGLE), rotateRows.map { row -> row.key }, "only a Grab reads the flag")
+	}
+
 	@Test
 	fun rotateRowsFlipTheirSenseWithThePage() {
 		val gesture = parameters(rotation = (PI / 2).toFloat())

@@ -1,6 +1,7 @@
 package org.umamo.render.gl
 
 import org.umamo.format.raster.RasterImage
+import org.umamo.render.FrameOverlays
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
@@ -16,16 +17,19 @@ import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.render.puppet.OVERLAY_FLAG_ACTIVE
+import org.umamo.render.puppet.OVERLAY_FLAG_BACK
 import org.umamo.render.puppet.OverlayColor
 import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.render.puppet.latticeRigModel
 import org.umamo.runtime.model.ElementOwner
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Pins the 2D viewport's direct Edit cage on the pixels: a lattice cell fills whole, its one face dot sits at the
- * cell's center, and that center - an anchor vertex past the lattice's own points - draws no vertex dot.
+ * cell's center and draws once, and that center - an anchor vertex past the lattice's own points - draws no vertex
+ * dot.
  *
  * A square 1 x 1 cage over world x and z -30..30, behind a 1:1 camera centered on the origin of a 128-pixel frame,
  * so world (x, z) lands at column 64 + x and row 64 - z: the corners at columns and rows 34 and 94, the center at
@@ -41,13 +45,15 @@ class EditDirectCageRenderTest {
 	private val owner: ElementOwner = ElementOwner.Deformer(LATTICE_RIG_OUTER)
 
 	/**
-	 * The cage, its cell active (and so filled) or idle, in [selectMode].
+	 * The cage, its cell active (and so filled) or idle and facing the viewer or away, in [selectMode].
 	 *
 	 * @param MeshOverlaySelectMode selectMode The select mode.
 	 * @param Boolean cellActive Whether the cell is the active one.
+	 * @param Boolean cellBack Whether the cell faces away.
 	 * @return DirectMeshOverlay The cage.
 	 */
-	private fun cage(selectMode: MeshOverlaySelectMode, cellActive: Boolean): DirectMeshOverlay {
+	private fun cage(selectMode: MeshOverlaySelectMode, cellActive: Boolean, cellBack: Boolean = false): DirectMeshOverlay {
+		val cellFlag = ((if (cellActive) OVERLAY_FLAG_ACTIVE.toInt() else 0) or (if (cellBack) OVERLAY_FLAG_BACK.toInt() else 0)).toByte()
 		val mesh =
 			MeshOverlayMesh(
 				owner = owner,
@@ -55,12 +61,13 @@ class EditDirectCageRenderTest {
 				edgeEndpoints = intArrayOf(0, 1, 2, 3, 0, 2, 1, 3),
 				vertexFlags = ByteArray(5),
 				edgeFlags = ByteArray(4),
-				faceFlags = if (cellActive) byteArrayOf(OVERLAY_FLAG_ACTIVE, OVERLAY_FLAG_ACTIVE) else ByteArray(2),
+				faceFlags = byteArrayOf(cellFlag, cellFlag),
 				activeVertex = null,
 				activeEdge = null,
 				activeFace = if (cellActive) 0 else null,
 				faceDotCorners = intArrayOf(4, 4, 4, 4, 4, 4),
 				vertexDotCount = 4,
+				trianglesPerFaceDot = 2,
 			)
 		val positions = floatArrayOf(-30f, 30f, 30f, 30f, -30f, -30f, 30f, -30f, 0f, 0f)
 
@@ -78,6 +85,20 @@ class EditDirectCageRenderTest {
 		assertEquals(listOf(0, 255, 0, 255), frame.at(84, 44), "one triangle of the cell fills")
 		assertEquals(listOf(0, 255, 0, 255), frame.at(44, 84), "and so does the other")
 		assertEquals(listOf(0, 0, 255, 255), frame.at(64, 64), "the cell's one dot, active, at its center")
+	}
+
+	@Test
+	fun aBackFacingCellsDotDrawsOnceAtTheFramesOpacity() {
+		requireHeadlessGl("[edit-cage-render]")
+		// A clear idle face color fills nothing, while the dot, drawn opaque, takes the frame's back alpha alone: one
+		// dot over the black grid lands at half green, where two stacked would land at three quarters.
+		val live = LiveCageRenderer(faceIdle = OverlayColor(0f, 1f, 0f, 0f))
+		live.renderer.setEditDirectOverlay(cage(MeshOverlaySelectMode.Face, cellActive = false, cellBack = true))
+
+		val frame = live.render(FrameOverlays(backFacingOpacity = 0.5f))
+
+		val green = frame.at(64, 64)[1]
+		assertTrue(green in 124..131, "the cell's one dot at half alpha, got green $green")
 	}
 
 	@Test
@@ -106,8 +127,12 @@ class EditDirectCageRenderTest {
 		return (0 until 4).map { channelIndex -> rgba[offset + channelIndex].toInt() and 0xFF }
 	}
 
-	/** A GL renderer over the lattice rig at rest, over a black grid, with opaque cage colors. */
-	private inner class LiveCageRenderer {
+	/**
+	 * A GL renderer over the lattice rig at rest, over a black grid, with opaque cage colors.
+	 *
+	 * @param OverlayColor faceIdle The idle face color, its alpha the idle fill's.
+	 */
+	private inner class LiveCageRenderer(faceIdle: OverlayColor = green) {
 		private val device = GlRenderDevice()
 		val renderer = PuppetRenderer(latticeRigModel(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 		private val target: RenderTarget
@@ -121,7 +146,7 @@ class EditDirectCageRenderTest {
 					vertexIdle = red,
 					vertexSelected = red,
 					vertexActive = red,
-					faceIdle = green,
+					faceIdle = faceIdle,
 					faceSelected = green,
 					faceActive = blue,
 				),
@@ -133,10 +158,11 @@ class EditDirectCageRenderTest {
 		/**
 		 * Renders one frame and reads it back.
 		 *
+		 * @param FrameOverlays overlays The frame's overlay options.
 		 * @return RasterImage The frame, top row first.
 		 */
-		fun render(): RasterImage {
-			renderer.render(target, viewportSize, viewportSize)
+		fun render(overlays: FrameOverlays = FrameOverlays()): RasterImage {
+			renderer.render(target, viewportSize, viewportSize, overlays = overlays)
 
 			return device.readPixels(target)
 		}

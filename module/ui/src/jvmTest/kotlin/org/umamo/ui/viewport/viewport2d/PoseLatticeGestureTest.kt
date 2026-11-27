@@ -35,7 +35,8 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.KeyformTrackRef
-import org.umamo.ui.transform.WorldAxis
+import org.umamo.runtime.model.valuesFor
+import org.umamo.ui.transform.MedianCoordinate
 import org.umamo.ui.transform.coveredMedianMove
 import org.umamo.ui.transform.elementEditStageOf
 import org.umamo.ui.transform.moveCoveredMedianAdjustable
@@ -53,6 +54,7 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -379,6 +381,32 @@ class PoseLatticeGestureTest {
 			assertEquals(0f, landed[1], 1e-3f, "and stayed on it")
 		}
 
+	/** A posed Grab's strip carries Move Depth, which reruns the Grab with the points pushed into the screen. */
+	@Test
+	fun aPosedGrabsMoveDepthRowPushesThePointsIntoTheScreen() =
+		runComposeUiTest {
+			val fixture = mountGizmoOverlays(poseSession(points = setOf(3), active = 3))
+			val session = fixture.session
+			moveIn(LEFT_AREA, listOf(gestureStart))
+
+			session.beginMeshOperator(MeshOperatorKind.Grab, LEFT_AREA)
+			waitForIdle()
+			moveIn(LEFT_AREA, listOf(tenUnitsRight))
+			assertNotNull(fixture.livePreview.latticeDepthByDeformer?.get(LATTICE_RIG_BODY), "the live preview carries the drag's depth")
+			clickIn(LEFT_AREA, tenUnitsRight)
+
+			val record = assertNotNull(session.adjustableOperation.value)
+			val depthRow = record.parameters.first { parameter -> parameter.key == TransformParameterKeys.MOVE_DEPTH } as OperatorParameter.FloatParameter
+			assertEquals(0f, depthRow.value, "the drag moved nothing in depth")
+			session.adjustLastOperation(record.parameters.withParameter(TransformParameterKeys.MOVE_DEPTH, depthRow.copy(value = 12f)), adjustedKey = TransformParameterKeys.MOVE_DEPTH)
+
+			val pending = assertNotNull(session.pendingLatticeEdits.value[LATTICE_RIG_BODY])
+			assertContentEquals(floatArrayOf(0f, 0f, 0f, 12f), pending.depth.valuesFor(4), "the moved point sits 12 deep")
+			val landed = posedWorld(session, LATTICE_RIG_BODY)
+			assertEquals(50f, landed[6], 1e-3f, "and stays where it was dragged")
+			assertEquals(-40f, landed[7], 1e-3f)
+		}
+
 	@Test
 	fun aTypedMedianHoldsThePointsPending() =
 		runComposeUiTest {
@@ -392,7 +420,7 @@ class PoseLatticeGestureTest {
 					coveredMedianMove(session.meshSelection.value, owners.map { geometry -> geometry.worldGeometry }, owners.associate { geometry -> geometry.owner to geometry.topology }, stage),
 				)
 
-			session.moveCoveredMedianAdjustable(move, WorldAxis.X, 50f, LEFT_AREA)
+			session.moveCoveredMedianAdjustable(move, MedianCoordinate.X, 50f, LEFT_AREA)
 
 			assertEquals("change.pose.move", session.historyView.value.steps.last().labelKey)
 			assertSame(modelBefore, session.model.value, "a posed median holds pending rather than writing the document")

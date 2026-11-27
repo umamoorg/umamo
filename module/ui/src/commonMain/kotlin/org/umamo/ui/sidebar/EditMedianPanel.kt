@@ -1,17 +1,23 @@
 package org.umamo.ui.sidebar
 
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.MeshSelection
+import org.umamo.ui.kit.StackPosition
 import org.umamo.ui.kit.Text
+import org.umamo.ui.kit.field.NumberField
+import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.model.PuppetRenderSync
 import org.umamo.ui.properties.MutedNote
+import org.umamo.ui.properties.UNBOUNDED_RANGE
 import org.umamo.ui.properties.WorldPositionFields
 import org.umamo.ui.properties.rememberFieldScrubPreview
 import org.umamo.ui.resources.*
@@ -19,10 +25,12 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.transform.CoveredMedianMove
 import org.umamo.ui.transform.ElementEditStage
+import org.umamo.ui.transform.MedianCoordinate
 import org.umamo.ui.transform.MeshDriveResult
 import org.umamo.ui.transform.coveredMedian
 import org.umamo.ui.transform.coveredMedianMove
 import org.umamo.ui.transform.coveredVerticesOf
+import org.umamo.ui.transform.medianCoordinate
 import org.umamo.ui.transform.moveCoveredMedianAdjustable
 import org.umamo.ui.transform.previewCoveredMedianMove
 import org.umamo.ui.transform.rememberElementEditStage
@@ -80,7 +88,7 @@ private class LatticeScrubPreview(
 	fun preview(result: MeshDriveResult) {
 		val preview = livePreview ?: return
 		previewing = true
-		preview.showLattices(result.latticeWorld, result.latticeForms)
+		preview.showLattices(result.latticeWorld, result.latticeForms, result.latticeDepth)
 
 		if (result.latticeForms.isNotEmpty()) {
 			posed = true
@@ -105,10 +113,7 @@ private class LatticeScrubPreview(
 }
 
 /**
- * The Item tab's Transform panel in Edit and Pose mode: the mean of the covered vertices across every mesh or lattice
- * in the edit, measured from the world axes.  A typed or scrubbed value moves them all together as a Grab would, one
- * undo step the operation strip can adjust.  The geometry is captured once per commit, and only while the panel is
- * composed.
+ * The Item tab's Transform panel in Edit and Pose mode that displays mean values of vertices for meshes and lattices.
  *
  * @param SidebarContext context The sidebar's context.
  */
@@ -127,13 +132,16 @@ internal fun EditMedianPanel(context: SidebarContext) {
 				capture.associate { geometry -> geometry.owner to geometry.topology },
 			)
 		}
+
 	// Snapshot reads, so a running transform recomposes the panel with each frame it publishes.
 	val livePreview = LocalLiveMeshPreview.current
 	val live = livePreview?.restByDrawable
 	val liveLattices = livePreview?.latticeWorldByDeformer
-	val median = remember(covered, live, liveLattices) { coveredMedian(covered, live.orEmpty(), liveLattices.orEmpty()) }
+	val liveDepths = livePreview?.latticeDepthByDeformer
+	val median = remember(covered, live, liveLattices, liveDepths) { coveredMedian(covered, live.orEmpty(), liveLattices.orEmpty(), liveDepths.orEmpty()) }
 	val renderSync = rememberUpdatedState(LocalPuppetRenderSync.current)
 	val latticeScrub = remember(livePreview) { LatticeScrubPreview(livePreview) { renderSync.value } }
+
 	DisposableEffect(latticeScrub) {
 		onDispose {
 			latticeScrub.end()
@@ -149,37 +157,68 @@ internal fun EditMedianPanel(context: SidebarContext) {
 	val writes = remember(capture, selection, stage) { MedianWrites(selection, capture, stage) }
 	val scrub = rememberFieldScrubPreview(enabled = true)
 	val areaId = context.areaId
+
+	// A typed value, a chevron step, or a scrub's release puts the median's coordinate there.
+	val commit = { coordinate: MedianCoordinate, worldValue: Float ->
+		scrub.commit { writes.move()?.let { move -> session.moveCoveredMedianAdjustable(move, coordinate, worldValue, areaId) } }
+		latticeScrub.end()
+	}
+
+	// A lattice's frame moves the cage (and, at the pose, the art through the pending forms); a mesh's rides the
+	// renderer's model preview.
+	val preview = { coordinate: MedianCoordinate, worldValue: Float ->
+		val previewed = writes.move()?.let { move -> session.previewCoveredMedianMove(move, coordinate, worldValue) }
+
+		if (previewed != null && previewed.latticeWorld.isNotEmpty()) {
+			latticeScrub.preview(previewed)
+		} else {
+			latticeScrub.end()
+			scrub.preview(previewed?.folded)
+		}
+	}
+
+	val cancel = {
+		scrub.end()
+		latticeScrub.end()
+	}
+
+	val depth = median.depth
+	// Only a lattice's points carry depth, measured from the art plane rather than the world axes.
+	val depthRows: List<@Composable (StackPosition) -> Unit> =
+		if (depth == null) {
+			emptyList()
+		} else {
+			listOf { position ->
+				PropertyFieldRow(stringResource(Res.string.properties_field_depth), description = stringResource(Res.string.sidebar_median_depth_description)) {
+					NumberField(
+						value = depth,
+						onValueChange = { newDepth -> commit(MedianCoordinate.Depth, newDepth) },
+						onPreview = { newDepth -> preview(MedianCoordinate.Depth, newDepth) },
+						onScrubCancel = cancel,
+						modifier = Modifier.fillMaxWidth(),
+						range = UNBOUNDED_RANGE,
+						decimals = 1,
+						stackPosition = position,
+					)
+				}
+			}
+		}
+
 	Text(
 		text = stringResource(if (median.vertexCount == 1) Res.string.sidebar_edit_vertex else Res.string.sidebar_edit_median),
 		style = LocalUmamoTypography.current.labelMedium,
 		color = LocalUmamoColors.current.text,
 	)
+
 	WorldPositionFields(
 		puppet = puppet,
 		worldX = median.worldX,
 		worldZ = median.worldZ,
 		xDescription = Res.string.sidebar_median_x_description,
 		zDescription = Res.string.sidebar_median_z_description,
-		// A typed value, a chevron step, or a scrub's release puts the median's axis coordinate there.
-		onCommit = { axis, worldValue ->
-			scrub.commit { writes.move()?.let { move -> session.moveCoveredMedianAdjustable(move, axis, worldValue, areaId) } }
-			latticeScrub.end()
-		},
-		// A lattice's frame moves the cage (and, at the pose, the art through the pending forms); a mesh's rides the
-		// renderer's model preview.
-		onPreview = { axis, worldValue ->
-			val previewed = writes.move()?.let { move -> session.previewCoveredMedianMove(move, axis, worldValue) }
-
-			if (previewed != null && previewed.latticeWorld.isNotEmpty()) {
-				latticeScrub.preview(previewed)
-			} else {
-				latticeScrub.end()
-				scrub.preview(previewed?.folded)
-			}
-		},
-		onScrubCancel = {
-			scrub.end()
-			latticeScrub.end()
-		},
+		onCommit = { axis, worldValue -> commit(axis.medianCoordinate, worldValue) },
+		onPreview = { axis, worldValue -> preview(axis.medianCoordinate, worldValue) },
+		onScrubCancel = cancel,
+		extraRows = depthRows,
 	)
 }

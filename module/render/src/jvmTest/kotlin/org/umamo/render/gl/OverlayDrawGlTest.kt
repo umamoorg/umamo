@@ -22,6 +22,9 @@ import org.umamo.render.device.RenderTargetSpec
 import org.umamo.render.device.TextureFilter
 import org.umamo.render.device.TextureFormat
 import org.umamo.render.device.WorldToNdc
+import org.umamo.render.puppet.OVERLAY_FLAG_ACTIVE
+import org.umamo.render.puppet.OVERLAY_FLAG_BACK
+import org.umamo.render.puppet.OVERLAY_FLAG_SELECTED
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -79,6 +82,28 @@ class OverlayDrawGlTest {
 		assertEquals(listOf(128, 0, 0, 255), half.at(12, 52).toList(), "a half-alpha color lands premultiplied over the opaque clear")
 		val active = rig.render { pass -> rig.drawVertexDots(pass, idle = red, activeVertex = 2) }
 		assertEquals(listOf(0, 0, 255, 255), active.at(12, 52).toList(), "the active draw paints the one vertex in the active color")
+		rig.dispose()
+	}
+
+	/**
+	 * A primitive whose flag carries the back-facing bit keeps its role's color at the back alpha, a facing one draws
+	 * whole, and an instance flagged active and back-facing is still left to the active draw.
+	 */
+	@Test
+	fun aBackFacingPrimitiveDrawsAtTheBackAlphaInItsRolesColor() {
+		val rig = rig()
+		val selectedBack = (OVERLAY_FLAG_SELECTED.toInt() or OVERLAY_FLAG_BACK.toInt()).toByte()
+		val activeBack = (OVERLAY_FLAG_ACTIVE.toInt() or OVERLAY_FLAG_BACK.toInt()).toByte()
+		rig.device.updateOverlayMeshFlags(rig.buffers, byteArrayOf(OVERLAY_FLAG_BACK, selectedBack, 0), byteArrayOf(activeBack, 0), ByteArray(1))
+
+		val dots = rig.render { pass -> rig.drawVertexDots(pass, idle = red, activeVertex = null, backAlpha = 0.5f) }
+		// The capture negates mesh y, so vertex 0 lands at the top left, vertex 1 at the top right, vertex 2 below.
+		assertEquals(listOf(128, 0, 0, 255), dots.at(12, 12).toList(), "a back-facing idle dot draws in the idle color at half alpha")
+		assertEquals(listOf(0, 128, 0, 255), dots.at(52, 12).toList(), "a back-facing selected dot keeps the selected color")
+		assertEquals(listOf(255, 0, 0, 255), dots.at(12, 52).toList(), "a dot facing the viewer draws whole")
+
+		val edges = rig.render { pass -> rig.drawEdges(pass, activeEdge = null) }
+		assertEquals(black.toList(), edges.at(32, 12).toList(), "an active instance that faces away is still left to the active draw")
 		rig.dispose()
 	}
 
@@ -241,6 +266,7 @@ class OverlayDrawGlTest {
 		 * @param Int? activeVertex The active vertex, or null for the batch alone.
 		 * @param DeformedPositionStore positions The store the positions are read from.
 		 * @param Int baseOffset The triangle's first vertex in that store.
+		 * @param Float backAlpha What a back-facing dot's alpha is multiplied by.
 		 */
 		fun drawVertexDots(
 			pass: RenderPassEncoder,
@@ -248,9 +274,10 @@ class OverlayDrawGlTest {
 			activeVertex: Int?,
 			positions: DeformedPositionStore = store,
 			baseOffset: Int = 0,
+			backAlpha: Float = 1f,
 		) {
 			bind(pass, PipelinePurpose.OverlayVertexDot)
-			fill(sizePx = 4f, fillIdle = true, idle = idle, active = null, baseOffset = baseOffset)
+			fill(sizePx = 4f, fillIdle = true, idle = idle, active = null, baseOffset = baseOffset, backAlpha = backAlpha)
 			pass.drawOverlayVertexDots(buffers, positions, uniforms)
 
 			if (activeVertex != null) {
@@ -299,9 +326,11 @@ class OverlayDrawGlTest {
 		 * @param FloatArray idle The idle color.
 		 * @param IntArray? active The active primitive's indices for an active draw, or null for a batch.
 		 * @param Int baseOffset The mesh's first vertex in the store.
+		 * @param Float backAlpha What a back-facing primitive's alpha is multiplied by.
 		 */
-		private fun fill(sizePx: Float, fillIdle: Boolean, idle: FloatArray, active: IntArray?, baseOffset: Int = 0) {
+		private fun fill(sizePx: Float, fillIdle: Boolean, idle: FloatArray, active: IntArray?, baseOffset: Int = 0, backAlpha: Float = 1f) {
 			uniforms.baseOffset = baseOffset
+			uniforms.backAlpha = backAlpha
 			uniforms.viewportWidth = viewportSize.toFloat()
 			uniforms.viewportHeight = viewportSize.toFloat()
 			uniforms.sizePx = sizePx

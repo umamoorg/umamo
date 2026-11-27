@@ -13,7 +13,7 @@
 
 ## 0.6.0 Goals - Late December, Early January
 0.) Merge in the existing language translations.(Some were merged.)
-1.) Finish 3D Depth Rotation and Merge
+1.) Finish 3D Depth Rotation and Merge (Almost done, needs review.)
 2.) Fix Platform Bugs - Linux and MacOS (Partially done.)
 3.) Proper Bone and Skeleton System
 4.) Rotation Deformer Gizmos and Editing
@@ -21,8 +21,9 @@
 ~~6.) Lint - Prefer multiline argument rule.~~
 
 ## 0.7.0 Goals - January
-5.) Glue Gizmos and Editing - Part of all of this may end up happening with "Proper Bone and Skeleton System" in 0.6.0.
-6.) Modifiers - Generate -> Mirror - This will also seed being able to mirror things along with other potential modifiers.
+1.) Glue Gizmos and Editing - Part of all of this may end up happening with "Proper Bone and Skeleton System" in 0.6.0.
+2.) Modifiers - Generate -> Mirror - This will also seed being able to mirror things along with other potential modifiers.
+3.) Copy Paste System
 
 ### 0.8.0 Goals - February
 1.) (Tentative) Brush/Tool Backend Machinery.  See: https://github.com/umamoorg/umamo/pull/376
@@ -48,6 +49,9 @@
 * Hire artist to make the DMG background art.
 	* Chibi Tamamo carrying the icon to the application folder.
 
+## Colors
+* Change viewport.deformer.latticePending to not be so close to the selection orange.
+
 ## Documentation
 * Add a note somewhere in the repository and the web site asking game developers to please credit Umamo in the game credits if they used it as part of the development.
 
@@ -71,12 +75,7 @@
 * Automatic visual matching of imported artwork layers to layers cut from a texture atlas after a MOC3 to CMO3 conversion.
 
 ## Puppet Model, CMO3, MOC3
-* Parameter Repeat
 * Glue
-* CMO3
-	* ACParameterControllableSource.isVisible was wired up so now the outliner needs this toggle as well.  Deformer editing is not implemented yet so this is minor.
-* MOC3
-	* Reconcile isVisible/isEnabled from MOC3 for deformers.  Maybe for CMO3 too.
 
 ## Deleted References (Unused Data)
 * Add a Blender like unused data to inspect and clean up dead references.
@@ -103,8 +102,7 @@
 
 ## Tools, Shortcuts, and Gizmos
 * Improvements
-	* ALT+H (Unhide All) and SHIFT+H (Hide everything that is not selected.)
-* New Icons (For myself to get/make.)
+	* New Icons (For myself to get/make.)
 	* Replace magnet from the cursor/selection menu.
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.
 * Toolbar - Needs a pull tab.
@@ -115,6 +113,9 @@
 * Command to reset to default.
 * I encountered an issue when working on the 3D barrel demonstration.  After I keyed off the default warp pose I had no way to reset it back to default and with it bent in a circle that would be a pain in the ass to fix manually.
 * CMO3/MOC3 import - Mint the default form from the default pose.  This won't be accurate since some poses will be off default, but the escape hatch is the command to set the default form.
+
+## Mesh Generation
+* Possibly rip out a lot of the dumb bullshit that I did or make better presets.  I want nice triangulated quads across simple surfaces.
 
 ## Overlay Toggles
 * When entering pose or edit mode with both a mesh and deformer selected it shows only the type of the active selection.  Having the other types show as a wireframe by default would be useful for visual inspection.
@@ -152,6 +153,9 @@
 * Improvements
 	* Hold CTRL to enable snapping for rotation and grid placement.
 
+## Keyform Sheet
+* Copy and paste keys.(Needs the entire copy and paste system to back it first.)
+
 ## Pie Menu
 * Restore the cardinal(number pad) layout of the pie menu number and make it a user interface setting.  Sequential and Cardinal.
 
@@ -164,7 +168,6 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 	* Do another pass on the keyed parameter/property highlight colors.  Why does off key filled color appear as grey over green?
 * Single/multiple relation pickers.
 	* Improvements
-		* Persist list height.(Stored in UMA format, maybe?)
 		* Change icon on picker to an eyedropper.
 
 ## Parameters
@@ -234,9 +237,6 @@ See format planning document: docs/plan/uma-format.md
 	* Auto Key Enable/Disable - This is for migrators from Cubism since Cubism automatically keys.
 * New Settings
 	* Setting to make Left Click, instead of ALT+Left Click, the default to activate the popup overlap picker.
-* Keybindings Design
-	* Group by category in collapsible sections.
-	* Search by name or binding.  Like when searching in the Properties panel, matches force collapsed sections to appear.
 
 ## Keybindings
 * Audit default keybinding maps for Blender and Cubism styles.

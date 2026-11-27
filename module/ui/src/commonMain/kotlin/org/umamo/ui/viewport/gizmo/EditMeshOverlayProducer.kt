@@ -18,6 +18,7 @@ import org.umamo.render.puppet.OVERLAY_FLAG_SELECTED
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.LatticeBackFacing
 import org.umamo.runtime.model.PuppetModel
 
 /*
@@ -413,8 +414,8 @@ internal fun overlaySelectModeOf(selectMode: MeshSelectMode): MeshOverlaySelectM
 
 /**
  * Each Edit-cage owner's overlay entry, kept between derives and rebuilt only when its selected set (by identity),
- * active element, select mode, topology (by identity), or style changes: the one reuse rule a mesh's cage and a
- * lattice's share, so a selection change re-flags only the owners whose selection changed.
+ * active element, select mode, topology (by identity), style, or back-facing parts (by value) change: the one reuse
+ * rule a mesh's cage and a lattice's share, so a selection change re-flags only the owners whose selection changed.
  *
  * Not thread-safe: one sequential derive owns it.
  */
@@ -427,6 +428,7 @@ internal class EditCageEntries<Topology : Any> {
 	 * @property MeshSelectMode selectMode The select mode it reflects.
 	 * @property Topology topology The topology it was built over (compared by identity).
 	 * @property MeshStyle style The style it was built with.
+	 * @property LatticeBackFacing? backFacing The back-facing parts it marks, or null for none.
 	 * @property MeshOverlayMesh entry The entry.
 	 */
 	private class Cached<Topology : Any>(
@@ -435,6 +437,7 @@ internal class EditCageEntries<Topology : Any> {
 		val selectMode: MeshSelectMode,
 		val topology: Topology,
 		val style: MeshStyle,
+		val backFacing: LatticeBackFacing?,
 		val entry: MeshOverlayMesh,
 	)
 
@@ -456,6 +459,7 @@ internal class EditCageEntries<Topology : Any> {
 	 * @param Topology topology Its topology.
 	 * @param MeshSelection selection The selection to show.
 	 * @param MeshStyle style Its style.
+	 * @param LatticeBackFacing? backFacing The back-facing parts the entry marks, a lattice's, or null for none.
 	 * @param Function build Builds the entry from the owner's selected elements, active element, and select mode.
 	 * @return MeshOverlayMesh The entry.
 	 */
@@ -464,18 +468,27 @@ internal class EditCageEntries<Topology : Any> {
 		topology: Topology,
 		selection: MeshSelection,
 		style: MeshStyle,
+		backFacing: LatticeBackFacing? = null,
 		build: (Set<MeshElement>, MeshElement?, MeshSelectMode) -> MeshOverlayMesh,
 	): MeshOverlayMesh {
 		val elements = selection.elementsOf(owner)
 		val active = selection.activeElement?.takeIf { activeElement -> activeElement.owner == owner }?.element
 		val cached = byOwner[owner]
 
-		if (cached != null && cached.elements === elements && cached.active == active && cached.selectMode == selection.selectMode && cached.topology === topology && cached.style == style) {
+		if (
+			cached != null &&
+			cached.elements === elements &&
+			cached.active == active &&
+			cached.selectMode == selection.selectMode &&
+			cached.topology === topology &&
+			cached.style == style &&
+			cached.backFacing == backFacing
+		) {
 			return cached.entry
 		}
 
 		val entry = build(elements, active, selection.selectMode)
-		byOwner[owner] = Cached(elements, active, selection.selectMode, topology, style, entry)
+		byOwner[owner] = Cached(elements, active, selection.selectMode, topology, style, backFacing, entry)
 
 		return entry
 	}

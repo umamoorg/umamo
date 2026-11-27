@@ -7,6 +7,8 @@ import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.LatticeDepth
+import org.umamo.runtime.model.depthAt
 
 /*
  * The vertices an Edit-mode selection covers and where their median sits in world space: what Shift+S snaps
@@ -29,13 +31,15 @@ internal class CoveredVertices(
 )
 
 /**
- * The mean world position of a set of covered vertices.
+ * The mean world position of a set of covered vertices, and their mean depth when every one carries depth.
  *
  * @property Float worldX The median's world x.
  * @property Float worldZ The median's world z (up).
  * @property Int vertexCount How many vertices it is the mean of.
+ * @property Float? depth The mean depth along world Y in world px, positive into the screen, or null when a mesh's
+ *   vertices are among them: only a lattice's points carry depth.
  */
-internal class WorldMedian(val worldX: Float, val worldZ: Float, val vertexCount: Int)
+internal class WorldMedian(val worldX: Float, val worldZ: Float, val vertexCount: Int, val depth: Float? = null)
 
 /**
  * The covered vertices of every owner in [geometries], dropping one that has none and any index past the
@@ -66,20 +70,24 @@ internal fun coveredVerticesOf(
 
 /**
  * The median of the covered vertices as a gesture's preview has moved them; an owner the preview does not
- * move counts at its captured world position.
+ * move counts at its captured world position and depth.
  *
  * @param List<CoveredVertices> covered The covered vertices, as captured from the committed model.
  * @param Map<DrawableId, MeshRestPositions> restByDrawable The preview's new rest shape per moved mesh.
  * @param Map<DeformerId, FloatArray> latticeWorldByDeformer The preview's world points per moved lattice.
+ * @param Map<DeformerId, LatticeDepth> latticeDepthByDeformer The preview's depth per moved lattice.
  * @return WorldMedian? The median, or null when nothing is covered.
  */
 internal fun coveredMedian(
 	covered: List<CoveredVertices>,
 	restByDrawable: Map<DrawableId, MeshRestPositions> = emptyMap(),
 	latticeWorldByDeformer: Map<DeformerId, FloatArray> = emptyMap(),
+	latticeDepthByDeformer: Map<DeformerId, LatticeDepth> = emptyMap(),
 ): WorldMedian? {
 	var sumX = 0f
 	var sumZ = 0f
+	var sumDepth = 0f
+	var everyOwnerHasDepth = true
 	var count = 0
 
 	for (owner in covered) {
@@ -99,6 +107,20 @@ internal fun coveredMedian(
 				}
 			}
 
+		when (val geometry = owner.geometry) {
+			is DrawableWorldGeometry -> {
+				everyOwnerHasDepth = false
+			}
+
+			is LatticeWorldGeometry -> {
+				val depth = latticeDepthByDeformer[geometry.deformerId] ?: geometry.depth
+
+				for (pointIndex in owner.indices) {
+					sumDepth += depth.depthAt(pointIndex)
+				}
+			}
+		}
+
 		val points = packed ?: packedWorld(owner.geometry.world, owner.indices)
 		var slotIndex = 0
 
@@ -115,7 +137,7 @@ internal fun coveredMedian(
 		return null
 	}
 
-	return WorldMedian(sumX / count, sumZ / count, count)
+	return WorldMedian(sumX / count, sumZ / count, count, if (everyOwnerHasDepth) sumDepth / count else null)
 }
 
 /**

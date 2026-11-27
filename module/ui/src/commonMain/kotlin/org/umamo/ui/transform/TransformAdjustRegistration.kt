@@ -66,7 +66,8 @@ internal fun registerMeshTransformAdjustment(
 	onProportional: (AdjustableOperation, ProportionalEditState?) -> Unit,
 ): AdjustableOperation? {
 	val kind = transform.operatorKind
-	val rows = transformParameters(kind, parameters, TransformRowSpace.World, proportional, rotatesInDepth)
+	val movesInDepth = kind == MeshOperatorKind.Grab && transform.entries.any { entry -> geometryByOwner[entry.owner] is LatticeWorldGeometry }
+	val rows = transformParameters(kind, parameters, TransformRowSpace.World, proportional, rotatesInDepth, movesInDepth)
 
 	if (rows.isEmpty()) {
 		return null

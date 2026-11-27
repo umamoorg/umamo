@@ -1,10 +1,13 @@
 package org.umamo.edit.transform
 
+import org.umamo.edit.MeshOperatorKind
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sqrt
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
@@ -175,5 +178,26 @@ class MeshTransformsTest {
 		assertClose(2f, rotated[1], "vertex 0 y turns half way round (1, 1)")
 		assertClose(4f, rotated[4], "vertex 2 x turns half way round (2, 0)")
 		assertClose(-2f, rotated[5], "vertex 2 y turns half way round (2, 0)")
+	}
+
+	/** A Grab with a depth delta moves the groups' points fully and the halo's by their weights, and x/z as without it. */
+	@Test
+	fun aGrabInDepthMovesTheGroupsAndTheHaloByTheirWeights() {
+		val original = PointsInDepth(square(), floatArrayOf(10f, 20f, 30f, 40f))
+		val groups = listOf(TransformPivotGroup(setOf(0, 1), 1f, 0f))
+		val halo = mapOf(2 to ProportionalInfluence(0.5f, 1f, 0f))
+		val gesture = TransformGestureParameters(1f, 2f, 1f, 1f, 0f, deltaDepth = 8f)
+
+		val moved = applyOperatorInDepth(MeshOperatorKind.Grab, original, groups, gesture, halo)
+
+		assertContentEquals(floatArrayOf(18f, 28f, 34f, 40f), moved.depths, "the group moves 8 deep, the halo point half of it, the last not at all")
+		assertContentEquals(applyOperator(MeshOperatorKind.Grab, original.positions, groups, gesture, halo), moved.positions, "x/z move as a plain Grab")
+		assertContentEquals(floatArrayOf(10f, 20f, 30f, 40f), original.depths, "the input is untouched")
+
+		val flat = applyOperatorInDepth(MeshOperatorKind.Grab, original, groups, TransformGestureParameters(1f, 2f, 1f, 1f, 0f), halo)
+		assertSame(original.depths, flat.depths, "a Grab with no depth delta keeps the depths it was given")
+
+		val scaled = applyOperatorInDepth(MeshOperatorKind.Scale, original, groups, TransformGestureParameters(0f, 0f, 2f, 2f, 0f, deltaDepth = 8f), halo)
+		assertSame(original.depths, scaled.depths, "only a Grab reads the depth delta")
 	}
 }

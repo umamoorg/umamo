@@ -229,6 +229,9 @@ public interface OverlayMeshBuffers
  *   A lattice points both triangles of a cell at the cell's center, so a cell shows one dot.
  * @property Int vertexDotCount How many of the vertices, from the first, draw a vertex dot; the rest are anchors a
  *   face dot points at and draw none.  Every vertex by default.
+ * @property Int trianglesPerFaceDot How many triangles in a row share one face dot, which reads the first one's
+ *   [faceDotCorners] entry and flag: one instance per run, so a dot drawn at less than full alpha blends once.  One by
+ *   default; above one only with [faceDotCorners], and the triangle count a multiple of it.
  */
 public class OverlayMeshSpec(
 	val edgeEndpoints: IntArray,
@@ -238,4 +241,5 @@ public class OverlayMeshSpec(
 	val faceFlags: ByteArray,
 	val faceDotCorners: IntArray? = null,
 	val vertexDotCount: Int = vertexFlags.size,
+	val trianglesPerFaceDot: Int = 1,
 )

@@ -7,6 +7,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.WarpLatticeForm
 
 /**
@@ -39,21 +40,31 @@ internal class LiveMeshPreview {
 	var latticeFormsByDeformer: Map<DeformerId, WarpLatticeForm>? by mutableStateOf(null)
 
 	/**
-	 * Shows a drive's moved lattices: their world points for the cage, and at the pose the pending forms the cage
-	 * evaluates the posed warps through.  An empty map shows none.
+	 * The previewed depth per moving lattice, beside [latticeWorldByDeformer], or null while no Edit- or Pose-mode modal
+	 * transform has published one.  At the pose the forms carry the same depth; at rest this is the only place a drag's
+	 * depth shows before it lands.
+	 */
+	var latticeDepthByDeformer: Map<DeformerId, LatticeDepth>? by mutableStateOf(null)
+
+	/**
+	 * Shows a drive's moved lattices: their world points and depths for the cage, and at the pose the pending forms the
+	 * cage evaluates the posed warps through.  An empty map shows none.
 	 *
 	 * @param Map<DeformerId, FloatArray> world Each moved lattice's world points.
 	 * @param Map<DeformerId, WarpLatticeForm> forms Each moved warp's pending form at the pose; empty at rest.
+	 * @param Map<DeformerId, LatticeDepth> depth Each moved lattice's depth.
 	 */
-	fun showLattices(world: Map<DeformerId, FloatArray>, forms: Map<DeformerId, WarpLatticeForm>) {
+	fun showLattices(world: Map<DeformerId, FloatArray>, forms: Map<DeformerId, WarpLatticeForm>, depth: Map<DeformerId, LatticeDepth>) {
 		latticeWorldByDeformer = world.takeIf { moved -> moved.isNotEmpty() }
 		latticeFormsByDeformer = forms.takeIf { posed -> posed.isNotEmpty() }
+		latticeDepthByDeformer = depth.takeIf { moved -> moved.isNotEmpty() }
 	}
 
 	/** Shows no previewed lattice: the cage goes back to what is committed. */
 	fun clearLattices() {
 		latticeWorldByDeformer = null
 		latticeFormsByDeformer = null
+		latticeDepthByDeformer = null
 	}
 }
 

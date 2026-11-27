@@ -76,26 +76,6 @@ object MeshTransforms {
 	}
 
 	/**
-	 * Translates the selected vertices by ([deltaX], [deltaY]).
-	 *
-	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
-	 * @param Set<Int> indices The selected vertex indices.
-	 * @param Float deltaX The translation's x, in the positions' space.
-	 * @param Float deltaY The translation's y, in the positions' space.
-	 * @return FloatArray A new positions array with the selected vertices moved.
-	 */
-	fun translateVertices(positions: FloatArray, indices: Set<Int>, deltaX: Float, deltaY: Float): FloatArray {
-		val result = positions.copyOf()
-
-		for (vertexIndex in indices) {
-			result[vertexIndex * 2] += deltaX
-			result[vertexIndex * 2 + 1] += deltaY
-		}
-
-		return result
-	}
-
-	/**
 	 * Collapses the selected vertices onto one point ([targetX], [targetY]) - Blender's pile-up snap
 	 * semantics (Selection to Cursor / Selection to Active).  Unlike [translateVertices], the vertices
 	 * do not keep their offsets from each other; every one lands exactly on the target.
@@ -369,6 +349,26 @@ object MeshTransforms {
 	}
 
 	/**
+	 * Translates the selected vertices by ([deltaX], [deltaY]).
+	 *
+	 * @param FloatArray positions The interleaved (x, y) positions, in the caller's space.
+	 * @param Set<Int> indices The selected vertex indices.
+	 * @param Float deltaX The translation's x, in the positions' space.
+	 * @param Float deltaY The translation's y, in the positions' space.
+	 * @return FloatArray A new positions array with the selected vertices moved.
+	 */
+	fun translateVertices(positions: FloatArray, indices: Set<Int>, deltaX: Float, deltaY: Float): FloatArray {
+		val result = positions.copyOf()
+
+		for (vertexIndex in indices) {
+			result[vertexIndex * 2] += deltaX
+			result[vertexIndex * 2 + 1] += deltaY
+		}
+
+		return result
+	}
+
+	/**
 	 * Translates the influenced vertices by their share of ([deltaX], [deltaY]) - the proportional-editing
 	 * companion of [translateVertices]: a weight of 1 moves fully, 0.5 half way.  A translation has no pivot,
 	 * so the influences' pivots go unread.
@@ -385,6 +385,44 @@ object MeshTransforms {
 		for ((vertexIndex, influence) in influences) {
 			result[vertexIndex * 2] += deltaX * influence.weight
 			result[vertexIndex * 2 + 1] += deltaY * influence.weight
+		}
+
+		return result
+	}
+
+	/**
+	 * Moves the selected points by [delta] in depth: the depth companion of [translateVertices], for points that carry
+	 * depth.
+	 *
+	 * @param FloatArray depths One depth per point, in world px along world Y.
+	 * @param Set<Int> indices The selected point indices.
+	 * @param Float delta The move along world Y, positive into the screen.
+	 * @return FloatArray A new depths array with the selected points moved.
+	 */
+	fun translateDepths(depths: FloatArray, indices: Set<Int>, delta: Float): FloatArray {
+		val result = depths.copyOf()
+
+		for (pointIndex in indices) {
+			result[pointIndex] += delta
+		}
+
+		return result
+	}
+
+	/**
+	 * Moves the influenced points by their share of [delta] in depth: the depth companion of
+	 * [translateVerticesWeighted].
+	 *
+	 * @param FloatArray depths One depth per point, in world px along world Y.
+	 * @param Map<Int, ProportionalInfluence> influences Point index to its influence (weight in [0, 1]).
+	 * @param Float delta The full move along world Y (each point takes weight x this).
+	 * @return FloatArray A new depths array with the influenced points moved.
+	 */
+	fun translateDepthsWeighted(depths: FloatArray, influences: Map<Int, ProportionalInfluence>, delta: Float): FloatArray {
+		val result = depths.copyOf()
+
+		for ((pointIndex, influence) in influences) {
+			result[pointIndex] += delta * influence.weight
 		}
 
 		return result

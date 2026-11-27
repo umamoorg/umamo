@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import org.umamo.render.FrameOverlays
 import org.umamo.ui.rememberDoubleSetting
 import org.umamo.ui.rememberIntSetting
 
@@ -71,6 +72,19 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	 * only), so a posed model shows which mesh parts are covered; on by default.  The Edit cage is never culled.
 	 */
 	var cullHiddenWireframe by mutableStateOf(true)
+
+	/**
+	 * Whether the cage of a lattice being edited dims the parts that face away from the viewer, a wrap's back half (the
+	 * 2D viewport only), and a click there takes the front over the back; on by default.
+	 */
+	var dimBackFacing by mutableStateOf(true)
+
+	/**
+	 * The opacity, 0 to 1, the cage's back-facing parts draw at while [dimBackFacing] is on (the 2D viewport only), each
+	 * at its palette alpha times this.  At 0 none of them draws or picks while the row stays as set.  Saved as the
+	 * `backFacingOpacity` key.
+	 */
+	var backFacingOpacity by mutableStateOf(FrameOverlays.DEFAULT_BACK_FACING_OPACITY)
 
 	/**
 	 * The opacity, 0 to 1, of the mesh overlay drawn outside an edit: the wireframe on a 2D viewport, the islands
@@ -141,6 +155,10 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	val effectiveCullHiddenWireframe: Boolean
 		get() = showOverlays && cullHiddenWireframe
 
+	/** Whether the cage dims what faces away: the flag under the master, like the cage it qualifies. */
+	val effectiveDimBackFacing: Boolean
+		get() = showOverlays && dimBackFacing
+
 	/**
 	 * Whether every flag and value sits at its default and the grid follows the application: what a fresh area
 	 * shows, and what a save writes as nothing.
@@ -148,7 +166,8 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	val isAtDefaults: Boolean
 		get() =
 			showOverlays && showGrid && showAxes && showCursor && showInfo && !showWireframe && showSelectionTint && !showDeformers && cullHiddenWireframe &&
-				wireframeOpacity == 1f && deformerOpacity == 1f && gridGeometry == null
+				dimBackFacing && backFacingOpacity == FrameOverlays.DEFAULT_BACK_FACING_OPACITY && wireframeOpacity == 1f && deformerOpacity == 1f &&
+				gridGeometry == null
 
 	/**
 	 * The grid this area draws and snaps to over a given application grid: its own, else the application's,
@@ -172,6 +191,8 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 		showSelectionTint = true
 		showDeformers = false
 		cullHiddenWireframe = true
+		dimBackFacing = true
+		backFacingOpacity = FrameOverlays.DEFAULT_BACK_FACING_OPACITY
 		wireframeOpacity = 1f
 		deformerOpacity = 1f
 		gridGeometry = null

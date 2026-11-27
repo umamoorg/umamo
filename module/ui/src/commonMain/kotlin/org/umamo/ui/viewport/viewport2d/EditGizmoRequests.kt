@@ -37,8 +37,8 @@ import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
  * @param State<IntSize> size The area size in pixels.
  * @param State<Offset> areaPointer Where the pointer last was in the area, tracked by the host.
  * @param Function onOverlapRequest Opens the overlap-picker popup for an Alt+Q over 2+ stacked candidates.
- * @param ViewportOverlayState? overlays The area's overlay state, whose grid a grid snap rounds to; null (no
- *   area state, a standalone shell) rounds to the built-in grid.
+ * @param ViewportOverlayState? overlays The area's overlay state, whose grid a grid snap rounds to and whose back-facing
+ *   dimming Select Linked picks under; null (no area state, a standalone shell) rounds to the built-in grid.
  */
 internal suspend fun collectEditGizmoRequests(
 	areaId: String,
@@ -61,9 +61,11 @@ internal suspend fun collectEditGizmoRequests(
 				}
 
 				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
+				// The flood starts where a click at the pointer would land, so it takes what faces away as the area does.
+				val pick = overlays.backFacingPick()
 				handleSelectLinkedRequest(
 					session,
-					editable.map { it.gizmo },
+					editable.map { geometry -> geometry.gizmoFor(pick) },
 					request.fromSelection,
 					areaPointer.value,
 					camera.value,

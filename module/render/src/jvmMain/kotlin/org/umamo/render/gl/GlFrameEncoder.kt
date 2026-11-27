@@ -315,7 +315,14 @@ internal class GlRenderPassEncoder(private val emptyVao: Int, private val target
 
 	override fun drawOverlayFaceDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
 		val glBuffers = buffers as GlOverlayMeshBuffers
-		drawOverlay(if (glBuffers.faceDotVao != 0) glBuffers.faceDotVao else glBuffers.faceVao, glBuffers.faceCount, QUAD_VERTICES, store, uniforms)
+		val dotsHaveOwnCorners = glBuffers.faceDotVao != 0
+		drawOverlay(
+			if (dotsHaveOwnCorners) glBuffers.faceDotVao else glBuffers.faceVao,
+			if (dotsHaveOwnCorners) glBuffers.faceDotCount else glBuffers.faceCount,
+			QUAD_VERTICES,
+			store,
+			uniforms,
+		)
 	}
 
 	/**
@@ -353,6 +360,7 @@ internal class GlRenderPassEncoder(private val emptyVao: Int, private val target
 		setOverlayColor(locations.idleColor, uniforms.idleColor)
 		setOverlayColor(locations.selectedColor, uniforms.selectedColor)
 		setOverlayColor(locations.activeColor, uniforms.activeColor)
+		GL20.glUniform1f(locations.backAlpha, uniforms.backAlpha)
 		// The edge program alone declares these; the others resolve -1, a no-op.
 		GL20.glUniform1i(locations.cullOrder, uniforms.cullOrder)
 

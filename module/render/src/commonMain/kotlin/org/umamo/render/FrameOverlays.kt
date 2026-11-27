@@ -43,6 +43,11 @@ import org.umamo.runtime.model.DeformerId
  * @property Float latticeOpacity The alpha scale, 0 to 1, of the warp lattices drawn over the art, each at its role's
  *   palette alpha times this: the 2D viewport's deformer Opacity.  The hovered lattice keeps its hover color whole,
  *   and the Edit cage keeps the palette.  At 0 no lattice draws, and so none picks ([org.umamo.render.puppet.latticeRolesDrawnIn]).
+ * @property Boolean dimBackFacing Whether the Edit cage's back-facing primitives (a lattice folded round behind itself)
+ *   draw at [backFacingOpacity]; off, they draw as the rest do.  The cage is one for every area, so it always marks
+ *   them and each frame decides.  True by default, as the editor's areas default it.
+ * @property Float backFacingOpacity The alpha scale, 0 to 1, of the Edit cage's back-facing primitives in a frame that
+ *   dims them: the 2D viewport's back-facing Opacity.  At 0 they draw nothing.
  */
 data class FrameOverlays(
 	val gridLines: Boolean = true,
@@ -55,4 +60,11 @@ data class FrameOverlays(
 	val allLattices: Boolean = true,
 	val hoveredLattice: DeformerId? = null,
 	val latticeOpacity: Float = 1f,
-)
+	val dimBackFacing: Boolean = true,
+	val backFacingOpacity: Float = DEFAULT_BACK_FACING_OPACITY,
+) {
+	companion object {
+		/** The back-facing opacity an area starts at, and a headless render draws at. */
+		const val DEFAULT_BACK_FACING_OPACITY: Float = 0.3f
+	}
+}

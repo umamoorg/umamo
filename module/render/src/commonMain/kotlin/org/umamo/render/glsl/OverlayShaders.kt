@@ -23,6 +23,10 @@ internal enum class OverlayShape {
  * their on-screen size is constant at any zoom (the grid line does the same), and their edges fade over
  * one framebuffer pixel so they stay anti-aliased when the frame renders at scale 1.
  *
+ * A primitive's flag is its role (0 idle, 1 selected, 2 active) in the low two bits, with the third bit (4) set when it
+ * faces away from the viewer; the vertex stage tests the role alone and passes the whole flag on, and the fragment stage scales
+ * a back-facing primitive's alpha by `backAlpha`.
+ *
  * The frame is premultiplied, so the fragment writes `vec4(rgb * alpha, alpha)` for PipelineBlend.Normal.
  */
 
@@ -88,11 +92,12 @@ internal fun overlayFaceFillVertexShader(dialect: GlslDialect): String =
 		"uniform int fillIdle;\n" +
 		overlayVertexPrologue() +
 		"void main() {\n" +
-		"	if (fillIdle == 0 && inFlag == 0) {\n" +
+		"	int role = inFlag & 3;\n" +
+		"	if (fillIdle == 0 && role == 0) {\n" +
 		CLIP_INSTANCE_GLSL +
 		"	}\n" +
 		"	int localIndex = gl_VertexID == 0 ? inCorners.x : (gl_VertexID == 1 ? inCorners.y : inCorners.z);\n" +
-		"	vFlag = inFlag == 2 ? 1 : inFlag;\n" +
+		"	vFlag = role == 2 ? (1 | (inFlag & 4)) : inFlag;\n" +
 		"	vLocal = vec2(0.0);\n" +
 		"	gl_Position = fromScreen(toScreen(localIndex));\n" +
 		"}\n"
@@ -113,7 +118,7 @@ internal fun overlayEdgeVertexShader(dialect: GlslDialect): String =
 		"layout(location = 1) in int inFlag;\n" +
 		overlayVertexPrologue() +
 		"void main() {\n" +
-		"	if (activeDraw == 0 && inFlag == 2) {\n" +
+		"	if (activeDraw == 0 && (inFlag & 3) == 2) {\n" +
 		CLIP_INSTANCE_GLSL +
 		"	}\n" +
 		"	ivec2 endpoints = activeDraw == 1 ? activeIndices.xy : inEndpoints;\n" +
@@ -146,7 +151,7 @@ internal fun overlayDotVertexShader(dialect: GlslDialect, fromFaceCentroid: Bool
 		"layout(location = 1) in int inFlag;\n" +
 		overlayVertexPrologue() +
 		"void main() {\n" +
-		"	if (activeDraw == 0 && inFlag == 2) {\n" +
+		"	if (activeDraw == 0 && (inFlag & 3) == 2) {\n" +
 		CLIP_INSTANCE_GLSL +
 		"	}\n" +
 		(
@@ -167,9 +172,9 @@ internal fun overlayDotVertexShader(dialect: GlslDialect, fromFaceCentroid: Bool
 		"}\n"
 
 /**
- * The one overlay fragment shader: the flag picks the idle, selected, or active color, the shape
- * decides the coverage (a fill has no soft edge, since one on tiled triangles would seam), and the output
- * is premultiplied for the Normal blend.
+ * The one overlay fragment shader: the flag's role picks the idle, selected, or active color, its back-facing bit
+ * scales the alpha by `backAlpha`, the shape decides the coverage (a fill has no soft edge, since one on tiled
+ * triangles would seam), and the output is premultiplied for the Normal blend.
  *
  * The band alone reads the draw-order texture, discarding where a drawable in front of the edge's own was
  * drawn at its pixel.  A texel fetch, not a filtered sample, since the target is created filtering and an
@@ -187,6 +192,7 @@ internal fun overlayFragmentShader(dialect: GlslDialect, shape: OverlayShape): S
 		"uniform vec4 idleColor;\n" +
 		"uniform vec4 selectedColor;\n" +
 		"uniform vec4 activeColor;\n" +
+		"uniform float backAlpha;\n" +
 		(if (shape == OverlayShape.Band) "uniform sampler2D orderTexture;\nuniform int cullOrder;\n" else "") +
 		"out vec4 fragColor;\n" +
 		"void main() {\n" +
@@ -203,7 +209,8 @@ internal fun overlayFragmentShader(dialect: GlslDialect, shape: OverlayShape): S
 				""
 			}
 		) +
-		"	vec4 color = vFlag == 0 ? idleColor : (vFlag == 1 ? selectedColor : activeColor);\n" +
+		"	int role = vFlag & 3;\n" +
+		"	vec4 color = role == 0 ? idleColor : (role == 1 ? selectedColor : activeColor);\n" +
 		(
 			when (shape) {
 				OverlayShape.Fill -> "	float coverage = 1.0;\n"
@@ -211,6 +218,6 @@ internal fun overlayFragmentShader(dialect: GlslDialect, shape: OverlayShape): S
 				OverlayShape.Round -> "	float coverage = clamp(sizePx - length(vLocal) + 0.5, 0.0, 1.0);\n"
 			}
 		) +
-		"	float alpha = color.a * coverage;\n" +
+		"	float alpha = color.a * coverage * ((vFlag & 4) != 0 ? backAlpha : 1.0);\n" +
 		"	fragColor = vec4(color.rgb * alpha, alpha);\n" +
 		"}\n"

@@ -10,6 +10,7 @@ import org.umamo.runtime.model.originRelativeX
 import org.umamo.runtime.model.originRelativeZ
 import org.umamo.runtime.model.worldXFromOriginRelative
 import org.umamo.runtime.model.worldZFromOriginRelative
+import org.umamo.ui.kit.StackPosition
 import org.umamo.ui.kit.field.FieldStack
 import org.umamo.ui.kit.field.NumberField
 import org.umamo.ui.kit.field.PropertyFieldRow
@@ -33,6 +34,8 @@ import org.umamo.ui.transform.WorldAxis
  * @param Function? onPreview Called with the axis and its world value on each frame of a scrub, or null when a
  *   scrub commits as it goes.
  * @param Function? onScrubCancel Called when a scrub is cancelled, or null with nothing to put back.
+ * @param List extraRows Rows joined to the pair's stack below Position Z, each given its position in the run (the
+ *   median's Depth); none by default.
  */
 @Composable
 internal fun WorldPositionFields(
@@ -45,9 +48,10 @@ internal fun WorldPositionFields(
 	onCommit: (WorldAxis, Float) -> Unit = { _, _ -> },
 	onPreview: ((WorldAxis, Float) -> Unit)? = null,
 	onScrubCancel: (() -> Unit)? = null,
+	extraRows: List<@Composable (StackPosition) -> Unit> = emptyList(),
 ) {
 	FieldStack(
-		listOf(
+		listOf<@Composable (StackPosition) -> Unit>(
 			{ position ->
 				PropertyFieldRow(stringResource(Res.string.properties_field_position_x), description = stringResource(xDescription)) {
 					NumberField(
@@ -78,6 +82,6 @@ internal fun WorldPositionFields(
 					)
 				}
 			},
-		),
+		) + extraRows,
 	)
 }

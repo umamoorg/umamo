@@ -7,28 +7,63 @@ Umamo is early alpha.
 (Unreleased changes)
 
 ### Added
-* Keyform Sheet: Hold control while scrubbing the play head or a key to snap to keys or the play head.
+* Format: UMA now stores the depth of each warp lattice point so depth rotations and To Shape build on earlier ones.  CMO3 and MOC3 export flatten it to 2D with an export notice.
+* Internationalization: 简体中文/Simplified Chinese and 繁體中文/Traditional Chinese are now available as partial translations.
+* Keyform Sheet, Parameters: Hold control while scrubbing to snap to keys.
 * Keymap, UI: Hide Unselected(Shift+H) and Unhide All(Alt+H)
-* Parameters: Hold control while scrubbing the slider to snap to a key.
+* Keymap: A command can now be bound to more than one shortcut.
+* Operation Strip: Grabbing lattice points now has a Move Depth option.
+* Outliner: Deformers now have a visibility toggle.
+* Parameters: A parameter's context menu has a Control submenu to override the preference with a slider, dial, pad, or two dials.  The choice is saved with the puppet.
+* Parameters: Dragging a repeating parameter's slider or 2D pad past an end wraps the pointer around to the other end.
+* Parameters: Each parameter can now hold a note, written in its range editor.  Notes are kept in UMA and CMO3.
+* Parameters: Repeat - A parameter can be set to repeat so that going past one end of its range wraps around to the other.
+* Parameters: Repeating parameters show a circular dial and draw in their own accent color.  Preferences -> Interface -> Repeating Parameter Control switches them back to a slider and 2D pad.
+* Parameters: The 2D pad shows its parameters' keys as lines and pips, and holding control while dragging snaps to them.
+* Pose Mode: 3D Depth Rotation - The ability to change the lattice surface shape between unchanged, flat, cylinder, or sphere.
 * Pose Mode: 3D Depth Rotation - The ability to set the Y axis depth forwards or backwards to set the Y origin of a warp lattice rotation.
-* Pose Mode: 3D Depth Rotation - The ability to change the lattice surface shape between flat, cylinder, or sphere.  This allows creating rounded rotation poses easily.
-* Properties: Parent Deformer relation picker can now pick from deformers in the 2D Viewport and the Outliner.
+* Pose Mode: To Shape (Cylinder) and To Shape (Sphere) commands to bend a warp deformer lattice into those respective shapes.
 * Properties: Add context menus to relation pickers(Masked By, Parent Deformer, Parent Part).
+* Properties: Parent Deformer relation picker can now pick from deformers in the 2D Viewport and the Outliner.
+* Settings: Keybindings interface has be revamped with categories and search.
+* Sidebar: The Item -> Transform section now has a Depth field for the selected lattice points.
 * UI: New Select menu and context menu with Select All of Type and Invert Selection of Type.
 * UI: The command palette now shows each command's icon beside its name.
+* UI: The status bar now shows a progress bar while CMO3 and MOC3 export.
+* UI: Viewport Overlays has a new Lattice section with Dim Back-Facing and Back-Facing Opacity to dim the back sides of the lattice to indicate which cells are facing away.
 * UI: When opening, saving, importing, or exporting the cursor will now show a busy hourglass.
 
 ### Changed
+* Keyform Sheet: A collapsed group's summary mark is drawn half filled when only some of the keys under it are selected.
+* Keymap: (BREAKING CHANGE) Custom keybindings are now stored per command.  Keybindings customized in 0.5.0 and earlier are reset to the preset and need to be set again.
+* Parameters: Scrubbing a parameter's number field now previews the pose live.
+* Settings: Removed the unused Off-key colors from Colors -> Mesh Editing.
+* Settings: The settings interface design has been overhauled with the current UI kit design system along with adding tooltip descriptions.
+* UI: Clicking the decrease and increase chevrons on a number input now changes by a tenth of a step.
+* UI: Dragging a workspace tab now slides the other tabs aside to show where it will land.
 * UI: Menu bar entries and command buttons are now grayed out exactly when their command is unavailable, such as Import -> Artwork with a MOC3 open.
 * UI: Pie menus now place their choices clockwise from West in numerical order.  This is so that the numberic input choice stays in the same place on every pie menu to build up visual memory.
+* UI: Rename Workspace, Duplicate Workspace, and Delete Workspace are now in the Command Registry.
+* UI: Scrubbing a number input now scales properly with movement distances.
 * UI: The Snap pie and the 2D Viewport context menu's Snap submenu now list the snaps in the same order as the header's Snap menu.
 * UI: Undo and Redo are no longer listed in the command palette while there is nothing to undo or redo.
-* UI: Rename Workspace, Duplicate Workspace, and Delete Workspace are now in the Command Registry.
 
 ### Fixed
+* File: Opening the application with a supplied file no longer fails to show a notice if the file is damaged.
+* Format: CMO3 exports now write the EditorEdition as 15.  This stops the Cubism editor from saying that CMO3 files exported from Umamo were created in the free version of the Cubism Editor.
+* Format: CMO3 and MOC3 import no longer loops forever during keyform grid compaction.  https://github.com/umamoorg/umamo/issues/332
+* Format: CMO3 export now writes a deformer's visibility.
+* Format: MOC3 export now handles sorting empty parts into their correct positions.  https://github.com/umamoorg/umamo/issues/415
+* Format: MOC3 export now shows a notice when a keyed channel or an object's keyforms have to be written as a constant.
+* Format: MOC3 export now writes each part's draw order range across all of its children's keyforms.  https://github.com/umamoorg/umamo/issues/331
+* Keyform Sheet: Box selecting over a collapsed group's summary mark now selects the keys under it.
 * Keyform Sheet: Zooming or panning the sheet in the middle of a scrub or a key drag no longer drops the gesture.
 * Keymap: PrimaryModifer+Q(Ctrl+Q on Linux, Cmd+Q on MacOS) now closes the application.
-* File: Opening the application with a supplied file no longer fails to show a notice if the file is damaged.
+* MacOS: The 1x1 offscreen render context window no longer steals input focus and file operations.  This fixes files not opening when Umamo is already open and being able to quit from the MacOS Dock.
+* Runtime: 25% to 100% performance increase when inserting keys with withKeyInserted by calling isDense later on.  https://github.com/umamoorg/umamo/issues/416
+* UI: Buttons inside a text field, such as a search field's clear button, now show the arrow pointer instead of the text cursor.
+* UI: Clicking a menu bar entry, dropdown, or select field again while its menu is open now closes the menu instead of reopening it.
+* UI: Workspace tabs can no longer be dragged outside of the workspace tab strip.
 
 ## 0.5.0 - 2026-11-07
 

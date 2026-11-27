@@ -101,6 +101,51 @@ class EditDirectCagePassTest {
 		assertEquals(listOf(listOf(4, 4, 4)), activeDots.map { draw -> draw.activeIndices }, "the active cell's one dot sits on its center")
 	}
 
+	/**
+	 * A cage whose point 3 faces away and whose point 2 is active and faces away too: the batched draws carry the
+	 * frame's back alpha for the shader to scale the back-facing primitives by, and the active point, drawn without its
+	 * flag, takes it in its color; a frame that does not dim draws them all whole.
+	 */
+	@Test
+	fun theBackFacingPartsDrawAtTheBackAlphaWhereTheFrameDimsThem() {
+		val device = RecordingRenderDevice()
+		val renderer = renderer(device)
+		val target = mainTarget(device)
+		val back = OVERLAY_FLAG_BACK.toInt()
+		val mesh =
+			MeshOverlayMesh(
+				owner = owner,
+				vertexCount = 5,
+				edgeEndpoints = edges,
+				vertexFlags = byteArrayOf(0, 0, (OVERLAY_FLAG_ACTIVE.toInt() or back).toByte(), OVERLAY_FLAG_BACK, 0),
+				edgeFlags = byteArrayOf(0, OVERLAY_FLAG_BACK, 0, 0),
+				faceFlags = byteArrayOf(0, 0),
+				activeVertex = 2,
+				activeEdge = null,
+				activeFace = null,
+				faceDotCorners = dotCorners,
+				vertexDotCount = 4,
+			)
+		renderer.setEditDirectOverlay(DirectMeshOverlay(MeshOverlay(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf(mesh), sizes), mapOf(owner to positions), mapOf(owner to triangles)))
+		val opacity = 0.55f
+		device.clearLog()
+
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(backFacingOpacity = opacity))
+
+		val dimmed = device.overlayDraws()
+		assertTrue(dimmed.isNotEmpty())
+		assertTrue(dimmed.all { draw -> draw.backAlpha == opacity }, "every cage draw scales its back-facing primitives")
+		val activeDot = dimmed.single { draw -> draw.purpose == PipelinePurpose.OverlayVertexDot && draw.activeDraw }
+		assertEquals(MeshOverlayPalette.Classic.vertexActive.alpha * opacity, activeDot.activeColor[3], "the active point faces away, so its own draw dims")
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(dimBackFacing = false))
+
+		val whole = device.overlayDraws()
+		assertTrue(whole.all { draw -> draw.backAlpha == 1f }, "a frame that does not dim draws them whole")
+		assertEquals(MeshOverlayPalette.Classic.vertexActive.alpha, whole.single { draw -> draw.purpose == PipelinePurpose.OverlayVertexDot && draw.activeDraw }.activeColor[3])
+	}
+
 	@Test
 	fun theCageDrawsUnderTheShowOverlaysMaster() {
 		val device = RecordingRenderDevice()

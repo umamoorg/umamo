@@ -94,6 +94,8 @@ internal fun operatorParameterLabel(labelKey: String): String =
 
 		TransformParameterKeys.MOVE_Z -> stringResource(Res.string.transform_options_move_z)
 
+		TransformParameterKeys.MOVE_DEPTH -> stringResource(Res.string.transform_options_move_depth)
+
 		TransformParameterKeys.ANGLE -> stringResource(Res.string.placement_options_angle)
 
 		TransformParameterKeys.SCALE_X -> stringResource(Res.string.placement_options_scale_x)
@@ -219,6 +221,7 @@ internal fun operatorParameterDescriptionRes(labelKey: String): StringResource? 
 		TransformParameterKeys.MOVE_X -> Res.string.transform_options_move_x_description
 		TransformParameterKeys.MOVE_Y -> Res.string.transform_options_move_y_description
 		TransformParameterKeys.MOVE_Z -> Res.string.transform_options_move_z_description
+		TransformParameterKeys.MOVE_DEPTH -> Res.string.transform_options_move_depth_description
 		TransformParameterKeys.ANGLE -> Res.string.transform_options_angle_description
 		TransformParameterKeys.SCALE_X -> Res.string.transform_options_scale_x_description
 		TransformParameterKeys.SCALE_Y -> Res.string.transform_options_scale_y_description

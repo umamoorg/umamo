@@ -17,7 +17,7 @@ import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.withParameter
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.ui.assertArrayNear
-import org.umamo.ui.transform.WorldAxis
+import org.umamo.ui.transform.MedianCoordinate
 import org.umamo.ui.transform.coveredMedianMove
 import org.umamo.ui.transform.moveCoveredMedianAdjustable
 import org.umamo.ui.transform.previewCoveredMedianMove
@@ -202,11 +202,11 @@ class LatticeEditGestureTest {
 			val owners = editOwnerGeometries(session.model.value, session.meshSelection.value.owners)
 			val move =
 				assertNotNull(coveredMedianMove(session.meshSelection.value, owners.map { geometry -> geometry.worldGeometry }, owners.associate { geometry -> geometry.owner to geometry.topology }))
-			val preview = assertNotNull(session.previewCoveredMedianMove(move, WorldAxis.X, 10f))
+			val preview = assertNotNull(session.previewCoveredMedianMove(move, MedianCoordinate.X, 10f))
 			assertSame(session.model.value, preview.folded, "a lattice scrub folds nothing into the model")
 			assertEquals(10f, assertNotNull(preview.latticeWorld[LATTICE_RIG_BODY])[6], 1e-3f, "it moves the cage")
 
-			session.moveCoveredMedianAdjustable(move, WorldAxis.X, 10f, LEFT_AREA)
+			session.moveCoveredMedianAdjustable(move, MedianCoordinate.X, 10f, LEFT_AREA)
 			assertEquals(10f, latticeRigRestWorld(session, LATTICE_RIG_BODY)[6], 1e-3f, "the typed median lands the point")
 			assertEquals("change.lattice.move", session.historyView.value.steps.last().labelKey)
 		}

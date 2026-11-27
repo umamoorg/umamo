@@ -17,24 +17,38 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.resources.getString
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.ParameterSelection
+import org.umamo.edit.Selection
+import org.umamo.edit.SelectionTarget
+import org.umamo.edit.TransformAxisConstraint
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.depthAt
 import org.umamo.ui.kit.field.LocalScrubCancel
 import org.umamo.ui.kit.field.ScrubCancelController
 import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.model.PuppetRenderSync
+import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.properties_field_depth
+import org.umamo.ui.resources.properties_field_position_z
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.RIGHT_AREA
 import org.umamo.ui.viewport.gizmo.moveIn
 import org.umamo.ui.viewport.uv.RecordingPuppetRenderSync
 import org.umamo.ui.viewport.viewport2d.GizmoOverlayFixture
+import org.umamo.ui.viewport.viewport2d.LATTICE_RIG_BODY
+import org.umamo.ui.viewport.viewport2d.LATTICE_RIG_PARAMETER
 import org.umamo.ui.viewport.viewport2d.RIG_QUAD
 import org.umamo.ui.viewport.viewport2d.gizmoEditSession
+import org.umamo.ui.viewport.viewport2d.latticeRigModelWithBodyDepth
 import org.umamo.ui.viewport.viewport2d.mountGizmoOverlays
 import org.umamo.ui.viewport.viewport2d.rigPositionsOf
+import org.umamo.ui.viewport.viewport2d.selectLatticePoints
 import org.umamo.ui.workspace.sidebar.SidebarState
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -207,6 +221,78 @@ class EditMedianPanelTest {
 
 			onAllNodesWithText("0.0").assertCountEquals(2)
 			assertEquals(0f, rigPositionsOf(session, RIG_QUAD)[0])
+		}
+
+	/**
+	 * A Pose session over the lattice rig with the body warp deep, its point 3 selected: at the rest pose it sits
+	 * 26 deep (the blend of its keys' 12 and 40).
+	 *
+	 * @return EditorSession The session.
+	 */
+	private fun deepPoseSession(): EditorSession {
+		val session = EditorSession(latticeRigModelWithBodyDepth())
+		session.setSelection(Selection(setOf(SelectionTarget.Deformer(LATTICE_RIG_BODY)), SelectionTarget.Deformer(LATTICE_RIG_BODY)))
+		session.setParameterSelection(ParameterSelection(setOf(LATTICE_RIG_PARAMETER), LATTICE_RIG_PARAMETER))
+		session.togglePoseMode()
+		assertEquals(EditorMode.Pose, session.mode.value)
+		session.selectLatticePoints(ElementOwner.Deformer(LATTICE_RIG_BODY), setOf(3), 3)
+
+		return session
+	}
+
+	/** A lattice point shows its depth below Position Z, and a typed depth holds the point pending that deep. */
+	@Test
+	fun aLatticePointShowsItsDepthAndATypedDepthLands() =
+		runComposeUiTest {
+			val session = deepPoseSession()
+			mountWithSidebar(session)
+			onNodeWithText(getString(Res.string.properties_field_depth)).assertExists()
+
+			onNodeWithText("26.0").performMouseInput { click() }
+			waitForIdle()
+			onNode(hasSetTextAction() and isFocused()).performTextReplacement("30")
+			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Enter) }
+			waitForIdle()
+
+			val pending = assertNotNull(session.pendingLatticeEdits.value[LATTICE_RIG_BODY])
+			assertEquals(30f, pending.depth.depthAt(3), 1e-4f, "the point is held 30 deep")
+			assertEquals("change.pose.move", session.historyView.value.steps.last().labelKey)
+			onNodeWithText("30.0").assertExists()
+		}
+
+	/** A mesh's vertices carry no depth, so their median has no Depth row. */
+	@Test
+	fun aMeshHasNoDepthRow() =
+		runComposeUiTest {
+			val session = gizmoEditSession(elements = listOf(MeshElement.Vertex(0)))
+			mountWithSidebar(session)
+			onNodeWithText(getString(Res.string.properties_field_position_z)).assertExists()
+
+			onAllNodesWithText(getString(Res.string.properties_field_depth)).assertCountEquals(0)
+		}
+
+	/** While a depth rotation runs, the Depth row shows each frame it publishes. */
+	@Test
+	fun theDepthFollowsALiveDepthRotation() =
+		runComposeUiTest {
+			val session = deepPoseSession()
+			val modelBefore = session.model.value
+			val fixture = mountWithSidebar(session)
+			moveIn(LEFT_AREA, listOf(gestureStart))
+			session.beginMeshOperator(MeshOperatorKind.Rotate, LEFT_AREA)
+			waitForIdle()
+			session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+			waitForIdle()
+			fixture.driveDispatcher.hold()
+
+			moveIn(LEFT_AREA, listOf(gestureStart + Offset(1f, 0f), tenUnitsRight))
+			onNodeWithText("26.0").assertExists()
+			fixture.driveDispatcher.release()
+			waitForIdle()
+
+			onAllNodesWithText("26.0").assertCountEquals(0)
+			assertSame(modelBefore, session.model.value, "nothing is committed yet")
+			assertTrue(session.pendingLatticeEdits.value.isEmpty(), "nothing is held pending yet")
 		}
 
 	private companion object {

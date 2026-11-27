@@ -12,6 +12,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeLayout
+import org.umamo.runtime.model.backFacingOf
 import org.umamo.runtime.model.deformerId
 import org.umamo.runtime.model.drawableId
 import org.umamo.ui.transform.DrawableWorldGeometry
@@ -20,6 +21,7 @@ import org.umamo.ui.transform.LatticeWorldGeometry
 import org.umamo.ui.transform.OwnerWorldGeometry
 import org.umamo.ui.transform.captureEditModeMeshes
 import org.umamo.ui.transform.captureLatticeWorlds
+import org.umamo.ui.viewport.gizmo.BackFacingElements
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 
 /**
@@ -41,6 +43,28 @@ internal sealed interface EditOwnerGeometry {
 
 	/** The geometry-source-agnostic view the shared element queries take. */
 	val gizmo: GizmoMeshGeometry
+
+	/**
+	 * [gizmo] as an area's picks see it under [pick]: marking the elements that face away from the viewer, a deep
+	 * lattice's, which a click passes over for any other within reach, or for good where the area hides them.  A mesh
+	 * has no depth, so for it this is always [gizmo].
+	 *
+	 * @param BackFacingPick pick How the area picks what faces away.
+	 * @return GizmoMeshGeometry The geometry the area's picks take.
+	 */
+	fun gizmoFor(pick: BackFacingPick): GizmoMeshGeometry = gizmo
+}
+
+/** How an area's picks treat the elements of a lattice that face away from the viewer, as its overlays draw them. */
+internal enum class BackFacingPick {
+	/** As any other element: the area draws them as the rest. */
+	Plain,
+
+	/** Passed over for any other element within reach: the area dims them. */
+	FrontFirst,
+
+	/** Never picked, boxed, or painted: the area dims them to nothing. */
+	FrontOnly,
 }
 
 /**
@@ -100,11 +124,36 @@ internal class EditLatticeGeometry(
 ) : EditOwnerGeometry {
 	override val owner: ElementOwner get() = worldGeometry.owner
 
-	override val topology: ElementTopology = ElementTopology.ofLattice(WarpLatticeLayout(worldGeometry.lattice.rows, worldGeometry.lattice.columns))
+	/** The lattice's layout. */
+	private val layout = WarpLatticeLayout(worldGeometry.lattice.rows, worldGeometry.lattice.columns)
+
+	override val topology: ElementTopology = ElementTopology.ofLattice(layout)
 
 	override val worldPosed: FloatArray get() = worldGeometry.world
 
 	override val gizmo = GizmoMeshGeometry(owner, topology, worldGeometry.world)
+
+	/** What faces away at the lattice's depth, measured once on first use, or null when nothing does. */
+	private val backFacing: BackFacingElements? by lazy(LazyThreadSafetyMode.NONE) {
+		layout.backFacingOf(worldGeometry.world, worldGeometry.depth)?.let { back -> BackFacingElements(back.points, back.edgesIn(layout, topology), back.cells) }
+	}
+
+	/** [gizmo] with the back marked for a click to pass over, or [gizmo] itself when nothing faces away. */
+	private val frontFirstGizmo: GizmoMeshGeometry by lazy(LazyThreadSafetyMode.NONE) {
+		backFacing?.let { back -> GizmoMeshGeometry(owner, topology, worldGeometry.world, back) } ?: gizmo
+	}
+
+	/** [gizmo] with the back marked hidden, or [gizmo] itself when nothing faces away. */
+	private val frontOnlyGizmo: GizmoMeshGeometry by lazy(LazyThreadSafetyMode.NONE) {
+		backFacing?.let { back -> GizmoMeshGeometry(owner, topology, worldGeometry.world, BackFacingElements(back.vertices, back.edges, back.faces, hidden = true)) } ?: gizmo
+	}
+
+	override fun gizmoFor(pick: BackFacingPick): GizmoMeshGeometry =
+		when (pick) {
+			BackFacingPick.Plain -> gizmo
+			BackFacingPick.FrontFirst -> frontFirstGizmo
+			BackFacingPick.FrontOnly -> frontOnlyGizmo
+		}
 }
 
 /**

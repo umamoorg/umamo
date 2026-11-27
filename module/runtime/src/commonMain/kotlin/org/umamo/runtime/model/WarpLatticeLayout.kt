@@ -187,6 +187,33 @@ class WarpLatticeLayout(val rows: Int, val columns: Int) {
 	 * @return Int The point's index into an interleaved control-point array (x at twice it, y right after).
 	 */
 	fun pointIndex(row: Int, column: Int): Int = row * pointsPerRow + column
+
+	/**
+	 * The ordinal in [edgeEndpoints] of the grid line between points [first] and [second], in either order, or null
+	 * when they are not neighbors along a row or a column.
+	 *
+	 * @param Int first One endpoint's point index.
+	 * @param Int second The other's.
+	 * @return Int? The grid line's ordinal, or null.
+	 */
+	fun edgeOrdinal(first: Int, second: Int): Int? {
+		val low = minOf(first, second)
+		val high = maxOf(first, second)
+
+		if (low < 0 || high >= pointCount) {
+			return null
+		}
+
+		val row = low / pointsPerRow
+		val column = low % pointsPerRow
+
+		// The horizontal segments come first, row by row, then the vertical ones column by column.
+		return when {
+			high == low + 1 && column < columns -> row * columns + column
+			high == low + pointsPerRow -> (rows + 1) * columns + column * rows + row
+			else -> null
+		}
+	}
 }
 
 /** This warp's lattice layout. */

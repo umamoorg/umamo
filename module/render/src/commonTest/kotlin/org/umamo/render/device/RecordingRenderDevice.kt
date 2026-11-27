@@ -352,6 +352,7 @@ internal class RecordedQuadDraw(
  * @property List<Float> activeColor The active color.
  * @property Int cullOrder The edge draw's own draw order it culls by, or -1 for no culling.
  * @property RecordedTexture? orderTexture The draw-order texture a culling edge draw reads, or null.
+ * @property Float backAlpha What a back-facing primitive's alpha is multiplied by.
  */
 internal class RecordedOverlayDraw(
 	override val pipeline: RenderPipelineSpec,
@@ -370,6 +371,7 @@ internal class RecordedOverlayDraw(
 	val activeColor: List<Float>,
 	val cullOrder: Int = -1,
 	val orderTexture: RecordedTexture? = null,
+	val backAlpha: Float = 1f,
 ) : RecordedDraw
 
 /** One resource operation, in the order the renderer issued it. */
@@ -703,6 +705,9 @@ internal class RecordingRenderDevice(private val maxTextureEdge: Int = RECORDED_
 		check(spec.faceFlags.size == spec.faceCorners.size / 3) { "one overlay face flag per triangle" }
 		check(spec.faceDotCorners == null || spec.faceDotCorners.size == spec.faceCorners.size) { "one overlay face-dot triangle per face triangle" }
 		check(spec.vertexDotCount in 0..spec.vertexFlags.size) { "overlay vertex dots past the vertices" }
+		check(spec.trianglesPerFaceDot == 1 || (spec.trianglesPerFaceDot > 1 && spec.faceDotCorners != null && (spec.faceCorners.size / 3) % spec.trianglesPerFaceDot == 0)) {
+			"overlay face dots shared by ${spec.trianglesPerFaceDot} triangles over ${spec.faceCorners.size / 3}"
+		}
 		val buffers = RecordedOverlayBuffers(nextSerial++, spec)
 		recordedResourceEvents.add(OverlayBuffersCreated(buffers))
 
@@ -1150,6 +1155,7 @@ internal class RecordingRenderDevice(private val maxTextureEdge: Int = RECORDED_
 					activeColor = uniforms.activeColor.toList(),
 					cullOrder = uniforms.cullOrder,
 					orderTexture = sampledTexture(orderTexture, pass, operation),
+					backAlpha = uniforms.backAlpha,
 				),
 			)
 		}

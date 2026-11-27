@@ -12,8 +12,11 @@ import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.render.puppet.MeshStyle
 import org.umamo.render.puppet.OVERLAY_FLAG_ACTIVE
+import org.umamo.render.puppet.OVERLAY_FLAG_BACK
 import org.umamo.render.puppet.OVERLAY_FLAG_SELECTED
+import org.umamo.render.puppet.overlayFlagIsBack
 import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.LatticeDepth
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.assertArrayNear
 import kotlin.test.Test
@@ -62,6 +65,7 @@ class LatticeCageProducerTest {
 			"the four sides, no diagonal",
 		)
 		assertContentEquals(intArrayOf(4, 4, 4, 4, 4, 4), mesh.faceDotCorners, "both triangles dot at the center")
+		assertEquals(2, mesh.trianglesPerFaceDot, "and share the one dot, so it draws once")
 		assertEquals(6, cage.triangleIndicesByOwner.getValue(owner).size, "the cell fills as two triangles")
 
 		// The body warp spans world x 0..40 and z -40..0, so its center is (20, -20).
@@ -98,6 +102,38 @@ class LatticeCageProducerTest {
 
 		val settled = assertNotNull(producer.produce(session.mode.value, session.meshSelection.value, session.model.value, sizes, null))
 		assertSame(first.positionsByOwner.getValue(owner), settled.positionsByOwner.getValue(owner), "the rest positions come back as they were")
+	}
+
+	/**
+	 * At the pose, a deep lattice drawn mirrored faces away whole, so every point, the cell's center, every grid line,
+	 * and both of the cell's triangles carry the back-facing bit; the same mirror with no depth is a mirror on purpose
+	 * and marks nothing.  Only the depth differs between the two, so the cage's positions stay the same arrays.
+	 */
+	@Test
+	fun aDeepLatticeDrawnMirroredMarksEveryPartBackFacing() {
+		val session = latticeRigSession(listOf(SelectionTarget.Deformer(LATTICE_RIG_BODY)))
+		session.setMode(EditorMode.Pose)
+		val pose = mapOf(LATTICE_RIG_PARAMETER to 0.5f)
+		val grid = assertNotNull(warpLatticeAt(session.model.value, pose, LATTICE_RIG_BODY)).gridLocal
+		val mirroredPoints = FloatArray(grid.size) { componentIndex -> if (componentIndex % 2 == 0) 40f - grid[componentIndex] else grid[componentIndex] }
+		val producer = LatticeCageProducer()
+		val isBack = { flag: Byte -> overlayFlagIsBack(flag) }
+
+		val facing = WarpLatticeForm(grid.copyOf(), LatticeDepth.PerPoint(FloatArray(4) { 10f }))
+		val front = assertNotNull(producer.produce(session.mode.value, session.meshSelection.value, session.model.value, sizes, null, pose, mapOf(LATTICE_RIG_BODY to facing)))
+		assertTrue(front.overlay.meshes.single().vertexFlags.none(isBack), "a deep lattice in the grid's own order faces the viewer")
+
+		val flatMirror = assertNotNull(producer.produce(session.mode.value, session.meshSelection.value, session.model.value, sizes, null, pose, mapOf(LATTICE_RIG_BODY to WarpLatticeForm(mirroredPoints))))
+		assertTrue(flatMirror.overlay.meshes.single().vertexFlags.none(isBack), "a flat mirror is a mirror on purpose")
+
+		val deepMirror = WarpLatticeForm(mirroredPoints, LatticeDepth.PerPoint(FloatArray(4) { 10f }))
+		val back = assertNotNull(producer.produce(session.mode.value, session.meshSelection.value, session.model.value, sizes, null, pose, mapOf(LATTICE_RIG_BODY to deepMirror)))
+		val mesh = back.overlay.meshes.single()
+		assertEquals(5, mesh.vertexFlags.size)
+		assertTrue(mesh.vertexFlags.all(isBack), "every point and the cell's center")
+		assertTrue(mesh.edgeFlags.all(isBack), "every grid line")
+		assertContentEquals(byteArrayOf(OVERLAY_FLAG_BACK, OVERLAY_FLAG_BACK), mesh.faceFlags, "both of the cell's triangles, idle beside it")
+		assertSame(flatMirror.positionsByOwner.getValue(owner), back.positionsByOwner.getValue(owner), "a depth-only change keeps the positions")
 	}
 
 	@Test

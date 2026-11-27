@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import org.umamo.render.FrameOverlays
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.l10n.UiText
@@ -187,7 +188,7 @@ class PersistentViewStatesTest {
 		val tree = saved.toJson()
 		val overlays = tree["overlays"] as JsonObject
 		assertEquals(
-			listOf("all", "grid", "axes", "cursor", "info", "wireframe", "selectionTint", "deformers", "wireframeCulling", "deformerOpacity", "wireframeOpacity", "gridGeometry"),
+			listOf("all", "grid", "axes", "cursor", "info", "wireframe", "selectionTint", "deformers", "wireframeCulling", "dimBackFacing", "backFacingOpacity", "deformerOpacity", "wireframeOpacity", "gridGeometry"),
 			overlays.keys.toList(),
 			"every key is named, so a merge can take a deviation back out",
 		)
@@ -195,7 +196,7 @@ class PersistentViewStatesTest {
 		assertEquals(JsonPrimitive(false), overlays["cursor"])
 		assertEquals(JsonPrimitive(true), overlays["deformers"])
 		assertTrue(
-			listOf("grid", "axes", "info", "wireframe", "selectionTint", "wireframeCulling", "deformerOpacity", "wireframeOpacity", "gridGeometry").all { key -> overlays[key] is JsonNull },
+			listOf("grid", "axes", "info", "wireframe", "selectionTint", "wireframeCulling", "dimBackFacing", "backFacingOpacity", "deformerOpacity", "wireframeOpacity", "gridGeometry").all { key -> overlays[key] is JsonNull },
 			"a flag at its default, an opacity that is whole, and a grid that follows, is a null",
 		)
 
@@ -369,21 +370,29 @@ class PersistentViewStatesTest {
 		val saved = Viewport2DViewState()
 		saved.overlays.showSelectionTint = false
 		saved.overlays.cullHiddenWireframe = false
+		saved.overlays.dimBackFacing = false
+		saved.overlays.backFacingOpacity = 0.55f
 		saved.overlays.wireframeOpacity = 0.3f
 
 		val tree = saved.toJson()
 		val overlays = tree["overlays"] as JsonObject
 		assertEquals(JsonPrimitive(false), overlays["selectionTint"])
 		assertEquals(JsonPrimitive(false), overlays["wireframeCulling"])
+		assertEquals(JsonPrimitive(false), overlays["dimBackFacing"])
+		assertEquals(JsonPrimitive(0.55f), overlays["backFacingOpacity"])
 		assertEquals(JsonPrimitive(0.3f), overlays["wireframeOpacity"])
 		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
 		assertFalse(reopened.overlays.showSelectionTint)
 		assertFalse(reopened.overlays.cullHiddenWireframe)
+		assertFalse(reopened.overlays.dimBackFacing)
+		assertEquals(0.55f, reopened.overlays.backFacingOpacity)
 		assertEquals(0.3f, reopened.overlays.wireframeOpacity)
 		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
 
 		saved.overlays.showSelectionTint = true
 		saved.overlays.cullHiddenWireframe = true
+		saved.overlays.dimBackFacing = true
+		saved.overlays.backFacingOpacity = FrameOverlays.DEFAULT_BACK_FACING_OPACITY
 		saved.overlays.wireframeOpacity = 1f
 		assertEquals(JsonNull, saved.toJson()["overlays"], "back at their defaults the member is a null")
 
@@ -426,6 +435,20 @@ class PersistentViewStatesTest {
 			assertEquals(1f, reopened.overlays.deformerOpacity, "$planted reads as whole")
 			assertTrue(writesOnlyNulls(reopened), "and nothing is written back")
 		}
+	}
+
+	/** A backFacingOpacity outside 0 to 1, or not a number, reads as its default; zero is a value it keeps. */
+	@Test
+	fun aBrokenBackFacingOpacityReadsAsItsDefault() {
+		for (planted in listOf<JsonElement>(JsonPrimitive(1.5f), JsonPrimitive(-0.1f), JsonPrimitive("no"), JsonPrimitive(true))) {
+			val tree = buildJsonObject { put("overlays", buildJsonObject { put("backFacingOpacity", planted) }) }
+			val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
+			assertEquals(FrameOverlays.DEFAULT_BACK_FACING_OPACITY, reopened.overlays.backFacingOpacity, "$planted reads as the default")
+			assertTrue(writesOnlyNulls(reopened), "and nothing is written back")
+		}
+
+		val hidden = buildJsonObject { put("overlays", buildJsonObject { put("backFacingOpacity", JsonPrimitive(0f)) }) }
+		assertEquals(0f, Viewport2DViewState().also { state -> state.restore(hidden) }.overlays.backFacingOpacity)
 	}
 
 	/** A wireframeOpacity outside 0 to 1, or not a number, reads as whole. */

@@ -872,10 +872,13 @@
 	<string name="overlay_grid_follow_application">Follow Application Grid</string>
 	<string name="overlay_section_objects">Objects</string>
 	<string name="overlay_row_selection_tint">Selection Tint</string>
+	<string name="overlay_row_dim_back_facing">Dim Back-Facing</string>
 	<string name="overlay_row_deformers">Deformers</string>
 	<string name="overlay_row_cull_hidden">Cull Hidden</string>
 	<string name="overlay_wireframe_opacity">Opacity</string>
 	<string name="overlay_deformer_opacity">Opacity</string>
+	<string name="overlay_section_lattice">Lattice</string>
+	<string name="overlay_back_facing_opacity">Back-Facing Opacity</string>
 	<!-- The popover's descriptions, each heading's, row's, and field's hover tooltip; named after its label key like
 	     the Properties row descriptions below. -->
 	<string name="overlay_section_guides_description">The visual helpers for placement and alignment.</string>
@@ -890,10 +893,13 @@
 	<string name="overlay_grid_subdivisions_description">How many minor lines divide each major grid cell.</string>
 	<string name="overlay_section_objects_description">The visual helpers for selected and active drawables.</string>
 	<string name="overlay_row_selection_tint_description">Tints selected and active drawables so they stand out.</string>
+	<string name="overlay_row_dim_back_facing_description">The back sides of a warp lattice will be dimmed making them easier to identify.</string>
 	<string name="overlay_row_deformers_description">Shows the lattice of every warp deformer, not only the selected ones, so you can select any of them in the viewport.</string>
 	<string name="overlay_row_cull_hidden_description">Hides parts of the wireframe that are covered by other drawables.</string>
 	<string name="overlay_wireframe_opacity_description">The opacity of the wireframe drawn in the viewport.</string>
 	<string name="overlay_deformer_opacity_description">The opacity of the warp lattices drawn in the viewport.</string>
+	<string name="overlay_section_lattice_description">The visual helpers for editing a warp lattice.</string>
+	<string name="overlay_back_facing_opacity_description">The opacity of the dimmed back sides of a warp lattice.  At 0 they are hidden and cannot be selected.</string>
 	<string name="cmd_mesh_proportional_connected">Toggle Proportional Connected Only</string>
 	<string name="hud_connected">Connected</string>
 	<string name="hud_placement">Placement</string>
@@ -938,6 +944,7 @@
 	<string name="cmd_view_overlay_deformers">Toggle Deformers Overlay</string>
 	<string name="cmd_view_overlay_wireframe">Toggle Wireframe Overlay</string>
 	<string name="cmd_view_overlay_wireframe_culling">Toggle Wireframe Cull Hidden</string>
+	<string name="cmd_view_overlay_dim_back_facing">Toggle Dim Back-Facing</string>
 	<!-- The viewport sidebar: its tabs, its built-in panels, and the commands that step through its tabs. -->
 	<string name="sidebar_tab_item">Item</string>
 	<string name="sidebar_tab_tool">Tool</string>
@@ -951,6 +958,7 @@
 	<string name="sidebar_edit_median">Median:</string>
 	<string name="sidebar_median_x_description">The horizontal position of the selected vertices(their median if several), measured from the world axes.</string>
 	<string name="sidebar_median_z_description">The vertical position of the selected vertices(their median if several), measured up from the world axes.</string>
+	<string name="sidebar_median_depth_description">The depth of the selected lattice points(their mean if several), in pixels from the art plane.</string>
 	<string name="sidebar_uv_cursor_x_description">The UV cursor's horizontal position on the shown page or artwork, in pixels from its left edge.</string>
 	<string name="sidebar_uv_cursor_y_description">The UV cursor's vertical position on the shown page or artwork, in pixels down from its top edge.</string>
 	<string name="sidebar_uv_median_x_description">The horizontal position of the selected texture coordinates(their median if several), in pixels from the left edge of the shown page or artwork.</string>
@@ -1034,6 +1042,7 @@
 	<string name="properties_field_position_x">Position X</string>
 	<string name="properties_field_position_z">Position Z</string>
 	<string name="properties_field_position_y">Position Y</string>
+	<string name="properties_field_depth">Depth</string>
 	<string name="properties_field_size_x">Size X</string>
 	<string name="properties_field_size_z">Size Z</string>
 	<string name="common_lock_aspect_ratio">Lock Aspect Ratio</string>
@@ -1082,6 +1091,7 @@
 	     labels are the placement rows' above, and the viewport's vertical axis reads as Z (Blender's axes: Y into
 	     the screen, Z up). -->
 	<string name="transform_options_move_z">Move Z</string>
+	<string name="transform_options_move_depth">Move Depth</string>
 	<string name="transform_options_scale_z">Scale Z</string>
 	<string name="transform_options_proportional">Proportional Editing</string>
 	<string name="transform_options_falloff">Falloff</string>
@@ -1226,6 +1236,7 @@
 	<string name="transform_options_move_x_description">How far the selection moved right, in pixels.  Negative moves it left.</string>
 	<string name="transform_options_move_y_description">How far the selection moved down the texture, in pixels.  Negative moves it up.</string>
 	<string name="transform_options_move_z_description">How far the selection moved up, in pixels.  Negative moves it down.</string>
+	<string name="transform_options_move_depth_description">How far the selection moved away from the viewer, in pixels.  Negative moves it closer.</string>
 	<string name="transform_options_angle_description">How far the selection turned, in degrees.</string>
 	<string name="transform_options_scale_x_description">How much the selection was scaled horizontally.  1 leaves it unchanged.</string>
 	<string name="transform_options_scale_y_description">How much the selection was scaled vertically on the texture.  1 leaves it unchanged.</string>

@@ -84,6 +84,8 @@ fun areaOverlaysFor(state: ViewportOverlayState?, applicationGrid: GridConfig): 
 			wireframeCulling = state == null || state.surface == OverlaySurface.UvEditor || state.effectiveCullHiddenWireframe,
 			allLattices = state == null || (state.surface == OverlaySurface.Viewport2D && state.effectiveDeformers),
 			latticeOpacity = if (state == null || state.surface != OverlaySurface.Viewport2D) 1f else state.deformerOpacity,
+			dimBackFacing = state == null || (state.surface == OverlaySurface.Viewport2D && state.effectiveDimBackFacing),
+			backFacingOpacity = if (state == null || state.surface != OverlaySurface.Viewport2D) FrameOverlays.DEFAULT_BACK_FACING_OPACITY else state.backFacingOpacity,
 		),
 	)
 

@@ -19,8 +19,29 @@ import org.umamo.runtime.model.PuppetModel
 /*
  * A typed or scrubbed Vertex / Median value as an Edit- or Pose-mode move: a Grab of every covered vertex or lattice
  * point, captured, driven, committed, and registered on the operation settings strip exactly as a viewport Grab is,
- * so the step, its label, and every later strip adjustment are the viewport's own.
+ * so the step, its label, and every later strip adjustment are the viewport's own.  A typed depth is the same Grab
+ * moving the lattice points in depth.
  */
+
+/** A coordinate of the covered median the panel types on: a world axis, or the depth a lattice's points carry. */
+internal enum class MedianCoordinate {
+	/** World x, across. */
+	X,
+
+	/** World z, up. */
+	Z,
+
+	/** Depth along world Y, positive into the screen; only a lattice's points carry it. */
+	Depth,
+}
+
+/** The median coordinate this world axis names. */
+internal val WorldAxis.medianCoordinate: MedianCoordinate
+	get() =
+		when (this) {
+			WorldAxis.X -> MedianCoordinate.X
+			WorldAxis.Z -> MedianCoordinate.Z
+		}
 
 /**
  * The covered vertices captured for a move of their median: a Grab capture over every covered vertex with no
@@ -43,27 +64,30 @@ internal class CoveredMedianMove(
 	val stage: ElementEditStage,
 ) {
 	/**
-	 * The Grab that puts the median's [axis] coordinate on [worldValue]: the difference on that axis, and exactly
-	 * none on the other, so a value typed on one axis never nudges the other by a rounding step.
+	 * The Grab that puts the median's [coordinate] on [worldValue]: the difference on that coordinate, and exactly
+	 * none on the others, so a value typed on one never nudges another by a rounding step.
 	 *
-	 * @param WorldAxis axis The axis typed on.
-	 * @param Float worldValue The world coordinate the median should land on.
-	 * @return TransformGestureParameters? The Grab, or null when the median is already there.
+	 * @param MedianCoordinate coordinate The coordinate typed on.
+	 * @param Float worldValue The world coordinate (or depth, in world px) the median should land on.
+	 * @return TransformGestureParameters? The Grab, or null when the median is already there or a depth is typed over
+	 *   vertices that carry none.
 	 */
-	fun parametersFor(axis: WorldAxis, worldValue: Float): TransformGestureParameters? {
+	fun parametersFor(coordinate: MedianCoordinate, worldValue: Float): TransformGestureParameters? {
 		val delta =
-			when (axis) {
-				WorldAxis.X -> worldValue - median.worldX
-				WorldAxis.Z -> worldValue - median.worldZ
+			when (coordinate) {
+				MedianCoordinate.X -> worldValue - median.worldX
+				MedianCoordinate.Z -> worldValue - median.worldZ
+				MedianCoordinate.Depth -> worldValue - (median.depth ?: return null)
 			}
 
 		if (delta == 0f) {
 			return null
 		}
 
-		return when (axis) {
-			WorldAxis.X -> TransformGestureParameters(delta, 0f, 1f, 1f, 0f)
-			WorldAxis.Z -> TransformGestureParameters(0f, delta, 1f, 1f, 0f)
+		return when (coordinate) {
+			MedianCoordinate.X -> TransformGestureParameters(delta, 0f, 1f, 1f, 0f)
+			MedianCoordinate.Z -> TransformGestureParameters(0f, delta, 1f, 1f, 0f)
+			MedianCoordinate.Depth -> TransformGestureParameters(0f, 0f, 1f, 1f, 0f, deltaDepth = delta)
 		}
 	}
 
@@ -133,37 +157,37 @@ internal fun coveredMedianMove(
  * pending forms at the pose, which the art follows.
  *
  * @param CoveredMedianMove move The captured move.
- * @param WorldAxis axis The axis scrubbed.
- * @param Float worldValue The world coordinate the median would land on.
+ * @param MedianCoordinate coordinate The coordinate scrubbed.
+ * @param Float worldValue The world coordinate (or depth) the median would land on.
  * @return MeshDriveResult? The previewed drive, or null when it would change nothing or a modal transform owns the
  *   meshes.
  */
-internal fun EditorSession.previewCoveredMedianMove(move: CoveredMedianMove, axis: WorldAxis, worldValue: Float): MeshDriveResult? {
+internal fun EditorSession.previewCoveredMedianMove(move: CoveredMedianMove, coordinate: MedianCoordinate, worldValue: Float): MeshDriveResult? {
 	if (activeMeshOperator.value != null) {
 		return null
 	}
 
-	val parameters = move.parametersFor(axis, worldValue) ?: return null
+	val parameters = move.parametersFor(coordinate, worldValue) ?: return null
 
 	return move.drive(parameters, model.value)
 }
 
 /**
- * Moves the covered vertices so their median's [axis] coordinate lands on [worldValue], as one undo step
+ * Moves the covered vertices so their median's [coordinate] lands on [worldValue], as one undo step
  * registered on the operation strip in [areaId] as a Grab whose proportional rows start off and stay adjustable.
  *
  * @param CoveredMedianMove move The captured move.
- * @param WorldAxis axis The axis typed on.
- * @param Float worldValue The world coordinate the median should land on.
+ * @param MedianCoordinate coordinate The coordinate typed on.
+ * @param Float worldValue The world coordinate (or depth) the median should land on.
  * @param String areaId The area the strip shows in.
  */
-internal fun EditorSession.moveCoveredMedianAdjustable(move: CoveredMedianMove, axis: WorldAxis, worldValue: Float, areaId: String) {
+internal fun EditorSession.moveCoveredMedianAdjustable(move: CoveredMedianMove, coordinate: MedianCoordinate, worldValue: Float, areaId: String) {
 	if (activeMeshOperator.value != null) {
 		return
 	}
 
 	// The drive always returns fresh arrays, so a median already in place stops here rather than recording an empty step.
-	val parameters = move.parametersFor(axis, worldValue) ?: return
+	val parameters = move.parametersFor(coordinate, worldValue) ?: return
 	val result = move.drive(parameters, model.value)
 	val movedIndicesByDrawable =
 		move.transform.entries.mapNotNull { entry -> entry.drawableId?.takeIf { drawableId -> drawableId in result.preview }?.let { drawableId -> drawableId to entry.movedIndices.toList() } }.toMap()

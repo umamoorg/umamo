@@ -74,10 +74,11 @@ private fun edgeEndpointsOf(edges: List<MeshElement.Edge>): IntArray {
  * @param Offset pointer The cursor in screen pixels.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The vertices that cannot be hit, by index, or null for none.
  * @return Int? The hit vertex index, or null.
  */
-internal fun hitTestVertex(positions: FloatArray, pointer: Offset, camera: ViewportCamera, size: IntSize): Int? =
-	org.umamo.render.pick.hitTestVertex(positions, pointer.x, pointer.y, HIT_RADIUS_PX, camera, size.width, size.height)
+internal fun hitTestVertex(positions: FloatArray, pointer: Offset, camera: ViewportCamera, size: IntSize, excluded: BooleanArray? = null): Int? =
+	org.umamo.render.pick.hitTestVertex(positions, pointer.x, pointer.y, HIT_RADIUS_PX, camera, size.width, size.height, excluded)
 
 /**
  * The edge under [pointer] within [HIT_RADIUS_PX], or null.  Picks the nearest by point-to-segment
@@ -88,6 +89,7 @@ internal fun hitTestVertex(positions: FloatArray, pointer: Offset, camera: Viewp
  * @param Offset pointer The cursor in screen pixels.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The edges that cannot be hit, by ordinal in [edges], or null for none.
  * @return MeshElement.Edge? The hit edge, or null.
  */
 internal fun hitTestEdge(
@@ -96,9 +98,10 @@ internal fun hitTestEdge(
 	pointer: Offset,
 	camera: ViewportCamera,
 	size: IntSize,
+	excluded: BooleanArray? = null,
 ): MeshElement.Edge? =
 	org.umamo.render.pick
-		.hitTestEdge(positions, edgeEndpointsOf(edges), pointer.x, pointer.y, HIT_RADIUS_PX, camera, size.width, size.height)
+		.hitTestEdge(positions, edgeEndpointsOf(edges), pointer.x, pointer.y, HIT_RADIUS_PX, camera, size.width, size.height, excluded)
 		?.let { edgeOrdinal -> edges[edgeOrdinal] }
 
 /**
@@ -110,6 +113,7 @@ internal fun hitTestEdge(
  * @param Offset pointer The cursor in screen pixels.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The faces that cannot be hit, by ordinal, or null for none.
  * @return MeshElement.Face? The hit face, or null.
  */
 internal fun hitTestFace(
@@ -118,9 +122,10 @@ internal fun hitTestFace(
 	pointer: Offset,
 	camera: ViewportCamera,
 	size: IntSize,
+	excluded: BooleanArray? = null,
 ): MeshElement.Face? =
 	org.umamo.render.pick
-		.hitTestFace(positions, topology.faceCorners, topology.cornersPerFace, pointer.x, pointer.y, camera, size.width, size.height)
+		.hitTestFace(positions, topology.faceCorners, topology.cornersPerFace, pointer.x, pointer.y, camera, size.width, size.height, excluded)
 		?.let { faceOrdinal -> MeshElement.Face(faceOrdinal) }
 
 /**
@@ -132,10 +137,13 @@ internal fun hitTestFace(
  * @param Offset cornerB The opposite box corner.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The vertices the box leaves out, by index, or null for none.
  * @return Set<Int> The enclosed vertex indices.
  */
-internal fun verticesInBox(positions: FloatArray, cornerA: Offset, cornerB: Offset, camera: ViewportCamera, size: IntSize): Set<Int> =
-	org.umamo.render.pick.verticesInBox(positions, cornerA.x, cornerA.y, cornerB.x, cornerB.y, camera, size.width, size.height)
+internal fun verticesInBox(positions: FloatArray, cornerA: Offset, cornerB: Offset, camera: ViewportCamera, size: IntSize, excluded: BooleanArray? = null): Set<Int> =
+	org.umamo.render.pick
+		.verticesInBox(positions, cornerA.x, cornerA.y, cornerB.x, cornerB.y, camera, size.width, size.height)
+		.withoutExcluded(excluded)
 
 /**
  * The set of edges fully enclosed by the box (both endpoints inside) - Blender's edge box-select rule.
@@ -146,6 +154,7 @@ internal fun verticesInBox(positions: FloatArray, cornerA: Offset, cornerB: Offs
  * @param Offset cornerB The opposite box corner.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The edges the box leaves out, by ordinal in [edges], or null for none.
  * @return Set<MeshElement> The enclosed edges.
  */
 internal fun edgesInBox(
@@ -155,9 +164,11 @@ internal fun edgesInBox(
 	cornerB: Offset,
 	camera: ViewportCamera,
 	size: IntSize,
+	excluded: BooleanArray? = null,
 ): Set<MeshElement> =
 	org.umamo.render.pick
 		.edgesInBox(positions, edgeEndpointsOf(edges), cornerA.x, cornerA.y, cornerB.x, cornerB.y, camera, size.width, size.height)
+		.withoutExcluded(excluded)
 		.map { edgeOrdinal -> edges[edgeOrdinal] }
 		.toSet()
 
@@ -171,6 +182,7 @@ internal fun edgesInBox(
  * @param Offset cornerB The opposite box corner.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The faces the box leaves out, by ordinal, or null for none.
  * @return Set<MeshElement> The enclosed faces.
  */
 internal fun facesInBox(
@@ -180,9 +192,11 @@ internal fun facesInBox(
 	cornerB: Offset,
 	camera: ViewportCamera,
 	size: IntSize,
+	excluded: BooleanArray? = null,
 ): Set<MeshElement> =
 	org.umamo.render.pick
 		.facesInBox(positions, topology.faceCorners, topology.cornersPerFace, cornerA.x, cornerA.y, cornerB.x, cornerB.y, camera, size.width, size.height)
+		.withoutExcluded(excluded)
 		.map { faceOrdinal -> MeshElement.Face(faceOrdinal) }
 		.toSet<MeshElement>()
 
@@ -195,10 +209,13 @@ internal fun facesInBox(
  * @param Float radiusPx The brush radius in screen pixels.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The vertices the brush leaves out, by index, or null for none.
  * @return Set<Int> The enclosed vertex indices.
  */
-internal fun verticesInCircle(positions: FloatArray, center: Offset, radiusPx: Float, camera: ViewportCamera, size: IntSize): Set<Int> =
-	org.umamo.render.pick.verticesInCircle(positions, center.x, center.y, radiusPx, camera, size.width, size.height)
+internal fun verticesInCircle(positions: FloatArray, center: Offset, radiusPx: Float, camera: ViewportCamera, size: IntSize, excluded: BooleanArray? = null): Set<Int> =
+	org.umamo.render.pick
+		.verticesInCircle(positions, center.x, center.y, radiusPx, camera, size.width, size.height)
+		.withoutExcluded(excluded)
 
 /**
  * The set of edges the brush touches (the disc overlaps the segment in screen space).
@@ -209,6 +226,7 @@ internal fun verticesInCircle(positions: FloatArray, center: Offset, radiusPx: F
  * @param Float radiusPx The brush radius in screen pixels.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The edges the brush leaves out, by ordinal in [edges], or null for none.
  * @return Set<MeshElement> The touched edges.
  */
 internal fun edgesInCircle(
@@ -218,9 +236,11 @@ internal fun edgesInCircle(
 	radiusPx: Float,
 	camera: ViewportCamera,
 	size: IntSize,
+	excluded: BooleanArray? = null,
 ): Set<MeshElement> =
 	org.umamo.render.pick
 		.edgesInCircle(positions, edgeEndpointsOf(edges), center.x, center.y, radiusPx, camera, size.width, size.height)
+		.withoutExcluded(excluded)
 		.map { edgeOrdinal -> edges[edgeOrdinal] }
 		.toSet()
 
@@ -234,6 +254,7 @@ internal fun edgesInCircle(
  * @param Float radiusPx The brush radius in screen pixels.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
+ * @param BooleanArray? excluded The faces the brush leaves out, by ordinal, or null for none.
  * @return Set<MeshElement> The touched faces.
  */
 internal fun facesInCircle(
@@ -243,8 +264,18 @@ internal fun facesInCircle(
 	radiusPx: Float,
 	camera: ViewportCamera,
 	size: IntSize,
+	excluded: BooleanArray? = null,
 ): Set<MeshElement> =
 	org.umamo.render.pick
 		.facesInCircle(positions, topology.faceCorners, topology.cornersPerFace, center.x, center.y, radiusPx, camera, size.width, size.height)
+		.withoutExcluded(excluded)
 		.map { faceOrdinal -> MeshElement.Face(faceOrdinal) }
 		.toSet<MeshElement>()
+
+/**
+ * These ordinals less the ones [excluded] marks, or this set itself when nothing is excluded.
+ *
+ * @param BooleanArray? excluded The ordinals to leave out, or null for none.
+ * @return Set<Int> The ordinals kept.
+ */
+private fun Set<Int>.withoutExcluded(excluded: BooleanArray?): Set<Int> = if (excluded == null) this else filterNotTo(HashSet()) { ordinal -> excluded[ordinal] }
