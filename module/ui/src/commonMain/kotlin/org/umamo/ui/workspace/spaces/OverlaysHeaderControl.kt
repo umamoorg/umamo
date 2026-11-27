@@ -112,6 +112,7 @@ internal fun OverlaysHeaderControl(state: ViewportOverlayState, enabled: Boolean
 					when (field) {
 						OverlayField.WireframeOpacity -> OpacityPercentField(field, state.wireframeOpacity) { opacity -> state.wireframeOpacity = opacity }
 						OverlayField.DeformerOpacity -> OpacityPercentField(field, state.deformerOpacity) { opacity -> state.deformerOpacity = opacity }
+						OverlayField.BackFacingOpacity -> OpacityPercentField(field, state.backFacingOpacity) { opacity -> state.backFacingOpacity = opacity }
 					}
 				}
 			}

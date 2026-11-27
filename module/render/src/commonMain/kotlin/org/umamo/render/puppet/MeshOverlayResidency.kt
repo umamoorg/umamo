@@ -136,7 +136,7 @@ internal fun overlayFlagsDiffer(previous: ByteArray, next: ByteArray): Boolean =
 
 /**
  * One overlay mesh's buffer set on this device: [previousBuffers] while the mesh keeps the topology they were built
- * from - the same edge and face-dot arrays, as many dotted vertices, and the caller's own source ([sameSource]: the
+ * from - the same edge and face-dot arrays, as many dotted vertices and triangles per face dot, and the caller's own source ([sameSource]: the
  * resident it pairs with, or the triangle indices it was given) - with only its flags updated in place when they
  * changed by identity; else a fresh set, freeing the previous one.  The one reuse rule every overlay residency keeps.
  *
@@ -164,7 +164,8 @@ internal fun RenderDevice.overlayBuffersFor(
 		sameSource &&
 		previousMesh.edgeEndpoints === mesh.edgeEndpoints &&
 		previousMesh.faceDotCorners === mesh.faceDotCorners &&
-		previousMesh.vertexDotCount == mesh.vertexDotCount
+		previousMesh.vertexDotCount == mesh.vertexDotCount &&
+		previousMesh.trianglesPerFaceDot == mesh.trianglesPerFaceDot
 	) {
 		if (overlayFlagsDiffer(previousMesh.vertexFlags, mesh.vertexFlags) ||
 			overlayFlagsDiffer(previousMesh.edgeFlags, mesh.edgeFlags) ||
@@ -178,7 +179,7 @@ internal fun RenderDevice.overlayBuffersFor(
 
 	previousBuffers?.let { stale -> destroyOverlayMeshBuffers(stale) }
 
-	return createOverlayMeshBuffers(OverlayMeshSpec(mesh.edgeEndpoints, faceCorners, vertexFlags, edgeFlags, faceFlags, mesh.faceDotCorners, mesh.vertexDotCount))
+	return createOverlayMeshBuffers(OverlayMeshSpec(mesh.edgeEndpoints, faceCorners, vertexFlags, edgeFlags, faceFlags, mesh.faceDotCorners, mesh.vertexDotCount, mesh.trianglesPerFaceDot))
 }
 
 /**

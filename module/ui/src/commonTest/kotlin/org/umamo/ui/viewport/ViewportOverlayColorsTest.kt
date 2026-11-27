@@ -88,13 +88,6 @@ class ViewportOverlayColorsTest {
 		assertEquals(OverlayColor(colors.latticeHover.red, colors.latticeHover.green, colors.latticeHover.blue, 1f), palette.latticeHover)
 	}
 
-	/** The back-facing opacity reaches the palette beside the lattice colors. */
-	@Test
-	fun thePaletteCarriesTheBackFacingOpacity() {
-		assertEquals(0.55f, defaultColors().copy(latticeBackFacingOpacity = 0.55f).toMeshOverlayPalette().backFacingOpacity)
-		assertEquals(ViewportColorSettings.LATTICE_BACK_FACING_OPACITY_DEFAULT.toFloat(), defaultColors().toMeshOverlayPalette().backFacingOpacity, "the default is the renderer's")
-	}
-
 	/**
 	 * The bundled default colors.
 	 *

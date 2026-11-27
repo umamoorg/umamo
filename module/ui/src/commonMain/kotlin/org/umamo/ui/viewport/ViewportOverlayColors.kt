@@ -6,7 +6,6 @@ import androidx.compose.ui.graphics.Color
 import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.render.puppet.OverlayColor
 import org.umamo.ui.graphics.parseHexColor
-import org.umamo.ui.rememberDoubleSetting
 import org.umamo.ui.rememberStringSetting
 
 /*
@@ -22,8 +21,7 @@ import org.umamo.ui.rememberStringSetting
  * The settings keys and bundled defaults for the viewport overlay colors, one #AARRGGBB hex string
  * each: the Edit-mode element palette (vertex / edge / face by idle / selected / active),
  * the placement state colors, the selection highlights, and the warp lattice by role, while unkeyed, and
- * under the pointer.  Beside them sits one opacity, 0 to 1: how visible a lattice's back-facing parts stay
- * where an area dims them.  The lattice's selected and active defaults are the selection highlights', so a
+ * under the pointer.  The lattice's selected and active defaults are the selection highlights', so a
  * selected warp reads as selected art does.  The defaults here are kept in lockstep with
  * defaultSettings.json (the merged-settings baseline); these constants are the Kotlin-side fallback
  * for a missing or unparseable value, shared by the overlays, the GL viewport binding, and the
@@ -48,7 +46,6 @@ internal object ViewportColorSettings {
 	const val LATTICE_ACTIVE_KEY = "viewport.deformer.latticeActive"
 	const val LATTICE_PENDING_KEY = "viewport.deformer.latticePending"
 	const val LATTICE_HOVER_KEY = "viewport.deformer.latticeHover"
-	const val LATTICE_BACK_FACING_OPACITY_KEY = "viewport.deformer.backFacingOpacity"
 
 	const val VERTEX_IDLE_DEFAULT = "#FFFF00EC"
 	const val VERTEX_SELECTED_DEFAULT = "#FFFF7A00"
@@ -68,7 +65,6 @@ internal object ViewportColorSettings {
 	const val LATTICE_ACTIVE_DEFAULT = ACTIVE_SELECTION_HIGHLIGHT_DEFAULT
 	const val LATTICE_PENDING_DEFAULT = "#FFDF8431"
 	const val LATTICE_HOVER_DEFAULT = "#FFFF00EC"
-	const val LATTICE_BACK_FACING_OPACITY_DEFAULT = 0.3
 }
 
 /**
@@ -95,8 +91,6 @@ internal object ViewportColorSettings {
  * @property Color latticeActive The active warp's lattice.
  * @property Color latticePending A warp lattice shaped in Pose mode and not yet keyed, whatever its role.
  * @property Color latticeHover The warp lattice under the pointer, whatever its role or mark: what a click there takes.
- * @property Float latticeBackFacingOpacity The alpha scale, 0 to 1, of a lattice cage's back-facing parts where an area
- *   dims them.
  */
 internal data class ViewportOverlayColors(
 	val vertexIdle: Color,
@@ -117,7 +111,6 @@ internal data class ViewportOverlayColors(
 	val latticeActive: Color,
 	val latticePending: Color,
 	val latticeHover: Color,
-	val latticeBackFacingOpacity: Float = MeshOverlayPalette.DEFAULT_BACK_FACING_OPACITY,
 )
 
 /**
@@ -148,12 +141,11 @@ internal fun rememberViewportOverlayColors(): ViewportOverlayColors =
 		latticeActive = settingColor(ViewportColorSettings.LATTICE_ACTIVE_KEY, ViewportColorSettings.LATTICE_ACTIVE_DEFAULT),
 		latticePending = settingColor(ViewportColorSettings.LATTICE_PENDING_KEY, ViewportColorSettings.LATTICE_PENDING_DEFAULT),
 		latticeHover = settingColor(ViewportColorSettings.LATTICE_HOVER_KEY, ViewportColorSettings.LATTICE_HOVER_DEFAULT),
-		latticeBackFacingOpacity = settingOpacity(ViewportColorSettings.LATTICE_BACK_FACING_OPACITY_KEY, ViewportColorSettings.LATTICE_BACK_FACING_OPACITY_DEFAULT),
 	)
 
 /**
- * The nine Edit-mode element colors, the two placement colors, the five lattice colors, and the back-facing opacity as
- * the renderer's mesh overlay palette, straight alpha, each channel the color's own 0..1 component.
+ * The nine Edit-mode element colors, the two placement colors, and the five lattice colors as the renderer's
+ * mesh overlay palette, straight alpha, each channel the color's own 0..1 component.
  *
  * @return MeshOverlayPalette The palette.
  */
@@ -175,7 +167,6 @@ internal fun ViewportOverlayColors.toMeshOverlayPalette(): MeshOverlayPalette =
 		latticeActive = latticeActive.toOverlayColor(),
 		latticePending = latticePending.toOverlayColor(),
 		latticeHover = latticeHover.toOverlayColor(),
-		backFacingOpacity = latticeBackFacingOpacity,
 	)
 
 /**
@@ -198,21 +189,6 @@ private fun settingColor(key: String, defaultHex: String): Color {
 	val hexText by rememberStringSetting(key, defaultHex)
 
 	return parseHexColor(hexText) ?: parseHexColor(defaultHex)!!
-}
-
-/**
- * Binds one opacity setting reactively, held to 0 to 1, falling back to the bundled default when the stored value is
- * not a finite number.
- *
- * @param String key The dotted settings key.
- * @param Double default The bundled default, 0 to 1.
- * @return Float The opacity.
- */
-@Composable
-private fun settingOpacity(key: String, default: Double): Float {
-	val opacity by rememberDoubleSetting(key, default)
-
-	return (if (opacity.isFinite()) opacity else default).toFloat().coerceIn(0f, 1f)
 }
 
 /**

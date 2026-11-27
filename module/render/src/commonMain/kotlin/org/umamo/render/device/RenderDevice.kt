@@ -635,9 +635,10 @@ public interface RenderPassEncoder {
 	fun drawOverlayVertexDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms)
 
 	/**
-	 * Draws the mesh overlay's face-centroid dots of one mesh: one instance per triangle, at the centroid of its
-	 * [OverlayMeshSpec.faceDotCorners] entry when the mesh has them, else of its own corners; the bound pipeline must
-	 * be [PipelinePurpose.OverlayFaceDot].
+	 * Draws the mesh overlay's face-centroid dots of one mesh: one instance per run of
+	 * [OverlayMeshSpec.trianglesPerFaceDot] triangles, at the centroid of the run's first [OverlayMeshSpec.faceDotCorners]
+	 * entry when the mesh has them, else of its own corners, with that triangle's flag; the bound pipeline must be
+	 * [PipelinePurpose.OverlayFaceDot].
 	 *
 	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
 	 * @param DeformedPositionStore store The overlay's deformed positions.

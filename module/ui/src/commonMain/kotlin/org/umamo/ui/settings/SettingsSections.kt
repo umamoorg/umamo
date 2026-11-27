@@ -36,8 +36,6 @@ import org.umamo.ui.resources.settings_check_for_updates_at_startup_description
 import org.umamo.ui.resources.settings_check_for_updates_heading
 import org.umamo.ui.resources.settings_colors_active_selection_highlight
 import org.umamo.ui.resources.settings_colors_active_selection_highlight_description
-import org.umamo.ui.resources.settings_colors_lattice_back_facing_opacity
-import org.umamo.ui.resources.settings_colors_lattice_back_facing_opacity_description
 import org.umamo.ui.resources.settings_colors_pinned_placement
 import org.umamo.ui.resources.settings_colors_pinned_placement_description
 import org.umamo.ui.resources.settings_colors_role_active
@@ -120,7 +118,6 @@ import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.viewport.ViewportColorSettings
 import org.umamo.ui.viewport.ViewportSettings
 import org.umamo.ui.workspace.operationstrip.artworkAnchorLabel
-import kotlin.math.roundToInt
 
 /** The settings key + values for the UI theme mode, kept in lockstep with org.umamo.ui.theme.Theme. */
 private const val THEME_KEY = "interface.theme"
@@ -502,37 +499,8 @@ internal fun ColorsSection(folds: PreferencesFolds) {
 		ColorRoleRow(ColorRole.Active, ViewportColorSettings.LATTICE_ACTIVE_KEY, ViewportColorSettings.LATTICE_ACTIVE_DEFAULT)
 		ColorRoleRow(ColorRole.Unkeyed, ViewportColorSettings.LATTICE_PENDING_KEY, ViewportColorSettings.LATTICE_PENDING_DEFAULT)
 		ColorRoleRow(ColorRole.Hovered, ViewportColorSettings.LATTICE_HOVER_KEY, ViewportColorSettings.LATTICE_HOVER_DEFAULT)
-		BackFacingOpacityRow()
 	}
 }
-
-/**
- * The lattice cage's back-facing opacity as a whole percent, 0 to 100, stored as 0 to 1.
- */
-@Composable
-private fun BackFacingOpacityRow() {
-	var opacity by rememberDoubleSetting(ViewportColorSettings.LATTICE_BACK_FACING_OPACITY_KEY, ViewportColorSettings.LATTICE_BACK_FACING_OPACITY_DEFAULT)
-	val shownPercent = (opacity * 100.0).roundToInt()
-	PropertyFieldRow(
-		label = stringResource(Res.string.settings_colors_lattice_back_facing_opacity),
-		description = stringResource(Res.string.settings_colors_lattice_back_facing_opacity_description),
-	) {
-		NumberField(
-			value = shownPercent,
-			onValueChange = { percent ->
-				if (percent != shownPercent) {
-					opacity = percent / 100.0
-				}
-			},
-			range = BACK_FACING_PERCENT_RANGE,
-			unitSuffix = stringResource(Res.string.unit_percent),
-			modifier = Modifier.fillMaxWidth(),
-		)
-	}
-}
-
-/** The percents the back-facing opacity row accepts. */
-private val BACK_FACING_PERCENT_RANGE = 0..100
 
 /**
  * One color row for a [ColorRole] of an element group.

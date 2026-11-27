@@ -3,7 +3,6 @@ package org.umamo.ui.viewport
 import kotlinx.coroutines.runBlocking
 import okio.Path.Companion.toPath
 import okio.fakefilesystem.FakeFileSystem
-import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.settings.Settings
 import org.umamo.storage.OkioAppStorage
 import org.umamo.ui.defaultSettingsJson
@@ -41,13 +40,6 @@ class ViewportSettingsTest {
 		assertEquals(10, settings.getInt(ViewportSettings.GRID_SUBDIVISIONS_KEY))
 		assertEquals(256.0, settings.getDouble(ViewportSettings.UV_GRID_SCALE_KEY), "the UV editor's texel grid")
 		assertEquals(8, settings.getInt(ViewportSettings.UV_GRID_SUBDIVISIONS_KEY))
-	}
-
-	/** The lattice cage's back-facing opacity resolves out of defaultSettings.json to its fallback, the renderer's own. */
-	@Test
-	fun theBundledBackFacingOpacityMatchesTheFallback() {
-		assertEquals(ViewportColorSettings.LATTICE_BACK_FACING_OPACITY_DEFAULT, bundledSettings().getDouble(ViewportColorSettings.LATTICE_BACK_FACING_OPACITY_KEY))
-		assertEquals(MeshOverlayPalette.DEFAULT_BACK_FACING_OPACITY, ViewportColorSettings.LATTICE_BACK_FACING_OPACITY_DEFAULT.toFloat())
 	}
 
 	/**

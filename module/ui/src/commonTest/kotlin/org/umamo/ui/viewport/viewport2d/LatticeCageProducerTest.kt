@@ -65,6 +65,7 @@ class LatticeCageProducerTest {
 			"the four sides, no diagonal",
 		)
 		assertContentEquals(intArrayOf(4, 4, 4, 4, 4, 4), mesh.faceDotCorners, "both triangles dot at the center")
+		assertEquals(2, mesh.trianglesPerFaceDot, "and share the one dot, so it draws once")
 		assertEquals(6, cage.triangleIndicesByOwner.getValue(owner).size, "the cell fills as two triangles")
 
 		// The body warp spans world x 0..40 and z -40..0, so its center is (20, -20).

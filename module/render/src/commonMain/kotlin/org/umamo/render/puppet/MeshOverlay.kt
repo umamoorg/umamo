@@ -179,6 +179,10 @@ data class MeshOverlaySizes(
  *   cell, a quad, shows one dot where its center is.
  * @property Int vertexDotCount How many of the vertices, from the first, are the mesh's own and draw a vertex dot;
  *   the vertices after them are face-dot anchors only.  Every vertex by default.
+ * @property Int trianglesPerFaceDot How many triangles in a row, from the first, share one face dot, drawn once at the
+ *   first one's [faceDotCorners] entry and with its flag: a lattice cell's two, so a dot drawn at less than full alpha
+ *   blends once.  One by default, a dot per triangle; above one only with [faceDotCorners], and the triangle count a
+ *   multiple of it.
  */
 class MeshOverlayMesh(
 	val owner: ElementOwner,
@@ -193,6 +197,7 @@ class MeshOverlayMesh(
 	val style: MeshStyle = MeshStyle.Plain,
 	val faceDotCorners: IntArray? = null,
 	val vertexDotCount: Int = vertexCount,
+	val trianglesPerFaceDot: Int = 1,
 ) {
 	/** How many unique edges the mesh carries. */
 	val edgeCount: Int get() = edgeEndpoints.size / 2
@@ -211,6 +216,7 @@ class MeshOverlayMesh(
 		require(activeFace == null || activeFace in faceFlags.indices) { "active face $activeFace is outside the flagged faces of $owner" }
 		require(vertexDotCount in 0..vertexCount) { "$vertexDotCount vertex dots are more than the $vertexCount vertices of $owner" }
 		require(faceDotCorners == null || faceDotCorners.all { corner -> corner in 0 until vertexCount }) { "a face dot corner is outside the vertices of $owner" }
+		require(trianglesPerFaceDot == 1 || (trianglesPerFaceDot > 1 && faceDotCorners != null)) { "$trianglesPerFaceDot triangles per face dot needs face-dot corners for $owner" }
 	}
 }
 

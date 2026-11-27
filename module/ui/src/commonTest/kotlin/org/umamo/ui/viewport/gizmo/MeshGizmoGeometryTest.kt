@@ -71,11 +71,12 @@ class MeshGizmoGeometryTest {
 	 *
 	 * @param String id The drawable id.
 	 * @param FloatArray positions The interleaved positions.
+	 * @param Boolean hidden Whether the area hides the back.
 	 * @return GizmoMeshGeometry The geometry.
 	 */
-	private fun quadWithBackFirstVertex(id: String, positions: FloatArray = quadPositions): GizmoMeshGeometry {
+	private fun quadWithBackFirstVertex(id: String, positions: FloatArray = quadPositions, hidden: Boolean = false): GizmoMeshGeometry {
 		val topology = ElementTopology.ofTriangles(positions.size / 2, quadIndices)
-		val back = BackFacingElements(booleanArrayOf(true, false, false, false), BooleanArray(topology.edges.size), BooleanArray(topology.faceCount))
+		val back = BackFacingElements(booleanArrayOf(true, false, false, false), BooleanArray(topology.edges.size), BooleanArray(topology.faceCount), hidden)
 
 		return GizmoMeshGeometry(ElementOwner.Drawable(DrawableId(id)), topology, positions, back)
 	}
@@ -107,6 +108,18 @@ class MeshGizmoGeometryTest {
 
 		val boxed = elementsInBox(MeshSelectMode.Vertex, quadWithBackFirstVertex("a"), Offset(95f, 95f), Offset(125f, 105f), camera, size)
 		assertEquals(setOf<MeshElement>(MeshElement.Vertex(0), MeshElement.Vertex(1)), boxed, "a box takes it with the rest")
+	}
+
+	@Test
+	fun aHiddenBackVertexIsNeverPickedBoxedOrPainted() {
+		val hidden = quadWithBackFirstVertex("a", hidden = true)
+		assertNull(hitTestMeshes(MeshSelectMode.Vertex, listOf(hidden), Offset(101f, 101f), camera, size), "alone within reach, it is still not there to click")
+
+		val boxed = elementsInBox(MeshSelectMode.Vertex, hidden, Offset(95f, 95f), Offset(125f, 105f), camera, size)
+		assertEquals(setOf<MeshElement>(MeshElement.Vertex(1)), boxed, "a box takes the front alone")
+
+		val painted = circleSelection(MeshSelection(owners = listOf(hidden.owner), selectMode = MeshSelectMode.Vertex), erasing = false, Offset(100f, 100f), 4f, listOf(hidden), camera, size)
+		assertEquals(emptySet(), painted.elementsOf(hidden.owner), "and a brush over it paints nothing")
 	}
 
 	@Test
