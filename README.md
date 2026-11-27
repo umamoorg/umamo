@@ -346,6 +346,7 @@ Umamo is an independent, community-developed project.  It is **not affiliated wi
 ## Contributors
 
 WANTED: Human translations for various languages.(Japanese, Chinese, Korean, Spanish, French, German, etc.)
+AI assisted translations are welcome as long as a human proofreads and edits them.
 The English strings are located at: `module/ui/src/commonMain/composeResources/values/strings.xml`
 We're testing Weblate to translate!  You can translate easily from a browser on your phone or desktop: https://hosted.weblate.org/projects/umamo/
 
