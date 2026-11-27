@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import org.umamo.render.FrameOverlays
 import org.umamo.ui.rememberDoubleSetting
 import org.umamo.ui.rememberIntSetting
 
@@ -77,6 +78,13 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	 * 2D viewport only), and a click there takes the front over the back; on by default.
 	 */
 	var dimBackFacing by mutableStateOf(true)
+
+	/**
+	 * The opacity, 0 to 1, the cage's back-facing parts draw at while [dimBackFacing] is on (the 2D viewport only), each
+	 * at its palette alpha times this.  At 0 none of them draws or picks while the row stays as set.  Saved as the
+	 * `backFacingOpacity` key.
+	 */
+	var backFacingOpacity by mutableStateOf(FrameOverlays.DEFAULT_BACK_FACING_OPACITY)
 
 	/**
 	 * The opacity, 0 to 1, of the mesh overlay drawn outside an edit: the wireframe on a 2D viewport, the islands
@@ -158,7 +166,8 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	val isAtDefaults: Boolean
 		get() =
 			showOverlays && showGrid && showAxes && showCursor && showInfo && !showWireframe && showSelectionTint && !showDeformers && cullHiddenWireframe &&
-				dimBackFacing && wireframeOpacity == 1f && deformerOpacity == 1f && gridGeometry == null
+				dimBackFacing && backFacingOpacity == FrameOverlays.DEFAULT_BACK_FACING_OPACITY && wireframeOpacity == 1f && deformerOpacity == 1f &&
+				gridGeometry == null
 
 	/**
 	 * The grid this area draws and snaps to over a given application grid: its own, else the application's,
@@ -183,6 +192,7 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 		showDeformers = false
 		cullHiddenWireframe = true
 		dimBackFacing = true
+		backFacingOpacity = FrameOverlays.DEFAULT_BACK_FACING_OPACITY
 		wireframeOpacity = 1f
 		deformerOpacity = 1f
 		gridGeometry = null

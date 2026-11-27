@@ -141,6 +141,7 @@ class CommandTableOrderTest {
 				"view.overlay.deformers",
 				"view.overlay.wireframe",
 				"view.overlay.wireframeCulling",
+				"view.overlay.dimBackFacing",
 			),
 			overlayCommands(AreaOverlayHub(), routing(), viewportPresent = false).map { command -> command.id },
 		)

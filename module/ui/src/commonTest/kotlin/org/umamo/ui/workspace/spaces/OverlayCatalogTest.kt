@@ -1,5 +1,6 @@
 package org.umamo.ui.workspace.spaces
 
+import org.umamo.render.FrameOverlays
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.OverlaySurface
 import org.umamo.ui.viewport.ViewportOverlayState
@@ -18,7 +19,7 @@ class OverlayCatalogTest {
 	 * The 2D viewport offers every row; the UV editor every row but the axes, the selection tint, the deformers,
 	 * and the wireframe, which its surface has none of.  Both offer the wireframe's Opacity field, the UV editor's
 	 * under a Geometry heading with no row of its own; the deformers' Opacity sits under the 2D viewport's Objects
-	 * rows alone.
+	 * rows alone, and the Back-Facing Opacity under its Lattice row.
 	 */
 	@Test
 	fun eachSurfaceOffersItsRowsAndFieldsInSectionOrder() {
@@ -29,10 +30,10 @@ class OverlayCatalogTest {
 				OverlayToggle.Cursor,
 				OverlayToggle.Info,
 				OverlayToggle.SelectionTint,
-				OverlayToggle.DimBackFacing,
 				OverlayToggle.Deformers,
 				OverlayToggle.Wireframe,
 				OverlayToggle.CullHidden,
+				OverlayToggle.DimBackFacing,
 			),
 			overlayRowsFor(OverlaySurface.Viewport2D),
 		)
@@ -42,15 +43,16 @@ class OverlayCatalogTest {
 		assertEquals(OverlaySection.Guides, OverlayToggle.Cursor.section)
 		assertEquals(OverlaySection.Text, OverlayToggle.Info.section)
 		assertEquals(OverlaySection.Objects, OverlayToggle.SelectionTint.section)
-		assertEquals(OverlaySection.Objects, OverlayToggle.DimBackFacing.section, "above the Deformers row, so their Opacity stays under it")
 		assertEquals(OverlaySection.Objects, OverlayToggle.Deformers.section)
 		assertEquals(OverlaySection.Geometry, OverlayToggle.Wireframe.section)
 		assertEquals(OverlaySection.Geometry, OverlayToggle.CullHidden.section)
-		assertEquals(listOf(OverlaySection.Guides, OverlaySection.Text, OverlaySection.Objects, OverlaySection.Geometry), OverlaySection.entries)
-		assertEquals(listOf(OverlayField.WireframeOpacity, OverlayField.DeformerOpacity), overlayFieldsFor(OverlaySurface.Viewport2D))
+		assertEquals(OverlaySection.Lattice, OverlayToggle.DimBackFacing.section)
+		assertEquals(listOf(OverlaySection.Guides, OverlaySection.Text, OverlaySection.Objects, OverlaySection.Geometry, OverlaySection.Lattice), OverlaySection.entries)
+		assertEquals(listOf(OverlayField.WireframeOpacity, OverlayField.DeformerOpacity, OverlayField.BackFacingOpacity), overlayFieldsFor(OverlaySurface.Viewport2D))
 		assertEquals(listOf(OverlayField.WireframeOpacity), overlayFieldsFor(OverlaySurface.UvEditor), "the UV editor's islands fade by the same field, and it draws no lattice")
 		assertEquals(OverlaySection.Geometry, OverlayField.WireframeOpacity.section)
 		assertEquals(OverlaySection.Objects, OverlayField.DeformerOpacity.section, "under the Deformers row")
+		assertEquals(OverlaySection.Lattice, OverlayField.BackFacingOpacity.section, "under the Dim Back-Facing row")
 	}
 
 	/** The Dim Back-Facing row reads and writes its flag, and the master gates its effect. */
@@ -73,6 +75,20 @@ class OverlayCatalogTest {
 		state.dimBackFacing = false
 		state.reset()
 		assertTrue(state.dimBackFacing, "a reset turns it back on")
+	}
+
+	/** The back-facing opacity is the area's own: off its default it is a deviation the area saves, and a reset returns it. */
+	@Test
+	fun theBackFacingOpacityIsADeviationAResetReturns() {
+		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
+		assertEquals(FrameOverlays.DEFAULT_BACK_FACING_OPACITY, state.backFacingOpacity, "it starts at the default")
+		assertTrue(state.isAtDefaults)
+
+		state.backFacingOpacity = 0.55f
+		assertFalse(state.isAtDefaults)
+
+		state.reset()
+		assertEquals(FrameOverlays.DEFAULT_BACK_FACING_OPACITY, state.backFacingOpacity)
 	}
 
 	/** The selection tint row reads and writes its flag and no other. */

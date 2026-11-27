@@ -21,6 +21,9 @@ import org.umamo.ui.viewport.gizmo.editCageFlagsOf
  * quad cell's one dot where its center is.
  */
 
+/** The triangles a cell fills as ([WarpLatticeLayout.cellTriangles]), which share the cell's one face dot. */
+private const val TRIANGLES_PER_CELL = 2
+
 /**
  * One lattice's cage topology.
  *
@@ -82,8 +85,8 @@ internal fun cagePositionsOf(world: FloatArray, topology: CageTopology): FloatAr
 
 /**
  * One lattice's cage entry: its points' and grid lines' flags as the mesh derive lights them, the appended centers
- * left idle and drawing no vertex dot, and each cell's flag on both of its triangles, the active cell's dot read
- * through its first.  Each back-facing point, grid line, and cell, and each back-facing cell's center, carries the
+ * left idle and drawing no vertex dot, and each cell's flag on both of its triangles, which share one face dot read
+ * through the first, the active cell's too.  Each back-facing point, grid line, and cell, and each back-facing cell's center, carries the
  * back-facing bit beside its role.
  *
  * @param ElementOwner owner The lattice's owner.
@@ -131,6 +134,7 @@ internal fun cageEntryOf(
 					style = style,
 					faceDotCorners = topology.faceDotCorners,
 					vertexDotCount = topology.pointCount,
+					trianglesPerFaceDot = TRIANGLES_PER_CELL,
 				)
 			}
 		}
@@ -149,6 +153,7 @@ internal fun cageEntryOf(
 		style = style,
 		faceDotCorners = topology.faceDotCorners,
 		vertexDotCount = topology.pointCount,
+		trianglesPerFaceDot = TRIANGLES_PER_CELL,
 	)
 }
 

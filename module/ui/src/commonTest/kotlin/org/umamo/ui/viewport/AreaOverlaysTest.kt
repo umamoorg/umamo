@@ -52,6 +52,9 @@ class AreaOverlaysTest {
 		state.deformerOpacity = 1f
 		state.dimBackFacing = false
 		assertEquals(viewportDefaults.copy(dimBackFacing = false), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
+		state.dimBackFacing = true
+		state.backFacingOpacity = 0.55f
+		assertEquals(viewportDefaults.copy(backFacingOpacity = 0.55f), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
 	}
 
 	/** An area with a grid of its own asks for that grid, whatever the application's is. */
@@ -106,6 +109,7 @@ class AreaOverlaysTest {
 		state.cullHiddenWireframe = false
 		state.wireframeOpacity = 0.3f
 		state.deformerOpacity = 0.4f
+		state.backFacingOpacity = 0.55f
 		assertEquals(
 			FrameOverlays(
 				gridLines = true,

@@ -47,6 +47,7 @@ class CommandSpacesTableTest {
 				"view.overlay.deformers" to viewport,
 				"view.overlay.wireframe" to viewport,
 				"view.overlay.wireframeCulling" to viewport,
+				"view.overlay.dimBackFacing" to viewport,
 				"frame.all" to workSurfacesAndSheet,
 				"mesh.grab" to workSurfaces,
 				"mesh.scale" to workSurfaces,

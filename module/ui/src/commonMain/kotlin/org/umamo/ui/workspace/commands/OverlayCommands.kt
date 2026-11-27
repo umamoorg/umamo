@@ -128,5 +128,14 @@ internal fun overlayCommands(areaOverlays: AreaOverlayHub, routing: CommandRouti
 		) {
 			hovered2DOverlays()?.let { state -> state.cullHiddenWireframe = !state.cullHiddenWireframe }
 		},
+		// The lattice cage's back-facing dimming is the 2D viewport's alone: a UV editor edits no lattice.
+		Command(
+			"view.overlay.dimBackFacing",
+			title = Res.string.cmd_view_overlay_dim_back_facing,
+			availability = hasViewport,
+			spaces = SpaceScope.Viewport2D,
+		) {
+			hovered2DOverlays()?.let { state -> state.dimBackFacing = !state.dimBackFacing }
+		},
 	)
 }

@@ -40,7 +40,8 @@ import org.umamo.runtime.model.drawableId
  * @property FloatArray positions The interleaved (x, y) vertex positions in the hosting space's
  *   world units (what the area camera projects).
  * @property BackFacingElements? backFacing The elements that face away from the viewer, which a click passes over
- *   for any other within reach, or null when none do or the surface does not prefer the front.
+ *   for any other within reach (and a hidden back for good), or null when none do or the surface does not prefer the
+ *   front.
  */
 internal class GizmoMeshGeometry(
 	val owner: ElementOwner,
@@ -61,12 +62,37 @@ internal class GizmoMeshGeometry(
  * @property BooleanArray vertices One per vertex.
  * @property BooleanArray edges One per edge, in the topology's edge order.
  * @property BooleanArray faces One per face.
+ * @property Boolean hidden Whether the area draws them at no opacity: then nothing picks them, even with no other
+ *   element within reach, and a box or a brush leaves them out, since what does not show cannot be aimed at.
  */
 internal class BackFacingElements(
 	val vertices: BooleanArray,
 	val edges: BooleanArray,
 	val faces: BooleanArray,
-)
+	val hidden: Boolean = false,
+) {
+	/**
+	 * The flags of one element domain.
+	 *
+	 * @param MeshSelectMode selectMode The domain.
+	 * @return BooleanArray Its flags, by ordinal.
+	 */
+	fun of(selectMode: MeshSelectMode): BooleanArray =
+		when (selectMode) {
+			MeshSelectMode.Vertex -> vertices
+			MeshSelectMode.Edge -> edges
+			MeshSelectMode.Face -> faces
+		}
+}
+
+/**
+ * The elements of [selectMode]'s domain a box or a brush leaves out: the back-facing ones where the area hides them,
+ * else none.
+ *
+ * @param MeshSelectMode selectMode The domain.
+ * @return BooleanArray? The left-out elements by ordinal, or null for none.
+ */
+private fun GizmoMeshGeometry.hiddenIn(selectMode: MeshSelectMode): BooleanArray? = backFacing?.takeIf { back -> back.hidden }?.of(selectMode)
 
 /**
  * The active element's own covered median: the median of the vertices the active element covers, in the
@@ -93,7 +119,8 @@ internal fun activeElementMedian(selection: MeshSelection, geometries: List<Gizm
  * The nearest element of the given domain under the pointer across every mesh, or null.  Each mesh's
  * own nearest candidate is compared across meshes by its domain's screen-space metric, so overlapping
  * meshes resolve to the visually closest element.  An element that faces away loses to any element within reach that
- * does not, in its own mesh and across meshes, so a click over a folded lattice takes its front.
+ * does not, in its own mesh and across meshes, so a click over a folded lattice takes its front; one the area hides
+ * is never hit.
  *
  * @param MeshSelectMode selectMode The element domain to pick in.
  * @param List<GizmoMeshGeometry> geometries The meshes' gizmo geometry.
@@ -113,18 +140,12 @@ internal fun hitTestMeshes(
 	var bestOwner: ElementOwner? = null
 
 	for (geometry in geometries) {
-		val excluded =
-			geometry.backFacing?.let { back ->
-				when (selectMode) {
-					MeshSelectMode.Vertex -> back.vertices
-					MeshSelectMode.Edge -> back.edges
-					MeshSelectMode.Face -> back.faces
-				}
-			}
-		// The front first; an element that faces away only when nothing else of the mesh is within reach.
+		val backFacing = geometry.backFacing
+		// The front first; an element that faces away only when nothing else of the mesh is within reach, and never
+		// where the area hides it.
 		val hit =
-			elementHitIn(selectMode, geometry, pointer, camera, size, excluded, back = false)
-				?: excluded?.let { elementHitIn(selectMode, geometry, pointer, camera, size, null, back = true) }
+			elementHitIn(selectMode, geometry, pointer, camera, size, backFacing?.of(selectMode), back = false)
+				?: backFacing?.takeUnless { back -> back.hidden }?.let { elementHitIn(selectMode, geometry, pointer, camera, size, null, back = true) }
 				?: continue
 		val current = best
 
@@ -211,7 +232,7 @@ private fun faceCentroidOnScreen(geometry: GizmoMeshGeometry, faceIndex: Int, ca
 
 /**
  * The elements of one mesh enclosed by a rubber-band box, in the given domain (vertex inside, edge
- * both-endpoints, face centroid - the shared Blender rules).
+ * both-endpoints, face centroid - the shared Blender rules), less the back-facing ones the area hides.
  *
  * @param MeshSelectMode selectMode The element domain to enclose.
  * @param GizmoMeshGeometry geometry The mesh's gizmo geometry.
@@ -231,24 +252,24 @@ internal fun elementsInBox(
 ): Set<MeshElement> =
 	when (selectMode) {
 		MeshSelectMode.Vertex -> {
-			verticesInBox(geometry.positions, cornerA, cornerB, camera, size)
+			verticesInBox(geometry.positions, cornerA, cornerB, camera, size, geometry.hiddenIn(selectMode))
 				.map { vertexIndex -> MeshElement.Vertex(vertexIndex) }
 				.toSet<MeshElement>()
 		}
 
 		MeshSelectMode.Edge -> {
-			edgesInBox(geometry.positions, geometry.edges, cornerA, cornerB, camera, size)
+			edgesInBox(geometry.positions, geometry.edges, cornerA, cornerB, camera, size, geometry.hiddenIn(selectMode))
 		}
 
 		MeshSelectMode.Face -> {
-			facesInBox(geometry.positions, geometry.topology, cornerA, cornerB, camera, size)
+			facesInBox(geometry.positions, geometry.topology, cornerA, cornerB, camera, size, geometry.hiddenIn(selectMode))
 		}
 	}
 
 /**
  * Computes the Circle-select result for one brush stamp: enclose the elements of [working]'s select mode
- * within [radiusPx] of [center] (screen space) on EVERY mesh, and either add them (a paint stroke) or
- * remove them (an erase stroke).
+ * within [radiusPx] of [center] (screen space) on EVERY mesh, less the back-facing ones the area hides, and either
+ * add them (a paint stroke) or remove them (an erase stroke).
  *
  * @param MeshSelection working The stroke's accumulating selection (seeded from the committed selection).
  * @param Boolean erasing True to remove the enclosed elements, false to add them.
@@ -270,20 +291,21 @@ internal fun circleSelection(
 ): MeshSelection {
 	val insideByOwner =
 		geometries.associate { geometry ->
+			val hidden = geometry.hiddenIn(working.selectMode)
 			val inside: Set<MeshElement> =
 				when (working.selectMode) {
 					MeshSelectMode.Vertex -> {
-						verticesInCircle(geometry.positions, center, radiusPx, camera, size)
+						verticesInCircle(geometry.positions, center, radiusPx, camera, size, hidden)
 							.map { vertexIndex -> MeshElement.Vertex(vertexIndex) }
 							.toSet<MeshElement>()
 					}
 
 					MeshSelectMode.Edge -> {
-						edgesInCircle(geometry.positions, geometry.edges, center, radiusPx, camera, size)
+						edgesInCircle(geometry.positions, geometry.edges, center, radiusPx, camera, size, hidden)
 					}
 
 					MeshSelectMode.Face -> {
-						facesInCircle(geometry.positions, geometry.topology, center, radiusPx, camera, size)
+						facesInCircle(geometry.positions, geometry.topology, center, radiusPx, camera, size, hidden)
 					}
 				}
 			geometry.owner to inside

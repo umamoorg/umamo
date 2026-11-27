@@ -16,7 +16,7 @@ import org.umamo.ui.viewport.ViewportOverlayState
 
 /**
  * A section of the overlays popover, in display order.  Objects holds the chrome drawn over the art's objects
- * and the deformers that move them.
+ * and the deformers that move them; Lattice holds how the cage of a lattice being edited draws.
  *
  * @property StringResource label The section heading.
  * @property StringResource description What the section's rows have in common, the heading's tooltip.
@@ -26,6 +26,7 @@ internal enum class OverlaySection(val label: StringResource, val description: S
 	Text(Res.string.overlay_section_text, Res.string.overlay_section_text_description),
 	Objects(Res.string.overlay_section_objects, Res.string.overlay_section_objects_description),
 	Geometry(Res.string.overlay_section_geometry, Res.string.overlay_section_geometry_description),
+	Lattice(Res.string.overlay_section_lattice, Res.string.overlay_section_lattice_description),
 }
 
 /**
@@ -48,10 +49,10 @@ internal enum class OverlayToggle(
 	Cursor(OverlaySection.Guides, OverlaySurface.entries.toSet(), Res.string.overlay_row_cursor, Res.string.overlay_row_cursor_description),
 	Info(OverlaySection.Text, OverlaySurface.entries.toSet(), Res.string.overlay_row_info, Res.string.overlay_row_info_description),
 	SelectionTint(OverlaySection.Objects, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_selection_tint, Res.string.overlay_row_selection_tint_description),
-	DimBackFacing(OverlaySection.Objects, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_dim_back_facing, Res.string.overlay_row_dim_back_facing_description),
 	Deformers(OverlaySection.Objects, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_deformers, Res.string.overlay_row_deformers_description),
 	Wireframe(OverlaySection.Geometry, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_wireframe, Res.string.overlay_row_wireframe_description),
 	CullHidden(OverlaySection.Geometry, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_cull_hidden, Res.string.overlay_row_cull_hidden_description),
+	DimBackFacing(OverlaySection.Lattice, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_dim_back_facing, Res.string.overlay_row_dim_back_facing_description),
 	;
 
 	/**
@@ -68,10 +69,10 @@ internal enum class OverlayToggle(
 			Cursor -> state.showCursor
 			Info -> state.showInfo
 			SelectionTint -> state.showSelectionTint
-			DimBackFacing -> state.dimBackFacing
 			Deformers -> state.showDeformers
 			Wireframe -> state.showWireframe
 			CullHidden -> state.cullHiddenWireframe
+			DimBackFacing -> state.dimBackFacing
 		}
 
 	/**
@@ -87,10 +88,10 @@ internal enum class OverlayToggle(
 			Cursor -> state.showCursor = on
 			Info -> state.showInfo = on
 			SelectionTint -> state.showSelectionTint = on
-			DimBackFacing -> state.dimBackFacing = on
 			Deformers -> state.showDeformers = on
 			Wireframe -> state.showWireframe = on
 			CullHidden -> state.cullHiddenWireframe = on
+			DimBackFacing -> state.dimBackFacing = on
 		}
 	}
 }
@@ -98,8 +99,8 @@ internal enum class OverlayToggle(
 /**
  * One value field of the overlays popover: its section, the surfaces it is offered on, its label, and its
  * description.  A field follows its section's rows - the wireframe's Opacity under the Cull Hidden row on a 2D
- * viewport and alone under the Geometry heading on a UV editor, the deformers' Opacity under the Deformers row - and
- * the header control knows how each is edited.  The grid fields are not here: they are the Grid row's own, with
+ * viewport and alone under the Geometry heading on a UV editor, the deformers' Opacity under the Deformers row, the
+ * Back-Facing Opacity under the Dim Back-Facing row - and the header control knows how each is edited.  The grid fields are not here: they are the Grid row's own, with
  * their reset.
  *
  * @property OverlaySection section The section the field sits under.
@@ -115,6 +116,7 @@ internal enum class OverlayField(
 ) {
 	WireframeOpacity(OverlaySection.Geometry, OverlaySurface.entries.toSet(), Res.string.overlay_wireframe_opacity, Res.string.overlay_wireframe_opacity_description),
 	DeformerOpacity(OverlaySection.Objects, setOf(OverlaySurface.Viewport2D), Res.string.overlay_deformer_opacity, Res.string.overlay_deformer_opacity_description),
+	BackFacingOpacity(OverlaySection.Lattice, setOf(OverlaySurface.Viewport2D), Res.string.overlay_back_facing_opacity, Res.string.overlay_back_facing_opacity_description),
 }
 
 /**

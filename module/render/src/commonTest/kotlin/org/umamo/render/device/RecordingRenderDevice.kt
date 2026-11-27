@@ -705,6 +705,9 @@ internal class RecordingRenderDevice(private val maxTextureEdge: Int = RECORDED_
 		check(spec.faceFlags.size == spec.faceCorners.size / 3) { "one overlay face flag per triangle" }
 		check(spec.faceDotCorners == null || spec.faceDotCorners.size == spec.faceCorners.size) { "one overlay face-dot triangle per face triangle" }
 		check(spec.vertexDotCount in 0..spec.vertexFlags.size) { "overlay vertex dots past the vertices" }
+		check(spec.trianglesPerFaceDot == 1 || (spec.trianglesPerFaceDot > 1 && spec.faceDotCorners != null && (spec.faceCorners.size / 3) % spec.trianglesPerFaceDot == 0)) {
+			"overlay face dots shared by ${spec.trianglesPerFaceDot} triangles over ${spec.faceCorners.size / 3}"
+		}
 		val buffers = RecordedOverlayBuffers(nextSerial++, spec)
 		recordedResourceEvents.add(OverlayBuffersCreated(buffers))
 

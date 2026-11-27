@@ -18,7 +18,9 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.getString
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.overlay_back_facing_opacity
 import org.umamo.ui.resources.overlay_row_dim_back_facing
+import org.umamo.ui.resources.overlay_section_lattice
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.SpaceKind
@@ -368,6 +370,33 @@ class OverlaysHeaderControlTest {
 		}
 
 	/**
+	 * A 2D viewport's Lattice section, last in the popover, holds the Dim Back-Facing row with the Back-Facing Opacity
+	 * field under it: the field shows the area's opacity as a percent, and a typed one writes it, zero included.
+	 */
+	@Test
+	fun theBackFacingOpacityFieldSitsUnderDimBackFacingAndWritesTheAreasOpacity() =
+		runComposeUiTest {
+			val scope = AreaScope(HEADER_TEST_AREA_ID)
+			setAreaHeader(kind = SpaceKind.Viewport2D, headerWidth = 900.dp, puppet = mutableStateOf(emptyHeaderPuppet()), scope = scope)
+			val overlays = scope.spaceState(VIEWPORT_VIEW_STATE_KEY) { Viewport2DViewState() }.overlays
+			clickDescribed(VIEWPORT_OVERLAYS)
+
+			val latticeTop = popupTextTops(getString(Res.string.overlay_section_lattice)).single()
+			val rowTop = popupTextTops(getString(Res.string.overlay_row_dim_back_facing)).single()
+			val fieldTop = popupTextTops(getString(Res.string.overlay_back_facing_opacity)).single()
+			assertTrue(popupTextTops(GEOMETRY).single() < latticeTop, "the Lattice heading comes after Geometry")
+			assertTrue(latticeTop < rowTop && rowTop < fieldTop, "with the row under it, and the field under the row")
+
+			commitPopupField(BACK_FACING_OPACITY_SHOWN, 0, typed = "55")
+			assertEquals(0.55f, overlays.backFacingOpacity, "the typed percent is the area's back-facing opacity")
+			assertEquals(1f, overlays.deformerOpacity, "and the deformers' is left alone")
+
+			commitPopupField("55", 0, typed = "0")
+			assertEquals(0f, overlays.backFacingOpacity, "zero is allowed: the back vanishes while the row stays as set")
+			assertTrue(overlays.dimBackFacing)
+		}
+
+	/**
 	 * Clicks the [index]th popover field showing [shown] in layout order, types [typed] into it when given, and commits
 	 * with Enter.
 	 *
@@ -461,6 +490,9 @@ class OverlaysHeaderControlTest {
 		/** The Opacity fields' label and what the whole opacity shows in them; exact matches, apart from the Scale field's "100.00". */
 		const val OPACITY_FIELD = "Opacity"
 		const val OPACITY_SHOWN = "100"
+
+		/** What the Back-Facing Opacity field shows at the area's default. */
+		const val BACK_FACING_OPACITY_SHOWN = "30"
 
 		/** On a 2D viewport, the Opacity fields in layout order: the deformers' (Objects), then the wireframe's (Geometry). */
 		const val DEFORMER_OPACITY_INDEX = 0

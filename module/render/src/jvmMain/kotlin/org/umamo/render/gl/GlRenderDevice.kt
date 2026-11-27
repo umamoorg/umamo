@@ -313,19 +313,20 @@ class GlRenderDevice : RenderDevice {
 
 	/**
 	 * Binds [vertexArray] and gives it attribute 0: [indices] uploaded to a buffer of its own, [componentsPerInstance]
-	 * integer indices per instance - an overlay domain's edges (2) or triangles (3).  The array stays bound, for the
-	 * caller to add its flag attribute.
+	 * integer indices per instance - an overlay domain's edges (2) or triangles (3) - read every [entriesPerInstance]th
+	 * entry.  The array stays bound, for the caller to add its flag attribute.
 	 *
 	 * @param Int vertexArray The vertex array to fill.
 	 * @param IntArray indices The per-instance indices.
 	 * @param Int componentsPerInstance The indices per instance.
+	 * @param Int entriesPerInstance How many entries of [componentsPerInstance] indices one instance steps over.
 	 * @return Int The index buffer.
 	 */
-	private fun bindInstancedIndices(vertexArray: Int, indices: IntArray, componentsPerInstance: Int): Int {
+	private fun bindInstancedIndices(vertexArray: Int, indices: IntArray, componentsPerInstance: Int, entriesPerInstance: Int = 1): Int {
 		GL30.glBindVertexArray(vertexArray)
 		val buffer = uploadIntArrayBuffer(indices)
 		GL20.glEnableVertexAttribArray(0)
-		GL30.glVertexAttribIPointer(0, componentsPerInstance, GL11.GL_INT, componentsPerInstance * Int.SIZE_BYTES, 0L)
+		GL30.glVertexAttribIPointer(0, componentsPerInstance, GL11.GL_INT, componentsPerInstance * Int.SIZE_BYTES * entriesPerInstance, 0L)
 		GL33.glVertexAttribDivisor(0, 1)
 
 		return buffer
@@ -339,6 +340,9 @@ class GlRenderDevice : RenderDevice {
 		check(spec.faceFlags.size == faceCount) { "one face flag per triangle: ${spec.faceFlags.size} flags for $faceCount triangles" }
 		check(spec.faceDotCorners == null || spec.faceDotCorners.size == spec.faceCorners.size) { "one face-dot triangle per face triangle" }
 		check(spec.vertexDotCount in 0..vertexCount) { "${spec.vertexDotCount} vertex dots for $vertexCount vertices" }
+		check(spec.trianglesPerFaceDot == 1 || (spec.trianglesPerFaceDot > 1 && spec.faceDotCorners != null && faceCount % spec.trianglesPerFaceDot == 0)) {
+			"${spec.trianglesPerFaceDot} triangles per face dot over $faceCount triangles"
+		}
 		var edgeVao = 0
 		var edgeVbo = 0
 		var edgeFlagVbo = 0
@@ -365,12 +369,13 @@ class GlRenderDevice : RenderDevice {
 		var faceDotVbo = 0
 		val faceDotCorners = spec.faceDotCorners
 
-		// The face dots' own corners, over the face flags already uploaded, so a flag update reaches both.
+		// The face dots' own corners, over the face flags already uploaded, so a flag update reaches both.  Both
+		// attributes step over the triangles that share a dot, so each run draws once with its first triangle's flag.
 		if (faceCount > 0 && faceDotCorners != null) {
 			faceDotVao = GL30.glGenVertexArrays()
-			faceDotVbo = bindInstancedIndices(faceDotVao, faceDotCorners, 3)
+			faceDotVbo = bindInstancedIndices(faceDotVao, faceDotCorners, 3, spec.trianglesPerFaceDot)
 			GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, faceFlagVbo)
-			bindFlagAttribute()
+			bindFlagAttribute(spec.trianglesPerFaceDot)
 		}
 
 		var vertexVao = 0
@@ -400,6 +405,7 @@ class GlRenderDevice : RenderDevice {
 			faceDotVao,
 			faceDotVbo,
 			spec.vertexDotCount,
+			faceCount / spec.trianglesPerFaceDot,
 		)
 	}
 
@@ -780,11 +786,13 @@ class GlRenderDevice : RenderDevice {
 
 	/**
 	 * Declares the bound array buffer as the per-instance flag attribute (location 1, one unsigned byte
-	 * per instance) of the VAO being built.
+	 * per instance, read every [flagsPerInstance]th byte) of the VAO being built.
+	 *
+	 * @param Int flagsPerInstance How many flags one instance steps over.
 	 */
-	private fun bindFlagAttribute() {
+	private fun bindFlagAttribute(flagsPerInstance: Int = 1) {
 		GL20.glEnableVertexAttribArray(1)
-		GL30.glVertexAttribIPointer(1, 1, GL11.GL_UNSIGNED_BYTE, 1, 0L)
+		GL30.glVertexAttribIPointer(1, 1, GL11.GL_UNSIGNED_BYTE, flagsPerInstance, 0L)
 		GL33.glVertexAttribDivisor(1, 1)
 	}
 

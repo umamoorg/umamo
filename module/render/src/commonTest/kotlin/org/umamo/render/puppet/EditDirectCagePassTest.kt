@@ -127,10 +127,10 @@ class EditDirectCagePassTest {
 				vertexDotCount = 4,
 			)
 		renderer.setEditDirectOverlay(DirectMeshOverlay(MeshOverlay(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf(mesh), sizes), mapOf(owner to positions), mapOf(owner to triangles)))
-		val opacity = MeshOverlayPalette.Classic.backFacingOpacity
+		val opacity = 0.55f
 		device.clearLog()
 
-		renderer.render(target, viewportSize, viewportSize)
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(backFacingOpacity = opacity))
 
 		val dimmed = device.overlayDraws()
 		assertTrue(dimmed.isNotEmpty())

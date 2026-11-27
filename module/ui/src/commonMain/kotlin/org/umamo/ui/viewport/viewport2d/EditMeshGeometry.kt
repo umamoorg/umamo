@@ -45,10 +45,26 @@ internal sealed interface EditOwnerGeometry {
 	val gizmo: GizmoMeshGeometry
 
 	/**
-	 * [gizmo] marking the elements that face away from the viewer, which a click passes over for any other within
-	 * reach: a deep lattice's.  A mesh has no depth, so for it this is [gizmo].
+	 * [gizmo] as an area's picks see it under [pick]: marking the elements that face away from the viewer, a deep
+	 * lattice's, which a click passes over for any other within reach, or for good where the area hides them.  A mesh
+	 * has no depth, so for it this is always [gizmo].
+	 *
+	 * @param BackFacingPick pick How the area picks what faces away.
+	 * @return GizmoMeshGeometry The geometry the area's picks take.
 	 */
-	val frontFirstGizmo: GizmoMeshGeometry get() = gizmo
+	fun gizmoFor(pick: BackFacingPick): GizmoMeshGeometry = gizmo
+}
+
+/** How an area's picks treat the elements of a lattice that face away from the viewer, as its overlays draw them. */
+internal enum class BackFacingPick {
+	/** As any other element: the area draws them as the rest. */
+	Plain,
+
+	/** Passed over for any other element within reach: the area dims them. */
+	FrontFirst,
+
+	/** Never picked, boxed, or painted: the area dims them to nothing. */
+	FrontOnly,
 }
 
 /**
@@ -117,10 +133,27 @@ internal class EditLatticeGeometry(
 
 	override val gizmo = GizmoMeshGeometry(owner, topology, worldGeometry.world)
 
-	override val frontFirstGizmo: GizmoMeshGeometry by lazy(LazyThreadSafetyMode.NONE) {
-		val backFacing = layout.backFacingOf(worldGeometry.world, worldGeometry.depth) ?: return@lazy gizmo
-		GizmoMeshGeometry(owner, topology, worldGeometry.world, BackFacingElements(backFacing.points, backFacing.edgesIn(layout, topology), backFacing.cells))
+	/** What faces away at the lattice's depth, measured once on first use, or null when nothing does. */
+	private val backFacing: BackFacingElements? by lazy(LazyThreadSafetyMode.NONE) {
+		layout.backFacingOf(worldGeometry.world, worldGeometry.depth)?.let { back -> BackFacingElements(back.points, back.edgesIn(layout, topology), back.cells) }
 	}
+
+	/** [gizmo] with the back marked for a click to pass over, or [gizmo] itself when nothing faces away. */
+	private val frontFirstGizmo: GizmoMeshGeometry by lazy(LazyThreadSafetyMode.NONE) {
+		backFacing?.let { back -> GizmoMeshGeometry(owner, topology, worldGeometry.world, back) } ?: gizmo
+	}
+
+	/** [gizmo] with the back marked hidden, or [gizmo] itself when nothing faces away. */
+	private val frontOnlyGizmo: GizmoMeshGeometry by lazy(LazyThreadSafetyMode.NONE) {
+		backFacing?.let { back -> GizmoMeshGeometry(owner, topology, worldGeometry.world, BackFacingElements(back.vertices, back.edges, back.faces, hidden = true)) } ?: gizmo
+	}
+
+	override fun gizmoFor(pick: BackFacingPick): GizmoMeshGeometry =
+		when (pick) {
+			BackFacingPick.Plain -> gizmo
+			BackFacingPick.FrontFirst -> frontFirstGizmo
+			BackFacingPick.FrontOnly -> frontOnlyGizmo
+		}
 }
 
 /**

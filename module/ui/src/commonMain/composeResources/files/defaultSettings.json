@@ -59,8 +59,7 @@
 			"latticeSelected": "#FF338CFF",
 			"latticeActive": "#FF7DE400",
 			"latticePending": "#FFDF8431",
-			"latticeHover": "#FFFF00EC",
-			"backFacingOpacity": 0.3
+			"latticeHover": "#FFFF00EC"
 		},
 		"showToolbar": true,
 		"showSidebar": true

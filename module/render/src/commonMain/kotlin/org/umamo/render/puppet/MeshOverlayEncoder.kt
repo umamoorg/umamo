@@ -40,7 +40,8 @@ import org.umamo.runtime.model.drawableId
  * @property Float latticeOpacity The alpha scale, 0 to 1, of a lattice overlay's role colors in this frame
  *   ([org.umamo.render.FrameOverlays.latticeOpacity]); the hover color keeps its own alpha.
  * @property Float backAlpha What a back-facing primitive's alpha ([OVERLAY_FLAG_BACK]) is multiplied by in this frame:
- *   the palette's back-facing opacity where the area dims them, else 1.
+ *   the frame's back-facing opacity where the area dims them ([org.umamo.render.FrameOverlays.backFacingOpacity]),
+ *   else 1.
  */
 internal class OverlayFrame(
 	val affine: WorldToNdc,
@@ -159,10 +160,10 @@ internal class MeshOverlayEncoder(
 	 * @param RenderPassEncoder pass The open, unscissored pass on the frame's target.
 	 * @param DirectOverlayResidency residency The cage's residency, already brought to its value.
 	 * @param FrameInputs inputs The frame's inputs.
-	 * @param FrameOverlays overlays The frame's overlay options: whether the cage's back-facing primitives dim.
+	 * @param FrameOverlays overlays The frame's overlay options: whether the cage's back-facing primitives dim, and how far.
 	 */
 	fun encodeEditDirectDraws(pass: RenderPassEncoder, residency: DirectOverlayResidency, inputs: FrameInputs, overlays: FrameOverlays) {
-		val backAlpha = if (overlays.dimBackFacing) inputs.overlayPalette.backFacingOpacity.coerceIn(0f, 1f) else 1f
+		val backAlpha = if (overlays.dimBackFacing) overlays.backFacingOpacity.coerceIn(0f, 1f) else 1f
 		encodeDirectDraws(pass, residency, overlayFrameOf(inputs, backAlpha = backAlpha))
 	}
 
