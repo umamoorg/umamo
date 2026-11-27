@@ -1,5 +1,5 @@
 ---
-description: Bring one non-EN/JA string catalog (ko, fr, zh-CN, zh-TW) up to the current English catalog as an AI draft for human proofreading — key diff, EN-reworded detection, glossary-first review, chunked drafting, validation, and the PR description. Use when asked to update, sync, or fill in a locale in bulk. Never use it for EN or JA, which are written by hand with each feature.
+description: Bring one non-EN/JA string catalog up to the current English catalog as an AI draft for human proofreading — key diff, EN-reworded detection, glossary-first review, chunked drafting, validation, and the PR description. Use when asked to update, sync, or fill in a locale in bulk. Never use it for EN or JA, which are written by hand with each feature.
 argument-hint: <locale-tag>
 ---
 
