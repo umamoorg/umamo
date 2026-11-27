@@ -119,7 +119,7 @@
 	<string name="export_missing_source_art">此模型没有作为基础的原始原画数据（因来源于 MOC3，仅保留了打包的纹理集）。已从 %1$d 张纹理集重建了替代源文档，因此绑定信息全部得以保留且在 Umamo 和 Cubism Editor 中均可打开，但其中包含的图层均为烘焙后纹理集的裁切切片，而非生成此绑定的原始原画。若要导出原本可编辑的图层，请将原始分层原画（PSD/CLIP/KRA）导入至此文档中。</string>
 	<string name="export_shared_atlas_slot_kept">%1$s 与另一位置的同类原画共用纹理集槽位，无法分配独立槽位（原画尺寸大于纹理集页面）。Cubism Editor 的分层视图会将它们显示在第一个同类原画的位置；纹理集视图和运行时不受影响。</string>
 	<!-- MOC3 export: A feature the chosen MOC3 version cannot carry, removed from the written file.  %1$s is a runtime_feature_* name, %2$s the affected entities. -->
-	<string name="export_feature_stripped">%1$s 在导出的版本中不受支持，因此已从以下对象中移除：%2$s。文档本身仍保留该功能，若在较新版本中导出即可恢复。</string>
+	<string name="export_feature_stripped">%1$s 在目标版本中不可用，因此已从以下对象中移除：%2$s。</string>
 	<string name="export_more_subjects">（以及其他 %1$d 项）</string>
 	<!-- Export report: the entity category, shown as the bracketed prefix on each notice line. -->
 	<string name="export_category_parameter">参数</string>
@@ -199,7 +199,7 @@
 	<string name="export_reason_no_texture_input_for_display">此图形网格没有所选显示模式对应的纹理输入，因此保留了原有输入。</string>
 	<string name="export_reason_no_atlas_entry">此原画未打包到任何纹理集页面，因此没有可更新的配置。</string>
 	<string name="export_reason_atlas_page_not_recomposed">此原画已在其纹理集页面上移动，但页面图像仍显示在旧位置；请重新打包以重绘。</string>
-	<string name="export_reason_atlas_tile_metadata">此原画的名称或尺寸已更改，纹理集配置无法保留此信息；请改为重新导入原画。</string>
+	<string name="export_reason_atlas_tile_metadata">此原画的像素、名称或尺寸已更改，纹理集配置无法保留此信息；请改为重新导入原画。</string>
 	<string name="export_reason_atlas_tile_rebinding">此图形网格已绑定到不同的原画，需要重新导入原画而非重新打包。</string>
 	<string name="export_reason_fractional_canvas_size">由于 CMO3 的画布尺寸为整数像素，小数数值未导出。</string>
 	<!-- Export overwrite warning (the document.confirm command; %1$d is how many existing files the
@@ -428,10 +428,10 @@
 	<string name="sources_layer_menu_ignore">忽略图层</string>
 	<string name="sources_layer_menu_unignore">停止忽略</string>
 	<string name="sources_suggestion_title">检查此绑定</string>
-	<string name="sources_suggestion_accept">接受 %1$s (%2$d%%)</string>
-	<string name="sources_suggestion_accept_merge">接受 %1$s (%2$d%%) 并移除其新建图形网格</string>
+	<string name="sources_suggestion_accept">接受 %1$s (%2$d%)</string>
+	<string name="sources_suggestion_accept_merge">接受 %1$s (%2$d%) 并移除其新建图形网格</string>
 	<string name="sources_suggestion_relink">手动重新关联…</string>
-	<string name="sources_suggestion_leave">暂时忽略</string>
+	<string name="sources_suggestion_leave">暂不处理</string>
 	<string name="sources_filter_bound">已绑定</string>
 	<string name="sources_filter_unbound">未绑定</string>
 	<string name="sources_filter_missing">缺失文件</string>
@@ -497,7 +497,7 @@
 	<string name="status_tris_selected">多边形: %1$d/%2$d</string>
 
 	<!-- Transient notices (EditorSession.emitNotice keys): brief feedback about a blocked action. -->
-	<string name="notice_transform_only_drawables">仅图形网格支持变换操作。暂不支持部件与变形器。</string>
+	<string name="notice_transform_only_drawables">仅图形网格与弯曲变形器支持变换操作。暂不支持部件与旋转变形器。</string>
 	<string name="notice_transform_deformed">网格处于变形状态时无法执行变换操作。请先将所有参数恢复为默认设置值。</string>
 	<string name="notice_unknown">无法执行此操作。</string>
 
