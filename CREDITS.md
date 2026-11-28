@@ -4,8 +4,9 @@ Umamo is licensed under the GNU General Public License v3.0.
 Project Lead: Azxiana - https://azxiana.com/
 
 ## Translations
-한국어/Korean - Thank you to Nyaro for the translation.
-Français/French - Thank you to skueee(Robin Brams) for the translation.
+한국어/Korean - Thank you to Nyaro for the translation assistance.
+Français/French - Thank you to skueee(Robin Brams) for the translation assistance.
+Bahasa Indonesia/Indonesian - Thank you to Karkovb and ARS for the translation assistance.
 
 ## Gylphs
 
