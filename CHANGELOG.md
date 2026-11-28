@@ -9,6 +9,7 @@ Umamo is early alpha.
 ### Added
 * Format: UMA now stores the depth of each warp lattice point so depth rotations and To Shape build on earlier ones.  CMO3 and MOC3 export flatten it to 2D with an export notice.
 * Internationalization: 简体中文/Simplified Chinese and 繁體中文/Traditional Chinese are now available as partial translations.
+* Internationalization: Bahasa Indonesia/Indonesian are now available thanks to Karkovb and ARS.
 * Keyform Sheet, Parameters: Hold control while scrubbing to snap to keys.
 * Keymap, UI: Hide Unselected(Shift+H) and Unhide All(Alt+H)
 * Keymap: A command can now be bound to more than one shortcut.
