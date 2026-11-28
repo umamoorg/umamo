@@ -361,7 +361,7 @@
 
 	<string name="cmd_select_clear">Bersihkan Pilihan</string>
 	<string name="cmd_select_all">Pilih Semua</string>
-	<string name="cmd_select_invert">Balikkan Pilihan</string>
+	<string name="cmd_select_invert">Membalik Pilihan</string>
 	<string name="cmd_select_all_parts">Pilih Semua Part</string>
 	<string name="cmd_select_all_drawables">Pilih Semua Drawable</string>
 	<string name="cmd_select_all_warps">Pilih Semua Deformer Warp</string>
