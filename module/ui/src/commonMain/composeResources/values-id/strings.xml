@@ -366,10 +366,10 @@
 	<string name="cmd_select_all_drawables">Pilih Semua Drawable</string>
 	<string name="cmd_select_all_warps">Pilih Semua Deformer Warp</string>
 	<string name="cmd_select_all_rotations">Pilih Semua Deformer Rotasi</string>
-	<string name="cmd_select_invert_parts">Balikkan Pilihan Part</string>
-	<string name="cmd_select_invert_drawables">Balikkan Pilihan Drawable</string>
-	<string name="cmd_select_invert_warps">Balikkan Pilihan Deformer Warp</string>
-	<string name="cmd_select_invert_rotations">Balikkan Pilihan Deformer Rotasi</string>
+	<string name="cmd_select_invert_parts">Membalik Pilihan Part</string>
+	<string name="cmd_select_invert_drawables">Membalik Pilihan Drawable</string>
+	<string name="cmd_select_invert_warps">Membalik Pilihan Deformer Warp</string>
+	<string name="cmd_select_invert_rotations">Membalik Pilihan Deformer Rotasi</string>
 	<string name="cmd_mode_toggle_edit">Alihkan Mode Edit</string>
 	<string name="cmd_mode_object">Mode Objek</string>
 	<string name="cmd_mode_edit">Mode Edit</string>
