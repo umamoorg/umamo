@@ -1231,7 +1231,7 @@
 	<string name="alpha_blend_conjoint">Conjoint</string>
 	<string name="alpha_blend_disjoint">Disjoint</string>
 	<string name="part_group_pass_through">Pass Through</string>
-	<string name="part_group_grouped">Dikelompokkan</string>
+	<string name="part_group_grouped">Berkelompok</string>
 	<string name="part_group_isolated">Terisolasi</string>
 
 	<string name="parameter_reset">Atur ulang ke bawaan</string>
