@@ -1,93 +1,130 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  French UI string catalog; English default is in values/strings.xml. Format-level identifiers stay verbatim.
+	French UI string catalog; English default is in values/strings.xml.  Format-level identifiers stay verbatim.
 
-  Common translations:
-  		- Art -> Art
-  		- Artwork -> Artwork
-    	- Bind/Unbind -> Assigner/Désassigner
-    	- Blend Shape -> Blendshape
-     	- Canvas -> Toile
-  		- Derformer -> Déformeur
-  		- Drawable -> Drawable
-  		- Glue -> Colle
-  		- Grab -> Bouger
-  		- Keys -> Clés
-  		- Layer -> Calque
-  		- Mesh -> Mesh
-    	- Mirror -> Refléter
-  		- Rotate -> Tourner
-  		- Scale -> Changer de taille
-  		- Vertex -> Vertice
-  		- Vertices/Verts -> Vertices
+	Synced with the English catalog at 0b7261e6.
 
-   Style guidelines:
-   		- When asking to do an action, please use the polite form, "vous". Ex : "select a proprety" becomes "sélectionnez une propriété" instead of "sélectionne une propriété"
+	Terminology.  The same terms as the English catalog, in these French renderings.  The user manual
+	uses them too, so a string that disagrees with them is a bug.  A term marked (proposal) is new and
+	waits for the proofreader; every unmarked term is the translator's existing choice.
+
+	File: Fichier.  Any file, or a file whose kind does not matter.
+
+	Artwork, or Layered Artwork: Artwork, or Artwork à calques where the layers are the point
+	(proposal).  This covers a PSD, CLIP, or KRA.  Never fichier source or fichier d'art for one of
+	these.
+
+	Puppet: Marionnette (proposal).  The thing being edited and saved, whether it is a UMA, a CMO3, or
+	a MOC3.  It replaces both Document and a bare modèle.  Say modèle de marionnette or fichier de
+	marionnette only where marionnette alone would be vague, such as the in-memory data against the
+	file on disk.
+
+	EXT: a sentence about one specific file type names its extension (UMA, PSD, CMO3, MOC3) instead of
+	saying fichier.
+
+	Area: zone, after the space's title as its header shows it: la zone Sources, la zone Paramètres,
+	la zone Vue 2D (proposal).  Never panneau or espace for one of these; espace belongs to espace de
+	travail (Workspace).  A bare viewport stays the generic word.
+
+	Common translations (the translator's existing choices):
+		- Art -> Art
+		- Artwork -> Artwork
+		- Bind/Unbind -> Assigner/Désassigner.  Bound is Assigné, Unbound is Non assigné, and Rebind is
+		  Réassigner
+		- Blend Shape -> Blendshape
+		- Canvas -> Toile
+		- Deformer -> Déformeur
+		- Drawable -> Drawable
+		- Glue -> Colle
+		- Grab -> Bouger
+		- Keys -> Clés
+		- Layer -> Calque
+		- Mesh -> Mesh
+		- Mirror -> Refléter
+		- Rotate -> Tourner
+		- Scale -> Changer de taille
+		- Vertex -> Vertice
+		- Vertices/Verts -> Vertices
+
+	New terms (all proposals):
+		- Key -> Clé.  Keyform -> Keyform.  Keyframe -> Keyframe, reserved for a future dopesheet and
+		  never used for a keyform parameter.  A keyboard key is touche.  Retired for Key: keyframe
+		- Mesh is only the geometry of a drawable.  Say Drawable for the object, never Mesh
+		- Lattice -> Treillis, whose points are points and never vertices.  Retired: grille for a
+		  lattice, since Grille is Grid
+		- Part -> Partie.  Guide Part -> Partie guide.  Retired: image guide, partie brouillon
+		- Atlas -> Atlas, each one a Page.  Texture -> Texture.  Tile -> Tuile
+		- Gutter -> Espacement.  Extrude -> Extruder.  Margin -> Marge.  Retired: espacer for Gutter
+		- Object -> Objet.  Element (one vertex, edge, or face) -> Élément
+		- Pose -> Pose, and Pose Mode -> Mode Pose.  2D Cursor -> Curseur 2D, and the mouse pointer is
+		  pointeur
+		- Group Mode -> Mode de groupement, with Passer à travers, Groupé, and Isolé
+		- Settings -> Réglages.  Parameters stays Paramètres, so the two never share a word
+		- Save -> Sauvegarder, never Enregistrer
+		- Snap -> Aimanter
+		- A term English takes from Blender (see the English Terminology block) uses Blender's own
+		  French term where one exists
+
+	Style guidelines:
+		- When asking to do an action, please use the polite form, "vous".  Ex : "select a property"
+		  becomes "sélectionnez une propriété" instead of "sélectionne une propriété".
+		- A command or menu label is an infinitive ("Ajouter un masque…"), and a sentence ends in a period.
+		- The two-space sentence gap is English only; French uses one space.
+		- Put a no-break space before : ; ! ? and inside « » quotation marks (proposal).
+		- New strings use sentence case, as French does ("Ajouter un masque", not "Ajouter un Masque")
+		  (proposal).
+		- An ellipsis is …, never ...
 -->
 <resources>
 	<string name="app_name">Umamo</string>
-	<!-- What the window title calls a document that has never been saved. -->
 	<string name="title_untitled_document">Sans titre</string>
 	<string name="title_read_only">(lecture seule)</string>
 
-	<!--
-	  Generic control labels, deliberately domain-free: the disclosure chevron names the state it would
-	  move to, and every tree in the app (outliner, keyform sheet, parameter groups, track sheet) shares
-	  the pair. org.umamo.ui.tracks is domain-agnostic by contract, so these are the only expand/collapse
-	  strings it may use.
-	-->
 	<string name="common_expand">Étendre</string>
 	<string name="common_collapse">Réduire</string>
 	<string name="common_filters">Filtres</string>
 
-	<!-- Workspaces (top-level tabs). -->
 	<string name="workspace_modelling">Modélisation</string>
 	<string name="workspace_texture">Texture</string>
 	<string name="workspace_physics">Physique</string>
-	<!-- Workspace tab actions (the + button and the tab context menu). -->
 	<string name="workspace_new">Nouvel espace de travail</string>
 	<string name="workspace_new_name">Espace de travail</string>
 	<string name="workspace_rename">Renommer</string>
 	<string name="workspace_duplicate">Dupliquer</string>
 	<string name="workspace_copy_suffix">copier</string>
 	<string name="workspace_delete">Supprimer</string>
-	<!-- Workspace navigation commands (action registry; palette + tab context menu). -->
-	<string name="cmd_workspace_prev">Espace de travail précédant</string>
+	<string name="cmd_workspace_prev">Espace de travail précédent</string>
 	<string name="cmd_workspace_next">Espace de travail suivant</string>
-	<!-- Workspace management command (action registry; palette + the Workspace menu). -->
 	<string name="cmd_workspace_reset">Réinitialiser l'espace de travail</string>
+	<string name="cmd_workspace_rename">Renommer l'espace de travail</string>
+	<string name="cmd_workspace_duplicate">Dupliquer l'espace de travail</string>
+	<string name="cmd_workspace_delete">Supprimer l'espace de travail</string>
 
-	<!-- Editor space titles (the area header dropdown). -->
 	<string name="space_viewport2d">Vue 2D</string>
 	<string name="space_uv">Éditeur d'UVs</string>
 	<string name="space_outliner">Outliner</string>
 	<string name="space_parameters">Paramètres</string>
-	<string name="space_properties">Propriétées</string>
-	<string name="space_tooldetails">Paramètres de l'outil</string>
+	<string name="space_properties">Propriétés</string>
+	<string name="space_tooldetails">Réglages de l'outil</string>
 	<string name="space_history">Historique</string>
 	<string name="space_logs">Logs</string>
 	<string name="space_sources">Sources</string>
 
-	<!-- Logs panel: the diagnostic console showing UmamoLog output, with its header actions. -->
 	<string name="logs_copy">Copier dans le presse-papier</string>
 	<string name="logs_export">Exporter vers…</string>
 	<string name="logs_empty">Pas de sortie de log pour l'instant</string>
 
-	<!-- Area header actions. Labelled by the visual result, not Blender's split nomenclature. -->
 	<string name="area_split_left_right">Diviser Gauche/Droite</string>
 	<string name="area_split_top_bottom">Diviser Haut/Bas</string>
 	<string name="area_close">Fermer la zone</string>
 	<string name="area_change_editor">Changer de type d'éditeur</string>
 
-	<!-- File menu.  Open/Save mean the native UMA document; CMO3 and MOC3 are interop boundaries
-	     reached through the Import/Export submenus.  The cmd_* variants carry the full operation
-	     name for the command palette, where the submenu context is absent. -->
 	<string name="menu_file">Fichier</string>
 	<string name="menu_file_new">Nouveau</string>
 	<string name="menu_file_open">Ouvrir…</string>
 	<string name="menu_file_save">Sauvegarder</string>
 	<string name="menu_file_save_as">Sauvegarder sous…</string>
-	<string name="menu_open_recent">Ouvrir récent...</string>
+	<string name="menu_open_recent">Ouvrir récent…</string>
 	<string name="menu_import">Importer</string>
 	<string name="menu_export">Exporter</string>
 	<string name="menu_import_cmo3">CMO3…</string>
@@ -95,155 +132,144 @@
 	<string name="menu_import_artwork">Artwork…</string>
 	<string name="menu_export_cmo3">CMO3…</string>
 	<string name="menu_export_moc3">MOC3…</string>
-	<string name="cmd_file_new">Nouveau Document</string>
-	<string name="cmd_file_open">Ouvrir un Document…</string>
-	<string name="cmd_file_save">Sauvegarder le Document</string>
-	<string name="cmd_file_save_as">Sauvegarder le Document sous…</string>
+	<string name="menu_export_image">Image…</string>
+	<string name="cmd_file_new">Nouvelle marionnette</string>
+	<string name="cmd_file_open">Ouvrir une marionnette…</string>
+	<string name="cmd_file_save">Sauvegarder la marionnette</string>
+	<string name="cmd_file_save_as">Sauvegarder la marionnette sous…</string>
 	<string name="cmd_import_cmo3">Importer CMO3…</string>
 	<string name="cmd_import_moc3">Importer MOC3…</string>
 	<string name="cmd_import_artwork">Importer l'Artwork…</string>
 	<string name="cmd_document_reload_artwork">Recharger l'Artwork</string>
-	<string name="cmd_sources_rebind">Réassocier l'Art</string>
+	<string name="cmd_sources_rebind">Réassigner l'art</string>
 	<string name="cmd_sources_match_automatically">Correspondre à l'Artwork Automatiquement</string>
 	<string name="cmd_sources_replace_artwork">Remplacer l'Artwork…</string>
 	<string name="cmd_sources_delete_art">Supprimer l'Art</string>
 	<string name="cmd_export_cmo3">Exporter CMO3…</string>
 	<string name="cmd_export_moc3">Exporter MOC3…</string>
+	<string name="cmd_export_image">Exporter l'image…</string>
 	<string name="menu_exit">Quitter</string>
 
-	<!-- Edit menu. -->
 	<string name="menu_edit">Éditer</string>
 	<string name="menu_undo">Annuler</string>
 	<string name="menu_redo">Refaire</string>
-	<string name="menu_preferences">Paramètres…</string>
+	<string name="menu_preferences">Réglages…</string>
 
-	<!-- Workspace menu (workspace management; the tab strip covers create/duplicate/rename/reorder). -->
+	<string name="menu_select">Sélectionner</string>
+	<string name="menu_select_all_of_type">Tout sélectionner du type</string>
+	<string name="menu_invert_selection_of_type">Inverser la sélection du type</string>
+	<string name="menu_select_kind_parts">Parties</string>
+	<string name="menu_select_kind_drawables">Drawables</string>
+	<string name="menu_select_kind_warps">Déformeurs de warp</string>
+	<string name="menu_select_kind_rotations">Déformeurs de rotation</string>
+
 	<string name="menu_workspace">Espace de travail</string>
 	<string name="menu_workspace_reset">Réinitialiser l'espace de travail</string>
 	<string name="menu_workspace_export_this">Exporter cet espace de travail…</string>
-	<string name="menu_workspace_export_all">Exporter tout les espaces de travail…</string>
+	<string name="menu_workspace_export_all">Exporter tous les espaces de travail…</string>
 	<string name="menu_workspace_import">Importer l'espace de travail…</string>
 
-	<!-- Dialogs (the reusable confirm dialog: actions + destructive-operation prompts). -->
 	<string name="dialog_confirm">Confirmer</string>
 	<string name="dialog_cancel">Annuler</string>
-	<!-- The verbs a confirm button names instead of the generic Confirm. -->
 	<string name="dialog_discard">Abandonner</string>
 	<string name="dialog_reset">Réinitialiser</string>
 	<string name="dialog_replace">Remplacer</string>
 	<string name="dialog_overwrite">Écraser</string>
-	<string name="dialog_quit_without_saving">Quiter sans Sauvegarder</string>
+	<string name="dialog_quit_without_saving">Quitter sans Sauvegarder</string>
 	<string name="dialog_save">Sauvegarder</string>
-	<string name="dialog_dont_save">Ne pas Sauvegarder</string>
+	<string name="dialog_dont_save">Ne pas sauvegarder</string>
+	<string name="dialog_dont_show_again">Ne plus afficher</string>
 	<string name="confirm_reset_workspace">Réinitialiser cet espace de travail à son agencement par défaut ?</string>
 	<string name="confirm_import_replace">Remplacer tous les espaces de travail par ce fichier ?</string>
-	<string name="confirm_discard_unsaved">Ce document a des changements non sauvegardés.  Les abandonner ?</string>
-	<string name="confirm_quit_unsaved">Ce document a des changements non sauvegardés.  Quitter sans sauvegarder ?</string>
-	<string name="confirm_save_before_replace">Ce document a des changements non sauvegardés.  D'abord les sauvegarder ?</string>
-	<string name="confirm_save_before_quit">Ce document a des changements non sauvegardés.  Les sauvegarder avant de quitter ?</string>
-	<!-- Export report alert (the document.exportReport command).  One header per export format,
-	     chosen by the report's own format; the body lines carry the per-item diagnostics, and
-	     %1$s in the weld line is the affected drawable names. -->
-	<string name="export_report_message_cmo3">Le fichier a été exporté, mais ceci n'a pas pu être mis dans le CMO3:</string>
-	<string name="export_report_message_moc3">Le fichier a été exporté, mais ceci n'a pas pu être mis dans le MOC3:</string>
-	<string name="repack_report_message">Ce atlas n'a pas été repackagé.  Ces tuiles n'ont pas pu être packagées :</string>
-	<string name="repack_report_larger_than_page">Le mesh du Drawable est plus large que la taille de l'atlas de la page</string>
-	<string name="repack_report_no_opaque_pixels">L'artwork source n'a pas de pixels opaques</string>
+	<string name="confirm_discard_unsaved">La marionnette a des changements non sauvegardés. Les abandonner ?</string>
+	<string name="confirm_quit_unsaved">La marionnette a des changements non sauvegardés. Quitter sans sauvegarder ?</string>
+	<string name="confirm_save_before_replace">La marionnette a des changements non sauvegardés. Les sauvegarder d'abord ?</string>
+	<string name="confirm_save_before_quit">La marionnette a des changements non sauvegardés. Les sauvegarder avant de quitter ?</string>
+	<string name="export_report_message_cmo3">Le CMO3 a été exporté, mais ce qui suit n'a pas pu y être conservé :</string>
+	<string name="export_report_message_moc3">Le MOC3 a été exporté, mais ce qui suit n'a pas pu y être conservé :</string>
+	<string name="repack_report_message">Cet atlas n'a pas été repackagé. Ces tuiles n'ont pas pu être packagées :</string>
+	<string name="repack_report_larger_than_page">Le mesh du Drawable est plus large que la taille de l'atlas de la page.</string>
+	<string name="repack_report_no_opaque_pixels">L'artwork source n'a pas de pixels opaques.</string>
 	<string name="repack_report_below_minimum_coverage">Le calque de l'artwork source est en dessous du quota minimum d'opacité.</string>
 	<string name="repack_report_undecodable">Le calque de l'Artwork source ne peut pas être décodé.</string>
 	<string name="repack_report_degenerate_placement">L'emplacement actuel du Drawable n'a pas pu être inversé.</string>
 	<string name="repack_report_pinned_off_page">L'emplacement épinglé ne rentre pas dans la taille maximale de la page.</string>
-	<string name="export_weld_divergence">La géométrie de base ou les UVs ont été édités sur: %1$s.  Cet export les garde en tant que tel, mais éditer ces meshs ou leurs atlas dans le Cubism Editor pourrait re-dériver et corrompre le mappage UV.</string>
-	<string name="export_missing_source_art">Ce modèle n'a pas d'Artwork source (il vient d'un MOC3, qui n'enregistre qui les atlas de textures packées).  Un document source de remplacement a été reconstruit à partir de la page %1$d de l'atlas, donc le fichier comporte le rig complet et s'ouvre dans Umamo et le Cubism Editor, mais chaque calque dedans est un morceau d'une page d'atlas préfaite au lieu de l'artwork dont ce rig est basé.  Réconcilie l'artwork originale avec des calques (PSD/CLIP/KRA) dans ce document pour exporter des vrais calques éditables.</string>
-	<!-- MOC3 export: A feature the chosen MOC3 version cannot carry, removed from the written file.  %1$s is a runtime_feature_* name, %2$s the affected entities. -->
+	<string name="export_weld_divergence">La géométrie de base ou les UVs ont été édités sur: %1$s. Cet export les garde en tant que tel, mais éditer ces meshs ou leurs atlas dans le Cubism Editor pourrait re-dériver et corrompre le mappage UV.</string>
+	<string name="export_missing_source_art">Cette marionnette n'a pas d'artwork source (elle provient d'un MOC3, qui ne stocke que des atlas de textures assemblés). Un artwork source de remplacement a été reconstruit à partir de %1$d page(s) d'atlas, de sorte que le CMO3 contienne le rig complet et s'ouvre aussi bien dans Umamo que dans le Cubism Editor, mais chaque calque y est une tranche d'une page d'atlas figée, et non l'artwork à partir duquel ce rig a été dessiné. Réconciliez l'artwork à calques d'origine (PSD/CLIP/KRA) dans cette marionnette pour exporter de vrais calques modifiables.</string>
 	<string name="export_feature_stripped">%1$s n'est pas disponible pour la version de la runtime visée, donc il a été retiré de %2$s.</string>
 	<string name="export_more_subjects">(+%1$d en plus)</string>
-	<!-- Export report: the entity category, shown as the bracketed prefix on each notice line. -->
-	<string name="export_category_parameter">Paramètres</string>
+	<string name="export_category_parameter">Paramètre</string>
 	<string name="export_category_parameter_group">Groupe de Paramètres</string>
 	<string name="export_category_part">Partie</string>
 	<string name="export_category_deformer">Déformeur</string>
 	<string name="export_category_drawable">Drawable</string>
 	<string name="export_category_glue">Colle</string>
-	<string name="export_category_document">Document</string>
+	<string name="export_category_document">Marionnette</string>
 	<string name="export_category_keyform">Keyform</string>
-	<!-- Export report reasons, one per ExportNoticeReason case.  The dialog header already names the
-	     format, so a reason never repeats it.  Shared by both export paths: -->
 	<string name="export_reason_drawable_has_no_mesh">Un drawable sans mesh ne peut pas être écrit.</string>
-	<!-- MOC3 lowering.  %1$s in the channel line is a channel_* label; %1$d/%2$d in the conversion line
-	     are the returned and expected coordinate counts; %1$s in the mask line is the mask drawable
-	     names; %1$d/%2$s in the id lines are the record width in bytes and the written id. -->
-	<string name="export_reason_channel_demoted_to_static">%1$s est keyed sur une intervalle plus étroit que la grille de l'objet, donc il a été écrit en tant qu'un constant.  MOC3 enregistre une grille par object.</string>
-	<string name="export_reason_guide_part_not_runtime_content">Une partie image guide (brouillon) n'est pas du contenu pour la runtime, donc il a été abandonné.</string>
-	<string name="export_reason_hidden_part_omitted_by_option">La partie était cachée et les paramètres d'export ignorent les parties cachées, donc son contenu a été ignoré.</string>
-	<string name="export_reason_hidden_drawable_omitted_by_option">Le drawable est caché et les paramètres d'export omittent les meshs cachés, donc il a été laissé.</string>
-	<string name="export_reason_unkeyed_drawable_under_deformer">Un drawable sans clés sous un déformeur n'a pas de géometrie sur l'espace parent à écrire, donc il a été laissé.</string>
-	<string name="export_reason_rest_mesh_conversion_size_mismatch">La conversion toile à parent retourne %1$d coordinées pour %2$d, donc le reste du mesh a été écrit sans être converti.</string>
-	<string name="export_reason_no_atlas_page_bound">Aucune page d'atlas n'est liée a ce drawable, donc il a été écrit pour pointer vers la page 0.</string>
-	<string name="export_reason_clipping_mask_not_in_export">Le masque d'écrètage %1$s n'est pas dans cet export, donc le mesh a été écrit sans être écrété avec.</string>
+	<string name="export_reason_lattice_depth_flattened">Les treillis de warp de %1$s contiennent des données d'édition de profondeur Y. Ce format de fichier ne gère pas la profondeur Y, donc ces données ne sont pas exportées. La déformation en 2D de ce(s) déformeur(s) est conservée.</string>
+	<string name="export_reason_channel_demoted_to_static">%1$s n'a de clés que sur une plage plus étroite que la grille de l'objet, donc une constante a été écrite à sa place. Le MOC3 stocke une seule grille par objet.</string>
+	<string name="export_reason_channel_demoted_by_geometry">%1$s a des clés qui ne tiennent pas dans la plage de clés de la géométrie, donc une constante a été écrite à sa place. Le MOC3 stocke une seule grille par objet.</string>
+	<string name="export_reason_keyforms_demoted_to_static">%1$s L'objet a été écrit sans ses keyforms. Le MOC3 stocke une seule grille par objet.</string>
+	<string name="export_reason_guide_part_not_runtime_content">Une partie guide n'est pas du contenu de runtime, donc elle a été omise.</string>
+	<string name="export_reason_hidden_part_omitted_by_option">La partie est cachée et les options d'export omettent les parties cachées, donc son contenu a été omis.</string>
+	<string name="export_reason_hidden_drawable_omitted_by_option">Le drawable est caché et les options d'export omettent les drawables cachés, donc il a été omis.</string>
+	<string name="export_reason_vertex_count_exceeds_index_width">Le mesh compte %1$d vertices, soit plus que les %2$d autorisés par ce format, donc il a été omis.</string>
+	<string name="export_reason_no_atlas_page_bound">Aucune page d'atlas n'est liée à ce drawable, donc il a été écrit pour pointer vers la page 0.</string>
+	<string name="export_reason_clipping_mask_not_in_export">Le masque d'écrêtage %1$s ne fait pas partie de cet export, donc le drawable a été écrit sans être écrêté par ce masque.</string>
 	<string name="export_reason_offscreen_mask_not_in_export">Un masque d'écrètage nomme un drawable qui n'a pas pu être écrit, donc il a été enlevé du dehors de l'écran.</string>
-	<string name="export_reason_warp_has_no_lattice">Un déformeur de warp sans grille de points de contrôle n'a pas de lattices à écrire.  Une lattice vide a été écrite à sa place pour que le fichier reste lisible, et tout ce qui est lié à ce déformeur se joint à l'origine.</string>
-	<string name="export_reason_rotation_has_no_pivot">Un déformeur de rotation sans grille de pivot n'a pas de transformation à écrire, donc l'identitée de la transformation a été écrite à sa place.</string>
-	<string name="export_reason_glue_names_unknown_drawable">Une colle nommant un Drawable qui n'est pas dans cet export a été enlevé.</string>
+	<string name="export_reason_warp_has_no_lattice">Un déformeur de warp sans grille de points de contrôle n'a pas de treillis à écrire. Un treillis vide a été écrit à sa place pour que le fichier reste lisible, et tout ce qui est rattaché à ce déformeur se réduit à l'origine.</string>
+	<string name="export_reason_rotation_has_no_pivot">Un déformeur de rotation sans grille de pivot n'a pas de transformation à écrire, donc l'identité de la transformation a été écrite à sa place.</string>
+	<string name="export_reason_glue_names_unknown_drawable">Une colle nommant un Drawable qui n'est pas dans cet export a été enlevée.</string>
 	<string name="export_reason_id_truncated">L'id ne rentre pas dans un enregistrement id moc %1$d-byte, donc il a été écrit tronqué à “%2$s”.</string>
 	<string name="export_reason_id_truncated_disambiguated">L'id ne rentre pas dans un enregistrement id moc %1$d-byte, et le tronquer collisionnait avec l'id d'un autre objet, donc il a été écrit en tant que “%2$s”.</string>
-	<!-- CMO3 reconcile: an edit with no counterpart in the retained graph. -->
-	<string name="export_reason_no_matching_source">Il n'y a pas de source CMO3 correspondante avec laquelle se réconcilier, donc le changement n'a pas été écris.</string>
+	<string name="export_reason_no_matching_source">Le CMO3 ne contient aucun objet correspondant sur lequel réconcilier, donc la modification n'a pas été écrite.</string>
 	<string name="export_reason_parameter_kind_change">La modification du type d'un paramètre (normal / blendshape) n'est pas prise en compte.</string>
 	<string name="export_reason_deformer_kind_change">La modification du type d'un déformeur n'est pas prise en compte.</string>
-	<string name="export_reason_deformer_needs_warp_source">La source CMO3 n'est pas un déformeur de warp, donc des modification warp-seulement (mode bilinéaire, latice, keyforms) n'ont pas été écrites.</string>
-	<string name="export_reason_deformer_needs_rotation_source">La source CMO3 n'est pas un déformeur de rotation, donc les éditions de roatation seulement (angle de base, keyforms) n'ont pas été écris.</string>
-	<string name="export_reason_texture_rebinding_editor_only">La réassignation de la source de la texture est seulement dans l'éditeur est n'est pas écrite dans le CMO3.</string>
-	<string name="export_reason_base_geometry_vertex_mismatch">La géométrie de base ne correspond pas au nombre de sommets du CMO3, donc elle n'a pas été écrite.</string>
-	<string name="export_reason_no_uvs_to_reconcile">Le drawable n'a pas d'UVs avec lequels se réconcilier, donc aucuns n'a été écrit.</string>
+	<string name="export_reason_deformer_needs_warp_source">L'objet correspondant du CMO3 n'est pas un déformeur de warp, donc les modifications propres au warp (mode bilinéaire, treillis, keyforms) n'ont pas été écrites.</string>
+	<string name="export_reason_deformer_needs_rotation_source">L'objet correspondant du CMO3 n'est pas un déformeur de rotation, donc les modifications propres à la rotation (angle de base, keyforms) n'ont pas été écrites.</string>
+	<string name="export_reason_texture_rebinding_editor_only">La réassignation de la source de la texture est seulement dans l'éditeur et n'est pas écrite dans le CMO3.</string>
+	<string name="export_reason_base_geometry_vertex_mismatch">La géométrie de base ne correspond pas au nombre de vertices de l'objet correspondant du CMO3, donc elle n'a pas été écrite.</string>
+	<string name="export_reason_no_uvs_to_reconcile">Le drawable n'a pas d'UVs avec lesquels se réconcilier, donc aucun n'a été écrit.</string>
 	<string name="export_reason_deformer_no_part_to_move_to">Il n'y a pas de partie de CMO3 vers laquelle bouger le déformeur, donc cette partie est restée inchangée.</string>
 	<string name="export_reason_static_draw_order_shadowed">L'ordre de rendu statique est caché par sa piste de keyforms, donc le CMO3 ne peut pas les enregistrer indépendamment.</string>
-	<string name="export_reason_composite_statics_shadowed">Les valeurs statiques du composite sont cachées par leurs piste de keyforms, donc le CMO3 ne peut pas les enregistrer indépendamment.</string>
+	<string name="export_reason_composite_statics_shadowed">Les valeurs statiques du composite sont cachées par leurs pistes de keyforms, donc le CMO3 ne peut pas les enregistrer indépendamment.</string>
 	<string name="export_reason_part_masks_flatten">Les masques de composites typées parties deviennent leurs drawables descendants dans le CMO3.</string>
-	<!-- CMO3 structural creation: a new entity with nowhere to be created. -->
-	<string name="export_reason_no_source_set_to_create_into">Le modèle CMO3 n'a pas de set de cette sorte dans lequel créer, donc la nouvelle entité n'a pas été synthétisée.</string>
-	<string name="export_reason_created_entity_has_no_source">La nouvelle entitée n'a pas encore de source CMO3, donc elle a été enlevée de l'ordre du panneau.</string>
+	<string name="export_reason_no_source_set_to_create_into">Le CMO3 n'a pas d'ensemble de ce type dans lequel créer l'entité, donc la nouvelle entité n'a pas été synthétisée.</string>
+	<string name="export_reason_created_entity_has_no_source">La nouvelle entité n'a pas encore d'objet correspondant dans le CMO3, donc elle a été exclue de l'ordre du panneau.</string>
 	<string name="export_reason_created_group_not_in_tree">Le groupe créé n'est pas dans l'arbre de paramètres édités, donc il n'a pas été synthétisé.</string>
 	<string name="export_reason_created_drawable_no_texture_source">Le drawable créé n'a pas de source de texture à dupliquer, donc il n'a pas été synthétisé.</string>
-	<string name="export_reason_glued_drawable_has_no_source">Un drawable collé n'a pas de source CMO3, donc la glue n'a pas été synthétisée.</string>
-	<!-- CMO3 mesh topology and glue re-binding.  %1$d/%2$d are the mesh's vertex count and the most
-	     the edge table can index. -->
+	<string name="export_reason_glued_drawable_has_no_source">Un drawable relié par une colle n'a pas d'objet correspondant dans le CMO3, donc la colle n'a pas été synthétisée.</string>
 	<string name="export_reason_vertex_count_exceeds_edge_table">Le mesh a %1$d vertices, au dessus de %2$d que la table éditable des bords du mesh peut indexer, donc la table des bords du mesh n'a pas été reconstruite.</string>
 	<string name="export_reason_glued_mesh_no_uid_table">Un mesh collé n'a pas de table éditable avec les id des vertex, donc la colle n'a pas pu être ré-assignée.</string>
-	<string name="export_reason_glue_pair_past_uid_table">Une paire d'indexs de colle est en dehors de la table vertice-id de son mesh, donc la colle n'a pas été ré-assignée.</string>
-	<!-- CMO3 keyforms.  %1$s in the bundle line is an export_bundle_* sentence; %1$s in the parameter
-	     lines is the parameter id, which is format-level data and stays verbatim. -->
-	<string name="export_reason_keyform_cannot_bundle">%1$s  CMO3 enregistre une grille par object.</string>
-	<string name="export_reason_axis_parameter_no_source">Le paramêtre d'axe %1$s de la grille n'a pas de source CMO3, donc la grille de keyforms n'a pas été écrite.</string>
-	<string name="export_reason_blend_shape_parameter_no_source">Le paramètre de blendshape %1$s n'a pas de source CMO3, donc la blendshape n'a pas été écrite.</string>
-	<string name="export_reason_keyforms_without_base_mesh">Les keyforms sans un mesh de base ne peuvent pas être mise dans le CMO3.</string>
-	<string name="export_reason_fractional_draw_order">CMO3 enregistre un numéro d'ordre de rendu entier, donc les valeurs fractionnelle n'ont pas été écrites.</string>
+	<string name="export_reason_glue_pair_past_uid_table">Une paire d'index de colle est en dehors de la table vertice-id de son mesh, donc la colle n'a pas été ré-assignée.</string>
+	<string name="export_reason_keyform_cannot_bundle">%1$s CMO3 enregistre une grille par objet.</string>
+	<string name="export_reason_axis_parameter_no_source">Le paramètre d'axe de grille %1$s n'a pas de paramètre correspondant dans le CMO3, donc la grille de keyforms n'a pas été écrite.</string>
+	<string name="export_reason_blend_shape_parameter_no_source">Le paramètre de blendshape %1$s n'a pas de paramètre correspondant dans le CMO3, donc la blendshape n'a pas été écrite.</string>
+	<string name="export_reason_physics_names_deleted_parameter">Les réglages de physique %1$s utilisent encore ce paramètre supprimé. Ils ont été exportés tels quels ; faites-les pointer vers un autre paramètre ou supprimez-les dans le Cubism Editor.</string>
+	<string name="export_reason_sidecar_names_unwritten_parameters">%1$s fait référence à des paramètres absents de cet export (%2$s). Il a été exporté tel quel, donc le logiciel qui lit la marionnette ne les trouvera pas.</string>
+	<string name="export_reason_sidecar_names_unwritten_parts">%1$s fait référence à des parties absentes de cet export (%2$s). Il a été exporté tel quel, donc le logiciel qui lit la marionnette n'aura rien à afficher ni à cacher pour elles.</string>
+	<string name="export_reason_keyforms_without_base_mesh">Les keyforms sans un mesh de base ne peuvent pas être mis dans le CMO3.</string>
+	<string name="export_reason_fractional_draw_order">CMO3 enregistre un numéro d'ordre de rendu entier, donc les valeurs fractionnelles n'ont pas été écrites.</string>
 	<string name="export_reason_static_glue_intensity_without_keyforms">Une intensité statique de colle sans keyforms n'a nulle part où vivre dans le CMO3.</string>
-	<!-- Why a keyform set would not bundle into one grid, nested into export_reason_keyform_cannot_bundle.
-	     %1$s in the channel line is a channel_* label. -->
-	<string name="export_bundle_keys_outside_geometry_span">Les clés en dehors de la durée avec des clefs de la géometrie ne peut pas être mis dans une grille.</string>
+	<string name="export_bundle_keys_outside_geometry_span">Les clés situées en dehors de la plage de clés de la géométrie ne peuvent pas être regroupées en une seule grille.</string>
 	<string name="export_bundle_channel_keys_without_geometry">Les pistes de clés sans géométries ne peuvent pas être mises dans une grille.</string>
-	<string name="export_bundle_keys_outside_channel_span">Les clés en dehors de la taille %1$s de la piste ne peuvent pas être mis dans une grille.</string>
-	<!-- CMO3 document fields.  These notices carry no subject, so each sentence names its own field.
-	     %1$s/%2$s in the combined-pair line are the horizontal and vertical parameter ids. -->
-	<string name="export_reason_no_authored_world_origin">CMO3 n'enregistre pas d'origine du monde, donc réouvrir le fichier le dérive du centre de la toile.</string>
-	<string name="export_reason_no_root_parameter_group">Le modèle n'a pas de groupe de paramètres racine, donc l'arbre des paramètres n'a pas été reconstruit.</string>
-	<string name="export_reason_no_root_part">Le modèle n'a pas de partie racine, donc l'ordre du panneau de parties n'a pas été reconstruit.</string>
-	<string name="export_reason_no_parameter_source_set">Le modèle n'a pas de set de paramètres, donc l'ordre des paramètres n'a pas été écrit.</string>
-	<string name="export_reason_combined_pair_reordered">L'ordre des paramètres a été ajusté pour pour que les paires combinées %1$s + %2$s restes adajacentes.</string>
-	<string name="export_reason_no_canvas_to_reconcile">Le modèle n'a pas de toile, donc la taille de la toile pourrait ne pas être écrite.</string>
-	<string name="export_reason_no_texture_manager">This document has no texture manager, so the source-artwork display mode could not be written.</string>
+	<string name="export_bundle_keys_outside_channel_span">Les clés en dehors de la taille %1$s de la piste ne peuvent pas être mises dans une grille.</string>
+	<string name="export_reason_no_authored_world_origin">Le CMO3 ne stocke pas d'origine du monde définie par l'auteur, donc la réouverture du CMO3 la déduit du centre de la toile.</string>
+	<string name="export_reason_no_root_parameter_group">La marionnette n'a pas de groupe de paramètres racine, donc l'arborescence des paramètres n'a pas été reconstruite.</string>
+	<string name="export_reason_no_root_part">La marionnette n'a pas de partie racine, donc l'ordre du panneau des parties n'a pas été reconstruit.</string>
+	<string name="export_reason_no_parameter_source_set">La marionnette n'a pas d'ensemble de paramètres, donc l'ordre des paramètres n'a pas été écrit.</string>
+	<string name="export_reason_combined_pair_reordered">L'ordre des paramètres a été ajusté pour que les paires combinées %1$s + %2$s restent adjacentes.</string>
+	<string name="export_reason_no_canvas_to_reconcile">La marionnette n'a pas de toile, donc la taille de la toile n'a pas été écrite.</string>
+	<string name="export_reason_no_texture_manager">Cette marionnette n'a pas de gestionnaire de textures, donc le mode d'affichage de l'artwork source n'a pas pu être écrit.</string>
 	<string name="export_reason_no_texture_input_for_display">Ce drawable n'a pas d'entrée de texture pour le mode d'affichage choisi, donc il garde celui qu'il avait.</string>
-	<string name="export_reason_no_atlas_entry">Cet artwork n'est packé dans aucune page d'atlas, donc il' n'y a pas de placement à mettre à jour.</string>
+	<string name="export_reason_no_atlas_entry">Cet artwork n'est packé dans aucune page d'atlas, donc il n'y a pas de placement à mettre à jour.</string>
 	<string name="export_reason_atlas_page_not_recomposed">Cet artwork a été bougé sur sa page d'atlas, mais la page l'affiche toujours à un ancien placement; repackez pour le redessiner.</string>
-	<string name="export_reason_atlas_tile_metadata">Le nom ou la taille de cet artwork a changé, de sorte à ce q'un placement d'atlas ne puisse pas le porte; ré-importez l'artwork à la place.</string>
-	<string name="export_reason_atlas_tile_rebinding">Ce drawable était assigné a un autre artwork, qui a besoin que l'artwork soit ré-importé au lieu de  repacké.</string>
+	<string name="export_reason_atlas_tile_metadata">Les pixels, le nom ou la taille de cet artwork ont changé, ce qu'un placement d'atlas ne peut pas conserver ; réimportez plutôt l'artwork.</string>
+	<string name="export_reason_atlas_tile_rebinding">Ce drawable était assigné à un autre artwork, qui a besoin que l'artwork soit ré-importé au lieu de repacké.</string>
+	<string name="export_reason_source_layer_binding_not_in_export">Cet art est assigné au calque %2$s de %1$s, mais la marionnette ne liste pas cet artwork, donc l'assignation n'a pas pu être exportée. Réassignez-le dans la zone Sources pour exporter l'assignation.</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 enregistre des pixels entiers sur la toile, donc la taille fractionnelle de la toile n'a pas été écrite.</string>
-	<!-- Export overwrite warning (the document.confirm command; %1$d is how many existing files the
-	     export would replace, %2$s the abbreviated file list). -->
-	<string name="confirm_export_overwrite">Exporté va écrire sur %1$d fichier(s) existant(s): %2$s</string>
-	<!-- Export options dialog (the document.exportOptionsMoc3 command).  %1$s/%2$s in the canvas
-	     readout are the canvas width and height in model units at the edited scale. -->
+	<string name="confirm_export_overwrite">Exporter va écrire sur %1$d fichier(s) existant(s): %2$s</string>
 	<string name="export_options_title_moc3">Options d'Export MOC3</string>
 	<string name="export_options_export">Export</string>
 	<string name="export_options_section_content">Contenu</string>
@@ -251,42 +277,70 @@
 	<string name="export_options_section_scale">Taille</string>
 	<string name="export_options_hidden_parts">Exporter les parties cachées</string>
 	<string name="export_options_hidden_drawables">Exporter les drawables cachés</string>
-	<string name="export_options_guide_parts">Exporter les parties brouillon</string>
-	<string name="export_options_include_physics">Paramètres physiques (physics3.json)</string>
+	<string name="export_options_guide_parts">Exporter les parties guides</string>
+	<string name="export_options_include_physics">Réglages de physique (physics3.json)</string>
 	<string name="export_options_include_userdata">Données utilisateur (userdata3.json)</string>
 	<string name="export_options_include_displayinfo">Infos d'affichage (cdi3.json)</string>
-	<string name="export_options_pixels_per_unit">Pixels par unitée</string>
-	<string name="export_options_canvas_in_units">Toile: %1$s × %2$s unitées</string>
-	<!-- File-open failure alert (the document.openFailed command; %1$s is the file name). -->
+	<string name="export_options_pixels_per_unit">Pixels par unité</string>
+	<string name="export_options_canvas_in_units">Toile: %1$s × %2$s unités</string>
+	<string name="export_options_title_image">Exporter l'image</string>
+	<string name="export_options_section_region">Région</string>
+	<string name="export_options_region_view">Viewport</string>
+	<string name="export_options_region_canvas">Toile</string>
+	<string name="export_options_region_content">Contenu visible</string>
+	<string name="export_options_image_scale">Échelle</string>
+	<string name="export_options_section_background">Arrière-plan</string>
+	<string name="export_options_background_transparent">Transparent</string>
+	<string name="export_options_background_solid">Couleur unie</string>
+	<string name="export_options_background_grid">Grille du viewport</string>
+	<string name="export_options_background_color">Couleur</string>
+	<string name="export_options_image_size">%1$d × %2$d px</string>
+	<string name="export_options_image_nothing_visible">Rien n'est visible à capturer.</string>
+	<string name="export_options_image_no_viewport">Aucun viewport à capturer. Placez le pointeur sur une zone Vue 2D avant d'exporter.</string>
+	<string name="export_options_image_no_canvas">La marionnette n'a pas de toile.</string>
+	<string name="export_options_image_too_large">%1$d × %2$d px dépasse la limite de %3$d px.</string>
 	<string name="dialog_okay">Okay</string>
 	<string name="open_failed_read">Impossible de lire %1$s.</string>
-	<string name="open_failed_unrecognized">%1$s n'est pas dans un format de fichier qu'Umamo peut reconnaitre.</string>
+	<string name="open_failed_unrecognized">%1$s n'est pas dans un format de fichier qu'Umamo peut reconnaître.</string>
 	<string name="open_failed_not_openable">%1$s ne peut pas encore être ouvert dans l'éditeur.</string>
-	<string name="open_failed_parse">Impossible d'ouvrir %1$s.  Le fichier pourrait être endommagé.</string>
-	<string name="open_failed_missing_manifest">Impossible d'importer %1$s.  Son manifeste model3.json n'a pas été trouvé à coté du fichier.</string>
-	<string name="open_failed_missing_texture">Impossible d'importer %1$s.  Une des textures référencées par son model3.json es tmanquante ou illisible.</string>
+	<string name="open_failed_parse">Impossible d'ouvrir %1$s. Le fichier pourrait être endommagé.</string>
+	<string name="open_failed_missing_manifest">Impossible d'importer %1$s. Son manifeste model3.json n'a pas été trouvé à côté du fichier.</string>
+	<string name="open_failed_missing_texture">Impossible d'importer %1$s. Une des textures référencées par son model3.json est manquante ou illisible.</string>
 	<string name="open_failed_no_art_layers">%1$s n'a aucun calque avec des pixels à importer.</string>
 	<string name="open_failed_newer_format">%1$s a été créé par une version plus récente d'Umamo et ne peut pas être ouvert par celle-ci.</string>
-	<!-- Modal messages the app layer raises through document.alert; %2$s lists entry paths, document data. -->
-	<string name="alert_document_read_only">%1$s a été ouvert en lecture seule.  Il contient des entrées que cette version d'Umamo ne peut interpréter, donc la Sauvegarde est indisponible: %2$s</string>
-	<string name="alert_save_failed">Impossible de sauvegarder %1$s.  %2$s</string>
+	<string name="alert_document_read_only">%1$s a été ouvert en lecture seule. Il contient des entrées que cette version d'Umamo ne peut interpréter, donc la Sauvegarde est indisponible: %2$s</string>
+	<string name="alert_save_failed">Impossible de sauvegarder %1$s. %2$s</string>
+	<string name="alert_export_failed">Impossible d'exporter %1$s. %2$s</string>
+	<string name="export_image_failed_renderer">Le moteur de rendu du viewport n'a pas pu dessiner l'image.</string>
+	<string name="export_image_failed_memory">La mémoire était insuffisante pour une image de %1$d × %2$d px. Essayez une échelle plus petite.</string>
+	<string name="export_failed_unexpected">Un problème inattendu a interrompu l'export ; les détails se trouvent dans le journal. La marionnette ouverte n'est pas affectée.</string>
+	<string name="alert_export_out_of_memory">Impossible d'exporter %1$s : Umamo a manqué de mémoire. La marionnette ouverte n'est pas affectée.</string>
+	<string name="alert_export_out_of_memory_jar">Impossible d'exporter %1$s : Umamo a épuisé les %2$s de mémoire dont il dispose. La marionnette ouverte n'est pas affectée. Pour allouer à Umamo jusqu'à 50 % de la mémoire système, sauvegardez, quittez, puis exécutez cette commande depuis un terminal : %3$s</string>
+	<string name="alert_low_memory_jar">Umamo est autorisé à utiliser au maximum %1$s de mémoire. Les fichiers volumineux, surtout lors des exports, peuvent épuiser la mémoire d'Umamo et provoquer un plantage. Pour allouer à Umamo jusqu'à 50 % de la mémoire système, quittez, puis exécutez cette commande depuis un terminal : %2$s</string>
 
-	<!-- Help menu. -->
 	<string name="menu_help">Aide</string>
 	<string name="menu_source_code">Code source…</string>
 	<string name="menu_web_site">Site Web…</string>
 	<string name="menu_documentation">Documentation…</string>
 	<string name="menu_credits">Crédits…</string>
+	<string name="menu_quick_setup">Configuration rapide…</string>
 	<string name="menu_about">À propos d'Umamo…</string>
-	<!-- Help dialogs (Credits shows the bundled CREDITS.md; About shows name/version/license/links). -->
+	<string name="menu_open_log_folder">Ouvrir le dossier des journaux…</string>
+	<string name="alert_log_folder_failed">Impossible d'ouvrir le dossier des journaux. Les journaux de session se trouvent dans :\n%1$s</string>
+	<string name="menu_check_for_updates">Rechercher des mises à jour…</string>
+	<string name="confirm_update_available">Umamo %1$s est disponible. Vous utilisez la version %2$s.</string>
+	<string name="dialog_open_download_page">Ouvrir la page de téléchargement</string>
+	<string name="dialog_later">Plus tard</string>
+	<string name="dialog_skip_this_version">Ignorer cette version</string>
+	<string name="alert_up_to_date">Vous disposez de la dernière version d'Umamo, %1$s.</string>
+	<string name="alert_no_release_published">Aucune version d'Umamo n'a encore été publiée.</string>
+	<string name="alert_update_check_failed">Impossible de rechercher les mises à jour : %1$s</string>
 	<string name="about_title">À propos d'Umamo</string>
-	<!-- %1$s is the application version. -->
 	<string name="about_version">Version %1$s</string>
-	<string name="about_license">Licensié sous la GNU General Public License v3.0</string>
+	<string name="about_license">Sous licence GNU General Public License v3.0</string>
 	<string name="credits_title">Crédits &amp; Licences tierces</string>
 	<string name="dialog_close">Fermer</string>
 
-	<!-- View commands (action registry; shown in the palette / a future View menu). -->
 	<string name="cmd_view_fit">Rentrer dans la Vue</string>
 	<string name="cmd_frame_all">Tout faire Rentrer</string>
 	<string name="cmd_view_actual_size">Taille Actuelle (100%)</string>
@@ -296,123 +350,152 @@
 	<string name="cmd_view_zoom_out_coarse">Dézoomer (fort)</string>
 	<string name="cmd_view_zoom_region">Zoomer sur la région</string>
 
-	<!-- Selection and editor-mode commands (action registry; palette / shortcuts). -->
 	<string name="cmd_select_clear">Vider la sélection</string>
 	<string name="cmd_select_all">Tout sélectionner</string>
 	<string name="cmd_select_invert">Inverser la sélection</string>
+	<string name="cmd_select_all_parts">Sélectionner toutes les parties</string>
+	<string name="cmd_select_all_drawables">Sélectionner tous les drawables</string>
+	<string name="cmd_select_all_warps">Sélectionner tous les déformeurs de warp</string>
+	<string name="cmd_select_all_rotations">Sélectionner tous les déformeurs de rotation</string>
+	<string name="cmd_select_invert_parts">Inverser la sélection des parties</string>
+	<string name="cmd_select_invert_drawables">Inverser la sélection des drawables</string>
+	<string name="cmd_select_invert_warps">Inverser la sélection des déformeurs de warp</string>
+	<string name="cmd_select_invert_rotations">Inverser la sélection des déformeurs de rotation</string>
 	<string name="cmd_mode_toggle_edit">Activer le mode d'édition</string>
-	<string name="cmd_mode_object">Mode Object</string>
+	<string name="cmd_mode_object">Mode Objet</string>
 	<string name="cmd_mode_edit">Mode Édition</string>
+	<string name="cmd_mode_toggle_pose">Basculer le mode Pose</string>
+	<string name="cmd_mode_pose">Mode Pose</string>
+	<string name="group_editor_mode">Mode</string>
+	<string name="group_uv_mirror">Refléter</string>
+	<string name="group_keyform_key">Clé</string>
+	<string name="group_relation">Relation</string>
+	<string name="group_parameter_control">Contrôle</string>
+	<string name="group_viewport_tools">Outils</string>
 	<string name="cmd_mesh_grab">Prendre des vertices</string>
 	<string name="cmd_mesh_scale">Changer de taille des vertices</string>
 	<string name="cmd_mesh_rotate">Tourner des vertices</string>
+	<string name="cmd_mesh_to_shape_cylinder">Vers une forme (cylindre)</string>
+	<string name="cmd_mesh_to_shape_sphere">Vers une forme (sphère)</string>
 	<string name="cmd_mesh_select_mode_vertex">Mode de sélection des vertices</string>
 	<string name="cmd_mesh_select_mode_edge">Sélection des bords</string>
 	<string name="cmd_mesh_select_mode_face">Sélection des faces</string>
-	<string name="cmd_mesh_box_select">Sélection en boite</string>
+	<string name="cmd_mesh_box_select">Sélection en boîte</string>
 	<string name="cmd_mesh_circle_select">Sélection en cercle</string>
 	<string name="cmd_mesh_circle_grow">Augmenter le rayon du cercle</string>
 	<string name="cmd_mesh_circle_shrink">Diminuer le rayon du cercle</string>
-	<string name="cmd_uv_mirror_u">Relféter les UVs Horizontallement</string>
-	<string name="cmd_uv_mirror_v">Refléter les UVs Verticallement</string>
+	<string name="cmd_uv_mirror_u">Refléter les UVs Horizontalement</string>
+	<string name="cmd_uv_mirror_v">Refléter les UVs Verticalement</string>
 
-	<!-- UV editor viewport context menu. Short axis labels (Blender-style), distinct from the verbose command titles. -->
 	<string name="menu_uv_mirror_x">Refléter sur X</string>
 	<string name="menu_uv_mirror_y">Refléter sur Y</string>
 
-	<!-- UV editor texture selector (area header) and its page-switch commands. Pages display 1-based. -->
 	<string name="uv_texture_selector_follow">Suivre la sélection</string>
 	<string name="uv_texture_selector_page">Page %1$d</string>
-	<string name="uv_texture_selector_page_row">Page %1$d · %2$d × %3$d · %4$d meshs</string>
+	<string name="uv_texture_selector_page_row">Page %1$d · %2$d × %3$d · %4$d drawables</string>
 	<string name="uv_texture_selector_layer">Calque source</string>
 	<string name="uv_layer_picker_title">Trouver par Artwork</string>
-	<string name="uv_layer_picker_row">%1$s · %2$d × %3$d · %4$d meshs</string>
+	<string name="uv_layer_picker_row">%1$s · %2$d × %3$d · %4$d drawables</string>
 	<string name="uv_layer_picker_no_matches">Pas d'artworks correspondants</string>
-	<string name="uv_layer_picker_empty">Ce document n'a pas d'artworks source.</string>
+	<string name="uv_layer_picker_empty">Cette marionnette n'a pas d'artwork source.</string>
 	<string name="cmd_document_toggle_source_artwork">Activer l'affichage des artworks source</string>
 	<string name="cmd_document_repack_atlas">Repackager l'Atlas</string>
 	<string name="cmd_uv_page_next">Page de Textures suivante</string>
-	<string name="cmd_uv_page_previous">Page de Textures précédante</string>
+	<string name="cmd_uv_page_previous">Page de Textures précédente</string>
 	<string name="cmd_uv_page_follow">Page de Textures: Suivre la sélection</string>
 	<string name="cmd_uv_pin_placement">Épingler l'Emplacement de l'Art</string>
 	<string name="cmd_uv_unpin_placement">Désépingler l'Emplacement de l'Art</string>
 
-	<!-- Edit / history commands (action registry; palette / shortcuts / Edit menu). -->
 	<string name="cmd_undo">Annuler</string>
 	<string name="cmd_redo">Refaire</string>
 	<string name="cmd_adjust_last_operation">Ajuster la dernière opération</string>
 	<string name="cmd_toggle_visibility">Modifier la visibilité</string>
+	<string name="cmd_hide_unselected">Cacher les non-sélectionnés</string>
+	<string name="cmd_unhide_all">Tout afficher</string>
 
-	<!-- Command palette. -->
+	<string name="cmd_command_palette">Palette de commandes</string>
 	<string name="search_hint">Rechercher</string>
 	<string name="search_clear">Vider la recherche</string>
 
-	<!--
-	  Text-field context menu. Ours replaces Compose's built-in one, so these are the four clipboard entries
-	  it would otherwise have supplied. Distinct from cmd_select_all, which is the OBJECT-selection command.
-	-->
 	<string name="text_menu_cut">Couper</string>
 	<string name="text_menu_copy">Copier</string>
 	<string name="text_menu_paste">Coller</string>
 	<string name="text_menu_select_all">Tout Sélectionner</string>
 
-	<!--
-	  History panel step labels. One per Change.labelKey (the stable key carried by every edit); the seed
-	  (initial open) row uses history_open and an unmapped key falls back to history_unknown. These name
-	  the editing action, not the affected object's name (that is document data, shown in the tree).
-	-->
 	<string name="history_open">Ouvrir</string>
 	<string name="history_unknown">Éditer</string>
 	<string name="history_selection">Sélectionner</string>
 	<string name="history_mode">Changer de Mode</string>
 	<string name="history_visibility_part">Changer la visibilité d'une partie</string>
-	<string name="history_part_rename">Rennomer la partie</string>
+	<string name="history_part_rename">Renommer la partie</string>
 	<string name="history_part_selectable">Changer la sélectionnabilité d'une partie</string>
 	<string name="history_part_move">Bouger la partie</string>
 	<string name="history_visibility_drawable">Changer la visibilité d'un mesh</string>
-	<string name="history_drawable_rename">Rennomer le Mesh</string>
-	<string name="history_drawable_selectable">Changer la séléectionnabilité d'un mesh</string>
-	<string name="history_drawable_move">Bouger le mesh</string>
-	<string name="history_deformer_rename">Rennomer le déformeur</string>
+	<string name="history_visibility_deformer">Basculer la visibilité du déformeur</string>
+	<string name="history_drawable_rename">Renommer le drawable</string>
+	<string name="history_drawable_selectable">Basculer la sélectionnabilité du drawable</string>
+	<string name="history_drawable_move">Bouger le drawable</string>
+	<string name="history_visibility_hide_unselected">Cacher les non-sélectionnés</string>
+	<string name="history_visibility_unhide_all">Tout afficher</string>
+	<string name="history_relation_copy_to_selected">Copier la relation vers la sélection</string>
+	<string name="history_deformer_rename">Renommer le déformeur</string>
 	<string name="history_deformer_selectable">Changer la sélectionnabilité du déformeur</string>
 	<string name="history_deformer_move">Bouger le déformeur</string>
-	<string name="history_keyform_insert">Insérer une keyframe</string>
-	<string name="history_keyform_move">Bouger une keyframe</string>
-	<string name="history_keyform_remove">Supprimer une keyframe</string>
-	<string name="history_keyform_select">Sélectionner une keyframe</string>
+	<string name="history_keyform_insert">Insérer une clé</string>
+	<string name="history_keyform_move">Bouger une clé</string>
+	<string name="history_keyform_remove">Supprimer une clé</string>
+	<string name="history_keyform_select">Sélectionner une clé</string>
 	<string name="history_parameter_select">Sélectionner un paramètre</string>
 	<string name="history_parameter_value">Ajuster un paramètre</string>
 	<string name="history_parameter_range">Modifier la gamme du paramètre</string>
+	<string name="history_parameter_repeat">Basculer la répétition du paramètre</string>
+	<string name="history_parameter_note">Modifier la note du paramètre</string>
 	<string name="history_parameter_link">Lier les paramètres</string>
 	<string name="history_parameter_unlink">Délier les paramètres</string>
 	<string name="history_parameter_move">Bouger les paramètres</string>
 	<string name="history_parameter_group_create">Créer un groupe</string>
 	<string name="history_parameter_group_delete">Supprimer un groupe</string>
-	<string name="history_parameter_group_rename">Rennomer un groupe</string>
+	<string name="history_parameter_group_rename">Renommer un groupe</string>
 	<string name="history_parameter_create">Ajouter un paramètre</string>
-	<string name="history_parameter_rename">Rennomer le paramètre</string>
+	<string name="history_parameter_rename">Renommer le paramètre</string>
 	<string name="history_parameter_delete">Supprimer le paramètre</string>
 	<string name="history_mesh_move">Bouger des vertices</string>
 	<string name="history_mesh_scale">Changer la taille des vertices</string>
 	<string name="history_mesh_rotate">Tourner des vertices</string>
 	<string name="history_mesh_slide">Glisser la vertice</string>
+	<string name="history_mesh_to_shape">Vertices vers une forme</string>
+	<string name="history_lattice_move">Bouger les points du treillis</string>
+	<string name="history_lattice_scale">Changer la taille des points du treillis</string>
+	<string name="history_lattice_rotate">Tourner les points du treillis</string>
+	<string name="history_lattice_slide">Glisser un point du treillis</string>
+	<string name="history_lattice_to_shape">Points du treillis vers une forme</string>
+	<string name="history_lattice_resize">Résolution du treillis</string>
+	<string name="history_lattice_subdivide">Subdiviser le treillis</string>
+	<string name="history_deformer_create">Créer un déformeur de warp</string>
+	<string name="history_pose_move">Pose : bouger les points du treillis</string>
+	<string name="history_pose_scale">Pose : changer la taille des points du treillis</string>
+	<string name="history_pose_rotate">Pose : tourner les points du treillis</string>
+	<string name="history_pose_slide">Pose : glisser un point du treillis</string>
+	<string name="history_pose_to_shape">Pose : points du treillis vers une forme</string>
+	<string name="history_pose_clear_edits">Effacer les modifications de pose</string>
 	<string name="history_uv_move">Bouger des UVs</string>
 	<string name="history_uv_scale">Changer la taille des UVs</string>
 	<string name="history_uv_rotate">Tourner des UVs</string>
 	<string name="history_uv_mirror">Refléter les UVs</string>
-	<string name="history_object_move">Bouger des objects</string>
-	<string name="history_object_scale">Changer la taille d'objects</string>
-	<string name="history_object_rotate">Tourner des objects</string>
+	<string name="history_object_move">Bouger des objets</string>
+	<string name="history_object_scale">Changer la taille d'objets</string>
+	<string name="history_object_rotate">Tourner des objets</string>
+	<string name="history_object_duplicate">Dupliquer les objets</string>
 	<string name="history_mesh_select">Sélectionner des éléments</string>
 	<string name="history_mesh_select_mode">Changer de mode de sélection</string>
 	<string name="history_part_delete">Supprimer une partie</string>
-	<string name="history_drawable_delete">Supprimer un mesh</string>
+	<string name="history_drawable_delete">Supprimer le drawable</string>
 	<string name="history_deformer_delete">Supprimer un déformeur</string>
-	<string name="history_part_sketch">Activer l'Image Guide</string>
+	<string name="history_part_sketch">Basculer la partie guide</string>
 	<string name="history_part_draw_order">Modifier l'ordre de Rendu des Parties</string>
 	<string name="history_part_group_mode">Modifier le mode de groupement</string>
 	<string name="history_part_composite">Définir la Composite</string>
-	<string name="history_drawable_blend_mode">Changer le mode de fuction</string>
+	<string name="history_drawable_blend_mode">Changer le mode de mélange</string>
 	<string name="history_drawable_alpha_blend_mode">Changer le mode d'Alpha</string>
 	<string name="history_drawable_culling">Activer le Back-Face Culling</string>
 	<string name="history_drawable_invert_mask">Activer/Désactiver le masque inversé</string>
@@ -435,132 +518,138 @@
 	<string name="history_document_source_layer_display">Changer l'affichage de texture</string>
 	<string name="history_document_atlas_placement">Bouger l'art sur l'atlas</string>
 	<string name="history_document_atlas_placement_rotate">Tourner l'art sur l'atlas</string>
-	<string name="history_document_atlas_placement_scale">Change de taille l'art sur l'atlas</string>
+	<string name="history_document_atlas_placement_scale">Changer de taille l'art sur l'atlas</string>
 	<string name="history_document_atlas_pin">Épingler l'art sur l'atlas</string>
 	<string name="history_document_atlas_unpin">Désépingler l'art sur l'atlas</string>
 	<string name="history_document_atlas_repack">Repacker l'atlas</string>
-	<string name="history_document_tile_source">Relier l'atlas</string>
-	<string name="history_document_tile_unbind">Déconnecter l'atlas</string>
-	<string name="history_document_delete_tile">Supprimer l'ard</string>
+	<string name="history_document_tile_source">Réassigner l'art</string>
+	<string name="history_document_tile_unbind">Désassigner l'art</string>
+	<string name="history_document_delete_tile">Supprimer l'art</string>
 	<string name="history_document_delete_tile_ignore">Supprimer l'art, ignorer le calque</string>
 	<string name="history_document_layer_ignore">Ignorer le calque</string>
 	<string name="history_document_layer_unignore">Arrêter d'ignorer le calque</string>
 	<string name="history_document_import_artwork">Importer l'Artwork</string>
-	<string name="history_document_reload_artwork">Lecharger l'Artwork</string>
-	<string name="history_document_relink_artwork">Rlier l'Art</string>
+	<string name="history_document_reload_artwork">Recharger l'Artwork</string>
+	<string name="history_document_relink_artwork">Réassigner l'art</string>
 	<string name="history_document_match_artwork">Correspondre à l'Artwork</string>
 	<string name="history_document_replace_artwork">Remplacer l'Artwork</string>
 	<string name="history_document_runtime_target">Changer la cible de lancement</string>
 
-	<!-- Outliner unified tree. Twin "Armature" rows mirror Blender's armature object / armature
-	data naming. -->
-	<string name="outliner_root">Marionnete</string>
+	<string name="outliner_root">Marionnette</string>
 	<string name="outliner_armature">Armature</string>
 	<string name="outliner_filter_parts">Parties</string>
 	<string name="outliner_filter_deformers">Déformeurs</string>
 	<string name="sources_reload">Recharger les fichiers des Artworks</string>
-	<string name="sources_reload_pending">Les fichiers des Artworks ont changés sur le disque.  Rechargez pour synchroniser le changement.</string>
-	<string name="sources_match_automatically">Automatiquement correspondre: Relie l'art dont les calques sur le fichier n'ont plus leurs meilleurs pairs.</string>
+	<string name="sources_reload_pending">Les fichiers des Artworks ont changé sur le disque. Rechargez pour synchroniser le changement.</string>
+	<string name="sources_match_automatically">Faire correspondre automatiquement : réassigner à leur meilleure correspondance l'art dont les calques ne sont plus dans l'artwork.</string>
 	<string name="sources_file_menu">Actions de Fichiers</string>
 	<string name="sources_file_menu_replace">Remplacer l'Artwork…</string>
 	<string name="sources_file_menu_reload">Recharger ce fichier</string>
 	<string name="sources_layer_menu">Actions de Calques</string>
 	<string name="sources_layer_menu_ignore">Ignorer le calque</string>
 	<string name="sources_layer_menu_unignore">Arrêter d'ignorer</string>
-	<string name="sources_suggestion_title">Vérifier cette pair</string>
+	<string name="sources_suggestion_title">Vérifier cette paire</string>
 	<string name="sources_suggestion_accept">Accepter %1$s (%2$d%)</string>
 	<string name="sources_suggestion_accept_merge">Accepter %1$s (%2$d%) et supprimer ce nouveau drawable</string>
-	<string name="sources_suggestion_relink">Relier Manuellement…</string>
+	<string name="sources_suggestion_relink">Réassigner manuellement…</string>
 	<string name="sources_suggestion_leave">Laisser pour l'instant</string>
-	<string name="sources_filter_bound">Assigner</string>
-	<string name="sources_filter_unbound">Désassigner</string>
+	<string name="sources_filter_bound">Assigné</string>
+	<string name="sources_filter_unbound">Non assigné</string>
 	<string name="sources_filter_missing">Fichiers manquants</string>
 	<string name="sources_filter_needs_review">A besoin de vérification</string>
 	<string name="sources_status_present">Présent</string>
 	<string name="sources_status_missing">Manquant</string>
 	<string name="sources_status_unknown">Inconnu</string>
-	<string name="sources_status_bound">Assigner</string>
-	<string name="sources_status_bound_unstable">Assigner par nom</string>
-	<string name="sources_status_unbound">Désassigner</string>
+	<string name="sources_status_bound">Assigné</string>
+	<string name="sources_status_bound_unstable">Assigné par nom</string>
+	<string name="sources_status_unbound">Non assigné</string>
 	<string name="sources_status_unplaced">Non Placé</string>
-	<string name="sources_status_needs_review">A besoin de vérification: Le fichier n'a plus ce calque</string>
-	<string name="sources_status_emptied">A besoin de vérification: The calque est vide dans le fichier</string>
-	<string name="sources_status_replaced">A besoin de vérification: The fichier de remplacement n'a pas de calque avec ce nom</string>
+	<string name="sources_status_needs_review">À vérifier : l'artwork n'a plus ce calque</string>
+	<string name="sources_status_emptied">À vérifier : le calque est vide dans l'artwork</string>
+	<string name="sources_status_replaced">À vérifier : l'artwork de remplacement n'a pas de calque sous cet identifiant</string>
 	<string name="sources_status_ignored">Ignoré: Un rechargement n'ajoute pas ce calque</string>
-	<string name="sources_unbound_art">Désassigner l'Art</string>
+	<string name="sources_status_source_not_listed">À vérifier : cette marionnette ne liste pas l'artwork auquel cet art est assigné</string>
+	<string name="sources_unbound_art">Art non assigné</string>
 	<string name="sources_source_detail">%1$s · %2$d calques</string>
 	<string name="sources_source_no_path">pas de chemin enregistré</string>
 	<string name="sources_layer_detail">%1$d × %2$d à %3$d, %4$d</string>
+	<string name="sources_layer_detail_axes">%1$d × %2$d à %3$s x, %4$s z</string>
 	<string name="sources_tile_page">page %1$d</string>
-	<string name="sources_relink_title">Relier a un calque</string>
+	<string name="sources_tile_unlisted_binding">assigné à %2$s dans %1$s</string>
+	<string name="sources_relink_title">Réassigner à un calque</string>
 	<string name="sources_relink_clear">Désassigner</string>
 	<string name="sources_relink_delete">Supprimer l'Art</string>
 	<string name="sources_relink_no_matches">Pas de calques correspondants.</string>
 	<string name="outliner_filter_drawables">Drawables</string>
 	<string name="outliner_restriction_toggles">Changeurs de restriction</string>
-	<string name="outliner_column_selectable">Colonne sélectable</string>
-	<string name="outliner_column_visibility">Clonne de visibilité</string>
+	<string name="outliner_column_selectable">Colonne sélectionnable</string>
+	<string name="outliner_column_visibility">Colonne de visibilité</string>
 	<string name="placeholder_empty">Vide</string>
 
-	<!-- Outliner row context menu (right-click). "Delete" removes the item itself (a part keeps its
-	     contents); "Delete Hierarchy" removes a part's whole subtree. -->
 	<string name="outliner_menu_visibility">Changer la Visibilité</string>
 	<string name="outliner_menu_selectable">Changer la Sélectionnabilité</string>
 	<string name="outliner_menu_rename">Renommer</string>
 	<string name="outliner_menu_delete">Supprimer</string>
 	<string name="outliner_menu_delete_hierarchy">Supprimer la Hiérarchie</string>
 
-	<!-- Inspector model summary (a basic read-only view until per-entity selection lands). -->
 	<string name="status_parts">Parties: %1$d</string>
 	<string name="status_drawables">Drawables: %1$d</string>
 	<string name="status_parameters">Paramètres: %1$d</string>
 	<string name="status_deformers">Déformeurs: %1$d</string>
 	<string name="status_glues">Colles: %1$d</string>
 
-	<!-- Status bar zones: context bind hints, edit-mode selection counts, and mesh stat totals. -->
-	<string name="status_bind_palette">Palette de Commande</string>
 	<string name="status_bind_confirm">LMB / Enter: Confirmer</string>
 	<string name="status_bind_cancel">RMB / Esc: Annuler</string>
+	<string name="status_bind_depth_rotation">X / Z : Tourner en profondeur</string>
+	<string name="status_bind_depth_push">%1$s+Molette : Profondeur</string>
+	<string name="status_bind_depth_surface">T : Surface</string>
 	<string name="status_bind_edit_mode">Mode d'Édition</string>
-	<string name="status_bind_visibility">Visibilitée</string>
+	<string name="status_bind_visibility">Visibilité</string>
 	<string name="status_bind_grab">Bouger</string>
 	<string name="status_bind_scale">Changer de taille</string>
 	<string name="status_bind_rotate">Tourner</string>
+	<string name="status_bind_insert_key">Insérer une clé</string>
+	<string name="status_bind_delete_key">Supprimer une clé</string>
+	<string name="status_bind_pin">Épingler</string>
 	<string name="status_select_mode">Mode de Sélection</string>
 	<string name="status_mesh_vertices">%1$d/%2$d vertices</string>
 	<string name="status_mesh_edges">%1$d/%2$d bords</string>
 	<string name="status_mesh_faces">%1$d/%2$d faces</string>
+	<string name="status_lattice_points">%1$d/%2$d points</string>
+	<string name="status_lattice_lines">%1$d/%2$d lignes de grille</string>
+	<string name="status_lattice_cells">%1$d/%2$d cellules</string>
 	<string name="status_verts">Vertices: %1$d</string>
 	<string name="status_verts_selected">Vertices: %1$d/%2$d</string>
 	<string name="status_tris">Tris: %1$d</string>
 	<string name="status_tris_selected">Tris: %1$d/%2$d</string>
 
-	<!-- Transient notices (EditorSession.emitNotice keys): brief feedback about a blocked action. -->
-	<string name="notice_transform_only_drawables">Seulement les Drawables peuvent être transformés.  Les parties et déformeurs ne sont pas encore supportés.</string>
-	<string name="notice_transform_deformed">Ne peut pas transformer quand le mesh est déformé.  Réinitialisez tous les paramètres d'abord.</string>
+	<string name="notice_transform_only_drawables">Seuls les drawables et les déformeurs Warp peuvent être transformés. Les parties et les déformeurs de rotation ne sont pas encore pris en charge.</string>
+	<string name="notice_mode_pose_needs_deformer">Le mode Pose a besoin d'un déformeur à poser.</string>
+	<string name="notice_transform_deformed">Ne peut pas transformer quand le mesh est déformé. Réinitialisez tous les paramètres d'abord.</string>
 	<string name="notice_unknown">Action indisponible.</string>
 
-	<!-- Viewport HUD: the modal-operator status badge. -->
 	<string name="hud_along_x">Sur X</string>
 	<string name="hud_along_z">Sur Z</string>
+	<string name="hud_about_x">Autour de X</string>
+	<string name="hud_about_z">Autour de Z</string>
+	<string name="hud_pivot_depth">Profondeur %1$d px · %2$s</string>
 
-	<!-- Transform pivot modes (the Period pie) and the Shift+S snap operations. -->
 	<string name="cmd_transform_pivot_pie">Point de Pivot</string>
 	<string name="cmd_transform_pivot_median">Point Médian</string>
 	<string name="cmd_transform_pivot_individual">Origines Individuelles</string>
-	<string name="cmd_transform_pivot_active">Élement actif</string>
+	<string name="cmd_transform_pivot_active">Élément actif</string>
 	<string name="cmd_transform_pivot_cursor">Curseur 2D</string>
+	<string name="header_transform_pivot_point">Point de pivot de transformation</string>
 	<string name="cmd_snap_pie">Aimanter</string>
 	<string name="cmd_snap_cursor_world_origin">Curseur sur l'origine du monde</string>
 	<string name="cmd_snap_cursor_selected">Curseur sur le sélectionné</string>
 	<string name="cmd_snap_cursor_active">Curseur sur l'actif</string>
 	<string name="cmd_snap_cursor_grid">Curseur sur la grille</string>
 	<string name="cmd_snap_selection_grid">Sélection sur la grille</string>
-	<string name="cmd_snap_selection_cursor">Selection sur le curseur</string>
-	<string name="cmd_snap_selection_cursor_offset">Selection sur le curseur (Garder le décalage)</string>
-	<string name="cmd_snap_selection_active">Selection sur l'Actif</string>
+	<string name="cmd_snap_selection_cursor">Sélection sur le curseur</string>
+	<string name="cmd_snap_selection_cursor_offset">Sélection sur le curseur (Garder le décalage)</string>
+	<string name="cmd_snap_selection_active">Sélection sur l'Actif</string>
 
-	<!-- The UV editor's snap pie (Shift+S over the UV editor): pixel-corner, cursor, and grid snaps over texture coordinates. -->
 	<string name="cmd_uv_snap_selection_pixels">Sélection aux Pixels</string>
 	<string name="cmd_uv_snap_selection_cursor">Sélection au Curseur</string>
 	<string name="cmd_uv_snap_selection_cursor_offset">Sélection au Curseur (garder le décalage)</string>
@@ -569,17 +658,30 @@
 	<string name="cmd_uv_snap_cursor_selected">Curseur à la Sélection</string>
 	<string name="cmd_uv_snap_cursor_grid">Curseur à la Grille</string>
 
-	<!-- Selection / navigation tools: Select Linked, Frame Selected, the Alt+Q mesh switch, Select Hierarchy. -->
 	<string name="cmd_mesh_select_linked_cursor">Sélectionner les éléments liés sous le curseur</string>
 	<string name="cmd_mesh_select_linked">Sélectionner les éléments liés</string>
 	<string name="cmd_view_frame_selected">Encadrer la Sélection</string>
-	<string name="cmd_switch_object_under_cursor">Changer le Mesh Édité</string>
+	<string name="cmd_switch_object_under_cursor">Changer l'objet édité</string>
 	<string name="cmd_outliner_select_hierarchy">Sélectionner la hiérarchie</string>
+	<string name="cmd_relation_select">Sélectionner</string>
+	<string name="cmd_relation_clear">Effacer</string>
+	<string name="cmd_relation_pick">Choisir</string>
+	<string name="cmd_relation_remove">Retirer</string>
+	<string name="cmd_relation_copy_to_selected">Copier vers la sélection</string>
+	<string name="cmd_parameter_toggle_repeat">Activer/désactiver la répétition</string>
+	<string name="menu_parameter_control_follow">Suivre les réglages</string>
+	<string name="menu_parameter_control_slider">Slider</string>
+	<string name="menu_parameter_control_dial">Cadran</string>
+	<string name="menu_parameter_pair_control_pad">Pad</string>
+	<string name="menu_parameter_pair_control_dials">Deux cadrans</string>
 	<string name="outliner_menu_select_hierarchy">Sélectionner la hiérarchie</string>
 
-	<!-- Topology operators (Shift+D / M / V / J), their history labels, and their refusal notices. -->
 	<string name="cmd_mesh_duplicate">Dupliquer</string>
 	<string name="cmd_mesh_merge">Assembler les Vertices</string>
+	<string name="cmd_mesh_generate_from_art">Générer un mesh à partir de l'art</string>
+	<string name="cmd_mesh_generate_quad">Générer un mesh en quads</string>
+	<string name="cmd_lattice_subdivide">Subdiviser le treillis</string>
+	<string name="cmd_deformer_create_warp">Créer un déformeur Warp</string>
 	<string name="cmd_mesh_merge_at_center">Assembler au Centre</string>
 	<string name="cmd_mesh_merge_at_first">Assembler au Premier</string>
 	<string name="cmd_mesh_merge_at_last">Assembler au Dernier</string>
@@ -590,73 +692,158 @@
 	<string name="history_mesh_merge">Assembler des Vertices</string>
 	<string name="history_mesh_rip">Déchirer les Vertices</string>
 	<string name="history_mesh_connect">Connecter les Vertices</string>
+	<string name="history_mesh_generate_from_art">Générer un mesh à partir de l'art</string>
+	<string name="history_mesh_generate_quad">Générer un mesh en quads</string>
+	<string name="notice_mesh_generated">%1$d mesh(s) généré(s) à partir de l'art.</string>
+	<string name="notice_mesh_generated_with_skips">%1$d mesh(s) généré(s) à partir de l'art ; %2$d ignoré(s).</string>
+	<string name="notice_mesh_generated_coarser">%1$d mesh(s) généré(s) à partir de l'art ; %2$d construit(s) plus grossièrement que demandé pour rester dans le budget de vertices.</string>
+	<string name="notice_mesh_generated_refit">%1$d mesh(s) généré(s) à partir de l'art ; %2$d refait(s) avec un budget de vertices plus élevé ou avec les trous comblés.</string>
+	<string name="notice_mesh_pinned_without_room">%1$d mesh(s) généré(s) ; %2$d ignoré(s) car l'art épinglé n'a pas de place pour s'agrandir. Désépinglez l'art ou réduisez la marge.</string>
+	<string name="notice_mesh_over_budget">%1$d mesh(s) généré(s) ; %2$d ignoré(s) car ils demandent plus de 4096 vertices, même avec les trous comblés. Augmentez la limite alpha ou réduisez les points de contour minimum.</string>
+	<string name="notice_mesh_glued_throughout">%1$d mesh(s) généré(s) ; %2$d ignoré(s) car la plupart de leurs vertices sont reliées à d'autres meshes par une colle, et les régénérer changerait la façon dont ils les suivent.</string>
+	<string name="notice_mesh_none_generated">Aucun mesh n'a été généré.</string>
+	<string name="notice_mesh_pack_refused">Rien n'a été généré : l'atlas n'a pas assez de place pour les meshes plus grands.</string>
+	<string name="notice_mesh_superseded">La marionnette a changé pendant la génération des meshes, donc aucun n'a été appliqué.</string>
+	<string name="notice_mesh_no_targets">Sélectionnez un drawable avec un mesh pour en générer un à partir de son art.</string>
 	<string name="history_drawable_duplicate">Dupliquer le Drawable</string>
-	<string name="notice_merge_needs_vertices">Assembler a besoin de deux ou plus de deux vertices sélectionées (mode vertice).</string>
+	<string name="notice_merge_needs_vertices">Assembler a besoin de deux ou plus de deux vertices sélectionnées (mode vertice).</string>
+	<string name="notice_to_shape_nothing">Rien à mettre en forme : sélectionnez des points du treillis qui s'écartent du pivot.</string>
 	<string name="notice_connect_needs_two_vertices">Connecter a besoin d'exactement deux vertices sélectionnées (mode vertice).</string>
-	<string name="notice_connect_refused">Impossible de connecter: La déchirure ne traverse rien, ou la géométrie est dégénéré.</string>
-	<string name="notice_rip_nothing">Rien à déchirer: La sélection n'a pas de fan à séparer</string>
+	<string name="notice_connect_refused">Impossible de connecter: La déchirure ne traverse rien, ou la géométrie est dégénérée.</string>
+	<string name="notice_rip_nothing">Rien à déchirer: La sélection n'a pas de fan à séparer.</string>
 	<string name="notice_display_partial_source_artwork">Certains drawables n'ont pas d'artwork source et affichent toujours à partir de l'atlas.</string>
 	<string name="notice_display_source_artwork_unavailable">Tous les drawables n'ont pas de calques d'artwork source et affichent toujours à partir de l'atlas.</string>
 	<string name="notice_atlas_repacked">Atlas repacké.</string>
-	<string name="notice_import_artwork_notes">Artwork importé avec des notes.  Allez voir les logs.</string>
+	<string name="notice_import_artwork_notes">Artwork importé avec des notes.</string>
 	<string name="notice_import_artwork_added">Artwork ajouté.</string>
 	<string name="notice_document_saving">Sauvegarde…</string>
 	<string name="notice_document_saved">Sauvegardé %1$s.</string>
+	<string name="notice_document_exporting_image">Exportation de l'image…</string>
+	<string name="notice_document_exported_image">Export terminé : %1$s.</string>
 	<string name="notice_document_save_busy">Une sauvegarde est déjà en cours.</string>
 	<string name="notice_document_waiting_for_save">En attente de la fin d'une sauvegarde…</string>
-	<string name="notice_document_cmo3_loss">Sauvegardé comme UMA.  La structure CMO3 qu'Umamo ne modélise pas ne pas présente dans le fichier; les exports de cette cession réconcilient toujours avec l'original.</string>
-	<string name="notice_document_moc3_loss">Sauvegardé comme UMA.  La physique, les mouvements, les expressions, les données de l'utilisateur, et poses de la famille MOC3 ne sont pas présentes dans ce fichier.</string>
-	<string name="notice_import_artwork_superseded">Le document a changé pendant que l'artwork était en train d'être ajouté; rien n'a été appliqué.</string>
-	<string name="notice_import_no_art_layers">Le fichier n'a pas de calques avec de spixels à ajouter.</string>
+	<string name="notice_document_exported_model">Export terminé : %1$s.</string>
+	<string name="notice_document_export_busy">Un export est déjà en cours.</string>
+	<string name="notice_document_waiting_for_export">En attente de la fin de l'export…</string>
+	<string name="notice_document_open_busy">Une autre marionnette est encore en cours d'ouverture.</string>
+	<string name="progress_document_opening">Ouverture de %1$s…</string>
+	<string name="progress_artwork_adding">Ajout de %1$s…</string>
+	<string name="progress_artwork_reloading">Rechargement de l'artwork…</string>
+	<string name="progress_artwork_meshing">Création des meshes de l'art…</string>
+	<string name="progress_mesh_generating">Génération des meshes…</string>
+	<string name="progress_atlas_packing">Empaquetage de l'atlas…</string>
+	<string name="progress_model_exporting">Exportation de %1$s…</string>
+	<string name="progress_count">%1$d / %2$d</string>
+	<string name="progress_more_tasks">+%1$d autre(s)</string>
+	<string name="notice_document_cmo3_loss">Sauvegardé en UMA. La physique, les guides, les notes de keyform, la pose aléatoire, les jeux d'états du modèle, les données utilisateur et les autres réglages de l'éditeur du CMO3 ne sont pas stockés dans cet UMA. Les exports CMO3 de cette session les conservent toujours, mais un CMO3 exporté après la réouverture de l'UMA ne les aura pas.</string>
+	<string name="notice_document_moc3_loss">Sauvegardé en UMA. La physique, les mouvements, les expressions, les données utilisateur et les fichiers de pose du MOC3 ne sont pas encore pris en charge dans cet UMA.</string>
+	<string name="notice_import_artwork_superseded">La marionnette a changé pendant l'ajout de l'artwork ; rien n'a été appliqué.</string>
+	<string name="notice_import_baked_atlas">Impossible d'ajouter de l'artwork à une marionnette créée à partir d'un MOC3. Exportez la marionnette en CMO3, importez ce CMO3, puis ajoutez l'artwork.</string>
+	<string name="notice_import_no_art_layers">L'artwork n'a aucun calque avec des pixels à ajouter.</string>
 	<string name="notice_reload_done">Artwork rechargé: %1$d mis à jour, %2$d ajouté, %3$d correspond.</string>
-	<string name="notice_reload_notes">Artwork rechargé: %1$d mis à jour, %2$d ajouté, %3$d corresponse, %4$d a besoin de vérification.  Regardez les logs.</string>
-	<string name="notice_reload_outgrown">Artwork rechargé: %1$d mis à jour, %2$d ajouté, %3$d corresponse, %4$d a besoin de vérification; une partie de l'art sort du mesh.  Regardez les logs.</string>
-	<string name="notice_watch_changed">%1$d fichier(s) d'artwork changés sur le disque.  Appuyez sur Reload pour appliquer les changements.</string>
-	<string name="notice_watch_stale_at_open">%1$d fichier(s) d'artwork changés depuis la dernière fois qu'ils ont été lus.  Appuyez sur Reload pour appliquer les changements.</string>
-	<string name="notice_watch_missing">%1$s n'est plus où le document le lis.</string>
-	<string name="notice_reload_no_changes">Les fichier(s) d'artwork n'ont pas changés.</string>
-	<string name="notice_reload_no_files">Aucun fichier d'artwork n'a pas être lu; rien n'a été rechargé.</string>
-	<string name="notice_relink_pulled">L'art a été relié et rechargé.</string>
-	<string name="notice_relink_binding_only">Art relié; son fichier ne pouvait pas être lu, donc l'art n'a pas changé.</string>
-	<string name="notice_match_done">%1$d calque(s) correspondants, %2$d encore a vérifier.</string>
+	<string name="notice_reload_notes">Artwork rechargé : %1$d mis à jour, %2$d ajouté(s), %3$d apparié(s), %4$d à vérifier.</string>
+	<string name="notice_reload_outgrown">Artwork rechargé : %1$d mis à jour, %2$d ajouté(s), %3$d apparié(s), %4$d à vérifier ; certains calques dépassent maintenant les bords de leurs meshes.</string>
+	<string name="notice_relink_outgrown">Art réassigné ; certains calques dépassent maintenant les bords de leurs meshes.</string>
+	<string name="notice_match_outgrown">%1$d calque(s) apparié(s), %2$d à vérifier ; certains calques dépassent maintenant les bords de leurs meshes.</string>
+	<string name="notice_replace_outgrown">Artwork remplacé : %1$d calque(s) rechargé(s) par identifiant, %2$d apparié(s), %3$d à vérifier ; certains calques dépassent maintenant les bords de leurs meshes.</string>
+	<string name="notice_watch_changed">%1$d fichier(s) d'artwork changés sur le disque. Appuyez sur Reload pour appliquer les changements.</string>
+	<string name="notice_watch_stale_at_open">%1$d fichier(s) d'artwork changés depuis la dernière fois qu'ils ont été lus. Appuyez sur Reload pour appliquer les changements.</string>
+	<string name="notice_watch_missing">%1$s ne se trouve plus à l'endroit où la marionnette l'a lu.</string>
+	<string name="notice_reload_no_changes">Les fichier(s) d'artwork n'ont pas changé.</string>
+	<string name="notice_reload_no_files">Aucun fichier d'artwork n'a pas pu être lu; rien n'a été rechargé.</string>
+	<string name="notice_relink_pulled">Art réassigné et rechargé.</string>
+	<string name="notice_relink_binding_only">Art réassigné ; son artwork n'a pas pu être lu, donc l'art n'a pas changé.</string>
+	<string name="notice_relink_pulled_from_document">Art réassigné ; son artwork n'a pas pu être lu, donc la copie du calque conservée dans la marionnette a été utilisée.</string>
+	<string name="notice_match_done">%1$d calque(s) correspondants, %2$d encore à vérifier.</string>
+	<string name="notice_match_no_files">Aucun artwork n'a pu être lu, ni depuis son fichier ni depuis cette marionnette ; rien n'a été apparié.</string>
 	<string name="notice_match_nothing">Aucun binding ne correspond assez; les suggestions sont dans la liste qui nécessite une vérification.</string>
-	<string name="notice_match_no_candidates">Plus rien qui pourrait correspondre: chaque calque candidat est déja associé.  Ajustez Match Treshold dans les paramètres de reload, ou reliez manuellment.</string>
-	<string name="notice_replace_done">Artwork remplacé: %1$d calque(s) rechargés par clé, %2$d correspondants, %3$d encore à vérifier.</string>
+	<string name="notice_match_no_candidates">Plus rien à apparier : chaque calque candidat est déjà assigné. Ajustez la limite de correspondance dans la barre du rechargement, ou réassignez manuellement.</string>
+	<string name="notice_replace_done">Artwork remplacé: %1$d calque(s) rechargés par identifiant, %2$d correspondants, %3$d encore à vérifier.</string>
 	<string name="notice_atlas_repack_superseded">Repackage annulé: l'atlas a changé pendant le package.</string>
-	<string name="notice_atlas_repack_unchanged">Atlas déja packagé; rien n'a changé.</string>
+	<string name="notice_atlas_repack_unchanged">Atlas déjà packagé; rien n'a changé.</string>
 	<string name="notice_uv_no_uvs">La sélection n'a pas d'UVs éditables.</string>
 	<string name="notice_uv_no_selection">Rien n'est sélectionné pour refléter.</string>
-	<string name="notice_uv_placement_layer_addressed">L'UV de la marionnete addresse le réseau source et non l'atlas donc il n'y a pas de place pour bouger.</string>
+	<string name="notice_uv_no_editable_geometry">Rien à éditer ici. Aucun des meshes que vous éditez ne se trouve sur la page ou le calque affiché.</string>
+	<string name="notice_uv_placement_layer_addressed">L'UV de la marionnette adresse le réseau source et non l'atlas donc il n'y a pas de place pour bouger.</string>
 	<string name="notice_uv_placement_no_placed_art">Rien de sélectionné n'est packé sur une page d'atlas ou il n'y a pas d'artwork source.</string>
-	<string name="notice_uv_placement_page_view_only">Afficher une page d'atlas dans l'éditeur d'UVs pour bouger les placements.</string>
+	<string name="notice_uv_placement_page_view_only">Affichez une page d'atlas dans la zone Éditeur d'UVs pour déplacer les placements.</string>
 	<string name="notice_uv_placement_not_on_page">Rien de sélectionné n'est packé sur cette page.</string>
-	<string name="notice_uv_placement_not_derivable">L'atlas ne peut pas être recomposé à partir de son propre art source, donc les placments ne peuvent pas bouger.</string>
-	<string name="notice_uv_placement_overlap">Le placement bloque une autre tuile.  Repaque l'atlas pour vider la collision.</string>
-	<string name="notice_uv_placement_off_page">Le placement s'étend en dehors du bord de la page.  Ce qui est en trop en coupé.</string>
-	<string name="notice_uv_placement_pinned">La tuile sélectionnée est épinglée.  Désépinglez la pour la trasnformer.</string>
+	<string name="notice_uv_placement_not_derivable">L'atlas ne peut pas être recomposé à partir de son artwork source, donc les placements ne peuvent pas être déplacés.</string>
+	<string name="notice_uv_placement_overlap">Le placement bloque une autre tuile. Repackez l'atlas pour vider la collision.</string>
+	<string name="notice_uv_placement_off_page">Le placement s'étend en dehors du bord de la page. Ce qui est en trop est coupé.</string>
+	<string name="notice_uv_placement_pinned">La tuile sélectionnée est épinglée. Désépinglez-la pour la transformer.</string>
 	<string name="notice_edit_no_editable_geometry">Rien à éditer, chaque drawable sélectionné est caché par un parent.</string>
+	<string name="notice_edit_rotation_not_editable">Les déformeurs de rotation ne peuvent pas encore être édités.</string>
+	<string name="notice_edit_warp_has_no_lattice">Ce déformeur Warp n'a pas de treillis à éditer.</string>
+	<string name="notice_edit_warp_hidden_at_rest">Ce déformeur Warp n'est pas dessiné dans la pose par défaut, donc son treillis ne peut pas être édité.</string>
+	<string name="notice_edit_lattice_topology_fixed">Les points d'un treillis peuvent être déplacés, mais pas ajoutés, fusionnés ni connectés. Modifiez plutôt ses lignes et ses colonnes.</string>
+	<string name="notice_edit_lattice_children_moved">Le treillis remodelé se replie ou s'effondre au niveau de %1$d objet(s) placé(s) sous lui, donc leur art a bougé.</string>
+	<string name="notice_lattice_resampled">Le treillis a été reconstruit en tant qu'approximation proche, donc son mouvement peut différer légèrement. Vérifiez-le et ajustez-le si nécessaire.</string>
+	<string name="notice_lattice_resampled_children_moved">Le treillis a été reconstruit en tant qu'approximation proche, donc son mouvement peut différer légèrement. %1$d objet(s) placé(s) sous lui n'ont pas pu garder leur place, donc leur art a bougé.</string>
 
-	<!-- Proportional editing (O): the toggle, the falloff curves, and the modal badge segment. -->
 	<string name="cmd_mesh_proportional_toggle">Activer l'édition proportionnelle</string>
 	<string name="cmd_mesh_proportional_falloff_smooth">Atténuation Proportionnelle : Doux</string>
 	<string name="cmd_mesh_proportional_falloff_sphere">Atténuation Proportionnelle : Sphérique</string>
 	<string name="cmd_mesh_proportional_falloff_root">Atténuation Proportionnelle : Racine</string>
+	<string name="cmd_mesh_proportional_falloff_inverse_square">Atténuation proportionnelle : Carré inverse</string>
 	<string name="cmd_mesh_proportional_falloff_sharp">Atténuation Proportionnelle : Net</string>
 	<string name="cmd_mesh_proportional_falloff_linear">Atténuation Proportionnelle : Linéaire</string>
 	<string name="cmd_mesh_proportional_falloff_constant">Atténuation Proportionnelle : Constante</string>
+	<string name="cmd_mesh_proportional_falloff_random">Atténuation proportionnelle : Aléatoire</string>
 	<string name="falloff_smooth">Doux</string>
 	<string name="falloff_sphere">Sphérique</string>
 	<string name="falloff_root">Racine</string>
+	<string name="falloff_inverse_square">Carré inverse</string>
 	<string name="falloff_sharp">Net</string>
 	<string name="falloff_linear">Linéaire</string>
 	<string name="falloff_constant">Constant</string>
-	<!-- %1$s is the falloff name, %2$d the influence radius in world units. -->
+	<string name="falloff_random">Aléatoire</string>
 	<string name="hud_proportional">Proportionnel %1$s · %2$d</string>
 	<string name="notice_proportional_on">Édition Proportionnelle on.</string>
 	<string name="notice_proportional_off">Édition Proportionnelle off.</string>
 	<string name="header_proportional_falloff">Atténuation Proportionnelle</string>
-	<!-- The overflow chip at the end of a header strip, holding the controls that did not fit. -->
 	<string name="header_more">Plus</string>
+	<string name="header_show_overlays">Afficher les surimpressions</string>
+	<string name="header_viewport_overlays">Surimpressions du viewport</string>
+	<string name="overlay_section_guides">Guides</string>
+	<string name="overlay_section_text">Texte</string>
+	<string name="overlay_section_geometry">Géométrie</string>
+	<string name="overlay_row_grid">Grille</string>
+	<string name="overlay_row_axes">Axes X/Z</string>
+	<string name="overlay_row_cursor">Curseur 2D</string>
+	<string name="overlay_row_info">Informations générales</string>
+	<string name="overlay_row_wireframe">Fil de fer</string>
+	<string name="overlay_grid_scale">Échelle</string>
+	<string name="overlay_grid_subdivisions">Subdivisions</string>
+	<string name="overlay_grid_follow_application">Suivre la grille de l'application</string>
+	<string name="overlay_section_objects">Objets</string>
+	<string name="overlay_row_selection_tint">Teinte de sélection</string>
+	<string name="overlay_row_dim_back_facing">Estomper les faces arrière</string>
+	<string name="overlay_row_deformers">Déformeurs</string>
+	<string name="overlay_row_cull_hidden">Éliminer les parties cachées</string>
+	<string name="overlay_wireframe_opacity">Opacité</string>
+	<string name="overlay_deformer_opacity">Opacité</string>
+	<string name="overlay_section_lattice">Treillis</string>
+	<string name="overlay_back_facing_opacity">Opacité des faces arrière</string>
+	<string name="overlay_section_guides_description">Les aides visuelles pour le placement et l'alignement.</string>
+	<string name="overlay_section_text_description">Le texte d'information affiché autour des bords du viewport.</string>
+	<string name="overlay_section_geometry_description">Les aides visuelles pour l'affichage des drawables.</string>
+	<string name="overlay_row_grid_description">La grille divisée derrière la scène, utilisée pour l'aimantation et l'alignement visuel.</string>
+	<string name="overlay_row_axes_description">Les axes X et Z du monde, tracés à travers l'origine.</string>
+	<string name="overlay_row_cursor_description">Le curseur 2D utilisé pour les opérations d'aimantation et de pivot.</string>
+	<string name="overlay_row_info_description">Les informations générales, comme la sélection actuelle et le niveau de zoom.</string>
+	<string name="overlay_row_wireframe_description">Affiche le fil de fer du mesh des drawables qui ne sont pas en cours d'édition.</string>
+	<string name="overlay_grid_scale_description">L'espacement des lignes principales de la grille, en unités du monde ; dans la zone Éditeur d'UVs, en texels.</string>
+	<string name="overlay_grid_subdivisions_description">Le nombre de lignes secondaires qui divisent chaque cellule principale de la grille.</string>
+	<string name="overlay_section_objects_description">Les aides visuelles pour les drawables sélectionnés et actifs.</string>
+	<string name="overlay_row_selection_tint_description">Teinte les drawables sélectionnés et actifs pour qu'ils ressortent.</string>
+	<string name="overlay_row_dim_back_facing_description">Les faces arrière d'un treillis Warp sont estompées pour les identifier plus facilement.</string>
+	<string name="overlay_row_deformers_description">Affiche le treillis de chaque déformeur Warp, pas seulement ceux qui sont sélectionnés, pour pouvoir sélectionner n'importe lequel dans le viewport.</string>
+	<string name="overlay_row_cull_hidden_description">Masque les parties du fil de fer qui sont recouvertes par d'autres drawables.</string>
+	<string name="overlay_wireframe_opacity_description">L'opacité du fil de fer dessiné dans le viewport.</string>
+	<string name="overlay_deformer_opacity_description">L'opacité des treillis Warp dessinés dans le viewport.</string>
+	<string name="overlay_section_lattice_description">Les aides visuelles pour l'édition d'un treillis Warp.</string>
+	<string name="overlay_back_facing_opacity_description">L'opacité des faces arrière estompées d'un treillis Warp. À 0, elles sont masquées et ne peuvent pas être sélectionnées.</string>
 	<string name="cmd_mesh_proportional_connected">Activer le Proportionnel seulement sur ce qui est Connecté</string>
 	<string name="hud_connected">Connecté</string>
 	<string name="hud_placement">Placement</string>
@@ -665,33 +852,79 @@
 	<string name="hud_delta_px">Δ %1$d, %2$d px</string>
 	<string name="hud_angle_degrees">%1$s°</string>
 	<string name="hud_scale_factor">×%1$s</string>
-	<string name="notice_proportional_connected_on">Édition Proportionnelle: connecté seulement.</string>
-	<string name="notice_proportional_connected_off">Édition Proportionnelle: tout dans le rayon.</string>
+	<string name="notice_proportional_connected_on">Édition proportionnelle : connectés seulement.</string>
+	<string name="notice_proportional_connected_off">Édition proportionnelle : tout dans le rayon.</string>
+	<string name="notice_depth_surface_unchanged">Surface : inchangée</string>
+	<string name="notice_depth_surface_flat">Surface : plane</string>
+	<string name="notice_depth_surface_cylinder">Surface : cylindre</string>
+	<string name="notice_depth_surface_sphere">Surface : sphère</string>
+	<string name="notice_reparent_place_not_kept">%1$s a été déplacé vers son nouveau parent mais n'a pas pu garder sa place : les nouveaux déformeurs n'ont pas pu convertir sa position.</string>
+	<string name="notice_reparent_places_not_kept">%1$d objet(s) déplacé(s) vers leur nouveau parent n'ont pas pu garder leur place : les nouveaux déformeurs n'ont pas pu convertir leurs positions.</string>
+	<string name="notice_relation_copy_skipped">%1$d objet(s) sélectionné(s) ignoré(s) : ils ne peuvent pas recevoir cette relation.</string>
 
-	<!-- Pie menu center titles (the pie's name, Blender-style). -->
 	<string name="pie_title_pivot">Point de Pivot</string>
-	<string name="pie_title_snap">Accrocher</string>
-	<string name="pie_title_uv_snap">Accrochage UV</string>
+	<string name="pie_title_snap">Aimanter</string>
+	<string name="pie_title_uv_snap">Aimanter UV</string>
 	<string name="pie_title_merge">Assembler</string>
+	<string name="pie_title_insert_key">Insérer une clé</string>
+	<string name="pie_insert_key_lattice">Treillis</string>
+	<string name="pie_insert_key_opacity">Opacité</string>
+	<string name="pie_insert_key_colors">Couleurs</string>
+	<string name="pie_insert_key_all">Tout</string>
 
-	<!-- Viewport chrome: the left tool toolbar and the right sidebar drawer. -->
 	<string name="cmd_view_toggle_toolbar">Activer/Désactiver la Toolbar</string>
 	<string name="cmd_view_toggle_sidebar">Activer/Désactiver la Sidebar</string>
+	<string name="cmd_view_overlay_all">Activer/désactiver les surimpressions</string>
+	<string name="cmd_view_overlay_grid">Activer/désactiver la surimpression de la grille</string>
+	<string name="cmd_view_overlay_axes">Activer/désactiver la surimpression des axes X/Z</string>
+	<string name="cmd_view_overlay_cursor">Activer/désactiver la surimpression du curseur 2D</string>
+	<string name="cmd_view_overlay_info">Activer/désactiver la surimpression des informations générales</string>
+	<string name="cmd_view_overlay_selection_tint">Activer/désactiver la surimpression de la teinte de sélection</string>
+	<string name="cmd_view_overlay_deformers">Activer/désactiver la surimpression des déformeurs</string>
+	<string name="cmd_view_overlay_wireframe">Activer/désactiver la surimpression du fil de fer</string>
+	<string name="cmd_view_overlay_wireframe_culling">Activer/désactiver l'élimination des parties cachées du fil de fer</string>
+	<string name="cmd_view_overlay_dim_back_facing">Activer/désactiver l'estompage des faces arrière</string>
+	<string name="sidebar_tab_item">Objet</string>
+	<string name="sidebar_tab_tool">Outil</string>
+	<string name="sidebar_tab_view">Vue</string>
+	<string name="sidebar_panel_active_tool">Outil actif</string>
+	<string name="sidebar_tool_settings_hint">Les réglages de l'outil apparaîtront ici.</string>
+	<string name="sidebar_item_nothing_selected">Aucune sélection.</string>
+	<string name="sidebar_cursor_x_description">La position horizontale du curseur 2D, mesurée depuis les axes du monde.</string>
+	<string name="sidebar_cursor_z_description">La position verticale du curseur 2D, mesurée vers le haut à partir des axes du monde.</string>
+	<string name="sidebar_edit_vertex">Vertice :</string>
+	<string name="sidebar_edit_median">Médiane :</string>
+	<string name="sidebar_median_x_description">La position horizontale des vertices sélectionnées (leur médiane s'il y en a plusieurs), mesurée à partir des axes du monde.</string>
+	<string name="sidebar_median_z_description">La position verticale des vertices sélectionnées (leur médiane s'il y en a plusieurs), mesurée vers le haut à partir des axes du monde.</string>
+	<string name="sidebar_median_depth_description">La profondeur des points du treillis sélectionnés (leur moyenne s'il y en a plusieurs), en pixels à partir du plan de l'art.</string>
+	<string name="sidebar_uv_cursor_x_description">La position horizontale du curseur UV sur la page ou l'Artwork affichés, en pixels à partir de son bord gauche.</string>
+	<string name="sidebar_uv_cursor_y_description">La position verticale du curseur UV sur la page ou l'Artwork affichés, en pixels vers le bas à partir de son bord supérieur.</string>
+	<string name="sidebar_uv_median_x_description">La position horizontale des coordonnées de texture sélectionnées (leur médiane s'il y en a plusieurs), en pixels à partir du bord gauche de la page ou de l'Artwork affichés.</string>
+	<string name="sidebar_uv_median_y_description">La position verticale des coordonnées de texture sélectionnées (leur médiane s'il y en a plusieurs), en pixels vers le bas à partir du bord supérieur de la page ou de l'Artwork affichés.</string>
+	<string name="sidebar_placement_x_description">L'emplacement de l'origine de l'art sur sa page, en pixels à partir du bord gauche de la page.</string>
+	<string name="sidebar_placement_y_description">L'emplacement de l'origine de l'art sur sa page, en pixels vers le bas à partir du bord supérieur de la page.</string>
+	<string name="sidebar_placement_angle_description">De combien l'art est tourné sur sa page autour de son origine, en degrés.</string>
+	<string name="sidebar_placement_scale_x_description">Le facteur d'échelle de l'art selon sa propre largeur. Saisissez une valeur négative pour le refléter.</string>
+	<string name="sidebar_placement_scale_y_description">Le facteur d'échelle de l'art selon sa propre hauteur. Saisissez une valeur négative pour le refléter.</string>
+	<string name="sidebar_uv_unplaced">Non placé sur une page.</string>
+	<string name="properties_transform_unavailable">Cet objet n'a aucun placement à afficher.</string>
+	<string name="cmd_view_sidebar_next_tab">Onglet suivant de la sidebar</string>
+	<string name="cmd_view_sidebar_previous_tab">Onglet précédent de la sidebar</string>
 
-	<!-- Inspector per-entity property view (the selected part / drawable / deformer). -->
 	<string name="properties_part_ref">Partie Parente</string>
 	<string name="properties_parent_deformer">Déformeur Parent</string>
 	<string name="properties_mask_count">Masques: %1$d</string>
 	<string name="properties_mesh">Mesh: %1$d vertices, %2$d triangles</string>
 	<string name="properties_no_mesh">Pas de mesh</string>
+	<string name="properties_warp_lattice">Treillis</string>
+	<string name="properties_warp_lattice_description">Paramètres qui contrôlent la forme du treillis. La teinte indique si la pose est sur une clé, entre des clés, ou comporte une forme sans clé issue du mode Pose. Placez le pointeur ici et insérez une clé pour enregistrer la forme du treillis à cette pose.</string>
+	<string name="properties_warp_lattice_keyed_on">Avec clé sur %1$s</string>
+	<string name="properties_warp_lattice_unkeyed">Sans clé</string>
+	<string name="properties_warp_lattice_separator">, </string>
 	<string name="status_multi_selected">%1$d sélectionnés</string>
 
-	<!--
-	  Properties panel (the Blender-style tabbed property editor): the empty states, the tab labels (left
-	  icon strip), the section headings, and the read-only sample fields not already covered by the	status bar strings.
-	-->
 	<string name="properties_no_matches">Pas de propriété correspondante.</string>
-	<string name="properties_tab_document">Document</string>
+	<string name="properties_tab_document">Marionnette</string>
 	<string name="properties_tab_object">Objet</string>
 	<string name="properties_tab_data">Données</string>
 	<string name="properties_section_canvas">Toile</string>
@@ -704,6 +937,12 @@
 	<string name="properties_section_texture">Texture</string>
 	<string name="properties_section_blend">Mélange</string>
 	<string name="properties_section_deformer">Déformeur</string>
+	<string name="properties_section_blend_shapes">Blendshapes</string>
+	<string name="properties_blend_shape_binding">%1$s : %2$d clé(s)</string>
+	<string name="properties_field_lattice_rows">Lignes</string>
+	<string name="properties_field_lattice_rows_description">Le nombre de cellules du treillis, de haut en bas. Le modifier rééchantillonne les keyforms du mesh, donc le mouvement peut changer légèrement.</string>
+	<string name="properties_field_lattice_columns">Colonnes</string>
+	<string name="properties_field_lattice_columns_description">Le nombre de cellules du treillis, de gauche à droite. Le modifier rééchantillonne les keyforms du mesh, donc le mouvement peut changer légèrement.</string>
 	<string name="properties_section_part">Partie</string>
 	<string name="properties_canvas_none">Pas de Toile</string>
 	<string name="properties_field_runtime_target">Cible</string>
@@ -714,27 +953,27 @@
 	<string name="properties_runtime_feature_in_use">%1$s - EN TRAIN D'UTILISER</string>
 	<string name="runtime_feature_warp_quad_transform">Nouvelle Méthode de Déformation du Warp</string>
 	<string name="runtime_feature_reversed_mask">Masque Inversé</string>
-	<string name="runtime_feature_mesh_warp_blend_shapes">Blendshapes (Mesh de l'Art et Déformeur du Warp)</string>
+	<string name="runtime_feature_mesh_warp_blend_shapes">Blendshapes (drawable et déformeur de warp)</string>
 	<string name="runtime_feature_blend_shape_parameters">Paramètres des Blendshapes</string>
 	<string name="runtime_feature_multiply_color">Multiplier la Couleur</string>
 	<string name="runtime_feature_screen_color">Couleur d'Affichage</string>
 	<string name="runtime_feature_extended_blend_shapes">Blendshapes (Parties, Déformeur de rotation, Colle)</string>
 	<string name="runtime_feature_motion_sync">Synchronisation de mouvements</string>
-	<string name="runtime_feature_extended_blend_modes">Mod de Mélange</string>
+	<string name="runtime_feature_extended_blend_modes">Mode de Mélange</string>
 	<string name="runtime_feature_part_composite">Partie Composite (Rendu en dehors de l'écran)</string>
 	<string name="runtime_feature_art_path">Chemin de l'Art</string>
 	<string name="properties_texture_source">Source de la Texture: %1$s</string>
 	<string name="properties_texture_own">Posséder un Binding Atlas</string>
 	<string name="properties_field_pinned">Épinglé</string>
 
-	<!-- Editable Properties-panel controls: bare field labels, unit suffixes, and localized enum
-	option names for the blend-mode / alpha-mode / group-mode dropdowns (chrome, never format-level ids). -->
 	<string name="properties_field_canvas_width">Largeur</string>
 	<string name="properties_field_canvas_height">Hauteur</string>
 	<string name="properties_field_origin_x">Origine X</string>
 	<string name="properties_field_origin_z">Origine Z</string>
 	<string name="properties_field_position_x">Position X</string>
 	<string name="properties_field_position_z">Position Z</string>
+	<string name="properties_field_position_y">Position Y</string>
+	<string name="properties_field_depth">Profondeur</string>
 	<string name="properties_field_size_x">Taille X</string>
 	<string name="properties_field_size_z">Taille Z</string>
 	<string name="common_lock_aspect_ratio">Verrouiler le Ratio d'Aspect</string>
@@ -745,87 +984,247 @@
 	<string name="properties_field_flip_x">Flip X</string>
 	<string name="properties_field_flip_y">Flip Y</string>
 	<string name="properties_field_base_angle">Angle de Base</string>
+	<string name="properties_field_angle">Angle</string>
+	<string name="properties_field_scale">Échelle</string>
 	<string name="properties_field_quad_transform">Bilinéaire (Quad)</string>
-	<string name="properties_field_sketch">Image Guide</string>
+	<string name="properties_field_sketch">Partie guide</string>
 	<string name="properties_field_draw_order">Ordre de Dessin</string>
 	<string name="properties_field_group_mode">Mode de groupement</string>
-	<string name="properties_field_opacity">Opacitée</string>
+	<string name="properties_field_opacity">Opacité</string>
 	<string name="properties_field_multiply_color">Couleur de Multiplication</string>
 	<string name="properties_field_screen_color">Couleur d'Affichage</string>
 	<string name="properties_field_masked_by">Masqué Par</string>
 	<string name="properties_mask_add">Ajouter un Masque…</string>
-	<string name="properties_mask_remove">SUpprime le Masque</string>
+	<string name="properties_mask_remove">Supprimer le Masque</string>
 	<string name="properties_relation_clear">Enlever la Relation</string>
-	<string name="properties_relation_pick">Choisir du viewport ou de l'outliner.</string>
+	<string name="properties_relation_pick">Choisissez dans une zone Vue 2D ou Outliner.</string>
 	<string name="unit_pixels">px</string>
 	<string name="unit_degrees">°</string>
 	<string name="unit_percent">%</string>
 
-	<!-- The Repack Atlas rows of the operation settings strip. -->
 	<string name="repack_options_page_size">Taille Maximum de la Page</string>
-	<string name="repack_options_gutter">Espacer</string>
+	<string name="repack_options_gutter">Espacement</string>
 	<string name="repack_options_extrude">Extruder</string>
 	<string name="repack_options_allow_rotation">Autoriser la Rotation</string>
 	<string name="repack_options_keep_pinned">Garder les Tuiles Épinglées</string>
 	<string name="repack_options_power_of_two">Pages Puissance de Deux</string>
-	<string name="repack_options_square_pages">Pages Carées</string>
+	<string name="repack_options_square_pages">Pages Carrées</string>
 	<string name="repack_options_shrink_pages">Réduire les Pages</string>
 	<string name="repack_options_alpha_threshold">Limite Alpha</string>
-	<!-- The placement Grab / Rotate / Scale rows of the operation settings strip. -->
 	<string name="placement_options_move_x">Bouger sur X</string>
 	<string name="placement_options_move_y">Bouger sur Y</string>
 	<string name="placement_options_angle">Angle</string>
 	<string name="placement_options_scale_x">Changer la Taille sur X</string>
 	<string name="placement_options_scale_y">Changer la Taille sur Y</string>
-	<!-- The mesh / object / UV transform rows of the operation settings strip; the shared Move / Angle / Scale
-	     labels are the placement rows' above, and the viewport's vertical axis reads as Z (Blender's axes: Y into
-	     the screen, Z up). -->
 	<string name="transform_options_move_z">Bouger sur Z</string>
+	<string name="transform_options_move_depth">Bouger en profondeur</string>
 	<string name="transform_options_scale_z">Changer la Taille sur Z</string>
 	<string name="transform_options_proportional">Édition Proportionnelle</string>
 	<string name="transform_options_falloff">Atténuation</string>
 	<string name="transform_options_proportional_size">Taille Proportionnelle</string>
 	<string name="transform_options_connected">Seulement Connecté</string>
 	<string name="transform_options_slide_factor">Facteur</string>
-	<!-- The Merge row of the operation settings strip and its choices. -->
+	<string name="transform_options_axis">Axe</string>
+	<string name="transform_options_pivot_depth">Profondeur</string>
+	<string name="transform_options_depth_surface">Surface</string>
+	<string name="transform_axis_y">Y</string>
+	<string name="transform_axis_x">X</string>
+	<string name="transform_axis_z">Z</string>
+	<string name="transform_depth_surface_unchanged">Inchangé</string>
+	<string name="transform_depth_surface_flat">Plat</string>
+	<string name="transform_depth_surface_cylinder">Cylindre</string>
+	<string name="transform_depth_surface_sphere">Sphère</string>
 	<string name="merge_options_target">Assembler À</string>
+	<string name="to_shape_options_shape">Forme</string>
+	<string name="to_shape_options_degrees">Degrés</string>
+	<string name="lattice_options_rows">Lignes</string>
+	<string name="rehome_options_keep_in_place">Garder en place</string>
+	<string name="create_warp_options_margin">Marge</string>
+	<string name="lattice_options_columns">Colonnes</string>
+	<string name="lattice_options_row_splits">Divisions de lignes</string>
+	<string name="lattice_options_column_splits">Divisions de colonnes</string>
 	<string name="merge_target_center">Centrer</string>
 	<string name="merge_target_first">Premier</string>
 	<string name="merge_target_last">Dernier</string>
+	<string name="mesh_options_preset">Préréglage</string>
+	<string name="mesh_preset_standard">Standard</string>
+	<string name="mesh_preset_fine">Fin</string>
+	<string name="mesh_preset_coarse">Grossier</string>
+	<string name="mesh_options_alpha_threshold">Limite alpha</string>
+	<string name="mesh_options_outline_spacing">Espacement du contour</string>
+	<string name="mesh_options_interior_spacing">Espacement intérieur</string>
+	<string name="mesh_options_outer_margin">Marge extérieure</string>
+	<string name="mesh_options_inner_margin">Marge intérieure</string>
+	<string name="mesh_options_minimum_margin">Marge minimale</string>
+	<string name="mesh_options_minimum_outline_points">Points de contour minimum</string>
+	<string name="mesh_options_minimum_angle">Angle minimal</string>
+	<string name="mesh_options_vertex_budget">Budget de vertices</string>
+	<string name="mesh_options_interior_thinning_limit">Limite de décimation intérieure</string>
+	<string name="mesh_options_fill_holes">Remplir les trous</string>
+	<string name="mesh_options_strand_rungs">Barreaux de mèche</string>
+	<string name="mesh_options_strand_width">Largeur de mèche</string>
+	<string name="mesh_options_deformation_tolerance">Tolérance de déformation</string>
+	<string name="mesh_options_quad_margin">Marge</string>
+	<string name="import_options_align">Aligner</string>
+	<string name="import_options_offset_x">Décalage X</string>
+	<string name="import_options_offset_z">Décalage Z</string>
 	<string name="import_options_alpha_threshold">Limite Alpha</string>
-	<string name="import_options_margin">Marge de la création du mesh</string>
+	<string name="import_options_margin">Marge du mesh</string>
+	<string name="import_anchor_top_left">Haut gauche</string>
+	<string name="import_anchor_top">Haut</string>
+	<string name="import_anchor_top_right">Haut droite</string>
+	<string name="import_anchor_left">Gauche</string>
+	<string name="import_anchor_center">Centre</string>
+	<string name="import_anchor_right">Droite</string>
+	<string name="import_anchor_bottom_left">Bas gauche</string>
+	<string name="import_anchor_bottom">Bas</string>
+	<string name="import_anchor_bottom_right">Bas droite</string>
 	<string name="match_options_threshold">Limite de Correspondance</string>
-	<!-- Blend modes (Cubism color blend list). -->
+
+	<string name="properties_field_canvas_width_description">La largeur de la toile, en pixels. Redimensionner ne déplace que son bord droit, donc l'art reste où il est.</string>
+	<string name="properties_field_canvas_height_description">La hauteur de la toile, en pixels. Redimensionner ne déplace que son bord inférieur, donc l'art et les axes du monde restent en place pendant que l'Origine Z change de la même valeur.</string>
+	<string name="properties_field_origin_x_description">L'endroit où les axes du monde se croisent, en pixels à partir du bord gauche de la toile. Les champs Position se mesurent à partir de ces axes.</string>
+	<string name="properties_field_origin_z_description">L'endroit où les axes du monde se croisent, en pixels vers le haut à partir du bord inférieur de la toile. Les champs Position se mesurent à partir de ces axes.</string>
+	<string name="properties_field_source_layer_display_description">Dessine chaque drawable à partir de son calque d'Artwork d'origine plutôt qu'à partir de l'atlas empaqueté. Un drawable dont la marionnette ne garde pas le calque est tout de même dessiné à partir de l'atlas.</string>
+	<string name="properties_field_runtime_target_description">Le runtime pour lequel cette marionnette est conçue. Les contrôles des fonctions qu'il ne peut pas lire sont masqués, mais rien n'est retiré de la marionnette ; seul un export MOC3 omet ces fonctions.</string>
+	<string name="properties_field_position_x_description">Le centre horizontal du drawable tel qu'il apparaît dans le viewport, mesuré à partir des axes du monde. Modifiable uniquement tant que chaque paramètre est à sa valeur par défaut.</string>
+	<string name="properties_field_position_z_description">Le centre vertical du drawable tel qu'il apparaît dans le viewport, mesuré vers le haut à partir des axes du monde. Modifiable uniquement tant que chaque paramètre est à sa valeur par défaut.</string>
+	<string name="properties_field_size_x_description">La largeur du drawable telle qu'elle apparaît dans le viewport. La modifier redimensionne le drawable autour de son centre. Modifiable uniquement tant que chaque paramètre est à sa valeur par défaut.</string>
+	<string name="properties_field_size_z_description">La hauteur du drawable telle qu'elle apparaît dans le viewport. La modifier redimensionne le drawable autour de son centre. Modifiable uniquement tant que chaque paramètre est à sa valeur par défaut.</string>
+	<string name="properties_field_base_angle_description">La rotation de base du déformeur, en degrés. L'angle défini par chaque keyform s'y ajoute.</string>
+	<string name="properties_part_position_x_description">Le centre horizontal du contenu de la partie tel qu'il apparaît dans le viewport, mesuré à partir des axes du monde. Lecture seule pour l'instant.</string>
+	<string name="properties_part_position_z_description">Le centre vertical du contenu de la partie tel qu'il apparaît dans le viewport, mesuré vers le haut à partir des axes du monde. Lecture seule pour l'instant.</string>
+	<string name="properties_part_size_x_description">La largeur du contenu de la partie telle qu'elle apparaît dans le viewport. Lecture seule pour l'instant.</string>
+	<string name="properties_part_size_z_description">La hauteur du contenu de la partie telle qu'elle apparaît dans le viewport. Lecture seule pour l'instant.</string>
+	<string name="properties_warp_position_x_description">Le centre horizontal du treillis dans le viewport, mesuré à partir des axes du monde. Le modifier déplace le déformeur et son art. Disponible en mode Objet à la pose par défaut.</string>
+	<string name="properties_warp_position_z_description">Le centre vertical du treillis dans le viewport, mesuré vers le haut à partir des axes du monde. Le modifier déplace le déformeur et son art. Disponible en mode Objet à la pose par défaut.</string>
+	<string name="properties_warp_size_x_description">La largeur du treillis dans le viewport. La modifier redimensionne le déformeur et son art autour du centre du treillis. Disponible en mode Objet à la pose par défaut.</string>
+	<string name="properties_warp_size_z_description">La hauteur du treillis dans le viewport. La modifier redimensionne le déformeur et son art autour du centre du treillis. Disponible en mode Objet à la pose par défaut.</string>
+	<string name="properties_rotation_pivot_x_description">La position horizontale du pivot du déformeur telle qu'elle apparaît dans le viewport, mesurée à partir des axes du monde. Lecture seule pour l'instant.</string>
+	<string name="properties_rotation_pivot_z_description">La position verticale du pivot du déformeur telle qu'elle apparaît dans le viewport, mesurée vers le haut à partir des axes du monde. Lecture seule pour l'instant.</string>
+	<string name="properties_field_angle_description">L'angle du déformeur à la pose actuelle, en degrés : son angle de base plus tout ce qu'ajoutent ses keyforms et ses blendshapes. Lecture seule pour l'instant.</string>
+	<string name="properties_field_scale_description">L'échelle du déformeur à la pose actuelle, issue de ses keyforms et de ses blendshapes. Lecture seule pour l'instant.</string>
+	<string name="properties_part_ref_description">La partie à laquelle appartient cet objet. La vider retire l'objet de toutes les parties.</string>
+	<string name="properties_parent_deformer_description">Le déformeur auquel cet objet est rattaché. L'objet le suit lorsqu'il se déplace, se plie ou tourne.</string>
+	<string name="properties_field_pinned_description">Maintient cet art en place sur sa page d'atlas. Le déplacer à la main dans la zone Éditeur d'UVs est refusé, et un repackage le laisse où il est, sauf si Garder les tuiles épinglées est désactivé.</string>
+	<string name="properties_field_draw_order_description">L'endroit où ce drawable s'empile, de 0 à 1000 : plus la valeur est haute, plus il est dessiné devant, et en cas d'égalité, celui qui est plus haut dans la zone Outliner l'emporte. Dans une partie en mode Groupé ou Isolé, il ne s'empile qu'avec le contenu de cette partie.</string>
+	<string name="properties_field_opacity_description">L'opacité du drawable, de 0 (invisible) à 1 (entièrement opaque).</string>
+	<string name="properties_field_blend_mode_description">La manière dont les couleurs du drawable se mélangent à ce qui est dessiné derrière lui, comme les modes de mélange des calques d'une application de dessin. Les modes marqués « Ancien » ignorent le réglage Alpha.</string>
+	<string name="properties_field_alpha_mode_description">La manière dont la transparence du drawable se combine avec ce qui se trouve derrière lui. « Au dessus » empile normalement, « Recouvrir » ne dessine que sur de l'art déjà présent, et « En dehors » efface ce qui est derrière au lieu de dessiner. « Conjoint » et « Disjoint » changent la façon dont les bords doux se superposent.</string>
+	<string name="properties_field_multiply_color_description">Multiplie les couleurs du drawable par cette couleur pour l'assombrir ou le teinter. Le blanc le laisse inchangé.</string>
+	<string name="properties_field_screen_color_description">Applique cette couleur en mode Écran sur le drawable pour l'éclaircir. Le noir n'a aucun effet.</string>
+	<string name="properties_field_culling_description">Masque toute portion du mesh qu'une déformation retourne, au lieu de la dessiner en miroir.</string>
+	<string name="properties_field_masked_by_description">Restreint ce drawable aux drawables listés ici, de sorte qu'il n'apparaît que là où ils ont de l'art.</string>
+	<string name="properties_field_invert_mask_description">Affiche le drawable uniquement là où ses masques n'ont pas d'art, au lieu de l'afficher uniquement là où ils en ont.</string>
+	<string name="properties_field_opacity_deformer_description">Met à l'échelle l'opacité de tout ce que ce déformeur déplace, déformeurs imbriqués compris, de 0 (invisible) à 1 (inchangée).</string>
+	<string name="properties_field_multiply_color_deformer_description">Multiplie les couleurs de tout ce que ce déformeur déplace par cette couleur. Le blanc les laisse inchangées.</string>
+	<string name="properties_field_screen_color_deformer_description">Applique cette couleur en mode Écran sur tout ce que ce déformeur déplace. Le noir n'a aucun effet.</string>
+	<string name="properties_field_quad_transform_description">Plie chaque cellule du treillis en douceur entre ses quatre coins, au lieu d'en faire un éventail de deux triangles.</string>
+	<string name="properties_field_flip_x_description">Reflète tout ce que ce déformeur déplace de gauche à droite, autour de son pivot.</string>
+	<string name="properties_field_flip_y_description">Reflète tout ce que ce déformeur déplace de haut en bas, autour de son pivot.</string>
+	<string name="properties_field_sketch_description">Marque cette partie comme partie guide, une référence comme un croquis. Elle s'affiche dans l'éditeur, mais un export MOC3 l'omet, ainsi que tout son contenu, sauf si vous choisissez d'exporter les parties guides.</string>
+	<string name="properties_field_draw_order_part_description">L'endroit où toute la partie s'empile, de 0 à 1000 : plus la valeur est haute, plus elle est dessinée devant. Utilisé seulement quand le mode de groupement est Groupé ou Isolé.</string>
+	<string name="properties_field_group_mode_description">La manière dont le contenu de la partie s'empile avec le reste de la marionnette. « Passer à travers » empile chaque drawable selon son propre ordre de dessin, « Groupé » empile toute la partie à l'ordre de dessin de la partie, et « Isolé » la dessine en plus comme un seul calque, avec sa propre opacité, son propre mélange, ses propres couleurs et ses propres masques.</string>
+	<string name="properties_field_opacity_part_description">L'opacité du calque combiné de la partie, de 0 (invisible) à 1 (entièrement opaque). Elle s'applique une seule fois à l'ensemble du calque, donc les drawables qui se chevauchent dans la partie ne se voient pas à travers les uns les autres.</string>
+	<string name="properties_field_blend_mode_part_description">La manière dont le calque combiné de la partie se mélange à ce qui est dessiné derrière lui, comme les modes de mélange des calques d'une application de dessin. Les modes marqués « Ancien » ignorent le réglage Alpha.</string>
+	<string name="properties_field_alpha_mode_part_description">La manière dont la transparence du calque combiné de la partie se combine avec ce qui se trouve derrière lui. « Au dessus » empile normalement, « Recouvrir » ne dessine que sur de l'art déjà présent, et « En dehors » efface ce qui est derrière au lieu de dessiner. « Conjoint » et « Disjoint » changent la façon dont les bords doux se superposent.</string>
+	<string name="properties_field_multiply_color_part_description">Multiplie les couleurs du calque combiné de la partie par cette couleur. Le blanc le laisse inchangé.</string>
+	<string name="properties_field_screen_color_part_description">Applique cette couleur en mode Écran sur le calque combiné de la partie. Le noir n'a aucun effet.</string>
+	<string name="properties_field_masked_by_part_description">Restreint le calque combiné de la partie aux drawables et aux parties listés ici, de sorte qu'il n'apparaît que là où ils ont de l'art.</string>
+	<string name="properties_field_invert_mask_part_description">Affiche le calque combiné de la partie uniquement là où ses masques n'ont pas d'art, au lieu de l'afficher uniquement là où ils en ont.</string>
+	<string name="repack_options_page_size_description">La plus grande page que le repackage peut utiliser, en pixels. Avec Réduire les pages activé, une page n'atteint cette taille que si l'art a besoin de la place.</string>
+	<string name="repack_options_gutter_description">Espace vide conservé autour de chaque morceau d'art et le long du bord de la page, en pixels, afin que l'art voisin ne déborde pas lorsque la texture est échantillonnée.</string>
+	<string name="repack_options_extrude_description">Le nombre de pixels de la couleur de bord de chaque morceau copiés vers l'extérieur dans l'espacement, ce qui masque les coutures aux bords de l'art. Cette valeur ne peut pas dépasser l'espacement.</string>
+	<string name="repack_options_allow_rotation_description">Permet au repackage de tourner l'art d'un quart de tour pour en faire tenir davantage sur une page.</string>
+	<string name="repack_options_keep_pinned_description">Laisse l'art épinglé où il est et package le reste autour. Désactivez cette option pour packager l'art épinglé comme tout le reste.</string>
+	<string name="repack_options_power_of_two_description">Arrondit la largeur et la hauteur de chaque page à la puissance de deux supérieure, comme 1024 ou 2048.</string>
+	<string name="repack_options_square_pages_description">Rend chaque page carrée.</string>
+	<string name="repack_options_shrink_pages_description">Dimensionne chaque page selon l'art qu'elle contient au lieu d'utiliser toujours la taille de page maximale.</string>
+	<string name="repack_options_alpha_threshold_description">Le degré d'opacité qu'un pixel doit avoir, de 1 à 255, pour compter comme de l'art lorsque la bordure vide autour de chaque morceau est rognée avant le repackage.</string>
+	<string name="placement_options_move_x_description">De combien l'art s'est déplacé vers la droite sur la page, en pixels. Une valeur négative le déplace vers la gauche.</string>
+	<string name="placement_options_move_y_description">De combien l'art s'est déplacé vers le bas de la page, en pixels. Une valeur négative le déplace vers le haut.</string>
+	<string name="placement_options_angle_description">De combien l'art a tourné sur la page, en degrés.</string>
+	<string name="placement_options_scale_x_description">Le facteur d'échelle appliqué à l'art selon sa propre largeur. 1 le laisse inchangé.</string>
+	<string name="placement_options_scale_y_description">Le facteur d'échelle appliqué à l'art selon sa propre hauteur. 1 le laisse inchangé.</string>
+	<string name="import_options_align_description">L'endroit où la toile de l'Artwork ajouté se place sur la toile de la marionnette : « Haut gauche » aligne leurs coins supérieurs gauches, « Centre » centre l'une sur l'autre, et ainsi de suite.</string>
+	<string name="import_options_offset_x_description">Déplace l'art ajouté vers la droite à partir de l'endroit où Aligner le place, en pixels. Une valeur négative le déplace vers la gauche.</string>
+	<string name="import_options_offset_z_description">Déplace l'art ajouté vers le haut à partir de l'endroit où Aligner le place, en pixels. Une valeur négative le déplace vers le bas.</string>
+	<string name="import_options_alpha_threshold_description">Le degré d'opacité qu'un pixel doit avoir, de 1 à 255, pour compter comme de l'art lorsque le mesh initial d'un drawable est créé.</string>
+	<string name="import_options_margin_description">La distance dont le quad initial d'un calque dépasse son art visible de chaque côté, en pixels. Un mesh généré à partir de l'art garde les marges de son préréglage.</string>
+	<string name="match_options_threshold_description">Le degré de certitude qu'une correspondance doit atteindre, en pourcentage, avant qu'un calque perdu y soit réassigné automatiquement. Les correspondances plus faibles sont laissées à vérifier dans la zone Sources.</string>
+	<string name="transform_options_move_x_description">De combien la sélection s'est déplacée vers la droite, en pixels. Une valeur négative la déplace vers la gauche.</string>
+	<string name="transform_options_move_y_description">De combien la sélection s'est déplacée vers le bas de la texture, en pixels. Une valeur négative la déplace vers le haut.</string>
+	<string name="transform_options_move_z_description">De combien la sélection s'est déplacée vers le haut, en pixels. Une valeur négative la déplace vers le bas.</string>
+	<string name="transform_options_move_depth_description">De combien la sélection s'est éloignée de l'observateur, en pixels. Une valeur négative la rapproche.</string>
+	<string name="transform_options_angle_description">De combien la sélection a tourné, en degrés.</string>
+	<string name="transform_options_scale_x_description">Le facteur d'échelle horizontal appliqué à la sélection. 1 la laisse inchangée.</string>
+	<string name="transform_options_scale_y_description">Facteur de changement de taille vertical de la sélection sur la texture. 1 la laisse inchangée.</string>
+	<string name="transform_options_scale_z_description">Facteur de changement de taille vertical de la sélection. 1 la laisse inchangée.</string>
+	<string name="transform_options_proportional_description">Déplace aussi les vertices non sélectionnées proches de la sélection, d'autant moins qu'elles en sont éloignées.</string>
+	<string name="transform_options_falloff_description">La courbe que suit l'influence proportionnelle en s'atténuant vers le bord de la Taille proportionnelle.</string>
+	<string name="transform_options_proportional_size_description">La distance, en pixels, à laquelle l'influence proportionnelle s'étend depuis la sélection.</string>
+	<string name="transform_options_connected_description">Limite l'influence proportionnelle aux vertices connectées aux meshs sélectionnés.</string>
+	<string name="transform_options_slide_factor_description">La position du vertice le long du bord, exprimée en fraction de la longueur de celui-ci.</string>
+	<string name="transform_options_axis_description">L'axe de rotation autour duquel la sélection pivote.</string>
+	<string name="transform_options_pivot_depth_description">De combien le pivot est déplacé vers l'avant ou vers l'arrière le long de l'axe Y.</string>
+	<string name="transform_options_depth_surface_description">La forme de la surface 3D appliquée au treillis.</string>
+	<string name="merge_options_target_description">La position où les vertices assemblées se retrouvent.</string>
+	<string name="to_shape_options_shape_description">La surface sur laquelle les points sélectionnés s'enroulent, vue de face.</string>
+	<string name="to_shape_options_axis_description">L'axe le long duquel s'étend le cylindre. La sphère ne l'utilise pas.</string>
+	<string name="to_shape_options_degrees_description">Sur quelle portion du tour de la forme la sélection s'enroule : 180 couvre la moitié avant, 360 fait tout le tour et 0 la laisse à plat.</string>
+	<string name="to_shape_options_factor_description">Jusqu'où les points se rapprochent de la forme, de leur position d'origine (0) à entièrement sur la forme (1).</string>
+	<string name="lattice_options_rows_description">Le nouveau nombre de cellules du treillis, de haut en bas.</string>
+	<string name="create_warp_options_rows_description">Le nombre de cellules du nouveau déformeur de warp, de haut en bas.</string>
+	<string name="create_warp_options_columns_description">Le nombre de cellules du nouveau déformeur de warp, de gauche à droite.</string>
+	<string name="create_warp_options_margin_description">L'espace entre la sélection et les bords du nouveau déformeur de warp, en pourcentage du plus grand côté de la sélection.</string>
+	<string name="create_warp_options_quad_description">Indique si le nouveau déformeur de warp courbe chaque cellule en douceur entre ses quatre coins, plutôt qu'en deux triangles.</string>
+	<string name="rehome_options_keep_in_place_description">Garde l'aspect de l'objet identique sous son nouveau parent, y compris son mouvement défini par des clés. Si l'option est désactivée, les valeurs de l'objet restent les mêmes et il se déplace avec son nouveau parent.</string>
+	<string name="lattice_options_columns_description">Le nouveau nombre de cellules du treillis, de gauche à droite.</string>
+	<string name="lattice_options_row_splits_description">En combien de cellules chaque rangée de cellules est divisée, de haut en bas.</string>
+	<string name="lattice_options_column_splits_description">En combien de cellules chaque colonne de cellules est divisée, de gauche à droite.</string>
+	<string name="mesh_options_preset_description">Remplit les espacements, les marges, les points de contour, l'angle minimum et la largeur de brin à partir des valeurs d'un préréglage.</string>
+	<string name="mesh_options_alpha_threshold_description">L'opacité minimale d'un pixel, de 1 à 255, pour qu'il soit compté comme faisant partie de l'art.</string>
+	<string name="mesh_options_outline_spacing_description">La distance cible entre les vertices le long du contour, en pixels.</string>
+	<string name="mesh_options_interior_spacing_description">La distance cible entre les vertices à l'intérieur de l'art (l'anneau intérieur et la grille régulière), en pixels.</string>
+	<string name="mesh_options_outer_margin_description">La distance à laquelle le contour s'écarte à l'extérieur de l'art, là où la forme le permet, en pixels.</string>
+	<string name="mesh_options_inner_margin_description">La distance à l'intérieur du bord de l'art à laquelle passe l'anneau intérieur, en pixels. 0 pour aucun anneau intérieur.</string>
+	<string name="mesh_options_minimum_margin_description">La distance minimale entre le contour et l'art, en pixels.</string>
+	<string name="mesh_options_minimum_outline_points_description">Le plus petit nombre de vertices qu'un anneau de contour peut avoir, si petit que soit son morceau d'art.</string>
+	<string name="mesh_options_minimum_angle_description">Ajoute des vertices pour découper les triangles fins en lamelles jusqu'à ce que le coin le plus étroit de chaque triangle atteigne au moins cet angle, en degrés. Plus la valeur est élevée, plus il y a de vertices, dans la limite du budget de vertices. Les coins formés par le contour lui-même, comme la pointe d'une mèche, ne peuvent pas être élargis et restent tels quels. 0 n'en ajoute aucune.</string>
+	<string name="mesh_options_vertex_budget_description">Le nombre maximal de vertices qu'un mesh devrait avoir. L'art qui ne tient pas dans ce budget est de nouveau transformé en mesh avec un budget plus élevé, jusqu'à 4096, puis avec ses trous comblés.</string>
+	<string name="mesh_options_interior_thinning_limit_description">Quand un mesh dépasserait le budget de vertices, l'intérieur est d'abord éclairci, jusqu'à ce nombre de fois l'espacement du contour. Au-delà, le contour est éclairci à son tour. Une valeur plus haute garde plus de détails du contour ; une valeur plus basse garde l'intérieur régulier.</string>
+	<string name="mesh_options_fill_holes_description">Recouvre les trous de l'art avec le mesh, comme une seule feuille, au lieu de les découper. Un trou plus petit que l'Espacement du contour est toujours recouvert.</string>
+	<string name="mesh_options_strand_rungs_description">Convertit l'art fin en bandes régulières traversées par une seule ligne au centre, au lieu d'en tracer le contour.</string>
+	<string name="mesh_options_strand_width_description">Avec Barreaux de mèche activé, l'art plus étroit que cette valeur, en pixels, devient une bande. Augmentez-la pour que les lanières et les mèches plus larges deviennent aussi des bandes ; diminuez-la pour donner un anneau intérieur à davantage d'entre elles.</string>
+	<string name="mesh_options_deformation_tolerance_description">L'écart maximal, en pixels, entre la forme du nouveau mesh et celle de l'ancien, au repos et dans chaque keyform. Là où l'écart serait plus grand, les anciennes vertices sont conservées. Plus la valeur est petite, plus il en reste.</string>
+	<string name="mesh_options_quad_margin_description">La distance, en pixels, dont le quad dépasse l'art visible et tout vertice relié par une colle, de chaque côté.</string>
 	<string name="blend_mode_normal">Normal</string>
 	<string name="blend_mode_additive">Additif</string>
 	<string name="blend_mode_multiply">Multiplier</string>
 	<string name="blend_mode_additive_premultiplied">Additif (Ancien)</string>
 	<string name="blend_mode_additive_glow">Additif (Briller)</string>
-	<string name="blend_mode_darken">Assombirer</string>
-	<string name="blend_mode_multiply_premultiplied">Multiplir (Ancien)</string>
-	<string name="blend_mode_color_burn">Brulage de Couleurs</string>
-	<string name="blend_mode_linear_burn">Brulage de Couleurs Linéaire</string>
+	<string name="blend_mode_darken">Assombrir</string>
+	<string name="blend_mode_multiply_premultiplied">Multiplier (Ancien)</string>
+	<string name="blend_mode_color_burn">Brûlage de Couleurs</string>
+	<string name="blend_mode_linear_burn">Brûlage de Couleurs Linéaire</string>
 	<string name="blend_mode_lighten">Éclaircir</string>
 	<string name="blend_mode_screen">Écran</string>
-	<string name="blend_mode_color_dodge">Évitemment de couleur</string>
+	<string name="blend_mode_color_dodge">Évitement de couleur</string>
 	<string name="blend_mode_overlay">Overlay</string>
 	<string name="blend_mode_soft_light">Lumière Douce</string>
 	<string name="blend_mode_hard_light">Lumière Forte</string>
 	<string name="blend_mode_linear_light">Lumière Linéaire</string>
 	<string name="blend_mode_hue">Teinte</string>
 	<string name="blend_mode_color">Couleur</string>
-	<!-- Alpha blend modes (Cubism 5.3 Porter-Duff alpha list). -->
 	<string name="alpha_blend_over">Au dessus</string>
 	<string name="alpha_blend_atop">Recouvrir</string>
 	<string name="alpha_blend_out">En dehors</string>
 	<string name="alpha_blend_conjoint">Conjoint</string>
 	<string name="alpha_blend_disjoint">Disjoint</string>
-	<!-- Part group modes (Umamo's PassThrough / Grouped / Isolated). -->
 	<string name="part_group_pass_through">Passer à Travers</string>
 	<string name="part_group_grouped">Groupé</string>
 	<string name="part_group_isolated">Isolé</string>
 
-	<!-- Parameters panel actions (reset a parameter / the whole rig to its default pose). -->
 	<string name="parameter_reset">Réinitialiser au défaut</string>
 	<string name="parameter_reset_all">Tout Réinitialiser</string>
 	<string name="parameter_range_section">Gamme</string>
@@ -837,75 +1236,163 @@
 	<string name="parameter_menu_rename">Renommer</string>
 	<string name="parameter_menu_delete_group">Supprimer le Groupe</string>
 	<string name="parameter_menu_add">Ajouter le Paramètre</string>
-	<string name="parameter_menu_add_keyform">Ajouter le Paramètre de Keyform</string>
+	<string name="parameter_menu_add_keyform">Ajouter un paramètre de keyform</string>
 	<string name="parameter_menu_add_blendshape">Ajouter le Paramètre de Blendshape</string>
 	<string name="parameter_menu_delete">Supprimer le Paramètre</string>
 	<string name="parameter_default_name">Nouveau Paramètre</string>
-	<string name="parameter_filter_selected">Seulement les paramètre utilisés par la sélection</string>
+	<string name="parameter_filter_selected">Seulement les paramètres utilisés par la sélection</string>
 	<string name="parameter_range_min">Min</string>
 	<string name="parameter_range_default">Défaut</string>
 	<string name="parameter_range_max">Max</string>
+	<string name="parameter_range_repeat">Répétition</string>
+	<string name="parameter_range_note">Note</string>
+	<string name="parameter_range_note_placeholder">Ajouter une note</string>
 
-	<!-- Settings window. Opened by the edit.preferences command (Edit menu / Ctrl+, / palette). -->
-	<string name="cmd_preferences">Paramètres</string>
-	<string name="settings_title">Paramètres</string>
-	<string name="settings_close">Fermer les Paramètres</string>
-	<!-- Settings categories (the left rail). -->
+	<string name="cmd_preferences">Réglages</string>
+	<string name="settings_title">Réglages</string>
+	<string name="settings_close">Fermer les réglages</string>
+	<string name="quick_setup_title">Configuration rapide</string>
+	<string name="quick_setup_continue">Continuer</string>
 	<string name="settings_category_interface">Interface</string>
 	<string name="settings_category_colors">Couleurs</string>
 	<string name="settings_category_viewport">Viewport</string>
 	<string name="settings_category_keybindings">Raccourcis Clavier</string>
 	<string name="settings_category_pen">Stylo</string>
 	<string name="settings_category_import">Import</string>
-	<!-- Interface section. Language names are endonyms shown verbatim, so they are NOT string
-	resources. -->
+	<string name="settings_section_display">Affichage</string>
+	<string name="settings_section_editing">Édition</string>
+	<string name="settings_section_updates">Mises à jour</string>
+	<string name="settings_section_navigation">Navigation</string>
+	<string name="settings_section_grids">Grilles</string>
+	<string name="settings_section_quality">Qualité</string>
+	<string name="settings_section_new_models">Nouvelles marionnettes</string>
+	<string name="settings_section_meshes">Meshs</string>
+	<string name="settings_section_artwork_files">Fichiers d'Artwork</string>
+	<string name="settings_section_sources">Sources</string>
 	<string name="settings_interface_theme">Thème</string>
+	<string name="settings_interface_theme_description">La palette de couleurs de l'interface. Système suit le mode clair ou sombre du système d'exploitation.</string>
 	<string name="settings_theme_dark">Sombre</string>
 	<string name="settings_theme_light">Clair</string>
 	<string name="settings_theme_system">Système</string>
-	<string name="settings_interface_language">Language</string>
-	<!-- The undo-history cap (interface.historyLimit): how many steps the History panel retains. -->
+	<string name="settings_interface_language">Langue</string>
+	<string name="settings_interface_language_description">La langue des menus, des zones et des messages.</string>
 	<string name="settings_interface_history_steps">Taille de l'historique</string>
-	<!-- Keybindings section: preset selection + the per-command rebinding editor. -->
+	<string name="settings_interface_history_steps_description">Le nombre d'étapes que la zone Historique conserve pour l'annulation. Augmenter le nombre d'étapes augmente la mémoire utilisée par l'application.</string>
+	<string name="settings_interface_repeat_control">Contrôle des paramètres à répétition</string>
+	<string name="settings_interface_repeat_control_description">Le type de contrôle que la zone Paramètres affiche pour les paramètres à répétition. Par défaut, ils s'affichent avec un cadran circulaire. Avec Slider et pad, ils s'affichent toujours avec un slider ou un pad 2D.</string>
+	<string name="settings_repeat_control_dial">Cadran</string>
+	<string name="settings_repeat_control_slider">Slider et pad</string>
+	<string name="settings_check_for_updates_heading">Rechercher des mises à jour</string>
+	<string name="settings_check_for_updates_at_startup">Au démarrage</string>
+	<string name="settings_check_for_updates_at_startup_description">Indique si l'application doit rechercher des mises à jour au démarrage.</string>
 	<string name="settings_keybindings_preset">Préréglage</string>
+	<string name="settings_keybindings_preset_quick">Préréglage de raccourcis</string>
+	<string name="settings_keybindings_preset_description">Choisissez parmi un ensemble de raccourcis qui conviennent à vos préférences.</string>
 	<string name="settings_keymap_preset_default">Défaut</string>
 	<string name="settings_keymap_preset_cubism">Cubism</string>
 	<string name="settings_keymap_preset_blender">Blender</string>
 	<string name="settings_keybindings_reset">Réinitialiser vers un Préréglage</string>
 	<string name="settings_keybindings_press_shortcut">Appuyez sur un raccourci…</string>
-	<string name="settings_keybindings_unbound">Délier</string>
-	<!-- %1$s is the shortcut, %2$s is the command it is already bound to. -->
-	<string name="settings_keybindings_conflict">%1$s est déja lié à “%2$s”. Le relier ?</string>
+	<string name="settings_keybindings_unbound">Non assigné</string>
+	<string name="settings_keybindings_remove">Supprimer le raccourci</string>
+	<string name="settings_keybindings_add">Ajouter un raccourci</string>
+	<string name="settings_keybindings_move_up">Monter</string>
+	<string name="settings_keybindings_conflict">%1$s est déjà assigné à « %2$s ». Réassigner ?</string>
 	<string name="settings_keybindings_reassign">Réassigner</string>
-	<!-- Placeholder section (the real editor lands with the pen backend). -->
+	<string name="settings_keybindings_reset_description">Rétablit tous les raccourcis modifiés aux valeurs par défaut du préréglage sélectionné.</string>
+	<string name="settings_keybindings_search_hint">Rechercher par nom ou raccourci…</string>
+	<string name="settings_keybindings_search_record">Rechercher en appuyant sur un raccourci…</string>
+	<string name="settings_keybindings_no_matches">Aucune commande correspondante</string>
+	<string name="settings_keybindings_chord_unbound">Rien n'est assigné à %1$s.</string>
+	<string name="settings_keybindings_chord_unlisted">%1$s exécute une commande intégrée qui n'est pas listée ici.</string>
+	<string name="settings_keybindings_category_file">Fichier</string>
+	<string name="settings_keybindings_category_artwork">Artwork</string>
+	<string name="settings_keybindings_category_edit">Éditer</string>
+	<string name="settings_keybindings_category_modes">Modes</string>
+	<string name="settings_keybindings_category_select">Sélectionner</string>
+	<string name="settings_keybindings_category_transform">Transformer</string>
+	<string name="settings_keybindings_category_snap">Aimanter</string>
+	<string name="settings_keybindings_category_mesh">Mesh</string>
+	<string name="settings_keybindings_category_deformers">Déformeurs</string>
+	<string name="settings_keybindings_category_keyforms">Keyforms</string>
+	<string name="settings_keybindings_category_relations">Relations</string>
+	<string name="settings_keybindings_category_object">Objet</string>
+	<string name="settings_keybindings_category_uv">UV</string>
+	<string name="settings_keybindings_category_view">Vue</string>
+	<string name="settings_keybindings_category_overlays">Surimpressions</string>
+	<string name="settings_keybindings_category_workspace">Espace de travail</string>
+	<string name="settings_keybindings_category_help">Aide</string>
+	<string name="settings_keybindings_category_other">Autre</string>
 	<string name="settings_pen_coming_soon">La configuration du style arrive bientôt.</string>
 	<string name="settings_import_parameter_template">Préréglage de Paramètres</string>
-	<string name="settings_import_watch_mode">Regarder les Fichiers d'Artworks</string>
+	<string name="settings_import_parameter_template_description">Le préréglage de paramètres par défaut avec lequel commencent les nouvelles marionnettes créées à partir d'un artwork importé.</string>
+	<string name="settings_import_alignment">Aligner l'artwork ajouté</string>
+	<string name="settings_import_alignment_description">Lors de l'ajout d'un artwork à une marionnette, cette position d'alignement sert de position X/Z 0,0.</string>
+	<string name="settings_import_watch_mode">Fichiers d'Artwork surveillés</string>
+	<string name="settings_import_watch_mode_description">L'action à effectuer quand un fichier d'artwork surveillé change sur le disque.</string>
 	<string name="settings_import_watch_mode_auto">Recharger Automatiquement</string>
 	<string name="settings_import_watch_mode_notify">Seulement Notifier</string>
 	<string name="settings_import_watch_mode_off">Off</string>
-	<string name="settings_import_parameter_template_humanoid">Humanoide</string>
+	<string name="settings_import_deleting_art">Suppression de l'art</string>
+	<string name="settings_import_also_ignore_layer">Marquer aussi le calque comme ignoré</string>
+	<string name="settings_import_also_ignore_layer_description">Lors de la suppression d'un artwork depuis la zone Sources, marque aussi le calque de l'artwork comme ignoré. Cela empêche le calque de revenir au rechargement de l'artwork.</string>
+	<string name="settings_import_layer_positions">Positions des calques</string>
+	<string name="settings_import_from_world_axes">Mesurer depuis les axes du monde</string>
+	<string name="settings_import_from_world_axes_description">Dans la zone Sources, mesure les positions des calques à partir des axes du monde plutôt que du coin supérieur gauche de l'artwork.</string>
+	<string name="settings_import_parameter_template_humanoid">Humanoïde</string>
 	<string name="settings_import_parameter_template_none">Aucun</string>
-	<!-- Viewport section: wheel-zoom increments, in percent per notch. -->
-	<string name="settings_viewport_zoom_step">Taille du Zoom</string>
-	<string name="settings_viewport_zoom_step_coarse">Taille du Zoom fort</string>
+	<string name="settings_import_birth_mesh">Mesh initial</string>
+	<string name="settings_import_birth_mesh_description">Le type de mesh de drawable à générer à l'import d'un artwork. Quad génère un quad de deux triangles sur chaque calque, tandis que Générer un mesh à partir de l'art crée un mesh complexe.</string>
+	<string name="settings_import_birth_mesh_automatic">Générer un mesh à partir de l'art</string>
+	<string name="settings_import_birth_mesh_quad">Quad</string>
+	<string name="settings_import_mesh_preset">Préréglage de génération de mesh</string>
+	<string name="settings_import_mesh_preset_description">Quand Mesh initial est réglé sur Générer un mesh à partir de l'art, c'est le préréglage utilisé pour la génération.</string>
+	<string name="settings_viewport_zoom_step">Pas de zoom</string>
+	<string name="settings_viewport_zoom_step_description">De combien un cran de la molette de la souris zoome, en pourcentage.</string>
+	<string name="settings_viewport_zoom_step_coarse">Pas de zoom fort</string>
+	<string name="settings_viewport_zoom_step_coarse_description">De combien un cran zoome quand Maj est maintenue, en pourcentage.</string>
 	<string name="settings_viewport_grid_scale">Taille de la Grille</string>
-	<string name="settings_viewport_grid_subdivisions">Subdivisions de la Grile</string>
-	<!-- Viewport section: rendering performance toggles (viewport.rendering.*). -->
-	<!-- Colors section: the viewport selection highlight, then the Edit-mode gizmo palette (viewport.meshEdit.*), grouped element × state. -->
+	<string name="settings_viewport_grid_scale_description">L'espacement par défaut des lignes principales de la grille du viewport, en unités du monde.</string>
+	<string name="settings_viewport_grid_subdivisions">Subdivisions de la Grille</string>
+	<string name="settings_viewport_grid_subdivisions_description">Le nombre de lignes secondaires qui divisent chaque cellule principale de la grille du viewport.</string>
+	<string name="settings_viewport_uv_grid_scale">Taille de la grille UV</string>
+	<string name="settings_viewport_uv_grid_scale_description">L'espacement par défaut des lignes principales de la grille de la zone Éditeur d'UVs, en texels.</string>
+	<string name="settings_viewport_uv_grid_subdivisions">Subdivisions de la grille UV</string>
+	<string name="settings_viewport_uv_grid_subdivisions_description">Le nombre de lignes secondaires qui divisent chaque cellule principale de la grille de la zone Éditeur d'UVs.</string>
+	<string name="settings_viewport_supersample_heading">Suréchantillonnage</string>
+	<string name="settings_viewport_supersample_quality">Qualité de rendu 2x</string>
+	<string name="settings_viewport_supersample_quality_description">Affiche les marionnettes dans les viewports en qualité 2x, au détriment des performances. Désactivez cette option sur les ordinateurs moins performants.</string>
+	<string name="settings_viewport_supersample_keep_while_resizing">Continuer pendant le redimensionnement</string>
+	<string name="settings_viewport_supersample_keep_while_resizing_description">Continue le suréchantillonnage pendant le redimensionnement de l'interface ou des viewports. Désactivez cette option sur les ordinateurs moins performants.</string>
+	<string name="settings_viewport_show_by_default">Afficher par défaut</string>
+	<string name="settings_viewport_default_toolbar">Toolbar</string>
+	<string name="settings_viewport_default_toolbar_description">Affiche la Toolbar dans chaque viewport par défaut, jusqu'à ce qu'elle soit volontairement cachée.</string>
+	<string name="settings_viewport_default_sidebar">Sidebar</string>
+	<string name="settings_viewport_default_sidebar_description">Affiche la Sidebar dans chaque viewport par défaut, jusqu'à ce qu'elle soit volontairement cachée.</string>
 	<string name="settings_colors_viewport">Viewport</string>
 	<string name="settings_colors_selection_highlight">Couleur de Sélection</string>
+	<string name="settings_colors_selection_highlight_description">La teinte appliquée sur les drawables sélectionnés dans le viewport.</string>
 	<string name="settings_colors_active_selection_highlight">Couleur de la Sélection Active</string>
+	<string name="settings_colors_active_selection_highlight_description">La teinte appliquée sur le drawable actif dans le viewport.</string>
 	<string name="settings_colors_warning">Avertissement</string>
+	<string name="settings_colors_warning_description">Le contour d'une tuile qui chevauche une voisine ou déborde de la page de l'atlas.</string>
 	<string name="settings_colors_pinned_placement">Placement Épinglé</string>
+	<string name="settings_colors_pinned_placement_description">La couleur des bords du mesh d'une tuile épinglée sur une page d'atlas dans la zone Éditeur d'UVs.</string>
 	<string name="settings_colors_mesh_edit">Édition du Mesh</string>
 	<string name="settings_colors_group_vertex">Vertice</string>
-	<string name="settings_colors_group_edge">Coin</string>
+	<string name="settings_colors_group_edge">Bord</string>
 	<string name="settings_colors_group_face">Face</string>
+	<string name="settings_colors_deformers">Déformeurs</string>
 	<string name="settings_colors_role_idle">Inactif</string>
+	<string name="settings_colors_role_idle_description">Couleur affichée hors sélection.</string>
 	<string name="settings_colors_role_selected">Sélectionné</string>
+	<string name="settings_colors_role_selected_description">Couleur affichée lors de la sélection.</string>
 	<string name="settings_colors_role_active">Actif</string>
-	<!-- Relation pick (a Properties eyedropper): the near-cursor badge naming what a click would bind. -->
+	<string name="settings_colors_role_active_description">Couleur affichée pour la sélection active. (Dernier sélectionné)</string>
+	<string name="settings_colors_role_unkeyed">Sans clé</string>
+	<string name="settings_colors_role_unkeyed_description">Couleur affichée sur un treillis qui a été posé, mais sans clé.</string>
+	<string name="settings_colors_role_hovered">Survolé</string>
+	<string name="settings_colors_role_hovered_description">Couleur affichée sur un treillis survolé.</string>
 	<string name="pick_hover_drawable">Drawable: %1$s</string>
 	<string name="pick_hover_part">Partie: %1$s</string>
 	<string name="pick_hover_deformer">Déformeur: %1$s</string>
@@ -915,7 +1402,7 @@
 	<string name="keyform_sheet_select_owner">Sélectionner %1$s</string>
 	<string name="keyform_sheet_all_filtered">Toutes les pistes sont cachées par des filtres.</string>
 	<string name="keyform_sheet_filter_geometry">Pistes de Déformation</string>
-	<string name="keyform_sheet_filter_channels">Pistes de Propriétées</string>
+	<string name="keyform_sheet_filter_channels">Pistes de Propriétés</string>
 	<string name="keyform_sheet_filter_blend_shapes">Pistes de Blendshapes</string>
 	<string name="keyform_sheet_no_tracks">Rien n'est mis sur ce paramètre pour l'instant.</string>
 	<string name="owner_kind_drawable">Drawable</string>
@@ -923,21 +1410,28 @@
 	<string name="owner_kind_rotation_deformer">Déformeur de Rotation</string>
 	<string name="owner_kind_part">Partie</string>
 	<string name="owner_kind_glue">Colle</string>
-	<string name="track_geometry">Géometrie</string>
+	<string name="track_geometry">Géométrie</string>
 	<string name="track_blend_shape">Blendshape</string>
 	<string name="channel_draw_order">Ordre de Rendu</string>
-	<string name="channel_opacity">Opacitée</string>
+	<string name="channel_opacity">Opacité</string>
 	<string name="channel_multiply_color">Multiplier</string>
 	<string name="channel_screen_color">Affichage</string>
 	<string name="channel_flip_x">Flip X</string>
 	<string name="channel_flip_y">Flip Y</string>
 	<string name="channel_glue_intensity">Intensité de la colle</string>
-	<string name="cmd_keyform_insert">Insérer une Keyframe</string>
-	<string name="cmd_keyform_frame_all">Keyframer chaque clé</string>
-	<string name="cmd_keyform_nudge_left">Mettre la keyframe à gauche</string>
-	<string name="cmd_keyform_nudge_right">Mettre la keyframe à droite</string>
-	<string name="cmd_keyform_delete_keys">Supprimer les keyframes sélectionnées</string>
-	<string name="cmd_keyform_delete">Supprimer la Keyframe</string>
-	<string name="notice_keyform_no_target">Pointez vers une propriété keyframable pour en insérer une.</string>
-	<string name="notice_keyform_no_parameter">Sélectionnez un paramètre pour la keyframe.</string>
+	<string name="cmd_keyform_insert">Insérer une clé</string>
+	<string name="cmd_keyform_frame_all">Encadrer toutes les clés</string>
+	<string name="cmd_keyform_nudge_left">Décaler la clé vers la gauche</string>
+	<string name="cmd_keyform_nudge_right">Décaler la clé vers la droite</string>
+	<string name="cmd_keyform_delete_keys">Supprimer les clés sélectionnées</string>
+	<string name="cmd_keyform_delete">Supprimer la clé</string>
+	<string name="cmd_keyform_insert_pie">Insérer une clé par type</string>
+	<string name="cmd_keyform_insert_lattice">Insérer une clé de treillis</string>
+	<string name="cmd_keyform_insert_opacity">Insérer une clé d'opacité</string>
+	<string name="cmd_keyform_insert_colors">Insérer des clés de couleur</string>
+	<string name="cmd_keyform_insert_all">Insérer toutes les clés</string>
+	<string name="cmd_keyform_clear_pose_edits">Effacer les modifications de pose</string>
+	<string name="notice_keyform_no_target">Pointez une propriété qui accepte des clés pour y insérer une clé.</string>
+	<string name="notice_keyform_no_parameter">Sélectionnez un paramètre pour y placer une clé.</string>
+	<string name="notice_parameter_delete_changed_rest">Paramètre supprimé. %1$d objet(s) ont désormais un aspect différent dans la pose par défaut.</string>
 </resources>
