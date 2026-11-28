@@ -1479,8 +1479,8 @@
 	<string name="settings_keybindings_conflict">%1$s is already bound to “%2$s”.  Reassign it?</string>
 	<string name="settings_keybindings_reassign">Reassign</string>
 	<string name="settings_keybindings_reset_description">Clear all changed keybindings back to the selected preset's defaults.</string>
-	<string name="settings_keybindings_search_hint">Search by name or shortcut...</string>
-	<string name="settings_keybindings_search_record">Search by pressing a shortcut...</string>
+	<string name="settings_keybindings_search_hint">Search by name or shortcut…</string>
+	<string name="settings_keybindings_search_record">Search by pressing a shortcut…</string>
 	<string name="settings_keybindings_no_matches">No matching commands</string>
 	<!-- %1$s is the shortcut the user pressed to search with. -->
 	<string name="settings_keybindings_chord_unbound">Nothing is bound to %1$s.</string>

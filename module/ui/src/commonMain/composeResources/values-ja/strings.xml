@@ -5,7 +5,7 @@
 
   Japanese UI string catalog; English default is in values/strings.xml. Format-level identifiers stay verbatim.
 
-  Terminology.  The same four terms as the English catalog, in these Japanese renderings.  The user
+  Terminology.  The same terms as the English catalog, in these Japanese renderings.  The user
   manual uses them too, so a string that disagrees with them is a bug.
 
   File: ファイル.  Any file, or a file whose kind does not matter.
@@ -33,7 +33,8 @@
 
   Part: パーツ.  Guide Part: ガイドパーツ.  Never ガイド画像, and never 下絵 or スケッチ for the name.
 
-  Atlas: アトラス, each one a ページ.  Texture: テクスチャ.  Tile: タイル.
+  Atlas: アトラス, each one a ページ.  Texture: テクスチャ.  Tile: タイル.  Gutter: パディング, never
+  余白, which is Margin.  Extrude: 縁の延長.
 
   Bind: 紐付け, as in 紐付け済み, 未紐付け, 再紐付け, and 紐付けを解除.  リンク is only for pairing two
   parameters.  A glue that is re-bound is 再結合, a separate sense.
@@ -1009,7 +1010,7 @@
 
 	<!-- The Repack Atlas rows of the operation settings strip. -->
 	<string name="repack_options_page_size">最大ページサイズ</string>
-	<string name="repack_options_gutter">余白</string>
+	<string name="repack_options_gutter">パディング</string>
 	<string name="repack_options_extrude">縁の延長</string>
 	<string name="repack_options_allow_rotation">回転を許可</string>
 	<string name="repack_options_keep_pinned">ピン留めしたタイルを維持</string>
@@ -1078,7 +1079,7 @@
 	<string name="import_options_offset_x">オフセット X</string>
 	<string name="import_options_offset_z">オフセット Z</string>
 	<string name="import_options_alpha_threshold">アルファしきい値</string>
-	<string name="import_options_margin">初期メッシュの余白</string>
+	<string name="import_options_margin">メッシュの余白</string>
 	<string name="import_anchor_top_left">左上</string>
 	<string name="import_anchor_top">上</string>
 	<string name="import_anchor_top_right">右上</string>
@@ -1144,7 +1145,7 @@
 	<string name="properties_field_invert_mask_part_description">マスクのアートがある部分ではなく、ない部分にだけパーツの合成レイヤーを表示します。</string>
 	<string name="repack_options_page_size_description">パックで使えるページの最大サイズ（ピクセル）。「ページを縮小」がオンの場合、アートに必要なときだけこの大きさになります。</string>
 	<string name="repack_options_gutter_description">各アートの周囲とページの端に確保する空白（ピクセル）。テクスチャのサンプリング時に、隣のアートがにじみ込まないようにします。</string>
-	<string name="repack_options_extrude_description">各アートの縁の色を余白へ外向きに延ばすピクセル数。アートの縁の継ぎ目を目立たなくします。余白より広くはできません。</string>
+	<string name="repack_options_extrude_description">各アートの縁の色をパディングへ外向きに延ばすピクセル数。アートの縁の継ぎ目を目立たなくします。パディングより広くはできません。</string>
 	<string name="repack_options_allow_rotation_description">ページにより多く収めるため、アートを90度回転して配置できるようにします。</string>
 	<string name="repack_options_keep_pinned_description">ピン留めしたアートをその場に残し、ほかのアートをその周りにパックします。オフにすると、ピン留めしたアートもほかと同じようにパックされます。</string>
 	<string name="repack_options_power_of_two_description">各ページの幅と高さを、1024 や 2048 などの2のべき乗に切り上げます。</string>
