@@ -166,7 +166,7 @@
 
 	<string name="menu_select">Pilih</string>
 	<string name="menu_select_all_of_type">Pilih Semua Berdasarkan Jenis</string>
-	<string name="menu_invert_selection_of_type">Balikkan Pilihan Berdasarkan Jenis</string>
+	<string name="menu_invert_selection_of_type">Membalik Pilihan Berdasarkan Jenis</string>
 	<string name="menu_select_kind_parts">Part</string>
 	<string name="menu_select_kind_drawables">Drawable</string>
 	<string name="menu_select_kind_warps">Deformer Warp</string>
