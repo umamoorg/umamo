@@ -62,7 +62,7 @@
 	
 	Alpha Threshold: ambang alpha.  Multiply Color and
 	Screen Color: warna Multiply and warna Screen.  Group Mode: mode grup, with Pass Through,
-	Dikelompokkan, and Terisolasi.
+	Berkelompok, and Terisolasi.
 
 	Pose: pose; Pose Mode is Mode Pose and the default pose is pose bawaan.  Cursor: Kursor 2D, never
 	penunjuk or tetikus, which mean the mouse pointer.  Runtime: runtime.  Target: target.
@@ -357,7 +357,7 @@
 	<string name="cmd_view_zoom_out">Perkecil</string>
 	<string name="cmd_view_zoom_in_coarse">Perbesar (Langkah Besar)</string>
 	<string name="cmd_view_zoom_out_coarse">Perkecil (Langkah Besar)</string>
-	<string name="cmd_view_zoom_region">Zoom ke Wilayah</string>
+	<string name="cmd_view_zoom_region">Zoom ke Ruang</string>
 
 	<string name="cmd_select_clear">Bersihkan Pilihan</string>
 	<string name="cmd_select_all">Pilih Semua</string>
@@ -1116,7 +1116,7 @@
 	<string name="properties_part_ref_description">Part tempat item ini berada. Mengosongkannya mengeluarkan item dari semua part.</string>
 	<string name="properties_parent_deformer_description">Deformer tempat item ini terpasang. Item mengikuti deformer tersebut saat bergerak, melengkung, atau berputar.</string>
 	<string name="properties_field_pinned_description">Menahan art ini di tempatnya pada halaman atlas. Memindahkannya secara manual di area Editor UV ditolak, dan pengemasan ulang membiarkannya di tempat kecuali Pertahankan Tile Tersemat dinonaktifkan.</string>
-	<string name="properties_field_draw_order_description">Posisi tumpukan drawable ini, dari 0 hingga 1000: yang lebih tinggi digambar di depan, dan jika nilainya sama, yang letaknya lebih atas di area Outliner digambar di depan. Di dalam part dengan mode Dikelompokkan atau Terisolasi, drawable ini hanya ditumpuk di antara isi part tersebut.</string>
+	<string name="properties_field_draw_order_description">Posisi tumpukan drawable ini, dari 0 hingga 1000: yang lebih tinggi digambar di depan, dan jika nilainya sama, yang letaknya lebih atas di area Outliner digambar di depan. Di dalam part dengan mode Berkelompok atau Terisolasi, drawable ini hanya ditumpuk di antara isi part tersebut.</string>
 	<string name="properties_field_opacity_description">Tingkat opasitas drawable, dari 0 (tak terlihat) hingga 1 (sama sekali tidak transparan).</string>
 	<string name="properties_field_blend_mode_description">Cara warna drawable bercampur dengan apa yang digambar di belakangnya, seperti mode blend layer di aplikasi menggambar. Mode Lawas mengabaikan pengaturan Alpha.</string>
 	<string name="properties_field_alpha_mode_description">Cara transparansi drawable digabungkan dengan apa yang ada di belakangnya. Over menumpuk secara normal, Atop hanya menggambar di atas art yang sudah ada, dan Out menghapus apa yang ada di belakangnya alih-alih menggambar. Conjoint dan Disjoint mengubah cara tepi lembut saling tumpang tindih.</string>
@@ -1132,8 +1132,8 @@
 	<string name="properties_field_flip_x_description">Mencerminkan semua yang digerakkan deformer ini dari kiri ke kanan, terhadap pivot deformer tersebut.</string>
 	<string name="properties_field_flip_y_description">Mencerminkan semua yang digerakkan deformer ini dari atas ke bawah, terhadap pivot deformer tersebut.</string>
 	<string name="properties_field_sketch_description">Menandai part ini sebagai part panduan, yaitu referensi seperti sketsa. Part ini tampil di editor, tetapi ekspor MOC3 tidak menyertakannya beserta seluruh isinya, kecuali Anda memilih untuk mengekspor part panduan.</string>
-	<string name="properties_field_draw_order_part_description">Posisi tumpukan seluruh part, dari 0 hingga 1000: yang lebih tinggi digambar di depan. Hanya digunakan jika Mode Grup adalah Dikelompokkan atau Terisolasi.</string>
-	<string name="properties_field_group_mode_description">Cara isi part ditumpuk dengan bagian lain dari boneka. Pass Through menumpuk setiap drawable menurut urutan gambarnya sendiri, Dikelompokkan menumpuk seluruh part pada urutan gambar part tersebut, dan Terisolasi juga menggambarnya sebagai satu layer dengan opasitas, mode blend, warna, dan mask miliknya sendiri.</string>
+	<string name="properties_field_draw_order_part_description">Posisi tumpukan seluruh part, dari 0 hingga 1000: yang lebih tinggi digambar di depan. Hanya digunakan jika Mode Grup adalah Berkelompok atau Terisolasi.</string>
+	<string name="properties_field_group_mode_description">Cara isi part ditumpuk dengan bagian lain dari boneka. Pass Through menumpuk setiap drawable menurut urutan gambarnya sendiri, Berkelompok menumpuk seluruh part pada urutan gambar part tersebut, dan Terisolasi juga menggambarnya sebagai satu layer dengan opasitas, mode blend, warna, dan mask miliknya sendiri.</string>
 	<string name="properties_field_opacity_part_description">Tingkat opasitas layer gabungan part, dari 0 (tak terlihat) hingga 1 (sama sekali tidak transparan). Opasitas diterapkan sekali ke seluruh layer, sehingga drawable yang bertumpukan di dalam part tidak saling tembus pandang.</string>
 	<string name="properties_field_blend_mode_part_description">Cara layer gabungan part bercampur dengan apa yang digambar di belakangnya, seperti mode blend layer di aplikasi menggambar. Mode Lawas mengabaikan pengaturan Alpha.</string>
 	<string name="properties_field_alpha_mode_part_description">Cara transparansi layer gabungan part digabungkan dengan apa yang ada di belakangnya. Over menumpuk secara normal, Atop hanya menggambar di atas art yang sudah ada, dan Out menghapus apa yang ada di belakangnya alih-alih menggambar. Conjoint dan Disjoint mengubah cara tepi lembut saling tumpang tindih.</string>
