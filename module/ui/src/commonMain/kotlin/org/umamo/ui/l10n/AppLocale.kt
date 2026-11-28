@@ -38,6 +38,7 @@ val UI_LANGUAGE_ENDONYMS: Map<String, String> =
 		"fr" to "Français",
 		"zh-CN" to "简体中文",
 		"zh-TW" to "繁體中文",
+		"id" to "Bahasa Indonesia",
 	)
 
 /**

@@ -5,13 +5,13 @@ argument-hint: <locale-tag>
 
 # Translate catalog
 
-Updates one locale's `strings.xml` (`$1`: `ko`, `fr`, `zh-CN`, or `zh-TW`) against the current English
-catalog.  The output is an AI draft: a human proofreads and edits it before the PR merges, and the PR
-says so.  One locale per PR, and the PR carries nothing else.  Never commit; Alexia does.
+Updates one locale's `strings.xml` (`$1`: `ko`, `fr`, `zh-CN`, `zh-TW`, or `id`) against the current
+English catalog.  The output is an AI draft: a human proofreads and edits it before the PR merges, and
+the PR says so.  One locale per PR, and the PR carries nothing else.  Never commit; Alexia does.
 
-Directory per tag: `ko` is `values-ko`, `fr` is `values-fr`, `zh-CN` is `values-zh-rCN`, and `zh-TW` is
-`values-zh-rTW`, all under `module/ui/src/commonMain/composeResources/`.  The rules in CLAUDE.md
-(Localization) bind every step here.
+Directory per tag: `ko` is `values-ko`, `fr` is `values-fr`, `zh-CN` is `values-zh-rCN`, `zh-TW` is
+`values-zh-rTW`, and `id` is `values-id`, all under `module/ui/src/commonMain/composeResources/`.  The
+rules in CLAUDE.md (Localization) bind every step here.
 
 ## 1. Scope the locale
 
