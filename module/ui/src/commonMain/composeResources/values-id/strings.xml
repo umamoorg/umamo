@@ -48,9 +48,19 @@
 	Bind: ikat, as in terikat, tidak terikat, ikat ulang, and lepas ikatan.  Tautan and tautkan are
 	only for pairing two parameters.  A glue that is re-bound is disambung ulang, a separate sense.
 
-	Glue: lem, a noun, never the verb mengelem.  Blend Shape: blend shape, apart from the Blend Mode
-	field, mode campuran.  Alpha Mode: mode alfa.  The mode names (Normal, Multiply, Screen, Over,
-	Atop, Out) stay verbatim.  Opacity: opasitas.  Alpha Threshold: ambang alfa.  Multiply Color and
+	Glue: lem, a noun, never the verb mengelem.
+	
+	Blend Shape: blend shape, a stored morph, apart from the Blend Mode field.
+	
+	Blend Mode: mode blend.
+	
+	Alpha Mode: mode alpha.
+	
+	The mode names (Normal, Multiply, Screen, Over, Atop, Out) stay verbatim.
+	
+	Opacity: opasitas.
+	
+	Alpha Threshold: ambang alpha.  Multiply Color and
 	Screen Color: warna Multiply and warna Screen.  Group Mode: mode grup, with Pass Through,
 	Dikelompokkan, and Terisolasi.
 
@@ -494,8 +504,8 @@
 	<string name="history_part_draw_order">Atur Urutan Gambar Part</string>
 	<string name="history_part_group_mode">Atur Mode Grup</string>
 	<string name="history_part_composite">Atur Komposit</string>
-	<string name="history_drawable_blend_mode">Atur Mode Campuran</string>
-	<string name="history_drawable_alpha_blend_mode">Atur Mode Alfa</string>
+	<string name="history_drawable_blend_mode">Atur Mode Blend</string>
+	<string name="history_drawable_alpha_blend_mode">Atur Mode Alpha</string>
 	<string name="history_drawable_culling">Alihkan Back-Face Culling</string>
 	<string name="history_drawable_invert_mask">Alihkan Mask Terbalik</string>
 	<string name="history_drawable_parent_deformer">Atur Deformer Induk</string>
@@ -698,7 +708,7 @@
 	<string name="notice_mesh_generated_coarser">%1$d mesh dibuat dari art; %2$d dibuat lebih kasar daripada yang diminta agar tetap dalam batas vertex.</string>
 	<string name="notice_mesh_generated_refit">%1$d mesh dibuat dari art; %2$d harus dibuat ulang dengan batas vertex yang lebih tinggi atau dengan lubang yang diisi.</string>
 	<string name="notice_mesh_pinned_without_room">%1$d mesh dibuat; %2$d dilewati karena art yang disematkan tidak memiliki ruang untuk membesar. Lepas sematan art atau kurangi margin.</string>
-	<string name="notice_mesh_over_budget">%1$d mesh dibuat; %2$d dilewati karena memerlukan lebih dari 4096 vertex meskipun lubang sudah diisi. Naikkan Ambang Alfa atau turunkan Titik Garis Luar Minimum.</string>
+	<string name="notice_mesh_over_budget">%1$d mesh dibuat; %2$d dilewati karena memerlukan lebih dari 4096 vertex meskipun lubang sudah diisi. Naikkan Ambang Alpha atau turunkan Titik Garis Luar Minimum.</string>
 	<string name="notice_mesh_glued_throughout">%1$d mesh dibuat; %2$d dilewati karena sebagian besar vertex mesh tersebut tersambung oleh lem ke mesh lain, dan membuatnya ulang akan mengubah cara mesh tersebut mengikuti mesh lain itu.</string>
 	<string name="notice_mesh_none_generated">Tidak ada mesh yang dibuat.</string>
 	<string name="notice_mesh_pack_refused">Tidak ada yang dibuat: atlas tidak memiliki ruang untuk mesh yang lebih besar.</string>
@@ -934,7 +944,7 @@
 	<string name="properties_section_relations">Relasi</string>
 	<string name="properties_section_mesh">Mesh</string>
 	<string name="properties_section_texture">Tekstur</string>
-	<string name="properties_section_blend">Campuran</string>
+	<string name="properties_section_blend">Blend</string>
 	<string name="properties_section_deformer">Deformer</string>
 	<string name="properties_section_blend_shapes">Blend Shape</string>
 	<string name="properties_blend_shape_binding">%1$s: %2$d key</string>
@@ -958,7 +968,7 @@
 	<string name="runtime_feature_screen_color">Warna Screen</string>
 	<string name="runtime_feature_extended_blend_shapes">Blend Shape (Part, Deformer Rotasi, Lem)</string>
 	<string name="runtime_feature_motion_sync">Motion-sync</string>
-	<string name="runtime_feature_extended_blend_modes">Mode Campuran</string>
+	<string name="runtime_feature_extended_blend_modes">Mode Blend</string>
 	<string name="runtime_feature_part_composite">Komposit Part (Penggambaran Offscreen)</string>
 	<string name="runtime_feature_art_path">Art Path</string>
 	<string name="properties_texture_source">Sumber Tekstur: %1$s</string>
@@ -976,8 +986,8 @@
 	<string name="properties_field_size_x">Ukuran X</string>
 	<string name="properties_field_size_z">Ukuran Z</string>
 	<string name="common_lock_aspect_ratio">Kunci Rasio Aspek</string>
-	<string name="properties_field_blend_mode">Campuran</string>
-	<string name="properties_field_alpha_mode">Alfa</string>
+	<string name="properties_field_blend_mode">Blend</string>
+	<string name="properties_field_alpha_mode">Alpha</string>
 	<string name="properties_field_culling">Sembunyikan Face Belakang</string>
 	<string name="properties_field_invert_mask">Balikkan Mask</string>
 	<string name="properties_field_flip_x">Balik X</string>
@@ -1009,7 +1019,7 @@
 	<string name="repack_options_power_of_two">Halaman Pangkat Dua</string>
 	<string name="repack_options_square_pages">Halaman Persegi</string>
 	<string name="repack_options_shrink_pages">Perkecil Halaman</string>
-	<string name="repack_options_alpha_threshold">Ambang Alfa</string>
+	<string name="repack_options_alpha_threshold">Ambang Alpha</string>
 	<string name="placement_options_move_x">Pindahkan X</string>
 	<string name="placement_options_move_y">Pindahkan Y</string>
 	<string name="placement_options_angle">Sudut</string>
@@ -1049,7 +1059,7 @@
 	<string name="mesh_preset_standard">Standar</string>
 	<string name="mesh_preset_fine">Halus</string>
 	<string name="mesh_preset_coarse">Kasar</string>
-	<string name="mesh_options_alpha_threshold">Ambang Alfa</string>
+	<string name="mesh_options_alpha_threshold">Ambang Alpha</string>
 	<string name="mesh_options_outline_spacing">Jarak Garis Luar</string>
 	<string name="mesh_options_interior_spacing">Jarak Interior</string>
 	<string name="mesh_options_outer_margin">Margin Luar</string>
@@ -1067,7 +1077,7 @@
 	<string name="import_options_align">Perataan</string>
 	<string name="import_options_offset_x">Offset X</string>
 	<string name="import_options_offset_z">Offset Z</string>
-	<string name="import_options_alpha_threshold">Ambang Alfa</string>
+	<string name="import_options_alpha_threshold">Ambang Alpha</string>
 	<string name="import_options_margin">Margin Mesh</string>
 	<string name="import_anchor_top_left">Kiri Atas</string>
 	<string name="import_anchor_top">Atas</string>
@@ -1108,7 +1118,7 @@
 	<string name="properties_field_pinned_description">Menahan art ini di tempatnya pada halaman atlas. Memindahkannya secara manual di area Editor UV ditolak, dan pengemasan ulang membiarkannya di tempat kecuali Pertahankan Tile Tersemat dinonaktifkan.</string>
 	<string name="properties_field_draw_order_description">Posisi tumpukan drawable ini, dari 0 hingga 1000: yang lebih tinggi digambar di depan, dan jika nilainya sama, yang letaknya lebih atas di area Outliner digambar di depan. Di dalam part dengan mode Dikelompokkan atau Terisolasi, drawable ini hanya ditumpuk di antara isi part tersebut.</string>
 	<string name="properties_field_opacity_description">Tingkat opasitas drawable, dari 0 (tak terlihat) hingga 1 (sama sekali tidak transparan).</string>
-	<string name="properties_field_blend_mode_description">Cara warna drawable bercampur dengan apa yang digambar di belakangnya, seperti mode campuran layer di aplikasi menggambar. Mode Lawas mengabaikan pengaturan Alfa.</string>
+	<string name="properties_field_blend_mode_description">Cara warna drawable bercampur dengan apa yang digambar di belakangnya, seperti mode blend layer di aplikasi menggambar. Mode Lawas mengabaikan pengaturan Alpha.</string>
 	<string name="properties_field_alpha_mode_description">Cara transparansi drawable digabungkan dengan apa yang ada di belakangnya. Over menumpuk secara normal, Atop hanya menggambar di atas art yang sudah ada, dan Out menghapus apa yang ada di belakangnya alih-alih menggambar. Conjoint dan Disjoint mengubah cara tepi lembut saling tumpang tindih.</string>
 	<string name="properties_field_multiply_color_description">Mengalikan warna drawable dengan warna ini untuk menggelapkannya atau memberinya rona warna. Putih tidak mengubahnya.</string>
 	<string name="properties_field_screen_color_description">Menerapkan warna ini secara Screen di atas drawable untuk mencerahkannya. Hitam tidak mengubahnya.</string>
@@ -1123,9 +1133,9 @@
 	<string name="properties_field_flip_y_description">Mencerminkan semua yang digerakkan deformer ini dari atas ke bawah, terhadap pivot deformer tersebut.</string>
 	<string name="properties_field_sketch_description">Menandai part ini sebagai part panduan, yaitu referensi seperti sketsa. Part ini tampil di editor, tetapi ekspor MOC3 tidak menyertakannya beserta seluruh isinya, kecuali Anda memilih untuk mengekspor part panduan.</string>
 	<string name="properties_field_draw_order_part_description">Posisi tumpukan seluruh part, dari 0 hingga 1000: yang lebih tinggi digambar di depan. Hanya digunakan jika Mode Grup adalah Dikelompokkan atau Terisolasi.</string>
-	<string name="properties_field_group_mode_description">Cara isi part ditumpuk dengan bagian lain dari boneka. Pass Through menumpuk setiap drawable menurut urutan gambarnya sendiri, Dikelompokkan menumpuk seluruh part pada urutan gambar part tersebut, dan Terisolasi juga menggambarnya sebagai satu layer dengan opasitas, mode campuran, warna, dan mask miliknya sendiri.</string>
+	<string name="properties_field_group_mode_description">Cara isi part ditumpuk dengan bagian lain dari boneka. Pass Through menumpuk setiap drawable menurut urutan gambarnya sendiri, Dikelompokkan menumpuk seluruh part pada urutan gambar part tersebut, dan Terisolasi juga menggambarnya sebagai satu layer dengan opasitas, mode blend, warna, dan mask miliknya sendiri.</string>
 	<string name="properties_field_opacity_part_description">Tingkat opasitas layer gabungan part, dari 0 (tak terlihat) hingga 1 (sama sekali tidak transparan). Opasitas diterapkan sekali ke seluruh layer, sehingga drawable yang bertumpukan di dalam part tidak saling tembus pandang.</string>
-	<string name="properties_field_blend_mode_part_description">Cara layer gabungan part bercampur dengan apa yang digambar di belakangnya, seperti mode campuran layer di aplikasi menggambar. Mode Lawas mengabaikan pengaturan Alfa.</string>
+	<string name="properties_field_blend_mode_part_description">Cara layer gabungan part bercampur dengan apa yang digambar di belakangnya, seperti mode blend layer di aplikasi menggambar. Mode Lawas mengabaikan pengaturan Alpha.</string>
 	<string name="properties_field_alpha_mode_part_description">Cara transparansi layer gabungan part digabungkan dengan apa yang ada di belakangnya. Over menumpuk secara normal, Atop hanya menggambar di atas art yang sudah ada, dan Out menghapus apa yang ada di belakangnya alih-alih menggambar. Conjoint dan Disjoint mengubah cara tepi lembut saling tumpang tindih.</string>
 	<string name="properties_field_multiply_color_part_description">Mengalikan warna layer gabungan part dengan warna ini. Putih tidak mengubahnya.</string>
 	<string name="properties_field_screen_color_part_description">Menerapkan warna ini secara Screen di atas layer gabungan part. Hitam tidak mengubahnya.</string>
