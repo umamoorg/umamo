@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	Indonesian UI string catalog; the English default is in values/strings.xml.  Format-level
+	identifiers (ParamAngleX, …) stay verbatim.  A key absent here resolves to the English catalog,
+	so this file may be filled in incrementally.
+
+	Terminology.  The same terms as the English catalog, in these Indonesian renderings.  The user
+	manual uses them too, so a string that disagrees with them is a bug.
+
+	File: berkas.  Any file, or a file whose kind does not matter.
+
+	Artwork, or Layered Artwork: artwork, or artwork berlapis where the layers are the point.  This
+	covers a PSD, CLIP, or KRA.  Never berkas seni, seni sumber, or gambar sumber for one of these.
+
+	Puppet: boneka.  The thing being edited and saved, whether it is a UMA, a CMO3, or a MOC3.  It
+	replaces both dokumen and a bare model.  Say model boneka or berkas boneka only where boneka alone
+	would be vague, such as the in-memory data against the file on disk.
+
+	EXT: a sentence about one specific file type names its extension (UMA, PSD, CMO3, MOC3) instead
+	of saying berkas.
+
+	Area: area, followed by the space's title as its header shows it: area Sumber, area Parameter,
+	area Viewport 2D.  Never panel or ruang for one of these.  A bare viewport stays the generic word.
+
+	Drawable: drawable.  Never mesh seni or objek gambar.  Mesh: mesh, the geometry only; the object
+	is drawable.  Vertex, edge, and face stay vertex, edge, and face.  Lattice: kisi, with titik for
+	its points, never vertex.  Object: objek (a drawable, part, or deformer), and elemen for one
+	vertex, edge, or face.  Deformer: deformer, as in deformer warp and deformer rotasi.
+
+	Key: key.  Keyform: keyform.  Keyframe: keyframe, reserved for a future dopesheet and never used
+	for a keyform parameter.  Never kunci or tombol for a key.
+
+	Part: part.  Bagian stays the generic word for a portion and never names a part.  Guide Part:
+	part panduan.  Never gambar panduan, and never sketsa for the name.
+
+	Atlas: atlas tekstur or atlas, each one a halaman.  Texture: tekstur.  Tile: tile.  Gutter:
+	padding, never margin, which is Margin.  Extrude: perluasan tepi, never ekstrusi, the 3D sense.
+
+	Bind: ikat, as in terikat, tidak terikat, ikat ulang, and lepas ikatan.  Tautan and tautkan are
+	only for pairing two parameters.  A glue that is re-bound is disambung ulang, a separate sense.
+
+	Glue: lem, a noun, never the verb mengelem.  Blend Shape: blend shape, apart from the Blend Mode
+	field, mode campuran.  Alpha Mode: mode alfa.  The mode names (Normal, Multiply, Screen, Over,
+	Atop, Out) stay verbatim.  Opacity: opasitas.  Alpha Threshold: ambang alfa.  Multiply Color and
+	Screen Color: warna Multiply and warna Screen.  Group Mode: mode grup, with Pass Through,
+	Dikelompokkan, and Terisolasi.
+
+	Pose: pose; Pose Mode is Mode Pose and the default pose is pose bawaan.  Cursor: Kursor 2D, never
+	penunjuk or tetikus, which mean the mouse pointer.  Runtime: runtime.  Target: target.
+
+	Export notice verbs: ditulis (written), dibawa (carried), disederhanakan (lowered),
+	direkonsiliasi (reconcile), dibuat dari awal (synthesized), digabungkan (bundled), and tertutupi
+	(shadowed).
+
+	Style.  Address the user with a bare imperative ("Pilih properti"), and with Anda, capitalized,
+	where a pronoun is needed; never kamu, kau, or lo.  Commands and titles follow EN's Title Case
+	under the PUEBI title rule: dan, atau, di, ke, dari, untuk, dengan, yang, and pada stay lowercase
+	unless first.  The modifier follows the noun (Viewport 2D, berkas UMA).  Never reduplicate for a
+	plural; a number or semua, beberapa carries it.  Never put an Indonesian affix on an English
+	loan (di-bind); use the Indonesian verb (diikat) or recast the sentence.  Use the KBBI forms of
+	established loans (ekspor, impor, parameter, tekstur, opasitas, objek, rotasi) and keep other
+	loans in English.  One space between sentences, “ ” for a quoted name, and … for an ellipsis.
+
+	Left as they are: "source artwork" (the display mode that draws a drawable from its layer instead
+	of the atlas) is artwork sumber, art is shorthand for what a drawable shows, and format-level
+	names stay verbatim for interop (model3.json, ParamAngleX, and the like).
+-->
+<resources>
+</resources>

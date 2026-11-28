@@ -12,6 +12,7 @@ class UiLanguageMatchTest {
 		assertEquals("ja", matchUiLanguage(listOf("ja-JP"), shipped))
 		assertEquals("ko", matchUiLanguage(listOf("ko-KR"), shipped))
 		assertEquals("fr", matchUiLanguage(listOf("fr-FR"), shipped))
+		assertEquals("id", matchUiLanguage(listOf("id-ID"), shipped))
 		// Every French region shares the one catalog.
 		assertEquals("fr", matchUiLanguage(listOf("fr-CA"), shipped))
 	}
@@ -21,6 +22,7 @@ class UiLanguageMatchTest {
 		assertEquals("ja", matchUiLanguage(listOf("ja_JP"), shipped))
 		assertEquals("ko", matchUiLanguage(listOf("KO"), shipped))
 		assertEquals("fr", matchUiLanguage(listOf("FR_be"), shipped))
+		assertEquals("id", matchUiLanguage(listOf("ID_id"), shipped))
 	}
 
 	@Test
