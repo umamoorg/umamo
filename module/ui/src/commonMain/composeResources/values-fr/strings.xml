@@ -103,7 +103,7 @@
 	<string name="cmd_import_moc3">Importer MOC3…</string>
 	<string name="cmd_import_artwork">Importer l'Artwork…</string>
 	<string name="cmd_document_reload_artwork">Recharger l'Artwork</string>
-	<string name="cmd_sources_relink">Réassocier l'Art</string>
+	<string name="cmd_sources_rebind">Réassocier l'Art</string>
 	<string name="cmd_sources_match_automatically">Correspondre à l'Artwork Automatiquement</string>
 	<string name="cmd_sources_replace_artwork">Remplacer l'Artwork…</string>
 	<string name="cmd_sources_delete_art">Supprimer l'Art</string>
@@ -174,7 +174,7 @@
 	     are the returned and expected coordinate counts; %1$s in the mask line is the mask drawable
 	     names; %1$d/%2$s in the id lines are the record width in bytes and the written id. -->
 	<string name="export_reason_channel_demoted_to_static">%1$s est keyed sur une intervalle plus étroit que la grille de l'objet, donc il a été écrit en tant qu'un constant.  MOC3 enregistre une grille par object.</string>
-	<string name="export_reason_sketch_part_not_runtime_content">Une partie image guide (brouillon) n'est pas du contenu pour la runtime, donc il a été abandonné.</string>
+	<string name="export_reason_guide_part_not_runtime_content">Une partie image guide (brouillon) n'est pas du contenu pour la runtime, donc il a été abandonné.</string>
 	<string name="export_reason_hidden_part_omitted_by_option">La partie était cachée et les paramètres d'export ignorent les parties cachées, donc son contenu a été ignoré.</string>
 	<string name="export_reason_hidden_drawable_omitted_by_option">Le drawable est caché et les paramètres d'export omittent les meshs cachés, donc il a été laissé.</string>
 	<string name="export_reason_unkeyed_drawable_under_deformer">Un drawable sans clés sous un déformeur n'a pas de géometrie sur l'espace parent à écrire, donc il a été laissé.</string>

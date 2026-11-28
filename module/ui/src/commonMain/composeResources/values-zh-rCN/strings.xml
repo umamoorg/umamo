@@ -76,7 +76,7 @@
 	<string name="cmd_import_artwork">导入原画…</string>
 	<string name="cmd_file_add_artwork">添加原画…</string>
 	<string name="cmd_document_reload_artwork">重新加载原画</string>
-	<string name="cmd_sources_relink">重新关联原画</string>
+	<string name="cmd_sources_rebind">重新关联原画</string>
 	<string name="cmd_sources_match_automatically">自动匹配原画</string>
 	<string name="cmd_sources_replace_artwork">替换原画…</string>
 	<string name="cmd_sources_delete_art">删除原画</string>
@@ -137,7 +137,7 @@
 		are the returned and expected coordinate counts; %1$s in the mask line is the mask drawable
 		names; %1$d/%2$s in the id lines are the record width in bytes and the written id. -->
 	<string name="export_reason_channel_demoted_to_static">%1$s 的键范围比对象的栅格范围窄，因此作为常量导出。MOC3 每个对象仅能保留一个栅格。</string>
-	<string name="export_reason_sketch_part_not_runtime_content">参考图（底图）部件不是运行时内容，因此已排除。</string>
+	<string name="export_reason_guide_part_not_runtime_content">参考图（底图）部件不是运行时内容，因此已排除。</string>
 	<string name="export_reason_hidden_part_omitted_by_option">由于设置了不导出隐藏部件，已排除该部件的内容。</string>
 	<string name="export_reason_hidden_drawable_omitted_by_option">由于设置了不导出隐藏图形网格，已排除该图形网格。</string>
 	<string name="export_reason_unkeyed_drawable_under_deformer">变形器下未设置键的图形网格没有可导出的父级空间形状，因此已排除。</string>

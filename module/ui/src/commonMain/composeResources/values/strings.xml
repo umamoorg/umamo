@@ -1,33 +1,114 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  English (default) UI string catalog. Every user-facing chrome string lives here and is read via the
-  generated Res.string.* accessor through stringResource(); format-level identifiers (ParamAngleX, …)
-  are NEVER localized — they are puppet/interop data, not chrome.
+	English (default) UI string catalog. Every user-facing chrome string lives here and is read via the
+	generated Res.string.* accessor through stringResource(); format-level identifiers (ParamAngleX, …)
+	are NEVER localized — they are puppet/interop data, not chrome.
 
-  Terminology.  Four terms name the things the editor opens, saves, and imports.  The user manual
-  uses the same four, so a string that disagrees with them is a bug.
+	American English(Mostly) - The author may unintentionally mix in some British spellings that are
+	common from where she grew up.  This is why modelling is spelled with two Ls.
 
-  File: any file, or a file whose kind does not matter (the logs export, sidecar files, a count of
-  files an export will overwrite, a file that is unrecognized or damaged).
+	Terminology.  These terms bind every locale.  The user manual uses the same ones, so a string that
+	disagrees with them is a bug.
 
-  Artwork, or Layered Artwork: A PSD, CLIP, or KRA.  Say layered artwork only where the layers are
-  the point.  Never "source art file" or "art file" for one of these.
+	File: any file, or a file whose kind does not matter (the logs export, sidecar files, a count of
+	files an export will overwrite, a file that is unrecognized or damaged).
 
-  Puppet: The thing being edited and saved, whether it is a UMA, a CMO3, or a MOC3.  It replaces
-  both "document" and "model".  Say puppet model or puppet file only where puppet alone would be
-  vague, such as the in-memory data against the file on disk.
+	Artwork, or Layered Artwork: A PSD, CLIP, or KRA.  Say layered artwork only where the layers are
+	the point.  Never "source art file" or "art file" for one of these.
 
-  EXT: A sentence about one specific file type names its extension (UMA, PSD, CMO3, MOC3) instead of
-  saying "the file".
+	Puppet: The thing being edited and saved, whether it is a UMA, a CMO3, or a MOC3.  It replaces
+	both "document" and "model".  Say puppet model or puppet file only where puppet alone would be
+	vague, such as the in-memory data against the file on disk.
 
-  Area: a part of the window, named by the space it shows: the Sources area, the Parameters area,
-  the 2D Viewport area.  Write the space's title as its header shows it, then "area".  Never call
-  one a panel or a space, and never write a lowercase "the outliner" or "the UV editor".  A
-  lowercase "viewport" stays the generic word ("every viewport", "no viewport to capture").
+	EXT: A sentence about one specific file type names its extension (UMA, PSD, CMO3, MOC3) instead of
+	saying "the file".
 
-  Left as they are: "source artwork" (the display mode that draws a mesh from its layer instead of
-  the atlas), "art" as shorthand for what a drawable shows, and format-level names that stay
-  verbatim for interop (model3.json, ParamAngleX, and the like).
+	Area: a part of the window, named by the space it shows: the Sources area, the Parameters area,
+	the 2D Viewport area.  Write the space's title as its header shows it, then "area".  Never call
+	one a panel or a space, and never write a lowercase "the outliner" or "the UV editor".  A
+	lowercase "viewport" stays the generic word ("every viewport", "no viewport to capture").  "Panel"
+	stays only where a CMO3 export notice names the Cubism Editor's own panel order.
+
+	Drawable: Any artwork layer with a mesh.  Never "art mesh" or "artmesh".  Art mesh is a strange
+	naming and translation that we are not inheriting from Live2D Cubism.
+
+	Mesh: The geometry part of a drawable: its vertices, edges, and faces.  Say drawable for the
+	object ("Move Drawable") and mesh only for its geometry ("Generate Mesh from Art").
+
+	Lattice: The geometry of a warp deformer.  It has points, never vertices.
+
+	Key: A single entry on a keyform parameter.  Not a keyboard key, and not the layer key a reload
+	matches by, which is a layer's identifier.
+
+	Keyform: A group of key entries on a keyform parameter.  Includes geometry, opacity, and other keyed properties.
+
+	Keyframe: A single entry on an animation dopesheet.  Should never be used to refer to keyform parameters.
+
+	Part: A group containing drawables and other parts.  A parameter group is a different thing, and
+	so is a part's Group Mode.
+
+	Guide Part: A part that is for reference purposes only and is not exported for runtimes by
+	default.  Do not use "Guide Image" since the setting is on a part.  It may be explained as a
+	sketch or set of sketches, but don't use sketch for the naming.  The Guides overlay section is a
+	different thing: the grid and axes helpers.
+
+	Texture Atlas, or Atlas: One packed image of placed tiles that can be rearranged.  A puppet can
+	have several, and the interface also calls each one a page ("atlas page", "Page 2").  A bare "the
+	atlas" means all of them, as in Repack Atlas.
+
+	Texture: The actual backing image file for a Texture Atlas.
+
+	Tile: An individual artwork layer placed on a texture atlas.  Say tile where placement or packing
+	is the point, and art for what a drawable shows.
+
+	Gutter, Extrude: The gutter is empty padding kept around each tile on a page.  Extrude copies a
+	tile's edge color outward into the gutter to hide seams, and has nothing to do with 3D extrusion.
+
+	Bind: Art is bound to the layer of an artwork it came from, so it is bound or unbound, and Rebind
+	points it at another layer.  Link is reserved for pairing two parameters.  A glue that an export
+	notice calls re-bound was rebuilt, which is a separate sense.
+
+	Object: Any drawable, part, or deformer; the generic word for what is selected and transformed.
+	An element is one vertex, edge, or face of a mesh.
+
+	Glue: A weld between vertices of two drawables so they move as one.  A noun, never the verb.
+
+	Blend Mode, Alpha Mode: A drawable's Blend Mode mixes its colors with what is behind it (Normal,
+	Multiply, Screen), and its Alpha Mode combines its transparency (Over, Atop, Out).  Opacity is how
+	see-through it is, and Alpha Threshold is the pixel cutoff for what counts as art.  Multiply
+	Color and Screen Color are tint properties that share a name with two blend modes.  A Blend Shape
+	is a stored morph and has nothing to do with any of these.
+
+	Group Mode: How a part's contents stack.  Pass Through stacks each drawable by its own draw
+	order, Grouped stacks the whole part at the part's draw order, and Isolated also draws it as one
+	combined layer with its own opacity, blend, colors, and masks.
+
+	Pose: Pose Mode is an editor mode.  The pose is the current parameter values, and the default
+	pose is every parameter at its default.  pose3.json stays verbatim.
+
+	Cursor: The 2D Cursor is a placed reference marker for pivot and snap.  It is never the mouse
+	pointer.
+
+	Axes: X is horizontal, Z is vertical, and Y is depth.  The letters stay verbatim, and Z is never
+	corrected to Y.
+
+	Runtime: The player software that plays an exported puppet, such as Ayagami.  A puppet's Target
+	is the runtime it is made for.  Product names stay verbatim.
+
+	Export notice verbs: Say what happened to the user's data, not the engineering word.  Written
+	means saved into the exported file, and carried means kept through the export.  Lowered means
+	written in the target format's own, simpler form.  Reconcile means comparing the edited puppet
+	with the CMO3 it came from and writing only the differences.  Synthesized means built from
+	scratch because the target format needs it.  Bundled means fitted into one grid with other keyed
+	tracks.  Shadowed means hidden behind a keyform track, so it cannot be stored on its own.
+
+	Blender terms: Grab, Rip, Merge, Slide, Pivot Point, Proportional Editing, Falloff, Snap, Median,
+	Active, Armature, and the Object, Edit, and Pose modes take the target language's own Blender
+	translation where one exists.
+
+	Left as they are: "source artwork" (the display mode that draws a drawable from its layer instead
+	of the atlas), "art" as shorthand for what a drawable shows, and format-level names that stay
+	verbatim for interop (model3.json, ParamAngleX, and the like).
 -->
 <resources>
 	<string name="app_name">Umamo</string>
@@ -112,7 +193,7 @@
 	<string name="cmd_import_moc3">Import MOC3…</string>
 	<string name="cmd_import_artwork">Import Artwork…</string>
 	<string name="cmd_document_reload_artwork">Reload Artwork</string>
-	<string name="cmd_sources_relink">Relink Art</string>
+	<string name="cmd_sources_rebind">Rebind Art</string>
 	<string name="cmd_sources_match_automatically">Match Artwork Automatically</string>
 	<string name="cmd_sources_replace_artwork">Replace Artwork…</string>
 	<string name="cmd_sources_delete_art">Delete Art</string>
@@ -201,12 +282,12 @@
 	<string name="export_reason_channel_demoted_to_static">%1$s is keyed over a narrower span than the object's grid, so it was written as a constant.  MOC3 stores one grid per object.</string>
 	<string name="export_reason_channel_demoted_by_geometry">%1$s has keys that do not fit the geometry's keyed span, so it was written as a constant.  MOC3 stores one grid per object.</string>
 	<string name="export_reason_keyforms_demoted_to_static">%1$s  The object was written without its keyforms.  MOC3 stores one grid per object.</string>
-	<string name="export_reason_sketch_part_not_runtime_content">A guide-image (sketch) part is not runtime content, so it was left out.</string>
+	<string name="export_reason_guide_part_not_runtime_content">A guide part is not runtime content, so it was left out.</string>
 	<string name="export_reason_hidden_part_omitted_by_option">The part is hidden and the export options omit hidden parts, so its contents were left out.</string>
 	<string name="export_reason_hidden_drawable_omitted_by_option">The drawable is hidden and the export options omit hidden drawables, so it was left out.</string>
 	<string name="export_reason_vertex_count_exceeds_index_width">The mesh has %1$d vertices, more than the %2$d this format allows, so it was left out.</string>
 	<string name="export_reason_no_atlas_page_bound">No atlas page is bound to this drawable, so it was written pointing at page 0.</string>
-	<string name="export_reason_clipping_mask_not_in_export">The clipping mask %1$s is not in this export, so the mesh was written unclipped by it.</string>
+	<string name="export_reason_clipping_mask_not_in_export">The clipping mask %1$s is not in this export, so the drawable was written unclipped by it.</string>
 	<string name="export_reason_offscreen_mask_not_in_export">A clipping mask names a drawable that could not be written, so it was dropped from the offscreen.</string>
 	<string name="export_reason_warp_has_no_lattice">A warp deformer with no control-point grid has no lattice to write.  One empty lattice was written in its place so the file stays readable, and everything bound to this deformer collapses to the origin.</string>
 	<string name="export_reason_rotation_has_no_pivot">A rotation deformer with no pivot grid has no transform to write, so the identity transform was written in its place.</string>
@@ -214,13 +295,13 @@
 	<string name="export_reason_id_truncated">The id does not fit a moc's %1$d-byte id record, so it was written truncated to “%2$s”.</string>
 	<string name="export_reason_id_truncated_disambiguated">The id does not fit a moc's %1$d-byte id record, and truncating it collided with another object's id, so it was written as “%2$s”.</string>
 	<!-- CMO3 reconcile: an edit with no counterpart in the retained graph. -->
-	<string name="export_reason_no_matching_source">There is no matching CMO3 source to reconcile against, so the change was not written.</string>
+	<string name="export_reason_no_matching_source">There is no matching object in the CMO3 to reconcile against, so the change was not written.</string>
 	<string name="export_reason_parameter_kind_change">A parameter's kind change (normal / blend shape) is not lowered.</string>
 	<string name="export_reason_deformer_kind_change">A deformer's kind change is not lowered.</string>
-	<string name="export_reason_deformer_needs_warp_source">The CMO3 source is not a warp deformer, so warp-only edits (bilinear mode, lattice, keyforms) were not written.</string>
-	<string name="export_reason_deformer_needs_rotation_source">The CMO3 source is not a rotation deformer, so rotation-only edits (base angle, keyforms) were not written.</string>
+	<string name="export_reason_deformer_needs_warp_source">The matching CMO3 object is not a warp deformer, so warp-only edits (bilinear mode, lattice, keyforms) were not written.</string>
+	<string name="export_reason_deformer_needs_rotation_source">The matching CMO3 object is not a rotation deformer, so rotation-only edits (base angle, keyforms) were not written.</string>
 	<string name="export_reason_texture_rebinding_editor_only">Texture-source rebinding is editor-only state and is not written to CMO3.</string>
-	<string name="export_reason_base_geometry_vertex_mismatch">The base geometry does not match the CMO3 source's vertex count, so it was not written.</string>
+	<string name="export_reason_base_geometry_vertex_mismatch">The base geometry does not match the vertex count of its matching CMO3 object, so it was not written.</string>
 	<string name="export_reason_no_uvs_to_reconcile">The drawable has no UVs to reconcile, so none were written.</string>
 	<string name="export_reason_deformer_no_part_to_move_to">There is no CMO3 part to move the deformer to, so its part was left unchanged.</string>
 	<string name="export_reason_static_draw_order_shadowed">The static draw order is shadowed by its keyform track, so CMO3 cannot store it independently.</string>
@@ -228,10 +309,10 @@
 	<string name="export_reason_part_masks_flatten">Part-typed composite masks flatten to their descendant drawables in CMO3.</string>
 	<!-- CMO3 structural creation: a new entity with nowhere to be created. -->
 	<string name="export_reason_no_source_set_to_create_into">The CMO3 has no set of this kind to create into, so the new entity was not synthesized.</string>
-	<string name="export_reason_created_entity_has_no_source">The newly created entity has no CMO3 source yet, so it was left out of the panel order.</string>
+	<string name="export_reason_created_entity_has_no_source">The newly created entity has no matching CMO3 object yet, so it was left out of the panel order.</string>
 	<string name="export_reason_created_group_not_in_tree">The created group is not in the edited parameter tree, so it was not synthesized.</string>
 	<string name="export_reason_created_drawable_no_texture_source">The created drawable has no texture source to clone, so it was not synthesized.</string>
-	<string name="export_reason_glued_drawable_has_no_source">A glued drawable has no CMO3 source, so the glue was not synthesized.</string>
+	<string name="export_reason_glued_drawable_has_no_source">A glued drawable has no matching CMO3 object, so the glue was not synthesized.</string>
 	<!-- CMO3 mesh topology and glue re-binding.  %1$d/%2$d are the mesh's vertex count and the most
 	     the edge table can index. -->
 	<string name="export_reason_vertex_count_exceeds_edge_table">The mesh has %1$d vertices, past the %2$d the editable mesh's edge table can index, so the edge table was not rebuilt.</string>
@@ -240,8 +321,8 @@
 	<!-- CMO3 keyforms.  %1$s in the bundle line is an export_bundle_* sentence; %1$s in the parameter
 	     lines is the parameter id, which is format-level data and stays verbatim. -->
 	<string name="export_reason_keyform_cannot_bundle">%1$s  CMO3 stores one grid per object.</string>
-	<string name="export_reason_axis_parameter_no_source">The grid axis parameter %1$s has no CMO3 source, so the keyform grid was not written.</string>
-	<string name="export_reason_blend_shape_parameter_no_source">The blend-shape parameter %1$s has no CMO3 source, so the blend shape was not written.</string>
+	<string name="export_reason_axis_parameter_no_source">The grid axis parameter %1$s has no matching CMO3 parameter, so the keyform grid was not written.</string>
+	<string name="export_reason_blend_shape_parameter_no_source">The blend-shape parameter %1$s has no matching CMO3 parameter, so the blend shape was not written.</string>
 	<string name="export_reason_physics_names_deleted_parameter">The physics settings %1$s still use this deleted parameter.  They were exported unchanged; point them at another parameter or remove them in the Cubism Editor.</string>
 	<string name="export_reason_sidecar_names_unwritten_parameters">%1$s refers to parameters that are not in this export (%2$s).  It was exported unchanged, so software that plays the puppet will not find them.</string>
 	<string name="export_reason_sidecar_names_unwritten_parts">%1$s refers to parts that are not in this export (%2$s).  It was exported unchanged, so software that plays the puppet will have nothing to show or hide for them.</string>
@@ -268,7 +349,7 @@
 	<string name="export_reason_atlas_page_not_recomposed">This artwork was moved on its atlas page, but the page image still shows it at its old spot; repack to redraw it.</string>
 	<string name="export_reason_atlas_tile_metadata">This artwork's pixels, name, or size changed, which an atlas placement cannot carry; re-import the artwork instead.</string>
 	<string name="export_reason_atlas_tile_rebinding">This drawable was bound to different artwork, which needs the artwork re-imported rather than repacked.</string>
-	<string name="export_reason_source_layer_binding_not_in_export">This art is bound to layer %2$s of %1$s, but the puppet does not list that artwork, so the binding could not be exported.  Relink it in the Sources area to export the binding.</string>
+	<string name="export_reason_source_layer_binding_not_in_export">This art is bound to layer %2$s of %1$s, but the puppet does not list that artwork, so the binding could not be exported.  Rebind it in the Sources area to export the binding.</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 stores whole canvas pixels, so the fractional canvas size was not written.</string>
 	<!-- Export overwrite warning (the document.confirm command; %1$d is how many existing files the
 	     export would replace, %2$s the abbreviated file list). -->
@@ -282,7 +363,7 @@
 	<string name="export_options_section_scale">Scale</string>
 	<string name="export_options_hidden_parts">Export hidden parts</string>
 	<string name="export_options_hidden_drawables">Export hidden drawables</string>
-	<string name="export_options_guide_parts">Export sketch parts</string>
+	<string name="export_options_guide_parts">Export guide parts</string>
 	<string name="export_options_include_physics">Physics settings (physics3.json)</string>
 	<string name="export_options_include_userdata">User data (userdata3.json)</string>
 	<string name="export_options_include_displayinfo">Display info (cdi3.json)</string>
@@ -388,7 +469,7 @@
 	<string name="cmd_mode_pose">Pose Mode</string>
 	<string name="group_editor_mode">Mode</string>
 	<string name="group_uv_mirror">Mirror</string>
-	<string name="group_keyform_key">Keyframe</string>
+	<string name="group_keyform_key">Key</string>
 	<string name="group_relation">Relation</string>
 	<string name="group_parameter_control">Control</string>
 	<string name="group_viewport_tools">Tools</string>
@@ -414,10 +495,10 @@
 	<!-- UV editor texture selector (area header) and its page-switch commands. Pages display 1-based. -->
 	<string name="uv_texture_selector_follow">Follow Selection</string>
 	<string name="uv_texture_selector_page">Page %1$d</string>
-	<string name="uv_texture_selector_page_row">Page %1$d · %2$d × %3$d · %4$d meshes</string>
+	<string name="uv_texture_selector_page_row">Page %1$d · %2$d × %3$d · %4$d drawables</string>
 	<string name="uv_texture_selector_layer">Source Layer</string>
 	<string name="uv_layer_picker_title">Find by Artwork</string>
-	<string name="uv_layer_picker_row">%1$s · %2$d × %3$d · %4$d meshes</string>
+	<string name="uv_layer_picker_row">%1$s · %2$d × %3$d · %4$d drawables</string>
 	<string name="uv_layer_picker_no_matches">No artwork matches</string>
 	<string name="uv_layer_picker_empty">This puppet has no source artwork.</string>
 	<string name="cmd_document_toggle_source_artwork">Toggle Source Artwork Display</string>
@@ -463,21 +544,21 @@
 	<string name="history_part_rename">Rename Part</string>
 	<string name="history_part_selectable">Toggle Part Selectability</string>
 	<string name="history_part_move">Move Part</string>
-	<string name="history_visibility_drawable">Toggle Mesh Visibility</string>
+	<string name="history_visibility_drawable">Toggle Drawable Visibility</string>
 	<string name="history_visibility_deformer">Toggle Deformer Visibility</string>
-	<string name="history_drawable_rename">Rename Mesh</string>
-	<string name="history_drawable_selectable">Toggle Mesh Selectability</string>
-	<string name="history_drawable_move">Move Mesh</string>
+	<string name="history_drawable_rename">Rename Drawable</string>
+	<string name="history_drawable_selectable">Toggle Drawable Selectability</string>
+	<string name="history_drawable_move">Move Drawable</string>
 	<string name="history_visibility_hide_unselected">Hide Unselected</string>
 	<string name="history_visibility_unhide_all">Unhide All</string>
 	<string name="history_relation_copy_to_selected">Copy Relation to Selected</string>
 	<string name="history_deformer_rename">Rename Deformer</string>
 	<string name="history_deformer_selectable">Toggle Deformer Selectability</string>
 	<string name="history_deformer_move">Move Deformer</string>
-	<string name="history_keyform_insert">Insert Keyframe</string>
-	<string name="history_keyform_move">Move Keyframe</string>
-	<string name="history_keyform_remove">Remove Keyframe</string>
-	<string name="history_keyform_select">Select Keyframe</string>
+	<string name="history_keyform_insert">Insert Key</string>
+	<string name="history_keyform_move">Move Key</string>
+	<string name="history_keyform_remove">Remove Key</string>
+	<string name="history_keyform_select">Select Key</string>
 	<string name="history_parameter_select">Select Parameter</string>
 	<string name="history_parameter_value">Adjust Parameter</string>
 	<string name="history_parameter_range">Edit Parameter Range</string>
@@ -522,9 +603,9 @@
 	<string name="history_mesh_select">Select Elements</string>
 	<string name="history_mesh_select_mode">Change Select Mode</string>
 	<string name="history_part_delete">Delete Part</string>
-	<string name="history_drawable_delete">Delete Mesh</string>
+	<string name="history_drawable_delete">Delete Drawable</string>
 	<string name="history_deformer_delete">Delete Deformer</string>
-	<string name="history_part_sketch">Toggle Guide Image</string>
+	<string name="history_part_sketch">Toggle Guide Part</string>
 	<string name="history_part_draw_order">Set Part Draw Order</string>
 	<string name="history_part_group_mode">Set Group Mode</string>
 	<string name="history_part_composite">Set Composite</string>
@@ -555,7 +636,7 @@
 	<string name="history_document_atlas_pin">Pin Art On Atlas</string>
 	<string name="history_document_atlas_unpin">Unpin Art On Atlas</string>
 	<string name="history_document_atlas_repack">Repack Atlas</string>
-	<string name="history_document_tile_source">Relink Art</string>
+	<string name="history_document_tile_source">Rebind Art</string>
 	<string name="history_document_tile_unbind">Unbind Art</string>
 	<string name="history_document_delete_tile">Delete Art</string>
 	<string name="history_document_delete_tile_ignore">Delete Art, Ignore Layer</string>
@@ -563,7 +644,7 @@
 	<string name="history_document_layer_unignore">Stop Ignoring Layer</string>
 	<string name="history_document_import_artwork">Import Artwork</string>
 	<string name="history_document_reload_artwork">Reload Artwork</string>
-	<string name="history_document_relink_artwork">Relink Art</string>
+	<string name="history_document_relink_artwork">Rebind Art</string>
 	<string name="history_document_match_artwork">Match Artwork</string>
 	<string name="history_document_replace_artwork">Replace Artwork</string>
 	<string name="history_document_runtime_target">Set Runtime Target</string>
@@ -586,7 +667,7 @@
 	<string name="sources_suggestion_title">Review this binding</string>
 	<string name="sources_suggestion_accept">Accept %1$s (%2$d%)</string>
 	<string name="sources_suggestion_accept_merge">Accept %1$s (%2$d%) and remove its new drawable</string>
-	<string name="sources_suggestion_relink">Relink Manually…</string>
+	<string name="sources_suggestion_relink">Rebind Manually…</string>
 	<string name="sources_suggestion_leave">Leave for Now</string>
 	<string name="sources_filter_bound">Bound</string>
 	<string name="sources_filter_unbound">Unbound</string>
@@ -611,7 +692,7 @@
 	<string name="sources_layer_detail_axes">%1$d × %2$d at %3$s x, %4$s z</string>
 	<string name="sources_tile_page">page %1$d</string>
 	<string name="sources_tile_unlisted_binding">bound to %2$s in %1$s</string>
-	<string name="sources_relink_title">Relink to a Layer</string>
+	<string name="sources_relink_title">Rebind to a Layer</string>
 	<string name="sources_relink_clear">Unbind</string>
 	<string name="sources_relink_delete">Delete Art</string>
 	<string name="sources_relink_no_matches">No layer matches.</string>
@@ -791,7 +872,7 @@
 	<string name="notice_reload_done">Artwork reloaded: %1$d updated, %2$d added, %3$d matched.</string>
 	<string name="notice_reload_notes">Artwork reloaded: %1$d updated, %2$d added, %3$d matched, %4$d need review.</string>
 	<string name="notice_reload_outgrown">Artwork reloaded: %1$d updated, %2$d added, %3$d matched, %4$d need review; some layers now reach past the edges of their meshes.</string>
-	<string name="notice_relink_outgrown">Art relinked; some layers now reach past the edges of their meshes.</string>
+	<string name="notice_relink_outgrown">Art rebound; some layers now reach past the edges of their meshes.</string>
 	<string name="notice_match_outgrown">%1$d layer(s) matched, %2$d left for review; some layers now reach past the edges of their meshes.</string>
 	<string name="notice_replace_outgrown">Artwork replaced: %1$d layer(s) reloaded by key, %2$d matched, %3$d left for review; some layers now reach past the edges of their meshes.</string>
 	<string name="notice_watch_changed">%1$d artwork file(s) changed on disk.  Press Reload to take the changes.</string>
@@ -799,13 +880,13 @@
 	<string name="notice_watch_missing">%1$s is no longer where the puppet read it.</string>
 	<string name="notice_reload_no_changes">The artwork file(s) have not changed.</string>
 	<string name="notice_reload_no_files">No artwork file could be read; nothing was reloaded.</string>
-	<string name="notice_relink_pulled">Art relinked and reloaded.</string>
-	<string name="notice_relink_binding_only">Art relinked; its artwork could not be read, so the art did not change.</string>
-	<string name="notice_relink_pulled_from_document">Art relinked; its artwork could not be read, so the puppet's copy of the layer was used.</string>
+	<string name="notice_relink_pulled">Art rebound and reloaded.</string>
+	<string name="notice_relink_binding_only">Art rebound; its artwork could not be read, so the art did not change.</string>
+	<string name="notice_relink_pulled_from_document">Art rebound; its artwork could not be read, so the puppet's copy of the layer was used.</string>
 	<string name="notice_match_done">%1$d layer(s) matched, %2$d left for review.</string>
 	<string name="notice_match_no_files">No artwork could be read, from its file or from this puppet; nothing was matched.</string>
 	<string name="notice_match_nothing">No binding matched confidently enough; the suggestions are on the rows that need review.</string>
-	<string name="notice_match_no_candidates">Nothing left to match against: every candidate layer is already bound.  Adjust Match Threshold on the reload's strip, or relink manually.</string>
+	<string name="notice_match_no_candidates">Nothing left to match against: every candidate layer is already bound.  Adjust Match Threshold on the reload's strip, or rebind manually.</string>
 	<string name="notice_replace_done">Artwork replaced: %1$d layer(s) reloaded by key, %2$d matched, %3$d left for review.</string>
 	<string name="notice_atlas_repack_superseded">Repack canceled: the atlas changed while packing.</string>
 	<string name="notice_atlas_repack_unchanged">Atlas already packed; nothing changed.</string>
@@ -1056,7 +1137,7 @@
 	<string name="properties_field_angle">Angle</string>
 	<string name="properties_field_scale">Scale</string>
 	<string name="properties_field_quad_transform">Bilinear (Quad)</string>
-	<string name="properties_field_sketch">Guide Image</string>
+	<string name="properties_field_sketch">Guide Part</string>
 	<string name="properties_field_draw_order">Draw Order</string>
 	<string name="properties_field_group_mode">Group Mode</string>
 	<string name="properties_field_opacity">Opacity</string>
@@ -1145,7 +1226,7 @@
 	<string name="import_options_offset_x">Offset X</string>
 	<string name="import_options_offset_z">Offset Z</string>
 	<string name="import_options_alpha_threshold">Alpha Threshold</string>
-	<string name="import_options_margin">Birth Mesh Margin</string>
+	<string name="import_options_margin">Mesh Margin</string>
 	<string name="import_anchor_top_left">Top Left</string>
 	<string name="import_anchor_top">Top</string>
 	<string name="import_anchor_top_right">Top Right</string>
@@ -1166,12 +1247,12 @@
 	<string name="properties_field_canvas_height_description">The canvas height, in pixels.  Resizing moves only its bottom edge, so the art and the world axes stay put while Origin Z changes by the same amount.</string>
 	<string name="properties_field_origin_x_description">Where the world axes cross, in pixels from the canvas's left edge.  The Position fields measure from these axes.</string>
 	<string name="properties_field_origin_z_description">Where the world axes cross, in pixels up from the canvas's bottom edge.  The Position fields measure from these axes.</string>
-	<string name="properties_field_source_layer_display_description">Draws each mesh from its original artwork layer instead of the packed atlas.  A mesh whose layer the puppet does not keep still draws from the atlas.</string>
+	<string name="properties_field_source_layer_display_description">Draws each drawable from its original artwork layer instead of the packed atlas.  A drawable whose layer the puppet does not keep still draws from the atlas.</string>
 	<string name="properties_field_runtime_target_description">The runtime this puppet is made for.  Controls for features it cannot play are hidden, but nothing is removed from the puppet; only a MOC3 export leaves those features out.</string>
-	<string name="properties_field_position_x_description">The horizontal center of the mesh as it appears in the viewport, measured from the world axes.  Editable only while every parameter is at its default.</string>
-	<string name="properties_field_position_z_description">The vertical center of the mesh as it appears in the viewport, measured up from the world axes.  Editable only while every parameter is at its default.</string>
-	<string name="properties_field_size_x_description">The width of the mesh as it appears in the viewport, scaled about its center when changed.  Editable only while every parameter is at its default.</string>
-	<string name="properties_field_size_z_description">The height of the mesh as it appears in the viewport, scaled about its center when changed.  Editable only while every parameter is at its default.</string>
+	<string name="properties_field_position_x_description">The horizontal center of the drawable as it appears in the viewport, measured from the world axes.  Editable only while every parameter is at its default.</string>
+	<string name="properties_field_position_z_description">The vertical center of the drawable as it appears in the viewport, measured up from the world axes.  Editable only while every parameter is at its default.</string>
+	<string name="properties_field_size_x_description">The width of the drawable as it appears in the viewport, scaled about its center when changed.  Editable only while every parameter is at its default.</string>
+	<string name="properties_field_size_z_description">The height of the drawable as it appears in the viewport, scaled about its center when changed.  Editable only while every parameter is at its default.</string>
 	<string name="properties_field_base_angle_description">The deformer's base rotation, in degrees.  The angle each keyform sets is added to it.</string>
 	<string name="properties_part_position_x_description">The horizontal center of the part's contents as they appear in the viewport, measured from the world axes.  Read-only for now.</string>
 	<string name="properties_part_position_z_description">The vertical center of the part's contents as they appear in the viewport, measured up from the world axes.  Read-only for now.</string>
@@ -1188,30 +1269,30 @@
 	<string name="properties_part_ref_description">The part this item belongs to.  Clearing it moves the item out of every part.</string>
 	<string name="properties_parent_deformer_description">The deformer this item is attached to.  The item follows it as it moves, bends, or turns.</string>
 	<string name="properties_field_pinned_description">Holds this art in place on its atlas page.  Moving it by hand in the UV Editor area is refused, and a repack leaves it where it is unless Keep Pinned Tiles is off.</string>
-	<string name="properties_field_draw_order_description">Where this mesh stacks, from 0 to 1000: higher draws in front, and a tie goes to the one higher in the Outliner area.  Inside a Grouped or Isolated part, it stacks only among that part's contents.</string>
-	<string name="properties_field_opacity_description">How opaque the mesh is, from 0 (invisible) to 1 (fully opaque).</string>
-	<string name="properties_field_blend_mode_description">How the mesh's colors mix with what is drawn behind it, like a paint app's layer blend modes.  The Legacy modes ignore the Alpha setting.</string>
-	<string name="properties_field_alpha_mode_description">How the mesh's transparency combines with what is behind it.  Over stacks normally, Atop draws only over art already there, and Out erases what is behind it instead of drawing.  Conjoint and Disjoint change how soft edges overlap.</string>
-	<string name="properties_field_multiply_color_description">Multiplies the mesh's colors by this color to darken or tint it.  White leaves it unchanged.</string>
-	<string name="properties_field_screen_color_description">Screens this color over the mesh to lighten it.  Black leaves it unchanged.</string>
+	<string name="properties_field_draw_order_description">Where this drawable stacks, from 0 to 1000: higher draws in front, and a tie goes to the one higher in the Outliner area.  Inside a Grouped or Isolated part, it stacks only among that part's contents.</string>
+	<string name="properties_field_opacity_description">How opaque the drawable is, from 0 (invisible) to 1 (fully opaque).</string>
+	<string name="properties_field_blend_mode_description">How the drawable's colors mix with what is drawn behind it, like a paint app's layer blend modes.  The Legacy modes ignore the Alpha setting.</string>
+	<string name="properties_field_alpha_mode_description">How the drawable's transparency combines with what is behind it.  Over stacks normally, Atop draws only over art already there, and Out erases what is behind it instead of drawing.  Conjoint and Disjoint change how soft edges overlap.</string>
+	<string name="properties_field_multiply_color_description">Multiplies the drawable's colors by this color to darken or tint it.  White leaves it unchanged.</string>
+	<string name="properties_field_screen_color_description">Screens this color over the drawable to lighten it.  Black leaves it unchanged.</string>
 	<string name="properties_field_culling_description">Hides any part of the mesh that a deformation flips over, instead of drawing it mirrored.</string>
-	<string name="properties_field_masked_by_description">Clips this mesh to the meshes listed here, so it shows only where they have art.</string>
-	<string name="properties_field_invert_mask_description">Shows the mesh only where its masks have no art, instead of only where they do.</string>
+	<string name="properties_field_masked_by_description">Clips this drawable to the drawables listed here, so it shows only where they have art.</string>
+	<string name="properties_field_invert_mask_description">Shows the drawable only where its masks have no art, instead of only where they do.</string>
 	<string name="properties_field_opacity_deformer_description">Scales the opacity of everything this deformer moves, nested deformers included, from 0 (invisible) to 1 (unchanged).</string>
 	<string name="properties_field_multiply_color_deformer_description">Multiplies the colors of everything this deformer moves by this color.  White leaves them unchanged.</string>
 	<string name="properties_field_screen_color_deformer_description">Screens this color over everything this deformer moves.  Black leaves it unchanged.</string>
 	<string name="properties_field_quad_transform_description">Bends each lattice cell smoothly between its four corners instead of as a fan of two triangles.</string>
 	<string name="properties_field_flip_x_description">Mirrors everything this deformer moves left to right, about its pivot.</string>
 	<string name="properties_field_flip_y_description">Mirrors everything this deformer moves top to bottom, about its pivot.</string>
-	<string name="properties_field_sketch_description">Marks this part as a guide image, such as a reference sketch.  It shows in the editor, but a MOC3 export leaves it and everything in it out.</string>
+	<string name="properties_field_sketch_description">Marks this part as a guide part, a reference such as a sketch.  It shows in the editor, but a MOC3 export leaves it and everything in it out unless you choose to export guide parts.</string>
 	<string name="properties_field_draw_order_part_description">Where the whole part stacks, from 0 to 1000: higher draws in front.  Used only when Group Mode is Grouped or Isolated.</string>
-	<string name="properties_field_group_mode_description">How the part's contents stack with the rest of the puppet.  Pass Through stacks each mesh by its own draw order, Grouped stacks the whole part at the part's draw order, and Isolated also draws it as one layer with its own opacity, blend, colors, and masks.</string>
-	<string name="properties_field_opacity_part_description">How opaque the part's combined layer is, from 0 (invisible) to 1 (fully opaque).  It applies once to the whole layer, so meshes overlapping inside the part do not show through each other.</string>
+	<string name="properties_field_group_mode_description">How the part's contents stack with the rest of the puppet.  Pass Through stacks each drawable by its own draw order, Grouped stacks the whole part at the part's draw order, and Isolated also draws it as one layer with its own opacity, blend, colors, and masks.</string>
+	<string name="properties_field_opacity_part_description">How opaque the part's combined layer is, from 0 (invisible) to 1 (fully opaque).  It applies once to the whole layer, so drawables overlapping inside the part do not show through each other.</string>
 	<string name="properties_field_blend_mode_part_description">How the part's combined layer mixes with what is drawn behind it, like a paint app's layer blend modes.  The Legacy modes ignore the Alpha setting.</string>
 	<string name="properties_field_alpha_mode_part_description">How the transparency of the part's combined layer combines with what is behind it.  Over stacks normally, Atop draws only over art already there, and Out erases what is behind it instead of drawing.  Conjoint and Disjoint change how soft edges overlap.</string>
 	<string name="properties_field_multiply_color_part_description">Multiplies the colors of the part's combined layer by this color.  White leaves it unchanged.</string>
 	<string name="properties_field_screen_color_part_description">Screens this color over the part's combined layer.  Black leaves it unchanged.</string>
-	<string name="properties_field_masked_by_part_description">Clips the part's combined layer to the meshes and parts listed here, so it shows only where they have art.</string>
+	<string name="properties_field_masked_by_part_description">Clips the part's combined layer to the drawables and parts listed here, so it shows only where they have art.</string>
 	<string name="properties_field_invert_mask_part_description">Shows the part's combined layer only where its masks have no art, instead of only where they do.</string>
 	<string name="repack_options_page_size_description">The largest page the pack may use, in pixels.  With Shrink Pages on, a page is only this large when the art needs the room.</string>
 	<string name="repack_options_gutter_description">Empty space kept around each piece of art and along the page edge, in pixels, so neighboring art cannot bleed in when the texture is sampled.</string>
@@ -1232,7 +1313,7 @@
 	<string name="import_options_offset_z_description">Moves the added art up from where Align puts it, in pixels.  Negative moves it down.</string>
 	<string name="import_options_alpha_threshold_description">How opaque a pixel must be, from 1 to 255, to count as art when a drawable's initial mesh is made.</string>
 	<string name="import_options_margin_description">How far a layer's initial quad reaches past its visible art on every side, in pixels.  A mesh generated from art keeps its preset's margins.</string>
-	<string name="match_options_threshold_description">How sure a match must be, as a percentage, before a lost layer is relinked to it automatically.  Weaker matches are left for review in the Sources area.</string>
+	<string name="match_options_threshold_description">How sure a match must be, as a percentage, before a lost layer is rebound to it automatically.  Weaker matches are left for review in the Sources area.</string>
 	<string name="transform_options_move_x_description">How far the selection moved right, in pixels.  Negative moves it left.</string>
 	<string name="transform_options_move_y_description">How far the selection moved down the texture, in pixels.  Negative moves it up.</string>
 	<string name="transform_options_move_z_description">How far the selection moved up, in pixels.  Negative moves it down.</string>
@@ -1321,7 +1402,7 @@
 	<string name="parameter_menu_rename">Rename</string>
 	<string name="parameter_menu_delete_group">Delete Group</string>
 	<string name="parameter_menu_add">Add Parameter</string>
-	<string name="parameter_menu_add_keyform">Add Key Form Parameter</string>
+	<string name="parameter_menu_add_keyform">Add Keyform Parameter</string>
 	<string name="parameter_menu_add_blendshape">Add Blend Shape Parameter</string>
 	<string name="parameter_menu_delete">Delete Parameter</string>
 	<string name="parameter_default_name">New Parameter</string>
@@ -1368,7 +1449,7 @@
 	<string name="settings_theme_light">Light</string>
 	<string name="settings_theme_system">System</string>
 	<string name="settings_interface_language">Language</string>
-	<string name="settings_interface_language_description">The language of the menus, panels, and messages.</string>
+	<string name="settings_interface_language_description">The language of the menus, areas, and messages.</string>
 	<!-- The undo-history cap (interface.historyLimit): how many steps the History panel retains. -->
 	<string name="settings_interface_history_steps">History Steps</string>
 	<string name="settings_interface_history_steps_description">How many steps the History area keeps for undo.  Increasing the amount of steps increases the amount of memory used by the application.</string>
@@ -1398,8 +1479,8 @@
 	<string name="settings_keybindings_conflict">%1$s is already bound to “%2$s”.  Reassign it?</string>
 	<string name="settings_keybindings_reassign">Reassign</string>
 	<string name="settings_keybindings_reset_description">Clear all changed keybindings back to the selected preset's defaults.</string>
-	<string name="settings_keybindings_search_hint">Search by name or shortcut...</string>
-	<string name="settings_keybindings_search_record">Search by pressing a shortcut...</string>
+	<string name="settings_keybindings_search_hint">Search by name or shortcut…</string>
+	<string name="settings_keybindings_search_record">Search by pressing a shortcut…</string>
 	<string name="settings_keybindings_no_matches">No matching commands</string>
 	<!-- %1$s is the shortcut the user pressed to search with. -->
 	<string name="settings_keybindings_chord_unbound">Nothing is bound to %1$s.</string>
@@ -1527,19 +1608,19 @@
 	<string name="channel_flip_x">Flip X</string>
 	<string name="channel_flip_y">Flip Y</string>
 	<string name="channel_glue_intensity">Glue Intensity</string>
-	<string name="cmd_keyform_insert">Insert Keyframe</string>
+	<string name="cmd_keyform_insert">Insert Key</string>
 	<string name="cmd_keyform_frame_all">Frame All Keys</string>
-	<string name="cmd_keyform_nudge_left">Nudge Keyframe Left</string>
-	<string name="cmd_keyform_nudge_right">Nudge Keyframe Right</string>
+	<string name="cmd_keyform_nudge_left">Nudge Key Left</string>
+	<string name="cmd_keyform_nudge_right">Nudge Key Right</string>
 	<string name="cmd_keyform_delete_keys">Delete Selected Keys</string>
-	<string name="cmd_keyform_delete">Delete Keyframe</string>
+	<string name="cmd_keyform_delete">Delete Key</string>
 	<string name="cmd_keyform_insert_pie">Insert Key by Type</string>
 	<string name="cmd_keyform_insert_lattice">Insert Lattice Key</string>
 	<string name="cmd_keyform_insert_opacity">Insert Opacity Key</string>
 	<string name="cmd_keyform_insert_colors">Insert Color Keys</string>
 	<string name="cmd_keyform_insert_all">Insert All Keys</string>
 	<string name="cmd_keyform_clear_pose_edits">Clear Pose Edits</string>
-	<string name="notice_keyform_no_target">Point at a keyable property to insert a keyframe.</string>
+	<string name="notice_keyform_no_target">Point at a keyable property to insert a key.</string>
 	<string name="notice_keyform_no_parameter">Select a parameter to key on.</string>
 	<string name="notice_parameter_delete_changed_rest">Parameter deleted.  %1$d object(s) now look different at the default pose.</string>
 </resources>

@@ -108,9 +108,14 @@ Build logic that more than one module needs is a convention plugin in `gradle/bu
 
 ### Localization
 
-- EN and JA are first-class.  Strings go through Compose resources (`stringResource`).
+- EN and JA are first-class.  Strings go through Compose resources (`stringResource`).  A feature adds its strings to `values/strings.xml` and `values-ja/strings.xml` in the same change, and to no other catalog.
 - Two layers: Umamo's chrome is ours to localize; the document is not.  Parameter ids, `cdi3.json` display names, and the user's own part names are user data and stay verbatim.
 - Don't assume EN string widths in layout.  CJK glyph coverage needs a bundled font on desktop and Android.  RTL is out of scope, but don't structurally preclude it.
+- Every other catalog is AI-drafted and then proofread and edited by a human, in one bulk PR per locale and never inside feature work.  Draft pull requests are not merged until they have been human reviewed.  Between bulk PRs a missing key falls back to EN per key.  Run a bulk update through the `translate-catalog` skill.
+- A locale's header holds its glossary and style rules: Read it first, extend it, never contradict it.  EN's Terminology block (File, Artwork, Puppet, EXT, Area) binds every locale, and `values-ja` is the worked example.
+- Meaning follows the current EN.  Keep an existing human translation unless EN's meaning changed or it breaks the glossary.
+- Verbatim in every locale: Format identifiers, sidecar file names, extensions, product names, units, and axis letters.  Placeholders stay positional (`%1$s`) and may be reordered; never `%%`.  `quick_setup_artist_credit` is localized only at the artist's request.
+- Typography follows the target language, not EN: The two-space sentence gap is EN-only, and an ellipsis is `…`, never `...`.
 
 ### Settings and storage
 

@@ -114,7 +114,7 @@ fun exportNoticeReasonPhrase(reason: ExportNoticeReason): ExportNoticePhrase =
 		}
 
 		ExportNoticeReason.SketchPartIsNotRuntimeContent -> {
-			ExportNoticePhrase(Res.string.export_reason_sketch_part_not_runtime_content)
+			ExportNoticePhrase(Res.string.export_reason_guide_part_not_runtime_content)
 		}
 
 		ExportNoticeReason.HiddenPartOmittedByExportOption -> {

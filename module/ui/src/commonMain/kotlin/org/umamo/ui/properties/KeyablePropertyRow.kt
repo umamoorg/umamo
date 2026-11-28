@@ -18,7 +18,7 @@ import org.umamo.ui.workspace.keyableTrack
  * rather than left to be remembered separately at each call site.
  */
 
-/** A keyable row's context menu: the key pair, Insert Keyframe and Delete Keyframe. */
+/** A keyable row's context menu: the key pair, Insert Key and Delete Key. */
 internal val KEYABLE_ROW_MENU: List<CommandMenuRow> = listOf(CommandMenuRow.Members(CommandFamily.KeyformKey))
 
 /**

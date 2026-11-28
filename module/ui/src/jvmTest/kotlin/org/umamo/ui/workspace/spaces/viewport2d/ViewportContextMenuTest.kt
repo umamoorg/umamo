@@ -178,7 +178,7 @@ class ViewportContextMenuTest {
 			assertEquals(1, rowsReading("Snap"))
 			assertEquals(1, rowsReading("Frame Selected"))
 			assertEquals(0, rowsReading("Subdivide Lattice"))
-			assertEquals(0, rowsReading("Insert Keyframe"), "keying is Pose mode's")
+			assertEquals(0, rowsReading("Insert Key"), "keying is Pose mode's")
 			assertEquals(0, rowsReading("Close Area"), "the area menu stays on the header")
 			assertEquals(1, host.presses, "the surface still saw the press")
 		}
@@ -251,7 +251,7 @@ class ViewportContextMenuTest {
 			mount(posedBody())
 
 			rightClickTheSurface()
-			assertEquals(0, rowsReading("Insert Key"), "the key-type pie's title is no row")
+			assertEquals(1, rowsReading("Insert Key"), "only the key command reads this; the key-type pie's title is no row")
 			hoverMenuRow("Insert Key by Type")
 
 			for (keyType in listOf("Lattice", "Opacity", "Colors", "All")) {
@@ -320,8 +320,8 @@ class ViewportContextMenuTest {
 
 			rightClickTheSurface()
 
-			assertEquals(1, rowsReading("Insert Keyframe", pickable = true))
-			assertEquals(1, rowsReading("Delete Keyframe"))
+			assertEquals(1, rowsReading("Insert Key", pickable = true))
+			assertEquals(1, rowsReading("Delete Key"))
 			assertEquals(1, rowsReading("Insert Key by Type"))
 			assertEquals(1, rowsReading("Clear Pose Edits"))
 			assertEquals(0, rowsReading("Clear Pose Edits", pickable = true), "nothing is held to clear")
@@ -335,7 +335,7 @@ class ViewportContextMenuTest {
 			mount(session)
 
 			rightClickTheSurface()
-			onAllNodes(hasText("Insert Keyframe") and hasClickAction()).onFirst().performMouseInput { click(center) }
+			onAllNodes(hasText("Insert Key") and hasClickAction()).onFirst().performMouseInput { click(center) }
 			waitForIdle()
 
 			val grid = assertNotNull((session.model.value.deformerById[LATTICE_RIG_BODY] as Deformer.Warp).geometryGrid)
