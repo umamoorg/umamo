@@ -17,7 +17,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * A keyable property row's context menu: the key pair, Insert Keyframe and Delete Keyframe, as the registry lists
+ * A keyable property row's context menu: the key pair, Insert Key and Delete Key, as the registry lists
  * it.  The rows gray in Edit mode, which edits the rest state and keys nothing, by the key commands' own gate.
  */
 class KeyableRowMenuTest {
@@ -32,7 +32,7 @@ class KeyableRowMenuTest {
 	@Test
 	fun theMenuIsTheKeyPair() {
 		assertEquals(
-			listOf("Insert Keyframe", "Delete Keyframe"),
+			listOf("Insert Key", "Delete Key"),
 			menuOutline(commandMenuOf(KEYABLE_ROW_MENU, registryOver(commandFixtureSession(EditorMode.Object)))),
 		)
 
@@ -45,7 +45,7 @@ class KeyableRowMenuTest {
 	@Test
 	fun inEditModeTheRowsAreGrayed() {
 		assertEquals(
-			listOf("Insert Keyframe (off)", "Delete Keyframe (off)"),
+			listOf("Insert Key (off)", "Delete Key (off)"),
 			menuOutline(commandMenuOf(KEYABLE_ROW_MENU, registryOver(commandFixtureSession(EditorMode.Edit)))),
 		)
 	}
