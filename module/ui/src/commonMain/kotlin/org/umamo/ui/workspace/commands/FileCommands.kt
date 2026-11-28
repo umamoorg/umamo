@@ -284,7 +284,7 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 		// it could only ever do nothing.
 		Command(
 			"sources.relink",
-			title = Res.string.cmd_sources_relink,
+			title = Res.string.cmd_sources_rebind,
 			keymapCategory = KeymapCategory.Artwork,
 			availability = CommandAvailability { artwork() != null },
 			needsArgument = true,
