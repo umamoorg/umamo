@@ -13,9 +13,10 @@
 	Artwork, or Layered Artwork: artwork, or artwork berlapis where the layers are the point.  This
 	covers a PSD, CLIP, or KRA.  Never berkas seni, seni sumber, or gambar sumber for one of these.
 
-	Puppet: boneka.  The thing being edited and saved, whether it is a UMA, a CMO3, or a MOC3.  It
-	replaces both dokumen and a bare model.  Say model boneka or berkas boneka only where boneka alone
-	would be vague, such as the in-memory data against the file on disk.
+	Puppet: puppet, kept as a loan word, never boneka.  The thing being edited and saved, whether it
+	is a UMA, a CMO3, or a MOC3.  It replaces both dokumen and a bare model.  Say model puppet or
+	berkas puppet only where puppet alone would be vague, such as the in-memory data against the
+	file on disk.
 
 	EXT: a sentence about one specific file type names its extension (UMA, PSD, CMO3, MOC3) instead
 	of saying berkas.
@@ -39,8 +40,7 @@
 
 	Keyframe: keyframe, reserved for a future dopesheet and never used for a keyform parameter.  Never kunci or tombol for a key.
 
-	Part: part.  Bagian stays the generic word for a portion and never names a part.  Guide Part:
-	part panduan.  Never gambar panduan, and never sketsa for the name.
+	Part: bagian.  Guide Part: bagian panduan.  Never gambar panduan, and never sketsa for the name.
 
 	Atlas: atlas tekstur or atlas, each one a halaman.  Texture: tekstur.  Tile: tile.  Gutter:
 	padding, never margin, which is Margin.  Extrude: perluasan tepi, never ekstrusi, the 3D sense.
@@ -48,7 +48,7 @@
 	Bind: ikat, as in terikat, tidak terikat, ikat ulang, and lepas ikatan.  Tautan and tautkan are
 	only for pairing two parameters.  A glue that is re-bound is disambung ulang, a separate sense.
 
-	Glue: lem, a noun, never the verb mengelem.
+	Glue: glue, kept as a loan word, and always a noun.
 	
 	Blend Shape: blend shape, a stored morph, apart from the Blend Mode field.
 	
@@ -142,10 +142,10 @@
 	<string name="menu_export_cmo3">CMO3…</string>
 	<string name="menu_export_moc3">MOC3…</string>
 	<string name="menu_export_image">Gambar…</string>
-	<string name="cmd_file_new">Boneka Baru</string>
-	<string name="cmd_file_open">Buka Boneka…</string>
-	<string name="cmd_file_save">Simpan Boneka</string>
-	<string name="cmd_file_save_as">Simpan Boneka Sebagai…</string>
+	<string name="cmd_file_new">Puppet Baru</string>
+	<string name="cmd_file_open">Buka Puppet…</string>
+	<string name="cmd_file_save">Simpan Puppet</string>
+	<string name="cmd_file_save_as">Simpan Puppet Sebagai…</string>
 	<string name="cmd_import_cmo3">Impor CMO3…</string>
 	<string name="cmd_import_moc3">Impor MOC3…</string>
 	<string name="cmd_import_artwork">Impor Artwork…</string>
@@ -167,7 +167,7 @@
 	<string name="menu_select">Pilih</string>
 	<string name="menu_select_all_of_type">Pilih Semua Berdasarkan Jenis</string>
 	<string name="menu_invert_selection_of_type">Membalik Pilihan Berdasarkan Jenis</string>
-	<string name="menu_select_kind_parts">Part</string>
+	<string name="menu_select_kind_parts">Bagian</string>
 	<string name="menu_select_kind_drawables">Drawable</string>
 	<string name="menu_select_kind_warps">Deformer Warp</string>
 	<string name="menu_select_kind_rotations">Deformer Rotasi</string>
@@ -190,10 +190,10 @@
 	<string name="dialog_dont_show_again">Jangan Tampilkan Lagi</string>
 	<string name="confirm_reset_workspace">Atur ulang ruang kerja ini ke tata letak bawaannya?</string>
 	<string name="confirm_import_replace">Ganti semua ruang kerja dengan berkas yang diimpor?</string>
-	<string name="confirm_discard_unsaved">Boneka memiliki perubahan yang belum disimpan. Buang perubahan tersebut?</string>
-	<string name="confirm_quit_unsaved">Boneka memiliki perubahan yang belum disimpan. Keluar tanpa menyimpan?</string>
-	<string name="confirm_save_before_replace">Boneka memiliki perubahan yang belum disimpan. Simpan terlebih dahulu?</string>
-	<string name="confirm_save_before_quit">Boneka memiliki perubahan yang belum disimpan. Simpan sebelum keluar?</string>
+	<string name="confirm_discard_unsaved">Puppet memiliki perubahan yang belum disimpan. Buang perubahan tersebut?</string>
+	<string name="confirm_quit_unsaved">Puppet memiliki perubahan yang belum disimpan. Keluar tanpa menyimpan?</string>
+	<string name="confirm_save_before_replace">Puppet memiliki perubahan yang belum disimpan. Simpan terlebih dahulu?</string>
+	<string name="confirm_save_before_quit">Puppet memiliki perubahan yang belum disimpan. Simpan sebelum keluar?</string>
 	<string name="export_report_message_cmo3">CMO3 telah diekspor, tetapi hal berikut tidak dapat dibawa ke dalamnya:</string>
 	<string name="export_report_message_moc3">MOC3 telah diekspor, tetapi hal berikut tidak dapat dibawa ke dalamnya:</string>
 	<string name="repack_report_message">Atlas tidak dikemas ulang. Tile berikut tidak dapat dikemas:</string>
@@ -204,24 +204,24 @@
 	<string name="repack_report_degenerate_placement">Penempatan drawable saat ini tidak dapat diinversi.</string>
 	<string name="repack_report_pinned_off_page">Penempatan yang disematkan tidak muat di dalam ukuran halaman maksimum.</string>
 	<string name="export_weld_divergence">Geometri dasar atau UV telah diedit pada: %1$s. Ekspor mempertahankannya sebagaimana dibuat, tetapi mengedit mesh tersebut atau atlasnya di Cubism Editor dapat membuat pemetaan UV dihitung ulang dan menjadi rusak.</string>
-	<string name="export_missing_source_art">Boneka ini tidak memiliki artwork sumber (berasal dari MOC3, yang hanya menyimpan atlas tekstur yang sudah dikemas). Artwork sumber pengganti telah dibangun ulang dari %1$d halaman atlas, sehingga CMO3 membawa rig lengkap dan dapat dibuka baik di Umamo maupun di Cubism Editor, tetapi setiap layer di dalamnya adalah potongan halaman atlas hasil bake, bukan artwork yang menjadi dasar rig ini. Rekonsiliasikan artwork berlapis asli (PSD/CLIP/KRA) ke dalam boneka ini untuk mengekspor layer sungguhan yang dapat diedit.</string>
+	<string name="export_missing_source_art">Puppet ini tidak memiliki artwork sumber (berasal dari MOC3, yang hanya menyimpan atlas tekstur yang sudah dikemas). Artwork sumber pengganti telah dibangun ulang dari %1$d halaman atlas, sehingga CMO3 membawa rig lengkap dan dapat dibuka baik di Umamo maupun di Cubism Editor, tetapi setiap layer di dalamnya adalah potongan halaman atlas hasil bake, bukan artwork yang menjadi dasar rig ini. Rekonsiliasikan artwork berlapis asli (PSD/CLIP/KRA) ke dalam puppet ini untuk mengekspor layer sungguhan yang dapat diedit.</string>
 	<string name="export_feature_stripped">%1$s tidak tersedia untuk versi runtime target, sehingga dihapus dari: %2$s.</string>
 	<string name="export_more_subjects">(+%1$d lainnya)</string>
 	<string name="export_category_parameter">Parameter</string>
 	<string name="export_category_parameter_group">Grup Parameter</string>
-	<string name="export_category_part">Part</string>
+	<string name="export_category_part">Bagian</string>
 	<string name="export_category_deformer">Deformer</string>
 	<string name="export_category_drawable">Drawable</string>
-	<string name="export_category_glue">Lem</string>
-	<string name="export_category_document">Boneka</string>
+	<string name="export_category_glue">Glue</string>
+	<string name="export_category_document">Puppet</string>
 	<string name="export_category_keyform">Keyform</string>
 	<string name="export_reason_drawable_has_no_mesh">Drawable tanpa mesh tidak dapat ditulis.</string>
 	<string name="export_reason_lattice_depth_flattened">Lattice warp pada %1$s memiliki data pengeditan kedalaman Y. Format berkas ini tidak mendukung kedalaman Y, sehingga data tersebut tidak diekspor. Deformer tersebut tetap melakukan warp dalam ruang 2D.</string>
 	<string name="export_reason_channel_demoted_to_static">%1$s memiliki key pada rentang yang lebih sempit daripada grid objek, sehingga ditulis sebagai konstanta. MOC3 menyimpan satu grid per objek.</string>
 	<string name="export_reason_channel_demoted_by_geometry">%1$s memiliki key yang tidak sesuai dengan rentang key geometri, sehingga ditulis sebagai konstanta. MOC3 menyimpan satu grid per objek.</string>
 	<string name="export_reason_keyforms_demoted_to_static">%1$s Objek ini ditulis tanpa keyform. MOC3 menyimpan satu grid per objek.</string>
-	<string name="export_reason_guide_part_not_runtime_content">Part panduan bukan konten runtime, sehingga tidak disertakan.</string>
-	<string name="export_reason_hidden_part_omitted_by_option">Part ini tersembunyi dan opsi ekspor mengecualikan part tersembunyi, sehingga isinya tidak disertakan.</string>
+	<string name="export_reason_guide_part_not_runtime_content">Bagian panduan bukan konten runtime, sehingga tidak disertakan.</string>
+	<string name="export_reason_hidden_part_omitted_by_option">Bagian ini tersembunyi dan opsi ekspor mengecualikan bagian tersembunyi, sehingga isinya tidak disertakan.</string>
 	<string name="export_reason_hidden_drawable_omitted_by_option">Drawable ini tersembunyi dan opsi ekspor mengecualikan drawable tersembunyi, sehingga drawable ini tidak disertakan.</string>
 	<string name="export_reason_vertex_count_exceeds_index_width">Mesh memiliki %1$d vertex, lebih dari %2$d yang diizinkan format ini, sehingga tidak disertakan.</string>
 	<string name="export_reason_no_atlas_page_bound">Tidak ada halaman atlas yang terikat ke drawable ini, sehingga drawable ditulis dengan merujuk ke halaman 0.</string>
@@ -229,7 +229,7 @@
 	<string name="export_reason_offscreen_mask_not_in_export">Sebuah clipping mask merujuk ke drawable yang tidak dapat ditulis, sehingga mask tersebut dibuang dari offscreen.</string>
 	<string name="export_reason_warp_has_no_lattice">Deformer warp tanpa grid titik kontrol tidak memiliki lattice untuk ditulis. Satu lattice kosong ditulis sebagai gantinya agar berkas tetap dapat dibaca, dan semua yang terikat ke deformer ini akan menyusut ke titik asal.</string>
 	<string name="export_reason_rotation_has_no_pivot">Deformer rotasi tanpa grid pivot tidak memiliki transformasi untuk ditulis, sehingga transformasi identitas ditulis sebagai gantinya.</string>
-	<string name="export_reason_glue_names_unknown_drawable">Lem yang merujuk ke drawable di luar ekspor ini dibuang.</string>
+	<string name="export_reason_glue_names_unknown_drawable">Glue yang merujuk ke drawable di luar ekspor ini dibuang.</string>
 	<string name="export_reason_id_truncated">ID tidak muat dalam rekaman ID moc yang berukuran %1$d byte, sehingga ditulis terpotong menjadi “%2$s”.</string>
 	<string name="export_reason_id_truncated_disambiguated">ID tidak muat dalam rekaman ID moc yang berukuran %1$d byte, dan hasil pemotongannya bertabrakan dengan ID objek lain, sehingga ditulis sebagai “%2$s”.</string>
 	<string name="export_reason_no_matching_source">Tidak ada objek yang cocok di CMO3 untuk direkonsiliasi, sehingga perubahan tidak ditulis.</string>
@@ -240,43 +240,43 @@
 	<string name="export_reason_texture_rebinding_editor_only">Pengikatan ulang sumber tekstur adalah status khusus editor dan tidak ditulis ke CMO3.</string>
 	<string name="export_reason_base_geometry_vertex_mismatch">Geometri dasar tidak sesuai dengan jumlah vertex objek CMO3 yang cocok, sehingga tidak ditulis.</string>
 	<string name="export_reason_no_uvs_to_reconcile">Drawable tidak memiliki UV untuk direkonsiliasi, sehingga tidak ada yang ditulis.</string>
-	<string name="export_reason_deformer_no_part_to_move_to">Tidak ada part CMO3 sebagai tujuan pemindahan deformer, sehingga part deformer tersebut tidak diubah.</string>
+	<string name="export_reason_deformer_no_part_to_move_to">Tidak ada bagian CMO3 sebagai tujuan pemindahan deformer, sehingga bagian deformer tersebut tidak diubah.</string>
 	<string name="export_reason_static_draw_order_shadowed">Urutan gambar statis tertutupi oleh track keyform, sehingga CMO3 tidak dapat menyimpannya secara mandiri.</string>
-	<string name="export_reason_composite_statics_shadowed">Nilai statis komposit tertutupi oleh track keyform milik part, sehingga CMO3 tidak dapat menyimpannya secara mandiri.</string>
-	<string name="export_reason_part_masks_flatten">Mask komposit bertipe part diratakan menjadi drawable turunannya di CMO3.</string>
+	<string name="export_reason_composite_statics_shadowed">Nilai statis komposit tertutupi oleh track keyform milik bagian, sehingga CMO3 tidak dapat menyimpannya secara mandiri.</string>
+	<string name="export_reason_part_masks_flatten">Mask komposit bertipe bagian diratakan menjadi drawable turunannya di CMO3.</string>
 	<string name="export_reason_no_source_set_to_create_into">CMO3 tidak memiliki kumpulan jenis ini sebagai tempat pembuatan, sehingga entitas baru tidak dibuat dari awal.</string>
 	<string name="export_reason_created_entity_has_no_source">Entitas yang baru dibuat belum memiliki objek CMO3 yang cocok, sehingga tidak disertakan dalam urutan panel.</string>
 	<string name="export_reason_created_group_not_in_tree">Grup yang dibuat tidak ada dalam pohon parameter yang diedit, sehingga tidak dibuat dari awal.</string>
 	<string name="export_reason_created_drawable_no_texture_source">Drawable yang dibuat tidak memiliki sumber tekstur untuk diklon, sehingga tidak dibuat dari awal.</string>
-	<string name="export_reason_glued_drawable_has_no_source">Drawable dengan lem tidak memiliki objek CMO3 yang cocok, sehingga lem tersebut tidak dibuat dari awal.</string>
+	<string name="export_reason_glued_drawable_has_no_source">Drawable dengan glue tidak memiliki objek CMO3 yang cocok, sehingga glue tersebut tidak dibuat dari awal.</string>
 	<string name="export_reason_vertex_count_exceeds_edge_table">Mesh memiliki %1$d vertex, melebihi batas %2$d yang dapat diindeks oleh tabel edge mesh yang dapat diedit, sehingga tabel edge tidak dibangun ulang.</string>
-	<string name="export_reason_glued_mesh_no_uid_table">Mesh berlem tidak memiliki tabel ID vertex mesh yang dapat diedit, sehingga lem tidak dapat disambung ulang.</string>
-	<string name="export_reason_glue_pair_past_uid_table">Sebuah pasangan lem merujuk indeks di luar tabel ID vertex pada mesh tersebut, sehingga lem tidak disambung ulang.</string>
+	<string name="export_reason_glued_mesh_no_uid_table">Mesh berlem tidak memiliki tabel ID vertex mesh yang dapat diedit, sehingga glue tidak dapat disambung ulang.</string>
+	<string name="export_reason_glue_pair_past_uid_table">Sebuah pasangan glue merujuk indeks di luar tabel ID vertex pada mesh tersebut, sehingga glue tidak disambung ulang.</string>
 	<string name="export_reason_keyform_cannot_bundle">%1$s CMO3 menyimpan satu grid per objek.</string>
 	<string name="export_reason_axis_parameter_no_source">Parameter sumbu grid %1$s tidak memiliki parameter CMO3 yang cocok, sehingga grid keyform tidak ditulis.</string>
 	<string name="export_reason_blend_shape_parameter_no_source">Parameter blend shape %1$s tidak memiliki parameter CMO3 yang cocok, sehingga blend shape tidak ditulis.</string>
 	<string name="export_reason_physics_names_deleted_parameter">Pengaturan fisika %1$s masih menggunakan parameter yang dihapus ini. Pengaturan tersebut diekspor tanpa perubahan; arahkan ke parameter lain atau hapus di Cubism Editor.</string>
-	<string name="export_reason_sidecar_names_unwritten_parameters">%1$s merujuk ke parameter yang tidak ada dalam ekspor ini (%2$s). Berkas itu diekspor tanpa perubahan, sehingga perangkat lunak yang memutar boneka tidak akan menemukannya.</string>
-	<string name="export_reason_sidecar_names_unwritten_parts">%1$s merujuk ke part yang tidak ada dalam ekspor ini (%2$s). Berkas itu diekspor tanpa perubahan, sehingga perangkat lunak yang memutar boneka tidak akan memiliki apa pun yang dapat ditampilkan atau disembunyikan untuk part tersebut.</string>
+	<string name="export_reason_sidecar_names_unwritten_parameters">%1$s merujuk ke parameter yang tidak ada dalam ekspor ini (%2$s). Berkas itu diekspor tanpa perubahan, sehingga perangkat lunak yang memutar puppet tidak akan menemukannya.</string>
+	<string name="export_reason_sidecar_names_unwritten_parts">%1$s merujuk ke bagian yang tidak ada dalam ekspor ini (%2$s). Berkas itu diekspor tanpa perubahan, sehingga perangkat lunak yang memutar puppet tidak akan memiliki apa pun yang dapat ditampilkan atau disembunyikan untuk bagian tersebut.</string>
 	<string name="export_reason_keyforms_without_base_mesh">Keyform tanpa mesh dasar tidak dapat digabungkan ke dalam CMO3.</string>
 	<string name="export_reason_fractional_draw_order">CMO3 menyimpan urutan gambar sebagai bilangan bulat, sehingga nilai pecahan tidak ditulis.</string>
-	<string name="export_reason_static_glue_intensity_without_keyforms">Intensitas lem statis tanpa keyform tidak memiliki tempat untuk disimpan di CMO3.</string>
+	<string name="export_reason_static_glue_intensity_without_keyforms">Intensitas glue statis tanpa keyform tidak memiliki tempat untuk disimpan di CMO3.</string>
 	<string name="export_bundle_keys_outside_geometry_span">Key di luar rentang key geometri tidak dapat digabungkan ke dalam satu grid.</string>
 	<string name="export_bundle_channel_keys_without_geometry">Key kanal tanpa geometri tidak dapat digabungkan ke dalam satu grid.</string>
 	<string name="export_bundle_keys_outside_channel_span">Key di luar rentang track %1$s tidak dapat digabungkan ke dalam satu grid.</string>
 	<string name="export_reason_no_authored_world_origin">CMO3 tidak menyimpan titik asal dunia yang ditetapkan pengguna, sehingga saat CMO3 dibuka kembali, titik asal tersebut dihitung dari pusat kanvas.</string>
-	<string name="export_reason_no_root_parameter_group">Boneka tidak memiliki grup parameter akar, sehingga pohon parameter tidak dibangun ulang.</string>
-	<string name="export_reason_no_root_part">Boneka tidak memiliki part akar, sehingga urutan panel part tidak dibangun ulang.</string>
-	<string name="export_reason_no_parameter_source_set">Boneka tidak memiliki set parameter, sehingga urutan parameter tidak ditulis.</string>
+	<string name="export_reason_no_root_parameter_group">Puppet tidak memiliki grup parameter akar, sehingga pohon parameter tidak dibangun ulang.</string>
+	<string name="export_reason_no_root_part">Puppet tidak memiliki bagian akar, sehingga urutan panel bagian tidak dibangun ulang.</string>
+	<string name="export_reason_no_parameter_source_set">Puppet tidak memiliki set parameter, sehingga urutan parameter tidak ditulis.</string>
 	<string name="export_reason_combined_pair_reordered">Urutan parameter disesuaikan agar pasangan gabungan %1$s + %2$s tetap bersebelahan.</string>
-	<string name="export_reason_no_canvas_to_reconcile">Boneka tidak memiliki kanvas, sehingga ukuran kanvas tidak ditulis.</string>
-	<string name="export_reason_no_texture_manager">Boneka ini tidak memiliki pengelola tekstur, sehingga mode tampilan artwork sumber tidak dapat ditulis.</string>
+	<string name="export_reason_no_canvas_to_reconcile">Puppet tidak memiliki kanvas, sehingga ukuran kanvas tidak ditulis.</string>
+	<string name="export_reason_no_texture_manager">Puppet ini tidak memiliki pengelola tekstur, sehingga mode tampilan artwork sumber tidak dapat ditulis.</string>
 	<string name="export_reason_no_texture_input_for_display">Drawable ini tidak memiliki input tekstur untuk mode tampilan yang dipilih, sehingga mode tampilannya tetap seperti semula.</string>
 	<string name="export_reason_no_atlas_entry">Artwork ini tidak dikemas ke halaman atlas mana pun, sehingga tidak ada penempatan yang perlu diperbarui.</string>
 	<string name="export_reason_atlas_page_not_recomposed">Artwork ini dipindahkan di halaman atlasnya, tetapi gambar halaman masih menampilkannya di posisi lama; kemas ulang untuk menggambarnya kembali.</string>
 	<string name="export_reason_atlas_tile_metadata">Piksel, nama, atau ukuran artwork ini berubah, dan perubahan itu tidak dapat dibawa oleh penempatan atlas; impor ulang artwork tersebut sebagai gantinya.</string>
 	<string name="export_reason_atlas_tile_rebinding">Drawable ini diikat ke artwork lain, sehingga artwork perlu diimpor ulang, bukan dikemas ulang.</string>
-	<string name="export_reason_source_layer_binding_not_in_export">Art ini terikat ke layer %2$s dari %1$s, tetapi boneka tidak mencantumkan artwork tersebut, sehingga ikatannya tidak dapat diekspor. Ikat ulang di area Sumber untuk mengekspor ikatan tersebut.</string>
+	<string name="export_reason_source_layer_binding_not_in_export">Art ini terikat ke layer %2$s dari %1$s, tetapi puppet tidak mencantumkan artwork tersebut, sehingga ikatannya tidak dapat diekspor. Ikat ulang di area Sumber untuk mengekspor ikatan tersebut.</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 menyimpan piksel kanvas sebagai bilangan bulat, sehingga ukuran kanvas pecahan tidak ditulis.</string>
 	<string name="confirm_export_overwrite">Ekspor akan menimpa %1$d berkas yang sudah ada: %2$s</string>
 	<string name="export_options_title_moc3">Opsi Ekspor MOC3</string>
@@ -284,9 +284,9 @@
 	<string name="export_options_section_content">Konten</string>
 	<string name="export_options_section_sidecars">Berkas Sidecar</string>
 	<string name="export_options_section_scale">Skala</string>
-	<string name="export_options_hidden_parts">Ekspor part tersembunyi</string>
+	<string name="export_options_hidden_parts">Ekspor bagian tersembunyi</string>
 	<string name="export_options_hidden_drawables">Ekspor drawable tersembunyi</string>
-	<string name="export_options_guide_parts">Ekspor part panduan</string>
+	<string name="export_options_guide_parts">Ekspor bagian panduan</string>
 	<string name="export_options_include_physics">Pengaturan fisika (physics3.json)</string>
 	<string name="export_options_include_userdata">Data pengguna (userdata3.json)</string>
 	<string name="export_options_include_displayinfo">Informasi tampilan (cdi3.json)</string>
@@ -306,7 +306,7 @@
 	<string name="export_options_image_size">%1$d × %2$d px</string>
 	<string name="export_options_image_nothing_visible">Tidak ada konten terlihat yang dapat diambil.</string>
 	<string name="export_options_image_no_viewport">Tidak ada viewport untuk diambil. Arahkan penunjuk ke area Viewport 2D sebelum mengekspor.</string>
-	<string name="export_options_image_no_canvas">Boneka tidak memiliki kanvas.</string>
+	<string name="export_options_image_no_canvas">Puppet tidak memiliki kanvas.</string>
 	<string name="export_options_image_too_large">%1$d × %2$d px melebihi batas %3$d px.</string>
 	<string name="dialog_okay">OK</string>
 	<string name="open_failed_read">Tidak dapat membaca %1$s.</string>
@@ -322,9 +322,9 @@
 	<string name="alert_export_failed">Tidak dapat mengekspor %1$s. %2$s</string>
 	<string name="export_image_failed_renderer">Renderer viewport tidak dapat menghasilkan gambar.</string>
 	<string name="export_image_failed_memory">Memori tidak cukup untuk gambar %1$d × %2$d px. Coba skala yang lebih kecil.</string>
-	<string name="export_failed_unexpected">Terjadi sesuatu yang tak terduga sehingga proses terhenti; detailnya ada di log. Boneka yang terbuka tidak terpengaruh.</string>
-	<string name="alert_export_out_of_memory">Tidak dapat mengekspor %1$s: Umamo kehabisan memori. Boneka yang terbuka tidak terpengaruh.</string>
-	<string name="alert_export_out_of_memory_jar">Tidak dapat mengekspor %1$s: Umamo kehabisan memori %2$s yang dapat digunakannya. Boneka yang terbuka tidak terpengaruh. Untuk mengalokasikan hingga 50% memori sistem bagi Umamo: Simpan, keluar, lalu jalankan perintah ini dari terminal: %3$s</string>
+	<string name="export_failed_unexpected">Terjadi sesuatu yang tak terduga sehingga proses terhenti; detailnya ada di log. Puppet yang terbuka tidak terpengaruh.</string>
+	<string name="alert_export_out_of_memory">Tidak dapat mengekspor %1$s: Umamo kehabisan memori. Puppet yang terbuka tidak terpengaruh.</string>
+	<string name="alert_export_out_of_memory_jar">Tidak dapat mengekspor %1$s: Umamo kehabisan memori %2$s yang dapat digunakannya. Puppet yang terbuka tidak terpengaruh. Untuk mengalokasikan hingga 50% memori sistem bagi Umamo: Simpan, keluar, lalu jalankan perintah ini dari terminal: %3$s</string>
 	<string name="alert_low_memory_jar">Umamo dialokasikan untuk menggunakan memori paling banyak %1$s. Berkas besar, terutama saat ekspor, dapat membuat Umamo kehabisan memori dan mogok. Untuk mengalokasikan hingga 50% memori sistem bagi Umamo: Keluar, lalu jalankan perintah ini dari terminal: %2$s</string>
 
 	<string name="menu_help">Bantuan</string>
@@ -362,11 +362,11 @@
 	<string name="cmd_select_clear">Bersihkan Pilihan</string>
 	<string name="cmd_select_all">Pilih Semua</string>
 	<string name="cmd_select_invert">Membalik Pilihan</string>
-	<string name="cmd_select_all_parts">Pilih Semua Part</string>
+	<string name="cmd_select_all_parts">Pilih Semua Bagian</string>
 	<string name="cmd_select_all_drawables">Pilih Semua Drawable</string>
 	<string name="cmd_select_all_warps">Pilih Semua Deformer Warp</string>
 	<string name="cmd_select_all_rotations">Pilih Semua Deformer Rotasi</string>
-	<string name="cmd_select_invert_parts">Membalik Pilihan Part</string>
+	<string name="cmd_select_invert_parts">Membalik Pilihan Bagian</string>
 	<string name="cmd_select_invert_drawables">Membalik Pilihan Drawable</string>
 	<string name="cmd_select_invert_warps">Membalik Pilihan Deformer Warp</string>
 	<string name="cmd_select_invert_rotations">Membalik Pilihan Deformer Rotasi</string>
@@ -406,7 +406,7 @@
 	<string name="uv_layer_picker_title">Cari Berdasarkan Artwork</string>
 	<string name="uv_layer_picker_row">%1$s · %2$d × %3$d · %4$d drawable</string>
 	<string name="uv_layer_picker_no_matches">Tidak ada artwork yang cocok</string>
-	<string name="uv_layer_picker_empty">Boneka ini tidak memiliki artwork sumber.</string>
+	<string name="uv_layer_picker_empty">Puppet ini tidak memiliki artwork sumber.</string>
 	<string name="cmd_document_toggle_source_artwork">Alihkan Tampilan Artwork Sumber</string>
 	<string name="cmd_document_repack_atlas">Kemas Ulang Atlas</string>
 	<string name="cmd_uv_page_next">Halaman Tekstur Berikutnya</string>
@@ -435,10 +435,10 @@
 	<string name="history_unknown">Edit</string>
 	<string name="history_selection">Pilih</string>
 	<string name="history_mode">Ubah Mode</string>
-	<string name="history_visibility_part">Alihkan Visibilitas Part</string>
-	<string name="history_part_rename">Ganti Nama Part</string>
-	<string name="history_part_selectable">Alihkan Keterpilihan Part</string>
-	<string name="history_part_move">Pindahkan Part</string>
+	<string name="history_visibility_part">Alihkan Visibilitas Bagian</string>
+	<string name="history_part_rename">Ganti Nama Bagian</string>
+	<string name="history_part_selectable">Alihkan Keterpilihan Bagian</string>
+	<string name="history_part_move">Pindahkan Bagian</string>
 	<string name="history_visibility_drawable">Alihkan Visibilitas Drawable</string>
 	<string name="history_visibility_deformer">Alihkan Visibilitas Deformer</string>
 	<string name="history_drawable_rename">Ganti Nama Drawable</string>
@@ -497,11 +497,11 @@
 	<string name="history_object_duplicate">Duplikat Objek</string>
 	<string name="history_mesh_select">Pilih Elemen</string>
 	<string name="history_mesh_select_mode">Ubah Mode Pemilihan</string>
-	<string name="history_part_delete">Hapus Part</string>
+	<string name="history_part_delete">Hapus Bagian</string>
 	<string name="history_drawable_delete">Hapus Drawable</string>
 	<string name="history_deformer_delete">Hapus Deformer</string>
-	<string name="history_part_sketch">Alihkan Part Panduan</string>
-	<string name="history_part_draw_order">Atur Urutan Gambar Part</string>
+	<string name="history_part_sketch">Alihkan Bagian Panduan</string>
+	<string name="history_part_draw_order">Atur Urutan Gambar Bagian</string>
 	<string name="history_part_group_mode">Atur Mode Grup</string>
 	<string name="history_part_composite">Atur Komposit</string>
 	<string name="history_drawable_blend_mode">Atur Mode Blend</string>
@@ -519,7 +519,7 @@
 	<string name="history_deformer_screen_color">Atur Warna Screen Deformer</string>
 	<string name="history_deformer_flip_x">Atur Balik X</string>
 	<string name="history_deformer_flip_y">Atur Balik Y</string>
-	<string name="history_deformer_part">Atur Part</string>
+	<string name="history_deformer_part">Atur Bagian</string>
 	<string name="history_deformer_base_angle">Atur Sudut Dasar</string>
 	<string name="history_deformer_quad_transform">Alihkan Warp Bilinear</string>
 	<string name="history_document_canvas_size">Atur Ukuran Kanvas</string>
@@ -544,9 +544,9 @@
 	<string name="history_document_replace_artwork">Ganti Artwork</string>
 	<string name="history_document_runtime_target">Atur Target Runtime</string>
 
-	<string name="outliner_root">Boneka</string>
+	<string name="outliner_root">Puppet</string>
 	<string name="outliner_armature">Armature</string>
-	<string name="outliner_filter_parts">Part</string>
+	<string name="outliner_filter_parts">Bagian</string>
 	<string name="outliner_filter_deformers">Deformer</string>
 	<string name="sources_reload">Muat Ulang Berkas Artwork</string>
 	<string name="sources_reload_pending">Berkas artwork berubah di disk. Muat ulang untuk menerapkan perubahannya.</string>
@@ -577,7 +577,7 @@
 	<string name="sources_status_emptied">Perlu ditinjau: Layer ini kosong di artwork</string>
 	<string name="sources_status_replaced">Perlu ditinjau: Artwork pengganti tidak memiliki layer dengan pengenal ini</string>
 	<string name="sources_status_ignored">Diabaikan: Muat ulang tidak pernah menambahkan layer ini</string>
-	<string name="sources_status_source_not_listed">Perlu ditinjau: Boneka ini tidak mencantumkan artwork tempat art ini terikat</string>
+	<string name="sources_status_source_not_listed">Perlu ditinjau: Puppet ini tidak mencantumkan artwork tempat art ini terikat</string>
 	<string name="sources_unbound_art">Art Tidak Terikat</string>
 	<string name="sources_source_detail">%1$s · %2$d layer</string>
 	<string name="sources_source_no_path">tidak ada jalur yang tercatat</string>
@@ -601,11 +601,11 @@
 	<string name="outliner_menu_delete">Hapus</string>
 	<string name="outliner_menu_delete_hierarchy">Hapus Hierarki</string>
 
-	<string name="status_parts">Part: %1$d</string>
+	<string name="status_parts">Bagian: %1$d</string>
 	<string name="status_drawables">Drawable: %1$d</string>
 	<string name="status_parameters">Parameter: %1$d</string>
 	<string name="status_deformers">Deformer: %1$d</string>
-	<string name="status_glues">Lem: %1$d</string>
+	<string name="status_glues">Glue: %1$d</string>
 
 	<string name="status_bind_confirm">LMB / Enter: Konfirmasi</string>
 	<string name="status_bind_cancel">RMB / Esc: Batal</string>
@@ -632,7 +632,7 @@
 	<string name="status_tris">Segitiga: %1$d</string>
 	<string name="status_tris_selected">Segitiga: %1$d/%2$d</string>
 
-	<string name="notice_transform_only_drawables">Hanya drawable dan deformer warp yang dapat ditransformasi. Part dan deformer rotasi belum didukung.</string>
+	<string name="notice_transform_only_drawables">Hanya drawable dan deformer warp yang dapat ditransformasi. Bagian dan deformer rotasi belum didukung.</string>
 	<string name="notice_mode_pose_needs_deformer">Mode Pose memerlukan deformer untuk membentuk pose.</string>
 	<string name="notice_transform_deformed">Tidak dapat mentransformasi selagi mesh terdeformasi. Atur ulang semua parameter terlebih dahulu.</string>
 	<string name="notice_unknown">Tindakan tidak tersedia.</string>
@@ -709,10 +709,10 @@
 	<string name="notice_mesh_generated_refit">%1$d mesh dibuat dari art; %2$d harus dibuat ulang dengan batas vertex yang lebih tinggi atau dengan lubang yang diisi.</string>
 	<string name="notice_mesh_pinned_without_room">%1$d mesh dibuat; %2$d dilewati karena art yang disematkan tidak memiliki ruang untuk membesar. Lepas sematan art atau kurangi margin.</string>
 	<string name="notice_mesh_over_budget">%1$d mesh dibuat; %2$d dilewati karena memerlukan lebih dari 4096 vertex meskipun lubang sudah diisi. Naikkan Ambang Alpha atau turunkan Titik Garis Luar Minimum.</string>
-	<string name="notice_mesh_glued_throughout">%1$d mesh dibuat; %2$d dilewati karena sebagian besar vertex mesh tersebut tersambung oleh lem ke mesh lain, dan membuatnya ulang akan mengubah cara mesh tersebut mengikuti mesh lain itu.</string>
+	<string name="notice_mesh_glued_throughout">%1$d mesh dibuat; %2$d dilewati karena sebagian besar vertex mesh tersebut tersambung oleh glue ke mesh lain, dan membuatnya ulang akan mengubah cara mesh tersebut mengikuti mesh lain itu.</string>
 	<string name="notice_mesh_none_generated">Tidak ada mesh yang dibuat.</string>
 	<string name="notice_mesh_pack_refused">Tidak ada yang dibuat: atlas tidak memiliki ruang untuk mesh yang lebih besar.</string>
-	<string name="notice_mesh_superseded">Boneka berubah selagi mesh sedang dibuat, sehingga tidak ada yang diterapkan.</string>
+	<string name="notice_mesh_superseded">Puppet berubah selagi mesh sedang dibuat, sehingga tidak ada yang diterapkan.</string>
 	<string name="notice_mesh_no_targets">Untuk membuat mesh dari art, pilih drawable yang memiliki mesh.</string>
 	<string name="history_drawable_duplicate">Duplikat Drawable</string>
 	<string name="notice_merge_needs_vertices">Penggabungan memerlukan dua vertex terpilih atau lebih (mode vertex).</string>
@@ -734,7 +734,7 @@
 	<string name="notice_document_exported_model">%1$s diekspor.</string>
 	<string name="notice_document_export_busy">Proses ekspor sudah berjalan.</string>
 	<string name="notice_document_waiting_for_export">Menunggu ekspor selesai…</string>
-	<string name="notice_document_open_busy">Boneka lain masih sedang dibuka.</string>
+	<string name="notice_document_open_busy">Puppet lain masih sedang dibuka.</string>
 	<string name="progress_document_opening">Membuka %1$s…</string>
 	<string name="progress_artwork_adding">Menambahkan %1$s…</string>
 	<string name="progress_artwork_reloading">Memuat ulang artwork…</string>
@@ -746,8 +746,8 @@
 	<string name="progress_more_tasks">+%1$d lainnya</string>
 	<string name="notice_document_cmo3_loss">Disimpan sebagai UMA. Fisika, panduan, catatan keyform, pose acak, set status model, data pengguna, dan pengaturan editor lainnya dari CMO3 tidak disimpan dalam UMA ini. Ekspor CMO3 dari sesi ini tetap menyertakannya, tetapi CMO3 yang diekspor setelah UMA dibuka kembali tidak akan menyertakannya.</string>
 	<string name="notice_document_moc3_loss">Disimpan sebagai UMA. Fisika, gerakan, ekspresi, data pengguna, dan berkas pose dari MOC3 belum didukung dalam UMA ini.</string>
-	<string name="notice_import_artwork_superseded">Boneka berubah selagi artwork sedang ditambahkan; tidak ada yang diterapkan.</string>
-	<string name="notice_import_baked_atlas">Artwork tidak dapat ditambahkan ke boneka yang dibuat dari MOC3. Ekspor boneka sebagai CMO3, impor CMO3 tersebut, lalu tambahkan artwork.</string>
+	<string name="notice_import_artwork_superseded">Puppet berubah selagi artwork sedang ditambahkan; tidak ada yang diterapkan.</string>
+	<string name="notice_import_baked_atlas">Artwork tidak dapat ditambahkan ke puppet yang dibuat dari MOC3. Ekspor puppet sebagai CMO3, impor CMO3 tersebut, lalu tambahkan artwork.</string>
 	<string name="notice_import_no_art_layers">Artwork ini tidak memiliki layer berpiksel yang dapat ditambahkan.</string>
 	<string name="notice_reload_done">Artwork dimuat ulang: %1$d diperbarui, %2$d ditambahkan, %3$d dicocokkan.</string>
 	<string name="notice_reload_notes">Artwork dimuat ulang: %1$d diperbarui, %2$d ditambahkan, %3$d dicocokkan, %4$d perlu ditinjau.</string>
@@ -757,14 +757,14 @@
 	<string name="notice_replace_outgrown">Artwork diganti: %1$d layer dimuat ulang berdasarkan pengenal layer, %2$d dicocokkan, %3$d dibiarkan untuk ditinjau; beberapa layer kini melewati tepi mesh masing-masing.</string>
 	<string name="notice_watch_changed">%1$d berkas artwork berubah di disk. Tekan Muat Ulang untuk menerapkan perubahan.</string>
 	<string name="notice_watch_stale_at_open">%1$d berkas artwork berubah sejak terakhir dibaca. Tekan Muat Ulang untuk menerapkan perubahan.</string>
-	<string name="notice_watch_missing">%1$s tidak lagi berada di lokasi tempat boneka membacanya.</string>
+	<string name="notice_watch_missing">%1$s tidak lagi berada di lokasi tempat puppet membacanya.</string>
 	<string name="notice_reload_no_changes">Berkas artwork tidak berubah.</string>
 	<string name="notice_reload_no_files">Tidak ada berkas artwork yang dapat dibaca; tidak ada yang dimuat ulang.</string>
 	<string name="notice_relink_pulled">Art diikat ulang dan dimuat ulang.</string>
 	<string name="notice_relink_binding_only">Art diikat ulang; artwork tidak dapat dibaca, sehingga art tidak berubah.</string>
-	<string name="notice_relink_pulled_from_document">Art diikat ulang; artwork tidak dapat dibaca, sehingga yang digunakan adalah salinan layer yang tersimpan di boneka.</string>
+	<string name="notice_relink_pulled_from_document">Art diikat ulang; artwork tidak dapat dibaca, sehingga yang digunakan adalah salinan layer yang tersimpan di puppet.</string>
 	<string name="notice_match_done">%1$d layer dicocokkan, %2$d dibiarkan untuk ditinjau.</string>
-	<string name="notice_match_no_files">Tidak ada artwork yang dapat dibaca, baik dari berkasnya maupun dari boneka ini; tidak ada yang dicocokkan.</string>
+	<string name="notice_match_no_files">Tidak ada artwork yang dapat dibaca, baik dari berkasnya maupun dari puppet ini; tidak ada yang dicocokkan.</string>
 	<string name="notice_match_nothing">Tidak ada ikatan yang cocok dengan tingkat keyakinan yang cukup; saran ditampilkan pada baris yang perlu ditinjau.</string>
 	<string name="notice_match_no_candidates">Tidak ada lagi yang dapat dicocokkan: setiap layer kandidat sudah terikat. Sesuaikan Ambang Kecocokan di bilah pengaturan muat ulang, atau ikat ulang secara manual.</string>
 	<string name="notice_replace_done">Artwork diganti: %1$d layer dimuat ulang berdasarkan pengenal layer, %2$d dicocokkan, %3$d dibiarkan untuk ditinjau.</string>
@@ -773,7 +773,7 @@
 	<string name="notice_uv_no_uvs">Pilihan tidak memiliki UV yang dapat diedit.</string>
 	<string name="notice_uv_no_selection">Tidak ada yang dipilih untuk dicerminkan.</string>
 	<string name="notice_uv_no_editable_geometry">Tidak ada yang dapat diedit di sini. Tidak satu pun mesh yang sedang Anda edit berada di halaman atau layer yang ditampilkan.</string>
-	<string name="notice_uv_placement_layer_addressed">UV boneka merujuk ke artwork sumber, bukan ke atlas, sehingga tidak ada penempatan yang dapat dipindahkan.</string>
+	<string name="notice_uv_placement_layer_addressed">UV puppet merujuk ke artwork sumber, bukan ke atlas, sehingga tidak ada penempatan yang dapat dipindahkan.</string>
 	<string name="notice_uv_placement_no_placed_art">Tidak ada pilihan yang dikemas di halaman atlas, atau tidak ada artwork sumber.</string>
 	<string name="notice_uv_placement_page_view_only">Tampilkan halaman atlas di area Editor UV untuk memindahkan penempatan.</string>
 	<string name="notice_uv_placement_not_on_page">Tidak ada pilihan yang dikemas di halaman ini.</string>
@@ -920,7 +920,7 @@
 	<string name="cmd_view_sidebar_next_tab">Tab Bilah Samping Berikutnya</string>
 	<string name="cmd_view_sidebar_previous_tab">Tab Bilah Samping Sebelumnya</string>
 
-	<string name="properties_part_ref">Part Induk</string>
+	<string name="properties_part_ref">Bagian Induk</string>
 	<string name="properties_parent_deformer">Deformer Induk</string>
 	<string name="properties_mask_count">Mask: %1$d</string>
 	<string name="properties_mesh">Mesh: %1$d vertex, %2$d segitiga</string>
@@ -933,7 +933,7 @@
 	<string name="status_multi_selected">%1$d terpilih</string>
 
 	<string name="properties_no_matches">Tidak ada properti yang cocok.</string>
-	<string name="properties_tab_document">Boneka</string>
+	<string name="properties_tab_document">Puppet</string>
 	<string name="properties_tab_object">Objek</string>
 	<string name="properties_tab_data">Data</string>
 	<string name="properties_section_canvas">Kanvas</string>
@@ -952,7 +952,7 @@
 	<string name="properties_field_lattice_rows_description">Jumlah sel lattice dari atas ke bawah. Mengubahnya akan mengambil sampel ulang keyform mesh, sehingga gerakan mungkin sedikit berubah.</string>
 	<string name="properties_field_lattice_columns">Kolom</string>
 	<string name="properties_field_lattice_columns_description">Jumlah sel lattice dari kiri ke kanan. Mengubahnya akan mengambil sampel ulang keyform mesh, sehingga gerakan mungkin sedikit berubah.</string>
-	<string name="properties_section_part">Part</string>
+	<string name="properties_section_part">Bagian</string>
 	<string name="properties_canvas_none">Tidak ada kanvas</string>
 	<string name="properties_field_runtime_target">Target</string>
 	<string name="runtime_target_no_target">Tanpa Target (Semua Fitur)</string>
@@ -966,10 +966,10 @@
 	<string name="runtime_feature_blend_shape_parameters">Parameter Blend Shape</string>
 	<string name="runtime_feature_multiply_color">Warna Multiply</string>
 	<string name="runtime_feature_screen_color">Warna Screen</string>
-	<string name="runtime_feature_extended_blend_shapes">Blend Shape (Part, Deformer Rotasi, Lem)</string>
+	<string name="runtime_feature_extended_blend_shapes">Blend Shape (Bagian, Deformer Rotasi, Glue)</string>
 	<string name="runtime_feature_motion_sync">Motion-sync</string>
 	<string name="runtime_feature_extended_blend_modes">Mode Blend</string>
-	<string name="runtime_feature_part_composite">Komposit Part (Penggambaran Offscreen)</string>
+	<string name="runtime_feature_part_composite">Komposit Bagian (Penggambaran Offscreen)</string>
 	<string name="runtime_feature_art_path">Art Path</string>
 	<string name="properties_texture_source">Sumber Tekstur: %1$s</string>
 	<string name="properties_texture_own">Ikatan Atlas Sendiri</string>
@@ -989,14 +989,14 @@
 	<string name="properties_field_blend_mode">Blend</string>
 	<string name="properties_field_alpha_mode">Alpha</string>
 	<string name="properties_field_culling">Sembunyikan Face Belakang</string>
-	<string name="properties_field_invert_mask">Balikkan Mask</string>
+	<string name="properties_field_invert_mask">Membalik Mask</string>
 	<string name="properties_field_flip_x">Balik X</string>
 	<string name="properties_field_flip_y">Balik Y</string>
 	<string name="properties_field_base_angle">Sudut Dasar</string>
 	<string name="properties_field_angle">Sudut</string>
 	<string name="properties_field_scale">Skala</string>
 	<string name="properties_field_quad_transform">Bilinear (Quad)</string>
-	<string name="properties_field_sketch">Part Panduan</string>
+	<string name="properties_field_sketch">Bagian Panduan</string>
 	<string name="properties_field_draw_order">Urutan Gambar</string>
 	<string name="properties_field_group_mode">Mode Grup</string>
 	<string name="properties_field_opacity">Opasitas</string>
@@ -1094,17 +1094,17 @@
 	<string name="properties_field_canvas_height_description">Tinggi kanvas, dalam piksel. Mengubah ukurannya hanya menggeser tepi bawahnya, sehingga art dan sumbu dunia tetap di tempatnya, sedangkan Titik Asal Z berubah sebesar jumlah yang sama.</string>
 	<string name="properties_field_origin_x_description">Titik persilangan sumbu dunia, dalam piksel dari tepi kiri kanvas. Kolom Posisi diukur dari sumbu ini.</string>
 	<string name="properties_field_origin_z_description">Titik persilangan sumbu dunia, dalam piksel ke atas dari tepi bawah kanvas. Kolom Posisi diukur dari sumbu ini.</string>
-	<string name="properties_field_source_layer_display_description">Menggambar setiap drawable dari layer artwork aslinya, bukan dari atlas yang dikemas. Drawable yang layer aslinya tidak disimpan oleh boneka tetap digambar dari atlas.</string>
-	<string name="properties_field_runtime_target_description">Runtime yang dituju oleh boneka ini. Kontrol untuk fitur yang tidak dapat diputar runtime tersebut disembunyikan, tetapi tidak ada yang dihapus dari boneka; hanya ekspor MOC3 yang tidak menyertakan fitur tersebut.</string>
+	<string name="properties_field_source_layer_display_description">Menggambar setiap drawable dari layer artwork aslinya, bukan dari atlas yang dikemas. Drawable yang layer aslinya tidak disimpan oleh puppet tetap digambar dari atlas.</string>
+	<string name="properties_field_runtime_target_description">Runtime yang dituju oleh puppet ini. Kontrol untuk fitur yang tidak dapat diputar runtime tersebut disembunyikan, tetapi tidak ada yang dihapus dari puppet; hanya ekspor MOC3 yang tidak menyertakan fitur tersebut.</string>
 	<string name="properties_field_position_x_description">Pusat horizontal drawable seperti yang tampak di viewport, diukur dari sumbu dunia. Hanya dapat diedit selama semua parameter berada pada nilai bawaannya.</string>
 	<string name="properties_field_position_z_description">Pusat vertikal drawable seperti yang tampak di viewport, diukur ke atas dari sumbu dunia. Hanya dapat diedit selama semua parameter berada pada nilai bawaannya.</string>
 	<string name="properties_field_size_x_description">Lebar drawable seperti yang tampak di viewport, diskalakan terhadap pusatnya saat diubah. Hanya dapat diedit selama semua parameter berada pada nilai bawaannya.</string>
 	<string name="properties_field_size_z_description">Tinggi drawable seperti yang tampak di viewport, diskalakan terhadap pusatnya saat diubah. Hanya dapat diedit selama semua parameter berada pada nilai bawaannya.</string>
 	<string name="properties_field_base_angle_description">Rotasi dasar deformer, dalam derajat. Sudut yang ditetapkan setiap keyform ditambahkan padanya.</string>
-	<string name="properties_part_position_x_description">Pusat horizontal isi part seperti yang tampak di viewport, diukur dari sumbu dunia. Saat ini hanya-baca.</string>
-	<string name="properties_part_position_z_description">Pusat vertikal isi part seperti yang tampak di viewport, diukur ke atas dari sumbu dunia. Saat ini hanya-baca.</string>
-	<string name="properties_part_size_x_description">Lebar isi part seperti yang tampak di viewport. Saat ini hanya-baca.</string>
-	<string name="properties_part_size_z_description">Tinggi isi part seperti yang tampak di viewport. Saat ini hanya-baca.</string>
+	<string name="properties_part_position_x_description">Pusat horizontal isi bagian seperti yang tampak di viewport, diukur dari sumbu dunia. Saat ini hanya-baca.</string>
+	<string name="properties_part_position_z_description">Pusat vertikal isi bagian seperti yang tampak di viewport, diukur ke atas dari sumbu dunia. Saat ini hanya-baca.</string>
+	<string name="properties_part_size_x_description">Lebar isi bagian seperti yang tampak di viewport. Saat ini hanya-baca.</string>
+	<string name="properties_part_size_z_description">Tinggi isi bagian seperti yang tampak di viewport. Saat ini hanya-baca.</string>
 	<string name="properties_warp_position_x_description">Pusat horizontal lattice di viewport, diukur dari sumbu dunia. Mengeditnya memindahkan deformer beserta art yang digerakkannya. Tersedia di Mode Objek pada pose bawaan.</string>
 	<string name="properties_warp_position_z_description">Pusat vertikal lattice di viewport, diukur ke atas dari sumbu dunia. Mengeditnya memindahkan deformer beserta art yang digerakkannya. Tersedia di Mode Objek pada pose bawaan.</string>
 	<string name="properties_warp_size_x_description">Lebar lattice di viewport. Mengeditnya mengubah skala deformer beserta art yang digerakkannya terhadap pusat lattice. Tersedia di Mode Objek pada pose bawaan.</string>
@@ -1113,10 +1113,10 @@
 	<string name="properties_rotation_pivot_z_description">Posisi vertikal pivot deformer seperti yang tampak di viewport, diukur ke atas dari sumbu dunia. Saat ini hanya-baca.</string>
 	<string name="properties_field_angle_description">Sudut deformer pada pose saat ini, dalam derajat: Sudut Dasar ditambah tambahan apa pun dari keyform dan blend shape deformer tersebut. Saat ini hanya-baca.</string>
 	<string name="properties_field_scale_description">Skala deformer pada pose saat ini, berdasarkan keyform dan blend shape deformer tersebut. Saat ini hanya-baca.</string>
-	<string name="properties_part_ref_description">Part tempat item ini berada. Mengosongkannya mengeluarkan item dari semua part.</string>
+	<string name="properties_part_ref_description">Bagian tempat item ini berada. Mengosongkannya mengeluarkan item dari semua bagian.</string>
 	<string name="properties_parent_deformer_description">Deformer tempat item ini terpasang. Item mengikuti deformer tersebut saat bergerak, melengkung, atau berputar.</string>
 	<string name="properties_field_pinned_description">Menahan art ini di tempatnya pada halaman atlas. Memindahkannya secara manual di area Editor UV ditolak, dan pengemasan ulang membiarkannya di tempat kecuali Pertahankan Tile Tersemat dinonaktifkan.</string>
-	<string name="properties_field_draw_order_description">Posisi tumpukan drawable ini, dari 0 hingga 1000: yang lebih tinggi digambar di depan, dan jika nilainya sama, yang letaknya lebih atas di area Outliner digambar di depan. Di dalam part dengan mode Berkelompok atau Terisolasi, drawable ini hanya ditumpuk di antara isi part tersebut.</string>
+	<string name="properties_field_draw_order_description">Posisi tumpukan drawable ini, dari 0 hingga 1000: yang lebih tinggi digambar di depan, dan jika nilainya sama, yang letaknya lebih atas di area Outliner digambar di depan. Di dalam bagian dengan mode Berkelompok atau Terisolasi, drawable ini hanya ditumpuk di antara isi bagian tersebut.</string>
 	<string name="properties_field_opacity_description">Tingkat opasitas drawable, dari 0 (tak terlihat) hingga 1 (sama sekali tidak transparan).</string>
 	<string name="properties_field_blend_mode_description">Cara warna drawable bercampur dengan apa yang digambar di belakangnya, seperti mode blend layer di aplikasi menggambar. Mode Lawas mengabaikan pengaturan Alpha.</string>
 	<string name="properties_field_alpha_mode_description">Cara transparansi drawable digabungkan dengan apa yang ada di belakangnya. Over menumpuk secara normal, Atop hanya menggambar di atas art yang sudah ada, dan Out menghapus apa yang ada di belakangnya alih-alih menggambar. Conjoint dan Disjoint mengubah cara tepi lembut saling tumpang tindih.</string>
@@ -1131,16 +1131,16 @@
 	<string name="properties_field_quad_transform_description">Melengkungkan setiap sel lattice secara halus di antara keempat sudutnya, alih-alih sebagai kipas dua segitiga.</string>
 	<string name="properties_field_flip_x_description">Mencerminkan semua yang digerakkan deformer ini dari kiri ke kanan, terhadap pivot deformer tersebut.</string>
 	<string name="properties_field_flip_y_description">Mencerminkan semua yang digerakkan deformer ini dari atas ke bawah, terhadap pivot deformer tersebut.</string>
-	<string name="properties_field_sketch_description">Menandai part ini sebagai part panduan, yaitu referensi seperti sketsa. Part ini tampil di editor, tetapi ekspor MOC3 tidak menyertakannya beserta seluruh isinya, kecuali Anda memilih untuk mengekspor part panduan.</string>
-	<string name="properties_field_draw_order_part_description">Posisi tumpukan seluruh part, dari 0 hingga 1000: yang lebih tinggi digambar di depan. Hanya digunakan jika Mode Grup adalah Berkelompok atau Terisolasi.</string>
-	<string name="properties_field_group_mode_description">Cara isi part ditumpuk dengan bagian lain dari boneka. Pass Through menumpuk setiap drawable menurut urutan gambarnya sendiri, Berkelompok menumpuk seluruh part pada urutan gambar part tersebut, dan Terisolasi juga menggambarnya sebagai satu layer dengan opasitas, mode blend, warna, dan mask miliknya sendiri.</string>
-	<string name="properties_field_opacity_part_description">Tingkat opasitas layer gabungan part, dari 0 (tak terlihat) hingga 1 (sama sekali tidak transparan). Opasitas diterapkan sekali ke seluruh layer, sehingga drawable yang bertumpukan di dalam part tidak saling tembus pandang.</string>
-	<string name="properties_field_blend_mode_part_description">Cara layer gabungan part bercampur dengan apa yang digambar di belakangnya, seperti mode blend layer di aplikasi menggambar. Mode Lawas mengabaikan pengaturan Alpha.</string>
-	<string name="properties_field_alpha_mode_part_description">Cara transparansi layer gabungan part digabungkan dengan apa yang ada di belakangnya. Over menumpuk secara normal, Atop hanya menggambar di atas art yang sudah ada, dan Out menghapus apa yang ada di belakangnya alih-alih menggambar. Conjoint dan Disjoint mengubah cara tepi lembut saling tumpang tindih.</string>
-	<string name="properties_field_multiply_color_part_description">Mengalikan warna layer gabungan part dengan warna ini. Putih tidak mengubahnya.</string>
-	<string name="properties_field_screen_color_part_description">Menerapkan warna ini secara Screen di atas layer gabungan part. Hitam tidak mengubahnya.</string>
-	<string name="properties_field_masked_by_part_description">Membatasi tampilan layer gabungan part pada drawable dan part yang tercantum di sini, sehingga layer tersebut hanya terlihat di tempat mereka memiliki art.</string>
-	<string name="properties_field_invert_mask_part_description">Menampilkan layer gabungan part hanya di tempat mask tidak memiliki art, bukan hanya di tempat mask memiliki art.</string>
+	<string name="properties_field_sketch_description">Menandai bagian ini sebagai bagian panduan, yaitu referensi seperti sketsa. Bagian ini tampil di editor, tetapi ekspor MOC3 tidak menyertakannya beserta seluruh isinya, kecuali Anda memilih untuk mengekspor bagian panduan.</string>
+	<string name="properties_field_draw_order_part_description">Posisi tumpukan seluruh bagian, dari 0 hingga 1000: yang lebih tinggi digambar di depan. Hanya digunakan jika Mode Grup adalah Berkelompok atau Terisolasi.</string>
+	<string name="properties_field_group_mode_description">Cara isi bagian ditumpuk dengan bagian lain dari puppet. Pass Through menumpuk setiap drawable menurut urutan gambarnya sendiri, Berkelompok menumpuk seluruh bagian pada urutan gambar bagian tersebut, dan Terisolasi juga menggambarnya sebagai satu layer dengan opasitas, mode blend, warna, dan mask miliknya sendiri.</string>
+	<string name="properties_field_opacity_part_description">Tingkat opasitas layer gabungan bagian, dari 0 (tak terlihat) hingga 1 (sama sekali tidak transparan). Opasitas diterapkan sekali ke seluruh layer, sehingga drawable yang bertumpukan di dalam bagian tidak saling tembus pandang.</string>
+	<string name="properties_field_blend_mode_part_description">Cara layer gabungan bagian bercampur dengan apa yang digambar di belakangnya, seperti mode blend layer di aplikasi menggambar. Mode Lawas mengabaikan pengaturan Alpha.</string>
+	<string name="properties_field_alpha_mode_part_description">Cara transparansi layer gabungan bagian digabungkan dengan apa yang ada di belakangnya. Over menumpuk secara normal, Atop hanya menggambar di atas art yang sudah ada, dan Out menghapus apa yang ada di belakangnya alih-alih menggambar. Conjoint dan Disjoint mengubah cara tepi lembut saling tumpang tindih.</string>
+	<string name="properties_field_multiply_color_part_description">Mengalikan warna layer gabungan bagian dengan warna ini. Putih tidak mengubahnya.</string>
+	<string name="properties_field_screen_color_part_description">Menerapkan warna ini secara Screen di atas layer gabungan bagian. Hitam tidak mengubahnya.</string>
+	<string name="properties_field_masked_by_part_description">Membatasi tampilan layer gabungan bagian pada drawable dan bagian yang tercantum di sini, sehingga layer tersebut hanya terlihat di tempat mereka memiliki art.</string>
+	<string name="properties_field_invert_mask_part_description">Menampilkan layer gabungan bagian hanya di tempat mask tidak memiliki art, bukan hanya di tempat mask memiliki art.</string>
 	<string name="repack_options_page_size_description">Halaman terbesar yang boleh digunakan pengemasan, dalam piksel. Jika Perkecil Halaman aktif, halaman hanya sebesar ini bila art membutuhkan ruangnya.</string>
 	<string name="repack_options_gutter_description">Ruang kosong yang disisakan di sekeliling setiap potongan art dan di sepanjang tepi halaman, dalam piksel, agar art di sebelahnya tidak merembes masuk saat sampel diambil dari tekstur.</string>
 	<string name="repack_options_extrude_description">Banyaknya piksel warna tepi setiap potongan art yang disalin ke luar ke dalam padding, untuk menyembunyikan sambungan di tepi art. Nilainya tidak boleh melebihi lebar padding.</string>
@@ -1155,7 +1155,7 @@
 	<string name="placement_options_angle_description">Seberapa jauh art diputar pada halaman, dalam derajat.</string>
 	<string name="placement_options_scale_x_description">Seberapa besar art diskalakan di sepanjang lebarnya sendiri. Nilai 1 tidak mengubahnya.</string>
 	<string name="placement_options_scale_y_description">Seberapa besar art diskalakan di sepanjang tingginya sendiri. Nilai 1 tidak mengubahnya.</string>
-	<string name="import_options_align_description">Posisi kanvas artwork yang ditambahkan pada kanvas boneka: Kiri Atas menyejajarkan sudut kiri atas keduanya, Tengah menempatkannya di tengah, dan seterusnya.</string>
+	<string name="import_options_align_description">Posisi kanvas artwork yang ditambahkan pada kanvas puppet: Kiri Atas menyejajarkan sudut kiri atas keduanya, Tengah menempatkannya di tengah, dan seterusnya.</string>
 	<string name="import_options_offset_x_description">Memindahkan art yang ditambahkan ke kanan dari posisi yang ditetapkan Perataan, dalam piksel. Nilai negatif memindahkannya ke kiri.</string>
 	<string name="import_options_offset_z_description">Memindahkan art yang ditambahkan ke atas dari posisi yang ditetapkan Perataan, dalam piksel. Nilai negatif memindahkannya ke bawah.</string>
 	<string name="import_options_alpha_threshold_description">Opasitas minimum sebuah piksel, dari 1 hingga 255, agar dihitung sebagai art saat mesh awal drawable dibuat.</string>
@@ -1206,7 +1206,7 @@
 	<string name="mesh_options_strand_rungs_description">Membuat mesh untuk art tipis berupa pita merata dengan satu jalur di sepanjang tengahnya, bukan menelusuri garis luar art.</string>
 	<string name="mesh_options_strand_width_description">Jika Helai Bertangga aktif, art yang lebih sempit dari nilai ini, dalam piksel, dibuatkan mesh berupa pita. Naikkan untuk menjadikan tali dan helai rambut yang lebih lebar sebagai pita juga; turunkan agar lebih banyak di antaranya mendapat cincin dalam.</string>
 	<string name="mesh_options_deformation_tolerance_description">Seberapa jauh, dalam piksel, mesh baru boleh berbeda dari bentuk mesh lama, baik saat diam maupun di setiap keyform. Jika perbedaannya lebih besar, vertex lama dipertahankan. Nilai yang lebih kecil mempertahankan lebih banyak vertex lama.</string>
-	<string name="mesh_options_quad_margin_description">Seberapa jauh quad melampaui art yang terlihat, dan melampaui setiap vertex dengan lem, di setiap sisi, dalam piksel.</string>
+	<string name="mesh_options_quad_margin_description">Seberapa jauh quad melampaui art yang terlihat, dan melampaui setiap vertex dengan glue, di setiap sisi, dalam piksel.</string>
 	<string name="blend_mode_normal">Normal</string>
 	<string name="blend_mode_additive">Additive</string>
 	<string name="blend_mode_multiply">Multiply</string>
@@ -1274,7 +1274,7 @@
 	<string name="settings_section_navigation">Navigasi</string>
 	<string name="settings_section_grids">Grid</string>
 	<string name="settings_section_quality">Kualitas</string>
-	<string name="settings_section_new_models">Boneka Baru</string>
+	<string name="settings_section_new_models">Puppet Baru</string>
 	<string name="settings_section_meshes">Mesh</string>
 	<string name="settings_section_artwork_files">Berkas Artwork</string>
 	<string name="settings_section_sources">Sumber</string>
@@ -1334,9 +1334,9 @@
 	<string name="settings_keybindings_category_other">Lainnya</string>
 	<string name="settings_pen_coming_soon">Konfigurasi pena segera hadir.</string>
 	<string name="settings_import_parameter_template">Templat Parameter</string>
-	<string name="settings_import_parameter_template_description">Templat parameter bawaan yang digunakan boneka baru saat dibuat dari artwork yang diimpor.</string>
+	<string name="settings_import_parameter_template_description">Templat parameter bawaan yang digunakan puppet baru saat dibuat dari artwork yang diimpor.</string>
 	<string name="settings_import_alignment">Ratakan Artwork yang Ditambahkan</string>
-	<string name="settings_import_alignment_description">Posisi perataan yang dipakai sebagai posisi X/Z (0, 0) saat artwork ditambahkan ke boneka.</string>
+	<string name="settings_import_alignment_description">Posisi perataan yang dipakai sebagai posisi X/Z (0, 0) saat artwork ditambahkan ke puppet.</string>
 	<string name="settings_import_watch_mode">Berkas Artwork yang Dipantau</string>
 	<string name="settings_import_watch_mode_description">Tindakan yang diambil saat berkas artwork yang dipantau berubah di disk.</string>
 	<string name="settings_import_watch_mode_auto">Muat Ulang Otomatis</string>
@@ -1370,7 +1370,7 @@
 	<string name="settings_viewport_uv_grid_subdivisions_description">Jumlah garis minor yang membagi setiap sel utama pada grid area Editor UV.</string>
 	<string name="settings_viewport_supersample_heading">Supersampling</string>
 	<string name="settings_viewport_supersample_quality">Kualitas Render 2x</string>
-	<string name="settings_viewport_supersample_quality_description">Tampilkan boneka di viewport dengan kualitas render 2x, dengan mengorbankan performa. Matikan opsi ini untuk komputer berperforma rendah.</string>
+	<string name="settings_viewport_supersample_quality_description">Tampilkan puppet di viewport dengan kualitas render 2x, dengan mengorbankan performa. Matikan opsi ini untuk komputer berperforma rendah.</string>
 	<string name="settings_viewport_supersample_keep_while_resizing">Lanjutkan Saat Mengubah Ukuran</string>
 	<string name="settings_viewport_supersample_keep_while_resizing_description">Tetap lakukan supersampling saat mengubah ukuran antarmuka atau viewport. Matikan opsi ini untuk komputer berperforma rendah.</string>
 	<string name="settings_viewport_show_by_default">Tampilkan secara Bawaan</string>
@@ -1403,7 +1403,7 @@
 	<string name="settings_colors_role_hovered">Hover</string>
 	<string name="settings_colors_role_hovered_description">Warna yang ditampilkan pada lattice saat penunjuk berada di atasnya.</string>
 	<string name="pick_hover_drawable">Drawable: %1$s</string>
-	<string name="pick_hover_part">Part: %1$s</string>
+	<string name="pick_hover_part">Bagian: %1$s</string>
 	<string name="pick_hover_deformer">Deformer: %1$s</string>
 	<string name="space_keyformsheet">Lembar Keyform</string>
 	<string name="keyform_choose_parameter_insert">Sisipkan key pada parameter mana?</string>
@@ -1417,8 +1417,8 @@
 	<string name="owner_kind_drawable">Drawable</string>
 	<string name="owner_kind_warp_deformer">Deformer Warp</string>
 	<string name="owner_kind_rotation_deformer">Deformer Rotasi</string>
-	<string name="owner_kind_part">Part</string>
-	<string name="owner_kind_glue">Lem</string>
+	<string name="owner_kind_part">Bagian</string>
+	<string name="owner_kind_glue">Glue</string>
 	<string name="track_geometry">Geometri</string>
 	<string name="track_blend_shape">Blend Shape</string>
 	<string name="channel_draw_order">Urutan Gambar</string>
@@ -1427,7 +1427,7 @@
 	<string name="channel_screen_color">Screen</string>
 	<string name="channel_flip_x">Balik X</string>
 	<string name="channel_flip_y">Balik Y</string>
-	<string name="channel_glue_intensity">Intensitas Lem</string>
+	<string name="channel_glue_intensity">Intensitas Glue</string>
 	<string name="cmd_keyform_insert">Sisipkan Key</string>
 	<string name="cmd_keyform_frame_all">Fokuskan Semua Key</string>
 	<string name="cmd_keyform_nudge_left">Geser Key ke Kiri</string>
