@@ -6,7 +6,7 @@
   (ParamAngleX, …) stay verbatim: they are puppet and interop data, not chrome.  A key absent here
   resolves to the English catalog, so this file may lag it between bulk updates.
 
-  Synced with the English catalog at c98ab950.
+  Synced with the English catalog at cc3c1b30.
 
   Terminology.  The same terms as the English catalog, in these Korean renderings.  The user manual
   uses them too, so a string that disagrees with them is a bug.
@@ -38,16 +38,36 @@
   Window: 워크스페이스, 영역, 에디터 [편집기], 사이드바, 툴바, 오버레이, 프리셋, 테마, 커맨드 팔레트,
     단축키 설정, 빠른 설정
   Puppet data: 파트, 드로어블, 메쉬 [아트메쉬], 디포머, 워프 디포머, 회전 디포머, 글루, 파라미터,
-    파라미터 그룹, 키폼, 키프레임, 트랙, 래티스, 그리드 [격자], 아틀라스, 텍스처, 레이어, 캔버스,
+    파라미터 그룹, 키 [키프레임], 키폼, 트랙, 래티스, 그리드 [격자], 아틀라스, 텍스처, 레이어, 캔버스,
     월드 원점, 그리기 순서 [드로우 순서], 불투명도, 혼합 모드, 컴포지트, 마스크, 클리핑 마스크,
-    가이드 이미지, 스케치, 그룹 모드, 격리, 후면 제거, 깊이, 표면, 포즈
+    가이드 파트 [가이드 이미지, 스케치], 그룹 모드, 격리, 후면 제거, 깊이, 표면, 포즈
   Mesh: 정점, 간선, 면, UV, 비례 편집, 감쇠, 기준점, 스냅, 커서, 잡기 [그랩], 슬라이드, 분리,
     병합, 복제, 대칭, 반전, 여백, 외곽선
   Modes: 오브젝트 모드, 편집 모드, 포즈 모드
-  Actions: 가져오기, 내보내기, 다시 불러오기, 연결, 연결 해제, 재연결, 고정 [핀], 고정 해제,
+  Actions: 가져오기, 내보내기, 다시 불러오기, 연결, 연결 해제, 바인드, 바인드 해제, 다시 바인드 [재연결], 고정 [핀], 고정 해제,
     실행 취소, 다시 실행, 선택, 표시, 숨기기
   Files: 부속 파일 (sidecar), 유저 데이터, 표시 정보, 원본 (source), 소스 코드, 텍스처 소스, 제작진
   Export notices: 기록했습니다 for "was written", 내보냈습니다 for "was exported"
+
+  New terms (all proposals).  The English Terminology block now fixes how each of these is used.
+    Mesh is only the geometry of a drawable: 메쉬 for the geometry and 드로어블 for the object, so
+      "Move Drawable" is 드로어블 이동, never 메쉬 이동.  A mesh has 정점 and a lattice has 포인트.
+    Key: 키, a single entry on a keyform parameter.  Keyform: 키폼.  Keyframe: 키프레임, reserved
+      for a future dopesheet and never used for a keyform parameter.  A keyboard key is also 키.
+    Guide Part: 가이드 파트.  Never 가이드 이미지, and never 스케치 for the name.
+    Atlas: 아틀라스, each one a 페이지.  Texture: 텍스처.  Tile: 타일.
+    Gutter: 패딩, never 여백, which is Margin.  Extrude: 가장자리 확장, since 돌출 is 3D extrusion.
+    Bind: 바인드, as in 바인드됨, 바인드 안 됨, 바인드 해제, and 다시 바인드.  연결 is only for Link
+      (a pair of parameters), Connect, Connected, and Select Linked.  A glue that is re-bound is
+      다시 연결, a separate sense.
+    Object: 오브젝트, never 객체.  Element (one vertex, edge, or face): 요소.
+    Glue: 글루, a noun and never the verb.
+    Blend Shape: 블렌드 셰이프, apart from 혼합 모드 and 알파 모드 (Blend Mode and Alpha Mode).
+    Export notice verbs: say what happened to the data.  "Lowered" is written in the target format's
+      simpler form, never 하위 버전으로 변환.
+    Cursor and pointer: 2D 커서 is the placed reference marker, and the mouse pointer is 포인터.
+    Blender terms use Blender's own Korean term where one exists, as 잡기, 병합, 분리, 슬라이드, 기준점,
+      비례 편집, 감쇠, 스냅, 중간점, 활성 요소, 아마추어, and the three modes already do.
 
   Style.  Statements and notices use 합니다체 (-습니다, -ㅂ니다) and end in a period.  An instruction
   to the user uses -하세요.  A label (a command, menu item, history step, status field, or button) is
@@ -117,7 +137,7 @@
 	<string name="cmd_import_moc3">MOC3 가져오기…</string>
 	<string name="cmd_import_artwork">아트워크 가져오기…</string>
 	<string name="cmd_document_reload_artwork">아트워크 다시 불러오기</string>
-	<string name="cmd_sources_relink">아트 재연결</string>
+	<string name="cmd_sources_rebind">아트 다시 바인드</string>
 	<string name="cmd_sources_match_automatically">아트워크 자동 매칭</string>
 	<string name="cmd_sources_replace_artwork">아트워크 교체…</string>
 	<string name="cmd_sources_delete_art">아트 삭제</string>
@@ -183,41 +203,41 @@
 	<string name="export_reason_channel_demoted_to_static">%1$s의 키 범위가 오브젝트 그리드보다 좁아 상수로 기록했습니다. MOC3는 오브젝트당 하나의 그리드만 저장합니다.</string>
 	<string name="export_reason_channel_demoted_by_geometry">%1$s에 지오메트리의 키 범위에 맞지 않는 키가 있어 상수로 기록했습니다. MOC3는 오브젝트당 하나의 그리드만 저장합니다.</string>
 	<string name="export_reason_keyforms_demoted_to_static">%1$s 오브젝트는 키폼 없이 기록했습니다. MOC3는 오브젝트당 하나의 그리드만 저장합니다.</string>
-	<string name="export_reason_guide_part_not_runtime_content">가이드 이미지(스케치) 파트는 런타임 콘텐츠가 아니므로 제외되었습니다.</string>
+	<string name="export_reason_guide_part_not_runtime_content">가이드 파트는 런타임 콘텐츠가 아니므로 제외되었습니다.</string>
 	<string name="export_reason_hidden_part_omitted_by_option">파트가 숨겨져 있고 내보내기 옵션에서 숨겨진 파트 제외가 설정되어 있어 해당 내용이 제외되었습니다.</string>
 	<string name="export_reason_hidden_drawable_omitted_by_option">드로어블이 숨겨져 있고 내보내기 옵션에서 숨겨진 드로어블 제외가 설정되어 있어 제외되었습니다.</string>
 	<string name="export_reason_vertex_count_exceeds_index_width">메쉬에 %1$d개의 정점이 있어 이 형식이 허용하는 %2$d개를 초과하므로 제외되었습니다.</string>
 	<string name="export_reason_no_atlas_page_bound">이 드로어블에 연결된 아틀라스 페이지가 없어 0번 페이지를 가리키도록 기록했습니다.</string>
-	<string name="export_reason_clipping_mask_not_in_export">클리핑 마스크 %1$s이(가) 이 내보내기에 포함되지 않아 메쉬에 해당 마스크를 적용하지 않은 상태로 기록했습니다.</string>
+	<string name="export_reason_clipping_mask_not_in_export">클리핑 마스크 %1$s이(가) 이 내보내기에 포함되지 않아 드로어블에 해당 마스크를 적용하지 않은 상태로 기록했습니다.</string>
 	<string name="export_reason_offscreen_mask_not_in_export">클리핑 마스크가 기록할 수 없는 드로어블을 지정하고 있어 오프스크린에서 제외되었습니다.</string>
 	<string name="export_reason_warp_has_no_lattice">컨트롤 포인트 그리드가 없는 워프 디포머에는 기록할 래티스가 없습니다. 파일을 정상적으로 읽을 수 있도록 그 대신 빈 래티스 하나를 기록했으며, 이 디포머에 연결된 모든 항목은 원점으로 이동합니다.</string>
 	<string name="export_reason_rotation_has_no_pivot">기준점 없는 회전 디포머에는 기록할 변환이 없어 그 대신 항등 변환을 기록했습니다.</string>
 	<string name="export_reason_glue_names_unknown_drawable">이 내보내기에 포함되지 않은 드로어블을 지정하는 글루가 제외되었습니다.</string>
 	<string name="export_reason_id_truncated">ID가 MOC의 %1$d바이트 ID 레코드에 맞지 않아 “%2$s”로 잘라서 기록했습니다.</string>
-	<string name="export_reason_id_truncated_disambiguated">ID가 MOC의 %1$d바이트 ID 레코드에 맞지 않고, 잘라낼 경우 다른 객체의 ID와 충돌하므로 “%2$s”로 변경하여 기록했습니다.</string>
-	<string name="export_reason_no_matching_source">대조할 일치하는 CMO3 원본이 없어 변경 사항을 기록하지 않았습니다.</string>
-	<string name="export_reason_parameter_kind_change">파라미터 종류 변경(일반 / 블렌드 셰이프)은 하위 버전으로 변환되지 않습니다.</string>
-	<string name="export_reason_deformer_kind_change">디포머 종류 변경은 하위 버전으로 변환되지 않습니다.</string>
-	<string name="export_reason_deformer_needs_warp_source">CMO3 원본이 워프 디포머가 아니므로 워프 전용 편집 사항(이중선형 모드, 래티스, 키폼)은 기록하지 않았습니다.</string>
-	<string name="export_reason_deformer_needs_rotation_source">CMO3 원본이 회전 디포머가 아니므로 회전 전용 편집 사항(기본 각도, 키폼)은 기록하지 않았습니다.</string>
-	<string name="export_reason_texture_rebinding_editor_only">텍스처 소스 재연결은 에디터에서만 사용하는 상태이므로 CMO3에 기록되지 않습니다.</string>
-	<string name="export_reason_base_geometry_vertex_mismatch">기본 지오메트리의 정점 수가 CMO3 원본과 일치하지 않아 기록하지 않았습니다.</string>
+	<string name="export_reason_id_truncated_disambiguated">ID가 MOC의 %1$d바이트 ID 레코드에 맞지 않고, 잘라낼 경우 다른 오브젝트의 ID와 충돌하므로 “%2$s”로 변경하여 기록했습니다.</string>
+	<string name="export_reason_no_matching_source">CMO3에 대조할 대응 오브젝트가 없어 변경 사항을 기록하지 않았습니다.</string>
+	<string name="export_reason_parameter_kind_change">파라미터 종류 변경(일반 / 블렌드 셰이프)은 내보내기에 반영되지 않습니다.</string>
+	<string name="export_reason_deformer_kind_change">디포머 종류 변경은 내보내기에 반영되지 않습니다.</string>
+	<string name="export_reason_deformer_needs_warp_source">CMO3의 대응 오브젝트가 워프 디포머가 아니므로 워프 전용 편집 사항(이중선형 모드, 래티스, 키폼)은 기록하지 않았습니다.</string>
+	<string name="export_reason_deformer_needs_rotation_source">CMO3의 대응 오브젝트가 회전 디포머가 아니므로 회전 전용 편집 사항(기본 각도, 키폼)은 기록하지 않았습니다.</string>
+	<string name="export_reason_texture_rebinding_editor_only">텍스처 소스 다시 바인드는 에디터에서만 사용하는 상태이므로 CMO3에 기록되지 않습니다.</string>
+	<string name="export_reason_base_geometry_vertex_mismatch">기본 지오메트리의 정점 수가 CMO3의 대응 오브젝트와 일치하지 않아 기록하지 않았습니다.</string>
 	<string name="export_reason_no_uvs_to_reconcile">대조할 UV가 드로어블에 없어 UV를 기록하지 않았습니다.</string>
 	<string name="export_reason_deformer_no_part_to_move_to">디포머를 이동할 CMO3 파트가 없어 해당 파트는 변경하지 않았습니다.</string>
 	<string name="export_reason_static_draw_order_shadowed">고정 그리기 순서가 키폼 트랙에 의해 가려져 있어 CMO3에서 별도로 저장할 수 없습니다.</string>
 	<string name="export_reason_composite_statics_shadowed">컴포지트의 고정 값이 파트의 키폼 트랙에 의해 가려져 있어 CMO3에서 별도로 저장할 수 없습니다.</string>
 	<string name="export_reason_part_masks_flatten">파트 유형의 컴포지트 마스크는 CMO3에서 하위 드로어블로 평탄화됩니다.</string>
 	<string name="export_reason_no_source_set_to_create_into">CMO3에 이 유형의 항목을 생성할 세트가 없어 새 항목을 생성하지 않았습니다.</string>
-	<string name="export_reason_created_entity_has_no_source">새로 생성된 항목에는 아직 CMO3 원본이 없어 패널 순서에서 제외되었습니다.</string>
+	<string name="export_reason_created_entity_has_no_source">새로 생성된 항목에는 아직 대응하는 CMO3 오브젝트가 없어 패널 순서에서 제외되었습니다.</string>
 	<string name="export_reason_created_group_not_in_tree">생성된 그룹이 편집된 파라미터 트리에 없어 생성하지 않았습니다.</string>
 	<string name="export_reason_created_drawable_no_texture_source">생성된 드로어블에 복제할 텍스처 소스가 없어 생성하지 않았습니다.</string>
-	<string name="export_reason_glued_drawable_has_no_source">글루가 적용된 드로어블에 CMO3 원본이 없어 글루를 생성하지 않았습니다.</string>
+	<string name="export_reason_glued_drawable_has_no_source">글루가 적용된 드로어블에 대응하는 CMO3 오브젝트가 없어 글루를 생성하지 않았습니다.</string>
 	<string name="export_reason_vertex_count_exceeds_edge_table">메쉬에 %1$d개의 정점이 있으며, 편집 가능한 메쉬의 간선 테이블이 인덱싱할 수 있는 %2$d개를 초과하므로 간선 테이블을 다시 생성하지 않았습니다.</string>
 	<string name="export_reason_glued_mesh_no_uid_table">글루가 적용된 메쉬에 편집 가능한 메쉬의 정점 ID 테이블이 없어 글루를 다시 연결할 수 없습니다.</string>
 	<string name="export_reason_glue_pair_past_uid_table">글루 쌍의 인덱스가 해당 메쉬의 정점 ID 테이블 범위를 초과하여 글루를 다시 연결하지 않았습니다.</string>
-	<string name="export_reason_keyform_cannot_bundle">%1$s CMO3는 객체당 하나의 그리드만 저장합니다.</string>
-	<string name="export_reason_axis_parameter_no_source">그리드 축 파라미터 %1$s에 CMO3 원본이 없어 키폼 그리드를 기록하지 않았습니다.</string>
-	<string name="export_reason_blend_shape_parameter_no_source">블렌드 셰이프 파라미터 %1$s에 CMO3 원본이 없어 블렌드 셰이프를 기록하지 않았습니다.</string>
+	<string name="export_reason_keyform_cannot_bundle">%1$s CMO3는 오브젝트당 하나의 그리드만 저장합니다.</string>
+	<string name="export_reason_axis_parameter_no_source">그리드 축 파라미터 %1$s에 대응하는 CMO3 파라미터가 없어 키폼 그리드를 기록하지 않았습니다.</string>
+	<string name="export_reason_blend_shape_parameter_no_source">블렌드 셰이프 파라미터 %1$s에 대응하는 CMO3 파라미터가 없어 블렌드 셰이프를 기록하지 않았습니다.</string>
 	<string name="export_reason_physics_names_deleted_parameter">물리 설정 %1$s이(가) 삭제된 이 파라미터를 아직 사용하고 있습니다. 변경하지 않고 그대로 내보냈으므로, Cubism Editor에서 다른 파라미터로 지정하거나 제거하세요.</string>
 	<string name="export_reason_sidecar_names_unwritten_parameters">%1$s이(가) 이 내보내기에 포함되지 않은 파라미터(%2$s)를 참조합니다. 변경하지 않고 그대로 내보냈으므로 퍼펫을 재생하는 소프트웨어에서 해당 파라미터를 찾을 수 없습니다.</string>
 	<string name="export_reason_sidecar_names_unwritten_parts">%1$s이(가) 이 내보내기에 포함되지 않은 파트(%2$s)를 참조합니다. 변경하지 않고 그대로 내보냈으므로 퍼펫을 재생하는 소프트웨어에서 표시하거나 숨길 대상이 없습니다.</string>
@@ -238,8 +258,8 @@
 	<string name="export_reason_no_atlas_entry">이 아트워크는 어떤 아틀라스 페이지에도 패킹되어 있지 않아 업데이트할 배치가 없습니다.</string>
 	<string name="export_reason_atlas_page_not_recomposed">이 아트워크가 아틀라스 페이지에서 이동했지만 페이지 이미지에는 여전히 이전 위치에 표시됩니다. 다시 패킹하여 해당 위치를 갱신하세요.</string>
 	<string name="export_reason_atlas_tile_metadata">이 아트워크의 픽셀, 이름 또는 크기가 변경되어 아틀라스 배치에 반영할 수 없습니다. 대신 아트워크를 다시 가져오세요.</string>
-	<string name="export_reason_atlas_tile_rebinding">이 드로어블이 다른 아트워크에 연결되어 있으므로 다시 패킹하는 대신 아트워크를 다시 가져와야 합니다.</string>
-	<string name="export_reason_source_layer_binding_not_in_export">이 아트는 %1$s의 %2$s 레이어에 연결되어 있지만, 퍼펫의 목록에 해당 아트워크가 없어 연결을 내보낼 수 없습니다. 연결을 내보내려면 원본 영역에서 재연결하세요.</string>
+	<string name="export_reason_atlas_tile_rebinding">이 드로어블이 다른 아트워크에 바인드되어 있으므로 다시 패킹하는 대신 아트워크를 다시 가져와야 합니다.</string>
+	<string name="export_reason_source_layer_binding_not_in_export">이 아트는 %1$s의 %2$s 레이어에 바인드되어 있지만, 퍼펫의 목록에 해당 아트워크가 없어 바인딩을 내보낼 수 없습니다. 바인딩을 내보내려면 원본 영역에서 다시 바인드하세요.</string>
 	<string name="export_reason_fractional_canvas_size">CMO3는 캔버스 크기를 정수 픽셀 단위로 저장하므로 소수 값은 기록하지 않았습니다.</string>
 	<string name="confirm_export_overwrite">내보내기를 진행하면 기존 파일 %1$d개를 덮어씁니다: %2$s</string>
 	<string name="export_options_title_moc3">MOC3 내보내기 옵션</string>
@@ -249,7 +269,7 @@
 	<string name="export_options_section_scale">크기</string>
 	<string name="export_options_hidden_parts">숨겨진 파트 내보내기</string>
 	<string name="export_options_hidden_drawables">숨겨진 드로어블 내보내기</string>
-	<string name="export_options_guide_parts">스케치 파트 내보내기</string>
+	<string name="export_options_guide_parts">가이드 파트 내보내기</string>
 	<string name="export_options_include_physics">물리 설정 (physics3.json)</string>
 	<string name="export_options_include_userdata">유저 데이터 (userdata3.json)</string>
 	<string name="export_options_include_displayinfo">표시 정보 (cdi3.json)</string>
@@ -337,7 +357,7 @@
 	<string name="cmd_mode_pose">포즈 모드</string>
 	<string name="group_editor_mode">모드</string>
 	<string name="group_uv_mirror">대칭</string>
-	<string name="group_keyform_key">키프레임</string>
+	<string name="group_keyform_key">키</string>
 	<string name="group_relation">관계</string>
 	<string name="group_parameter_control">컨트롤</string>
 	<string name="group_viewport_tools">도구</string>
@@ -359,10 +379,10 @@
 	<string name="menu_uv_mirror_y">Y축 대칭</string>
 	<string name="uv_texture_selector_follow">선택 항목 추적</string>
 	<string name="uv_texture_selector_page">%1$d페이지</string>
-	<string name="uv_texture_selector_page_row">%1$d페이지 · %2$d × %3$d · 메쉬 %4$d개</string>
+	<string name="uv_texture_selector_page_row">%1$d페이지 · %2$d × %3$d · 드로어블 %4$d개</string>
 	<string name="uv_texture_selector_layer">원본 레이어</string>
 	<string name="uv_layer_picker_title">아트워크에서 찾기</string>
-	<string name="uv_layer_picker_row">%1$s · %2$d × %3$d · 메쉬 %4$d개</string>
+	<string name="uv_layer_picker_row">%1$s · %2$d × %3$d · 드로어블 %4$d개</string>
 	<string name="uv_layer_picker_no_matches">일치하는 아트워크가 없습니다</string>
 	<string name="uv_layer_picker_empty">이 퍼펫에는 원본 아트워크가 없습니다.</string>
 	<string name="cmd_document_toggle_source_artwork">원본 아트워크 표시 전환</string>
@@ -393,21 +413,21 @@
 	<string name="history_part_rename">파트 이름 변경</string>
 	<string name="history_part_selectable">파트 선택 가능/불가능 전환</string>
 	<string name="history_part_move">파트 이동</string>
-	<string name="history_visibility_drawable">메쉬 표시/숨기기 전환</string>
+	<string name="history_visibility_drawable">드로어블 표시/숨기기 전환</string>
 	<string name="history_visibility_deformer">디포머 표시/숨기기 전환</string>
-	<string name="history_drawable_rename">메쉬 이름 변경</string>
-	<string name="history_drawable_selectable">메쉬 선택 가능/불가능 전환</string>
-	<string name="history_drawable_move">메쉬 이동</string>
+	<string name="history_drawable_rename">드로어블 이름 변경</string>
+	<string name="history_drawable_selectable">드로어블 선택 가능/불가능 전환</string>
+	<string name="history_drawable_move">드로어블 이동</string>
 	<string name="history_visibility_hide_unselected">선택되지 않은 항목 숨기기</string>
 	<string name="history_visibility_unhide_all">모두 표시</string>
 	<string name="history_relation_copy_to_selected">선택 항목에 관계 복사</string>
 	<string name="history_deformer_rename">디포머 이름 변경</string>
 	<string name="history_deformer_selectable">디포머 선택 가능/불가능 전환</string>
 	<string name="history_deformer_move">디포머 이동</string>
-	<string name="history_keyform_insert">키프레임 삽입</string>
-	<string name="history_keyform_move">키프레임 이동</string>
-	<string name="history_keyform_remove">키프레임 제거</string>
-	<string name="history_keyform_select">키프레임 선택</string>
+	<string name="history_keyform_insert">키 삽입</string>
+	<string name="history_keyform_move">키 이동</string>
+	<string name="history_keyform_remove">키 제거</string>
+	<string name="history_keyform_select">키 선택</string>
 	<string name="history_parameter_select">파라미터 선택</string>
 	<string name="history_parameter_value">파라미터 조정</string>
 	<string name="history_parameter_range">파라미터 범위 편집</string>
@@ -452,9 +472,9 @@
 	<string name="history_mesh_select">요소 선택</string>
 	<string name="history_mesh_select_mode">선택 모드 변경</string>
 	<string name="history_part_delete">파트 삭제</string>
-	<string name="history_drawable_delete">메쉬 삭제</string>
+	<string name="history_drawable_delete">드로어블 삭제</string>
 	<string name="history_deformer_delete">디포머 삭제</string>
-	<string name="history_part_sketch">가이드 이미지 표시/숨기기 전환</string>
+	<string name="history_part_sketch">가이드 파트 전환</string>
 	<string name="history_part_draw_order">파트 그리기 순서 설정</string>
 	<string name="history_part_group_mode">그룹 모드 설정</string>
 	<string name="history_part_composite">컴포지트 설정</string>
@@ -485,15 +505,15 @@
 	<string name="history_document_atlas_pin">아틀라스 내부 아트 고정</string>
 	<string name="history_document_atlas_unpin">아틀라스 내부 아트 고정 해제</string>
 	<string name="history_document_atlas_repack">아틀라스 재배치</string>
-	<string name="history_document_tile_source">아트 재연결</string>
-	<string name="history_document_tile_unbind">아트 연결 해제</string>
+	<string name="history_document_tile_source">아트 다시 바인드</string>
+	<string name="history_document_tile_unbind">아트 바인드 해제</string>
 	<string name="history_document_delete_tile">아트 삭제</string>
 	<string name="history_document_delete_tile_ignore">아트 삭제, 레이어 무시</string>
 	<string name="history_document_layer_ignore">레이어 무시</string>
 	<string name="history_document_layer_unignore">레이어 무시 해제</string>
 	<string name="history_document_import_artwork">아트워크 가져오기</string>
 	<string name="history_document_reload_artwork">아트워크 다시 불러오기</string>
-	<string name="history_document_relink_artwork">아트 재연결</string>
+	<string name="history_document_relink_artwork">아트 다시 바인드</string>
 	<string name="history_document_match_artwork">아트워크 매칭</string>
 	<string name="history_document_replace_artwork">아트워크 교체</string>
 	<string name="history_document_runtime_target">런타임 타겟 설정</string>
@@ -503,43 +523,43 @@
 	<string name="outliner_filter_deformers">디포머</string>
 	<string name="sources_reload">아트워크 파일 다시 불러오기</string>
 	<string name="sources_reload_pending">디스크의 아트워크 파일이 변경되었습니다. 변경 사항을 적용하려면 다시 불러오세요.</string>
-	<string name="sources_match_automatically">자동 매칭: 아트워크에 더 이상 없는 레이어에 연결되어 있던 아트를 가장 일치하는 레이어에 다시 연결합니다.</string>
+	<string name="sources_match_automatically">자동 매칭: 아트워크에 더 이상 없는 레이어에 바인드되어 있던 아트를 가장 일치하는 레이어에 다시 바인드합니다.</string>
 	<string name="sources_file_menu">파일 작업</string>
 	<string name="sources_file_menu_replace">아트워크 교체…</string>
 	<string name="sources_file_menu_reload">이 파일 다시 불러오기</string>
 	<string name="sources_layer_menu">레이어 작업</string>
 	<string name="sources_layer_menu_ignore">레이어 무시</string>
 	<string name="sources_layer_menu_unignore">무시 해제</string>
-	<string name="sources_suggestion_title">이 연결 검토</string>
+	<string name="sources_suggestion_title">이 바인딩 검토</string>
 	<string name="sources_suggestion_accept">%1$s 수락 (%2$d%)</string>
 	<string name="sources_suggestion_accept_merge">%1$s 수락 (%2$d%) 후 해당 새 드로어블 제거</string>
-	<string name="sources_suggestion_relink">수동으로 재연결…</string>
+	<string name="sources_suggestion_relink">수동으로 다시 바인드…</string>
 	<string name="sources_suggestion_leave">지금은 그대로 두기</string>
-	<string name="sources_filter_bound">연결됨</string>
-	<string name="sources_filter_unbound">연결 안 됨</string>
+	<string name="sources_filter_bound">바인드됨</string>
+	<string name="sources_filter_unbound">바인드 안 됨</string>
 	<string name="sources_filter_missing">누락된 파일</string>
 	<string name="sources_filter_needs_review">검토 필요</string>
 	<string name="sources_status_present">존재함</string>
 	<string name="sources_status_missing">누락됨</string>
 	<string name="sources_status_unknown">알 수 없음</string>
-	<string name="sources_status_bound">연결됨</string>
-	<string name="sources_status_bound_unstable">이름으로 연결됨</string>
-	<string name="sources_status_unbound">연결 안 됨</string>
+	<string name="sources_status_bound">바인드됨</string>
+	<string name="sources_status_bound_unstable">이름으로 바인드됨</string>
+	<string name="sources_status_unbound">바인드 안 됨</string>
 	<string name="sources_status_unplaced">배치되지 않음</string>
 	<string name="sources_status_needs_review">검토 필요: 아트워크에 이 레이어가 더 이상 없음</string>
 	<string name="sources_status_emptied">검토 필요: 아트워크에서 이 레이어가 비어 있음</string>
 	<string name="sources_status_replaced">검토 필요: 교체한 아트워크에 이 키의 레이어가 없음</string>
 	<string name="sources_status_ignored">무시됨: 다시 불러와도 이 레이어는 추가되지 않음</string>
-	<string name="sources_status_source_not_listed">검토 필요: 이 아트가 연결된 아트워크가 이 퍼펫의 목록에 없음</string>
-	<string name="sources_unbound_art">연결되지 않은 아트</string>
+	<string name="sources_status_source_not_listed">검토 필요: 이 아트가 바인드된 아트워크가 이 퍼펫의 목록에 없음</string>
+	<string name="sources_unbound_art">바인드되지 않은 아트</string>
 	<string name="sources_source_detail">%1$s · 레이어 %2$d개</string>
 	<string name="sources_source_no_path">기록된 경로 없음</string>
 	<string name="sources_layer_detail">%1$d × %2$d, 위치 %3$d, %4$d</string>
 	<string name="sources_layer_detail_axes">%1$d × %2$d, 위치 x %3$s, z %4$s</string>
 	<string name="sources_tile_page">%1$d페이지</string>
-	<string name="sources_tile_unlisted_binding">%1$s의 %2$s에 연결됨</string>
-	<string name="sources_relink_title">레이어에 재연결</string>
-	<string name="sources_relink_clear">연결 해제</string>
+	<string name="sources_tile_unlisted_binding">%1$s의 %2$s에 바인드됨</string>
+	<string name="sources_relink_title">레이어에 다시 바인드</string>
+	<string name="sources_relink_clear">바인드 해제</string>
 	<string name="sources_relink_delete">아트 삭제</string>
 	<string name="sources_relink_no_matches">일치하는 레이어가 없습니다.</string>
 	<string name="outliner_filter_drawables">드로어블</string>
@@ -696,7 +716,7 @@
 	<string name="notice_reload_done">아트워크를 다시 불러왔습니다: 갱신 %1$d개, 추가 %2$d개, 매칭 %3$d개.</string>
 	<string name="notice_reload_notes">아트워크를 다시 불러왔습니다: 갱신 %1$d개, 추가 %2$d개, 매칭 %3$d개, 검토 필요 %4$d개.</string>
 	<string name="notice_reload_outgrown">아트워크를 다시 불러왔습니다: 갱신 %1$d개, 추가 %2$d개, 매칭 %3$d개, 검토 필요 %4$d개. 일부 레이어가 이제 메쉬의 가장자리를 벗어납니다.</string>
-	<string name="notice_relink_outgrown">아트를 재연결했으며, 일부 레이어가 이제 메쉬의 가장자리를 벗어납니다.</string>
+	<string name="notice_relink_outgrown">아트를 다시 바인드했으며, 일부 레이어가 이제 메쉬의 가장자리를 벗어납니다.</string>
 	<string name="notice_match_outgrown">레이어 %1$d개를 매칭했고 %2$d개는 검토 대상으로 남겼습니다. 일부 레이어가 이제 메쉬의 가장자리를 벗어납니다.</string>
 	<string name="notice_replace_outgrown">아트워크를 교체했습니다: 키로 다시 불러온 레이어 %1$d개, 매칭 %2$d개, 검토 대상 %3$d개. 일부 레이어가 이제 메쉬의 가장자리를 벗어납니다.</string>
 	<string name="notice_watch_changed">디스크에서 아트워크 파일 %1$d개가 변경되었습니다. 변경 사항을 적용하려면 다시 불러오기를 누르세요.</string>
@@ -704,13 +724,13 @@
 	<string name="notice_watch_missing">%1$s은(는) 퍼펫이 읽었던 위치에 더 이상 없습니다.</string>
 	<string name="notice_reload_no_changes">아트워크 파일이 변경되지 않았습니다.</string>
 	<string name="notice_reload_no_files">읽을 수 있는 아트워크 파일이 없어 아무것도 다시 불러오지 않았습니다.</string>
-	<string name="notice_relink_pulled">아트를 재연결하고 다시 불러왔습니다.</string>
-	<string name="notice_relink_binding_only">아트를 재연결했지만 해당 아트워크를 읽을 수 없어 아트는 변경되지 않았습니다.</string>
-	<string name="notice_relink_pulled_from_document">아트를 재연결했지만 해당 아트워크를 읽을 수 없어 퍼펫에 있는 레이어 사본을 사용했습니다.</string>
+	<string name="notice_relink_pulled">아트를 다시 바인드하고 다시 불러왔습니다.</string>
+	<string name="notice_relink_binding_only">아트를 다시 바인드했지만 해당 아트워크를 읽을 수 없어 아트는 변경되지 않았습니다.</string>
+	<string name="notice_relink_pulled_from_document">아트를 다시 바인드했지만 해당 아트워크를 읽을 수 없어 퍼펫에 있는 레이어 사본을 사용했습니다.</string>
 	<string name="notice_match_done">레이어 %1$d개를 매칭했고 %2$d개는 검토 대상으로 남겼습니다.</string>
 	<string name="notice_match_no_files">파일에서도 이 퍼펫에서도 아트워크를 읽을 수 없어 아무것도 매칭하지 않았습니다.</string>
-	<string name="notice_match_nothing">충분히 확실하게 일치한 연결이 없습니다. 검토가 필요한 행에 제안이 표시되어 있습니다.</string>
-	<string name="notice_match_no_candidates">일치시킬 대상이 남아 있지 않습니다: 모든 후보 레이어가 이미 연결되어 있습니다. 다시 불러오기의 작업 설정 스트립에서 일치 임계값을 조정하거나 수동으로 재연결하세요.</string>
+	<string name="notice_match_nothing">충분히 확실하게 일치한 바인딩이 없습니다. 검토가 필요한 행에 제안이 표시되어 있습니다.</string>
+	<string name="notice_match_no_candidates">일치시킬 대상이 남아 있지 않습니다: 모든 후보 레이어가 이미 바인드되어 있습니다. 다시 불러오기의 작업 설정 스트립에서 일치 임계값을 조정하거나 수동으로 다시 바인드하세요.</string>
 	<string name="notice_replace_done">아트워크를 교체했습니다: 레이어 %1$d개를 키 기준으로 다시 불러왔고, %2$d개를 일치시켰으며, %3$d개는 검토 대상으로 남겼습니다.</string>
 	<string name="notice_atlas_repack_superseded">재배치 취소됨: 배치되는 동안 아틀라스가 변경되었습니다.</string>
 	<string name="notice_atlas_repack_unchanged">아틀라스가 이미 배치되어 있습니다. 변경된 사항이 없습니다.</string>
@@ -934,7 +954,7 @@
 	<string name="properties_field_angle">각도</string>
 	<string name="properties_field_scale">크기 조절</string>
 	<string name="properties_field_quad_transform">이중선형(사각형)</string>
-	<string name="properties_field_sketch">가이드 이미지</string>
+	<string name="properties_field_sketch">가이드 파트</string>
 	<string name="properties_field_draw_order">그리기 순서</string>
 	<string name="properties_field_group_mode">그룹 모드</string>
 	<string name="properties_field_opacity">불투명도</string>
@@ -949,8 +969,8 @@
 	<string name="unit_degrees">°</string>
 	<string name="unit_percent">%</string>
 	<string name="repack_options_page_size">최대 페이지 크기</string>
-	<string name="repack_options_gutter">여백</string>
-	<string name="repack_options_extrude">돌출</string>
+	<string name="repack_options_gutter">패딩</string>
+	<string name="repack_options_extrude">가장자리 확장</string>
 	<string name="repack_options_allow_rotation">회전 허용</string>
 	<string name="repack_options_keep_pinned">고정된 타일 유지</string>
 	<string name="repack_options_power_of_two">2의 거듭제곱 페이지</string>
@@ -1015,7 +1035,7 @@
 	<string name="import_options_offset_x">X 오프셋</string>
 	<string name="import_options_offset_z">Z 오프셋</string>
 	<string name="import_options_alpha_threshold">알파 임계값</string>
-	<string name="import_options_margin">초기 메쉬 여백</string>
+	<string name="import_options_margin">메쉬 여백</string>
 	<string name="import_anchor_top_left">왼쪽 위</string>
 	<string name="import_anchor_top">위</string>
 	<string name="import_anchor_top_right">오른쪽 위</string>
@@ -1030,12 +1050,12 @@
 	<string name="properties_field_canvas_height_description">캔버스의 높이입니다(픽셀 단위). 크기를 변경하면 아래쪽 가장자리만 이동하므로 아트와 월드 축은 제자리에 유지되고, Z 중심이 같은 양만큼 바뀝니다.</string>
 	<string name="properties_field_origin_x_description">월드 축이 교차하는 지점으로, 캔버스 왼쪽 가장자리로부터의 거리입니다(픽셀 단위). 위치 필드는 이 축을 기준으로 측정합니다.</string>
 	<string name="properties_field_origin_z_description">월드 축이 교차하는 지점으로, 캔버스 아래쪽 가장자리로부터 위로 잰 거리입니다(픽셀 단위). 위치 필드는 이 축을 기준으로 측정합니다.</string>
-	<string name="properties_field_source_layer_display_description">각 메쉬를 패킹된 아틀라스 대신 원본 아트워크 레이어에서 그립니다. 퍼펫이 레이어를 보관하지 않는 메쉬는 계속 아틀라스에서 그려집니다.</string>
+	<string name="properties_field_source_layer_display_description">각 드로어블을 패킹된 아틀라스 대신 원본 아트워크 레이어에서 그립니다. 퍼펫이 레이어를 보관하지 않는 드로어블은 계속 아틀라스에서 그려집니다.</string>
 	<string name="properties_field_runtime_target_description">이 퍼펫이 대상으로 하는 런타임입니다. 재생할 수 없는 기능의 컨트롤은 숨겨지지만 퍼펫에서 제거되는 것은 없으며, 해당 기능을 제외하는 것은 MOC3 내보내기뿐입니다.</string>
-	<string name="properties_field_position_x_description">뷰포트에 표시되는 메쉬의 가로 중심으로, 월드 축을 기준으로 측정합니다. 모든 파라미터가 기본값일 때만 편집할 수 있습니다.</string>
-	<string name="properties_field_position_z_description">뷰포트에 표시되는 메쉬의 세로 중심으로, 월드 축에서 위쪽으로 측정합니다. 모든 파라미터가 기본값일 때만 편집할 수 있습니다.</string>
-	<string name="properties_field_size_x_description">뷰포트에 표시되는 메쉬의 너비이며, 변경하면 중심을 기준으로 크기가 조절됩니다. 모든 파라미터가 기본값일 때만 편집할 수 있습니다.</string>
-	<string name="properties_field_size_z_description">뷰포트에 표시되는 메쉬의 높이이며, 변경하면 중심을 기준으로 크기가 조절됩니다. 모든 파라미터가 기본값일 때만 편집할 수 있습니다.</string>
+	<string name="properties_field_position_x_description">뷰포트에 표시되는 드로어블의 가로 중심으로, 월드 축을 기준으로 측정합니다. 모든 파라미터가 기본값일 때만 편집할 수 있습니다.</string>
+	<string name="properties_field_position_z_description">뷰포트에 표시되는 드로어블의 세로 중심으로, 월드 축에서 위쪽으로 측정합니다. 모든 파라미터가 기본값일 때만 편집할 수 있습니다.</string>
+	<string name="properties_field_size_x_description">뷰포트에 표시되는 드로어블의 너비이며, 변경하면 중심을 기준으로 크기가 조절됩니다. 모든 파라미터가 기본값일 때만 편집할 수 있습니다.</string>
+	<string name="properties_field_size_z_description">뷰포트에 표시되는 드로어블의 높이이며, 변경하면 중심을 기준으로 크기가 조절됩니다. 모든 파라미터가 기본값일 때만 편집할 수 있습니다.</string>
 	<string name="properties_field_base_angle_description">디포머의 기본 회전 각도입니다(도 단위). 각 키폼이 지정하는 각도가 여기에 더해집니다.</string>
 	<string name="properties_part_position_x_description">뷰포트에 표시되는 파트 내용물의 가로 중심으로, 월드 축을 기준으로 측정합니다. 현재는 읽기 전용입니다.</string>
 	<string name="properties_part_position_z_description">뷰포트에 표시되는 파트 내용물의 세로 중심으로, 월드 축에서 위쪽으로 측정합니다. 현재는 읽기 전용입니다.</string>
@@ -1052,34 +1072,34 @@
 	<string name="properties_part_ref_description">이 항목이 속한 파트입니다. 비우면 항목이 어떤 파트에도 속하지 않게 됩니다.</string>
 	<string name="properties_parent_deformer_description">이 항목이 연결된 디포머입니다. 항목은 디포머가 이동하거나 휘거나 회전하는 대로 따라갑니다.</string>
 	<string name="properties_field_pinned_description">이 아트를 아틀라스 페이지에서 제자리에 고정합니다. UV 에디터 영역에서 직접 옮길 수 없으며, 고정된 타일 유지를 끄지 않는 한 다시 패킹해도 그 자리에 남습니다.</string>
-	<string name="properties_field_draw_order_description">메쉬가 쌓이는 위치로 0에서 1000까지이며, 값이 높을수록 앞에 그려지고 값이 같으면 아웃라이너 영역에서 더 위에 있는 쪽이 앞에 그려집니다. 그룹화 또는 격리 파트 안에서는 해당 파트의 내용물 사이에서만 쌓입니다.</string>
-	<string name="properties_field_opacity_description">메쉬가 얼마나 불투명한지로, 0(보이지 않음)부터 1(완전 불투명)까지입니다.</string>
-	<string name="properties_field_blend_mode_description">메쉬의 색상이 뒤에 그려진 것과 섞이는 방식으로, 페인트 앱의 레이어 혼합 모드와 같습니다. 레거시 모드는 알파 설정을 무시합니다.</string>
-	<string name="properties_field_alpha_mode_description">메쉬의 투명도가 뒤에 있는 것과 결합하는 방식입니다. 위에 놓기는 일반적으로 쌓이고, 위에 합성은 이미 있는 아트 위에만 그려지며, 제외는 그리는 대신 뒤에 있는 것을 지웁니다. 결합과 분리는 부드러운 가장자리가 겹치는 방식을 바꿉니다.</string>
-	<string name="properties_field_multiply_color_description">메쉬의 색상에 이 색상을 곱해 어둡게 하거나 색을 입힙니다. 흰색이면 변하지 않습니다.</string>
-	<string name="properties_field_screen_color_description">메쉬에 이 색상을 스크린으로 겹쳐 밝게 합니다. 검은색이면 변하지 않습니다.</string>
+	<string name="properties_field_draw_order_description">드로어블이 쌓이는 위치로 0에서 1000까지이며, 값이 높을수록 앞에 그려지고 값이 같으면 아웃라이너 영역에서 더 위에 있는 쪽이 앞에 그려집니다. 그룹화 또는 격리 파트 안에서는 해당 파트의 내용물 사이에서만 쌓입니다.</string>
+	<string name="properties_field_opacity_description">드로어블이 얼마나 불투명한지로, 0(보이지 않음)부터 1(완전 불투명)까지입니다.</string>
+	<string name="properties_field_blend_mode_description">드로어블의 색상이 뒤에 그려진 것과 섞이는 방식으로, 페인트 앱의 레이어 혼합 모드와 같습니다. 레거시 모드는 알파 설정을 무시합니다.</string>
+	<string name="properties_field_alpha_mode_description">드로어블의 투명도가 뒤에 있는 것과 결합하는 방식입니다. 위에 놓기는 일반적으로 쌓이고, 위에 합성은 이미 있는 아트 위에만 그려지며, 제외는 그리는 대신 뒤에 있는 것을 지웁니다. 결합과 분리는 부드러운 가장자리가 겹치는 방식을 바꿉니다.</string>
+	<string name="properties_field_multiply_color_description">드로어블의 색상에 이 색상을 곱해 어둡게 하거나 색을 입힙니다. 흰색이면 변하지 않습니다.</string>
+	<string name="properties_field_screen_color_description">드로어블에 이 색상을 스크린으로 겹쳐 밝게 합니다. 검은색이면 변하지 않습니다.</string>
 	<string name="properties_field_culling_description">변형 때문에 뒤집힌 메쉬 부분을 반전된 채로 그리지 않고 숨깁니다.</string>
-	<string name="properties_field_masked_by_description">이 메쉬를 여기에 나열된 메쉬로 클리핑하여, 해당 메쉬에 아트가 있는 곳에서만 표시합니다.</string>
-	<string name="properties_field_invert_mask_description">마스크에 아트가 있는 곳에서만 표시하는 대신, 마스크에 아트가 없는 곳에서만 메쉬를 표시합니다.</string>
+	<string name="properties_field_masked_by_description">이 드로어블을 여기에 나열된 드로어블로 클리핑하여, 해당 드로어블에 아트가 있는 곳에서만 표시합니다.</string>
+	<string name="properties_field_invert_mask_description">마스크에 아트가 있는 곳에서만 표시하는 대신, 마스크에 아트가 없는 곳에서만 드로어블을 표시합니다.</string>
 	<string name="properties_field_opacity_deformer_description">이 디포머가 움직이는 모든 것의 불투명도를 비율로 조절하며, 중첩된 디포머도 포함합니다. 0(보이지 않음)부터 1(변화 없음)까지입니다.</string>
 	<string name="properties_field_multiply_color_deformer_description">이 디포머가 움직이는 모든 것의 색상에 이 색상을 곱합니다. 흰색이면 변하지 않습니다.</string>
 	<string name="properties_field_screen_color_deformer_description">이 디포머가 움직이는 모든 것에 이 색상을 스크린으로 겹칩니다. 검은색이면 변하지 않습니다.</string>
 	<string name="properties_field_quad_transform_description">각 래티스 셀을 삼각형 두 개로 나누지 않고 네 모서리 사이에서 부드럽게 휘게 합니다.</string>
 	<string name="properties_field_flip_x_description">이 디포머가 움직이는 모든 것을 기준점을 중심으로 좌우로 대칭시킵니다.</string>
 	<string name="properties_field_flip_y_description">이 디포머가 움직이는 모든 것을 기준점을 중심으로 위아래로 대칭시킵니다.</string>
-	<string name="properties_field_sketch_description">이 파트를 참고용 스케치와 같은 가이드 이미지로 표시합니다. 에디터에는 표시되지만 MOC3 내보내기에서는 이 파트와 그 안의 모든 항목이 제외됩니다.</string>
+	<string name="properties_field_sketch_description">이 파트를 스케치 같은 참고용 가이드 파트로 표시합니다. 에디터에는 표시되지만 가이드 파트 내보내기를 선택하지 않으면 MOC3 내보내기에서 이 파트와 그 안의 모든 항목이 제외됩니다.</string>
 	<string name="properties_field_draw_order_part_description">파트 전체가 쌓이는 위치로 0에서 1000까지이며, 값이 높을수록 앞에 그려집니다. 그룹 모드가 그룹화 또는 격리일 때만 사용됩니다.</string>
-	<string name="properties_field_group_mode_description">파트의 내용물이 퍼펫의 나머지와 어떻게 쌓이는지 정합니다. 통과는 각 메쉬를 자체 그리기 순서로 쌓고, 그룹화는 파트 전체를 파트의 그리기 순서로 쌓으며, 격리는 여기에 더해 파트를 자체 불투명도, 혼합, 색상, 마스크를 가진 하나의 레이어로 그립니다.</string>
-	<string name="properties_field_opacity_part_description">파트의 합쳐진 레이어가 얼마나 불투명한지로, 0(보이지 않음)부터 1(완전 불투명)까지입니다. 레이어 전체에 한 번만 적용되므로 파트 안에서 겹치는 메쉬끼리는 서로 비쳐 보이지 않습니다.</string>
+	<string name="properties_field_group_mode_description">파트의 내용물이 퍼펫의 나머지와 어떻게 쌓이는지 정합니다. 통과는 각 드로어블을 자체 그리기 순서로 쌓고, 그룹화는 파트 전체를 파트의 그리기 순서로 쌓으며, 격리는 여기에 더해 파트를 자체 불투명도, 혼합, 색상, 마스크를 가진 하나의 레이어로 그립니다.</string>
+	<string name="properties_field_opacity_part_description">파트의 합쳐진 레이어가 얼마나 불투명한지로, 0(보이지 않음)부터 1(완전 불투명)까지입니다. 레이어 전체에 한 번만 적용되므로 파트 안에서 겹치는 드로어블끼리는 서로 비쳐 보이지 않습니다.</string>
 	<string name="properties_field_blend_mode_part_description">파트의 합쳐진 레이어가 뒤에 그려진 것과 섞이는 방식으로, 페인트 앱의 레이어 혼합 모드와 같습니다. 레거시 모드는 알파 설정을 무시합니다.</string>
 	<string name="properties_field_alpha_mode_part_description">파트의 합쳐진 레이어의 투명도가 뒤에 있는 것과 결합하는 방식입니다. 위에 놓기는 일반적으로 쌓이고, 위에 합성은 이미 있는 아트 위에만 그려지며, 제외는 그리는 대신 뒤에 있는 것을 지웁니다. 결합과 분리는 부드러운 가장자리가 겹치는 방식을 바꿉니다.</string>
 	<string name="properties_field_multiply_color_part_description">파트의 합쳐진 레이어의 색상에 이 색상을 곱합니다. 흰색이면 변하지 않습니다.</string>
 	<string name="properties_field_screen_color_part_description">파트의 합쳐진 레이어에 이 색상을 스크린으로 겹칩니다. 검은색이면 변하지 않습니다.</string>
-	<string name="properties_field_masked_by_part_description">파트의 합쳐진 레이어를 여기에 나열된 메쉬와 파트로 클리핑하여, 해당 항목에 아트가 있는 곳에서만 표시합니다.</string>
+	<string name="properties_field_masked_by_part_description">파트의 합쳐진 레이어를 여기에 나열된 드로어블과 파트로 클리핑하여, 해당 항목에 아트가 있는 곳에서만 표시합니다.</string>
 	<string name="properties_field_invert_mask_part_description">마스크에 아트가 있는 곳에서만 표시하는 대신, 마스크에 아트가 없는 곳에서만 파트의 합쳐진 레이어를 표시합니다.</string>
 	<string name="repack_options_page_size_description">패킹에서 사용할 수 있는 가장 큰 페이지입니다(픽셀 단위). 페이지 축소를 켜면 아트에 공간이 필요할 때만 페이지가 이 크기가 됩니다.</string>
 	<string name="repack_options_gutter_description">텍스처를 샘플링할 때 이웃한 아트가 번져 들어오지 않도록 각 아트 주위와 페이지 가장자리에 남겨 두는 빈 공간입니다(픽셀 단위).</string>
-	<string name="repack_options_extrude_description">각 조각의 가장자리 색상을 몇 픽셀만큼 바깥쪽 여백으로 복사할지 정하며, 이렇게 하면 아트 가장자리의 이음매가 가려집니다. 여백보다 넓을 수 없습니다.</string>
+	<string name="repack_options_extrude_description">각 조각의 가장자리 색상을 몇 픽셀만큼 바깥쪽 패딩으로 복사할지 정하며, 이렇게 하면 아트 가장자리의 이음매가 가려집니다. 패딩보다 넓을 수 없습니다.</string>
 	<string name="repack_options_allow_rotation_description">더 많은 아트를 한 페이지에 담을 수 있도록 패킹에서 아트를 90° 회전할 수 있게 합니다.</string>
 	<string name="repack_options_keep_pinned_description">고정된 아트는 제자리에 두고 나머지를 그 주위에 패킹합니다. 끄면 고정된 아트도 다른 아트와 똑같이 패킹합니다.</string>
 	<string name="repack_options_power_of_two_description">각 페이지의 너비와 높이를 1024나 2048 같은 2의 거듭제곱으로 올림합니다.</string>
@@ -1096,7 +1116,7 @@
 	<string name="import_options_offset_z_description">정렬이 놓은 위치에서 추가한 아트를 위쪽으로 이동합니다(픽셀 단위). 음수이면 아래쪽으로 이동합니다.</string>
 	<string name="import_options_alpha_threshold_description">드로어블의 초기 메쉬를 만들 때 픽셀이 아트로 간주되려면 얼마나 불투명해야 하는지로, 1에서 255까지입니다.</string>
 	<string name="import_options_margin_description">레이어의 초기 사각형이 보이는 아트 바깥으로 사방에 얼마나 뻗는지입니다(픽셀 단위). 아트에서 생성한 메쉬는 프리셋의 여백을 그대로 사용합니다.</string>
-	<string name="match_options_threshold_description">연결이 끊어진 레이어를 자동으로 재연결하기 위해 일치 항목이 갖춰야 하는 확신도를 퍼센트로 나타냅니다. 그보다 약한 일치 항목은 원본 영역에서 검토하도록 남겨 둡니다.</string>
+	<string name="match_options_threshold_description">아트의 레이어가 사라졌을 때 자동으로 다시 바인드하기 위해 일치 항목이 갖춰야 하는 확신도를 퍼센트로 나타냅니다. 그보다 약한 일치 항목은 원본 영역에서 검토하도록 남겨 둡니다.</string>
 	<string name="transform_options_move_x_description">선택 항목이 오른쪽으로 이동한 거리입니다(픽셀 단위). 음수이면 왼쪽으로 이동합니다.</string>
 	<string name="transform_options_move_y_description">선택 항목이 텍스처에서 아래쪽으로 이동한 거리입니다(픽셀 단위). 음수이면 위쪽으로 이동합니다.</string>
 	<string name="transform_options_move_z_description">선택 항목이 위쪽으로 이동한 거리입니다(픽셀 단위). 음수이면 아래쪽으로 이동합니다.</string>
@@ -1362,19 +1382,19 @@
 	<string name="channel_flip_x">X축 뒤집기</string>
 	<string name="channel_flip_y">Y축 뒤집기</string>
 	<string name="channel_glue_intensity">글루 강도</string>
-	<string name="cmd_keyform_insert">키프레임 추가</string>
+	<string name="cmd_keyform_insert">키 삽입</string>
 	<string name="cmd_keyform_frame_all">모든 키에 맞추기</string>
-	<string name="cmd_keyform_nudge_left">키프레임 왼쪽으로 미세 이동</string>
-	<string name="cmd_keyform_nudge_right">키프레임 오른쪽으로 미세 이동</string>
+	<string name="cmd_keyform_nudge_left">키 왼쪽으로 미세 이동</string>
+	<string name="cmd_keyform_nudge_right">키 오른쪽으로 미세 이동</string>
 	<string name="cmd_keyform_delete_keys">선택된 키 삭제</string>
-	<string name="cmd_keyform_delete">키프레임 삭제</string>
+	<string name="cmd_keyform_delete">키 삭제</string>
 	<string name="cmd_keyform_insert_pie">유형별 키 삽입</string>
 	<string name="cmd_keyform_insert_lattice">래티스 키 삽입</string>
 	<string name="cmd_keyform_insert_opacity">불투명도 키 삽입</string>
 	<string name="cmd_keyform_insert_colors">색상 키 삽입</string>
 	<string name="cmd_keyform_insert_all">모든 키 삽입</string>
 	<string name="cmd_keyform_clear_pose_edits">포즈 편집 초기화</string>
-	<string name="notice_keyform_no_target">키를 지정할 수 있는 속성을 가리켜 키프레임을 삽입하세요.</string>
+	<string name="notice_keyform_no_target">키 지정이 가능한 속성을 가리켜 키를 삽입하세요.</string>
 	<string name="notice_keyform_no_parameter">키를 추가할 파라미터를 선택하세요.</string>
 	<string name="notice_parameter_delete_changed_rest">파라미터를 삭제했습니다. 기본 포즈에서 오브젝트 %1$d개의 모양이 달라졌습니다.</string>
 </resources>
