@@ -293,7 +293,7 @@
 	<string name="export_options_pixels_per_unit">Piksel per satuan</string>
 	<string name="export_options_canvas_in_units">Kanvas: %1$s × %2$s satuan</string>
 	<string name="export_options_title_image">Ekspor Gambar</string>
-	<string name="export_options_section_region">Wilayah</string>
+	<string name="export_options_section_region">Ruang</string>
 	<string name="export_options_region_view">Viewport</string>
 	<string name="export_options_region_canvas">Kanvas</string>
 	<string name="export_options_region_content">Konten Terlihat</string>
