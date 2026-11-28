@@ -199,7 +199,7 @@
 	<string name="repack_report_message">Atlas tidak dikemas ulang. Tile berikut tidak dapat dikemas:</string>
 	<string name="repack_report_larger_than_page">Mesh drawable lebih besar daripada ukuran halaman atlas.</string>
 	<string name="repack_report_no_opaque_pixels">Layer artwork sumber tidak memiliki piksel yang terlihat.</string>
-	<string name="repack_report_below_minimum_coverage">Cakupan piksel opak pada layer artwork sumber berada di bawah batas minimum.</string>
+	<string name="repack_report_below_minimum_coverage">Cakupan piksel yang terlihat pada layer artwork sumber berada di bawah batas minimum.</string>
 	<string name="repack_report_undecodable">Layer artwork sumber tidak dapat didekode.</string>
 	<string name="repack_report_degenerate_placement">Penempatan drawable saat ini tidak dapat diinversi.</string>
 	<string name="repack_report_pinned_off_page">Penempatan yang disematkan tidak muat di dalam ukuran halaman maksimum.</string>
