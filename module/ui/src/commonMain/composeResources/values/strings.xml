@@ -1,33 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  English (default) UI string catalog. Every user-facing chrome string lives here and is read via the
-  generated Res.string.* accessor through stringResource(); format-level identifiers (ParamAngleX, …)
-  are NEVER localized — they are puppet/interop data, not chrome.
+	English (default) UI string catalog. Every user-facing chrome string lives here and is read via the
+	generated Res.string.* accessor through stringResource(); format-level identifiers (ParamAngleX, …)
+	are NEVER localized — they are puppet/interop data, not chrome.
 
-  Terminology.  Four terms name the things the editor opens, saves, and imports.  The user manual
-  uses the same four, so a string that disagrees with them is a bug.
+	Terminology.  Four terms name the things the editor opens, saves, and imports.  The user manual
+	uses the same four, so a string that disagrees with them is a bug.
 
-  File: any file, or a file whose kind does not matter (the logs export, sidecar files, a count of
-  files an export will overwrite, a file that is unrecognized or damaged).
+	File: any file, or a file whose kind does not matter (the logs export, sidecar files, a count of
+	files an export will overwrite, a file that is unrecognized or damaged).
 
-  Artwork, or Layered Artwork: A PSD, CLIP, or KRA.  Say layered artwork only where the layers are
-  the point.  Never "source art file" or "art file" for one of these.
+	Artwork, or Layered Artwork: A PSD, CLIP, or KRA.  Say layered artwork only where the layers are
+	the point.  Never "source art file" or "art file" for one of these.
 
-  Puppet: The thing being edited and saved, whether it is a UMA, a CMO3, or a MOC3.  It replaces
-  both "document" and "model".  Say puppet model or puppet file only where puppet alone would be
-  vague, such as the in-memory data against the file on disk.
+	Puppet: The thing being edited and saved, whether it is a UMA, a CMO3, or a MOC3.  It replaces
+	both "document" and "model".  Say puppet model or puppet file only where puppet alone would be
+	vague, such as the in-memory data against the file on disk.
 
-  EXT: A sentence about one specific file type names its extension (UMA, PSD, CMO3, MOC3) instead of
-  saying "the file".
+	EXT: A sentence about one specific file type names its extension (UMA, PSD, CMO3, MOC3) instead of
+	saying "the file".
 
-  Area: a part of the window, named by the space it shows: the Sources area, the Parameters area,
-  the 2D Viewport area.  Write the space's title as its header shows it, then "area".  Never call
-  one a panel or a space, and never write a lowercase "the outliner" or "the UV editor".  A
-  lowercase "viewport" stays the generic word ("every viewport", "no viewport to capture").
+	Area: a part of the window, named by the space it shows: the Sources area, the Parameters area,
+	the 2D Viewport area.  Write the space's title as its header shows it, then "area".  Never call
+	one a panel or a space, and never write a lowercase "the outliner" or "the UV editor".  A
+	lowercase "viewport" stays the generic word ("every viewport", "no viewport to capture").
 
-  Left as they are: "source artwork" (the display mode that draws a mesh from its layer instead of
-  the atlas), "art" as shorthand for what a drawable shows, and format-level names that stay
-  verbatim for interop (model3.json, ParamAngleX, and the like).
+	Drawables: Any artwork layer with a mesh.  Never "art mesh" or "artmesh".  Art mesh is a strange
+	naming and translation that we are not inheriting from Live2D Cubism.
+
+	Mesh: The geometry part of a drawable.
+
+	Lattice: The geometry of a warp deformer.
+
+	Key: A single entry on a keyform parameter.
+	
+	Keyform: A group of key entries on a keyform parameter.  Includes geometry, opacity, and other keyed properties.
+
+	Keyframe: A single entry on an animation dopesheet.  Should never be used to refer to keyform parameters.
+
+	Part: A group containing drawables and other parts.
+
+	Guide Part: A part that is for reference purposes only and is not exported for runtimes by default.  Do not
+	use "Guide Image" since the setting is on a part.  It may be explained as a sketch or set of sketches, but don't
+	use sketch for the naming.
+
+	Texture Atlas, or Atlas: A single page containing a square image container of placed tiles that can be rearranged.
+
+	Texture: The actual backing image file for a Texture Atlas.
+
+	Tile: An individual artwork layer placed on a texture atlas.
+
+	Left as they are: "source artwork" (the display mode that draws a mesh from its layer instead of
+	the atlas), "art" as shorthand for what a drawable shows, and format-level names that stay
+	verbatim for interop (model3.json, ParamAngleX, and the like).
 -->
 <resources>
 	<string name="app_name">Umamo</string>
@@ -1539,7 +1564,7 @@
 	<string name="cmd_keyform_insert_colors">Insert Color Keys</string>
 	<string name="cmd_keyform_insert_all">Insert All Keys</string>
 	<string name="cmd_keyform_clear_pose_edits">Clear Pose Edits</string>
-	<string name="notice_keyform_no_target">Point at a keyable property to insert a keyframe.</string>
+	<string name="notice_keyform_no_target">Point at a keyable property to insert a key.</string>
 	<string name="notice_keyform_no_parameter">Select a parameter to key on.</string>
 	<string name="notice_parameter_delete_changed_rest">Parameter deleted.  %1$d object(s) now look different at the default pose.</string>
 </resources>
